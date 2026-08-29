@@ -238,6 +238,67 @@ describe('the tapas document keeps its fixed shape (decision 3)', () => {
     expect(tapasDetailsSchema.safeParse({ kind: 'tapas', groups }).success).toBe(false)
   })
 
+  it('refuses a fourth group, even when the first three are right', () => {
+    const groups = [
+      ...validGroups,
+      { id: 'base', heading: 'Ekstra', mode: 'fixed', choose: null, items: [] },
+    ]
+
+    expect(tapasDetailsSchema.safeParse({ kind: 'tapas', groups }).success).toBe(false)
+  })
+
+  it('refuses a changed choose count — "Vælg 7" cannot become "Vælg 12"', () => {
+    const groups = [validGroups[0], { ...validGroups[1], choose: 12 }, validGroups[2]]
+
+    expect(tapasDetailsSchema.safeParse({ kind: 'tapas', groups }).success).toBe(false)
+  })
+
+  it('refuses a changed mode', () => {
+    const groups = [{ ...validGroups[0], mode: 'choose', choose: 2 }, validGroups[1], validGroups[2]]
+
+    expect(tapasDetailsSchema.safeParse({ kind: 'tapas', groups }).success).toBe(false)
+  })
+
+  it('refuses a choose count on the fixed group', () => {
+    const groups = [{ ...validGroups[0], choose: 3 }, validGroups[1], validGroups[2]]
+
+    expect(tapasDetailsSchema.safeParse({ kind: 'tapas', groups }).success).toBe(false)
+  })
+
+  it('accepts the seeded shape, where the fixed group omits `choose` entirely', () => {
+    const groups = [
+      { id: 'base', heading: 'På bordet — altid med', mode: 'fixed', items: ['Oliven'] },
+      validGroups[1],
+      validGroups[2],
+    ]
+
+    expect(tapasDetailsSchema.safeParse({ kind: 'tapas', groups }).success).toBe(true)
+  })
+
+  it('refuses a blank item and one that is too long, rather than trimming them away', () => {
+    const blank = [{ ...validGroups[0], items: ['Oliven', '   '] }, validGroups[1], validGroups[2]]
+    expect(tapasDetailsSchema.safeParse({ kind: 'tapas', groups: blank }).success).toBe(false)
+
+    const long = [
+      { ...validGroups[0], items: ['x'.repeat(121)] },
+      validGroups[1],
+      validGroups[2],
+    ]
+    expect(tapasDetailsSchema.safeParse({ kind: 'tapas', groups: long }).success).toBe(false)
+  })
+
+  it('refuses a blank heading and a list of more than sixty items', () => {
+    const heading = [{ ...validGroups[0], heading: '  ' }, validGroups[1], validGroups[2]]
+    expect(tapasDetailsSchema.safeParse({ kind: 'tapas', groups: heading }).success).toBe(false)
+
+    const many = [
+      { ...validGroups[0], items: Array.from({ length: 61 }, (_, index) => `Punkt ${index}`) },
+      validGroups[1],
+      validGroups[2],
+    ]
+    expect(tapasDetailsSchema.safeParse({ kind: 'tapas', groups: many }).success).toBe(false)
+  })
+
   it('refuses an unknown key inside a group', () => {
     const groups = [{ ...validGroups[0], pris_ore: 4900 }, validGroups[1], validGroups[2]]
 

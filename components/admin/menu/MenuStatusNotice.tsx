@@ -62,6 +62,13 @@ const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
     tone: 'success',
     text: 'Den nye rækkefølge er gemt som kladde. Hjemmesiden viser stadig den gamle rækkefølge.',
   },
+  // The Tapas lists (phase 5F). An ordinary draft change, so the sentence says the same
+  // thing a saved price says: it is stored, and the hjemmeside has not moved.
+  tapas_gemt: {
+    tone: 'success',
+    text: 'Tapaslisten er gemt som kladde. Hjemmesiden viser stadig den gamle liste.',
+  },
+  ikke_tapas: { tone: 'error', text: 'Den ret har ingen tapasliste.' },
   invalid: { tone: 'error', text: 'Ret det, der er markeret herunder, og gem igen.' },
   invalid_category: { tone: 'error', text: 'Retten kan ikke ligge i den sektion.' },
   forbidden: { tone: 'error', text: 'Du har ikke adgang til at rette menuen.' },

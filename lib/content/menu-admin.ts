@@ -4,6 +4,7 @@ import { cache } from 'react'
 
 import { overlayDraft } from '@/lib/drafts/overlay'
 import type { AdminCategory, AdminDish } from '@/lib/menu/admin'
+import { readTapasDocument } from '@/lib/menu/tapas'
 import type { MenuDraftField } from '@/lib/schemas/menu'
 import { dishDraft, menuCategoryDraft } from '@/lib/schemas/menu'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
@@ -66,6 +67,7 @@ type DishRow = {
   secondary_note: string | null
   price_ore: number | null
   labels: string[] | null
+  details: unknown
   sort_order: number
   sold_out_on: string | null
   is_new_draft: boolean
@@ -75,7 +77,7 @@ type DishRow = {
 
 const CATEGORY_COLUMNS = 'id, slug, name, kind, sort_order, visible, draft'
 const DISH_COLUMNS =
-  'id, category_id, name, description, secondary_note, price_ore, labels, sort_order, sold_out_on, is_new_draft, updated_at, draft'
+  'id, category_id, name, description, secondary_note, price_ore, labels, details, sort_order, sold_out_on, is_new_draft, updated_at, draft'
 
 export type AdminMenuContent = {
   readonly categories: readonly AdminCategory[]
@@ -117,6 +119,12 @@ function toAdminDish(raw: DishRow): AdminDish {
     labels: row.labels ?? [],
     sortOrder: row.sort_order,
     liveSortOrder: raw.sort_order,
+    // The Tapas document, overlaid and published side by side — the same pair the
+    // position keeps, and for the same reason: the editor shows the first and measures
+    // a real change against the second (phase 5F, `lib/menu/tapas.ts`). `null` for
+    // every ordinary dish, which is what keeps the Tapas editor off them.
+    tapas: readTapasDocument(row.details),
+    liveTapas: readTapasDocument(raw.details),
     // Read for display. Marking a dish Udsolgt is the immediate path with a 10 s
     // Fortryd (§6, `lib/menu/sold-out.ts`); nothing here writes it.
     soldOutOn: raw.sold_out_on,

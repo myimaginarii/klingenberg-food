@@ -34,6 +34,22 @@ async function violations(page: Page) {
   }))
 }
 
+/** The Tapas dish's id, taken from the Tapas section's own list (phase 5F). */
+async function tapasDishId(page: Page): Promise<string> {
+  await page.goto('/admin/menu?sektion=tapas')
+
+  const href = await page
+    .getByRole('list', { name: /^Retter i / })
+    .getByRole('link', { name: /^Tapas/ })
+    .first()
+    .getAttribute('href')
+
+  const id = new URL(href ?? '', 'http://localhost').searchParams.get('ret')
+  expect(id, 'the Tapas section lists the Tapas dish').not.toBeNull()
+
+  return id ?? ''
+}
+
 /** The id of the first dish in Burgere, taken from the list's own links. */
 async function firstDishId(page: Page): Promise<string> {
   await page.goto('/admin/menu')
@@ -129,6 +145,32 @@ test.describe('the menu administration', () => {
     expect(await violations(page)).toEqual([])
   })
 
+  /*
+   * The Tapas lists (phase 5F). Reachable read-only — opening the Tapas dish's editor
+   * writes nothing — so both this scan and the refusal state below live here, at both
+   * widths, and the suites that write run afterwards undisturbed.
+   */
+  test('the Tapas list editor has no accessibility violations', async ({ page }) => {
+    await signIn(page, STAFF)
+    await page.goto(`/admin/menu?sektion=tapas&ret=${await tapasDishId(page)}`)
+
+    await expect(page.getByRole('heading', { name: 'Tapas-indhold' })).toBeVisible()
+    expect(await violations(page)).toEqual([])
+  })
+
+  test('a refused Tapas save has no accessibility violations', async ({ page }) => {
+    await signIn(page, STAFF)
+    const id = await tapasDishId(page)
+    await page.goto(
+      `/admin/menu?sektion=tapas&ret=${id}` +
+        '&tapas_gruppe=dressing&tapas_overskrift=Og+3+dressinger' +
+        '&tapas_punkt=Pesto&tapas_punkt=pesto&tapas_fejl=punkt%3A1%3Aduplicate',
+    )
+
+    await expect(page.getByText('Punktet står allerede på listen.')).toBeVisible()
+    expect(await violations(page)).toEqual([])
+  })
+
   test('the section that is managed elsewhere has no accessibility violations', async ({
     page,
   }) => {
@@ -141,6 +183,27 @@ test.describe('the menu administration', () => {
 })
 
 test.describe('the promises 1aa makes by name', () => {
+  test('every Tapas list has a heading, and every field a name', async ({ page }) => {
+    await signIn(page, STAFF)
+    await page.goto(`/admin/menu?sektion=tapas&ret=${await tapasDishId(page)}`)
+
+    for (const label of ['Fast indhold', 'Vælg 7', 'Vælg 3 dressinger']) {
+      await expect(page.getByRole('heading', { name: label, exact: true })).toBeVisible()
+      await expect(page.getByRole('form', { name: `Tapas — ${label}` })).toBeVisible()
+    }
+
+    // Every text field in the three lists carries a name that says which list it is in,
+    // because "Punkt 1" three times over is three fields nobody can tell apart.
+    const names = await page
+      .locator('#tapas-indhold input:not([type=hidden])')
+      .evaluateAll((nodes) =>
+        nodes.map((node) => (node as HTMLInputElement).getAttribute('aria-labelledby')),
+      )
+
+    expect(names.every((value) => (value ?? '').includes('-titel'))).toBe(true)
+  })
+
+
   test('every visible control in the editor is labelled', async ({ page }) => {
     await signIn(page, STAFF)
     await page.goto(`/admin/menu?ret=${await firstDishId(page)}`)

@@ -1,3 +1,4 @@
+import type { TapasDetails } from '@/lib/content/types'
 import { formatWeekdayTime } from '@/lib/hours/format'
 import type { OpeningHoursOverride, WeeklySchedule } from '@/lib/hours/types'
 import { MENU_DRAFT_FIELDS, type MenuDraftField } from '@/lib/schemas/menu'
@@ -101,6 +102,17 @@ export type AdminDish = {
    * change against (`lib/menu/reorder.ts`).
    */
   readonly liveSortOrder: number
+  /**
+   * The Tapas document the administration shows — the draft's, when it carries one.
+   *
+   * `null` for every ordinary dish, which is what decides whether the Tapas editor
+   * appears at all (phase 5F). Kept beside the other fields rather than inside `live`
+   * for the same reason `sortOrder` is: the dish panel does not submit `details`, so it
+   * must not appear in that panel's delta.
+   */
+  readonly tapas: TapasDetails | null
+  /** The **published** Tapas document. What a guest sees right now (phase 5F). */
+  readonly liveTapas: TapasDetails | null
   /** Display only in phase 5B; the Udsolgt action itself is phase 5C (§6). */
   readonly soldOutOn: string | null
   /** True while the dish has never been published and is invisible to guests (§4). */

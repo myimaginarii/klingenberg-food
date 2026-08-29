@@ -7,6 +7,7 @@ import { DeleteDishDialog } from '@/components/admin/menu/DeleteDishDialog'
 import { DeleteUndo } from '@/components/admin/menu/DeleteUndo'
 import { DishEditorPanel } from '@/components/admin/menu/DishEditorPanel'
 import { DishList } from '@/components/admin/menu/DishList'
+import { TapasEditor } from '@/components/admin/menu/TapasEditor'
 import { MenuPendingNotice } from '@/components/admin/menu/MenuPendingNotice'
 import { MenuStatusNotice } from '@/components/admin/menu/MenuStatusNotice'
 import { WeeklySpecialNotice } from '@/components/admin/menu/WeeklySpecialNotice'
@@ -53,8 +54,11 @@ import {
   EDITOR_ANCHOR,
   MENU_PARAM,
   menuHref,
+  TAPAS_ANCHOR,
 } from './routes'
 import { saveDishDraft } from './save-actions'
+import { editTapasList } from './tapas-actions'
+import { readTapasEcho, TAPAS_ACTION, TAPAS_FORM, tapasEditorGroups } from './tapas-form'
 
 /**
  * Rediger menu — design 1r (desktop) and 1y (mobile); technical plan §6, §15 (phase 5).
@@ -65,9 +69,8 @@ import { saveDishDraft } from './save-actions'
  * and its ~10-second Fortryd (phase 5C), Slet ret with its confirmation and its own
  * ~10-second Fortryd (phase 5D), and reordering the dishes inside one section — handle,
  * touch, keyboard and a no-JavaScript fallback — as an ordinary draft change (phase 5E).
- * Deliberately **not** here, and not stubbed either: the Tapas list editor. It is its
- * own interaction with its own rules, and drawing an inert version of it would be worse
- * than not drawing it.
+ * and the Tapas list editor — three content lists on the one dish whose `details` holds
+ * a Tapas document, each a form of its own, each an ordinary draft change (phase 5F).
  *
  * THE TWO PATHS, SIDE BY SIDE
  *
@@ -151,6 +154,25 @@ const REORDER_FORM_BINDING = {
   fieldNames: REORDER_FORM,
 } as const
 
+/**
+ * The Tapas editor's binding: a fourth action, a fourth vocabulary (phase 5F).
+ *
+ * Kept apart from the other three for the reason they are kept apart from each other —
+ * a form carrying `tapas_handling` cannot reach the availability, deletion or reorder
+ * actions, and none of theirs can reach this one. Like the reorder, it writes a
+ * **draft** and expires no cache tag at all.
+ *
+ * `values` travels with the field names because the button values and the parser that
+ * reads them are one vocabulary: the component renders `TAPAS_ACTION.up(2)` and the
+ * action decodes the same string, so the two cannot spell a move differently.
+ */
+const TAPAS_FORM_BINDING = {
+  action: editTapasList,
+  fieldNames: TAPAS_FORM,
+  values: TAPAS_ACTION,
+} as const
+
+
 /** A repeated parameter is a malformed request, not two answers: take the first. */
 function one(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value
@@ -194,6 +216,11 @@ export default async function MenuAdminPage({
   // the values are re-read with the same parser the form is submitted through.
   const errors = decodeDishErrors(many(params[DISH_ERROR_FIELD]))
   const echoed = errors.length > 0 ? readDishForm(searchParamsOf(params)) : null
+
+  // The same round trip for a refused Tapas save: which list, what was typed, and what
+  // was wrong with it. Read by the module that wrote it, and only for the one group the
+  // refusal was about — the other two always render from the document the server read.
+  const tapasEcho = readTapasEcho(searchParamsOf(params))
 
   const errorFor = (field: DishErrorField): string | undefined => {
     const code = errors.find((candidate) => errorField(candidate) === field)
@@ -382,6 +409,24 @@ export default async function MenuAdminPage({
                   isNewDraft={editing.isNewDraft}
                   section={activeSection.category.slug}
                   values={echoed ?? dishFormValues(editing)}
+                  version={editing.updatedAt}
+                />
+              )}
+
+              {/*
+                Tapas-indhold, on the one dish that has a Tapas document and on no other
+                (phase 5F). It is a sibling of the panel rather than part of it: HTML
+                forms do not nest, and each list is its own form posting to its own
+                Server Action — the same reason the availability block sits outside the
+                panel's form.
+              */}
+              {editing === undefined || editing.tapas === null ? null : (
+                <TapasEditor
+                  anchorId={TAPAS_ANCHOR}
+                  dishId={editing.id}
+                  form={TAPAS_FORM_BINDING}
+                  groups={tapasEditorGroups(editing.tapas, tapasEcho)}
+                  section={activeSection.category.slug}
                   version={editing.updatedAt}
                 />
               )}

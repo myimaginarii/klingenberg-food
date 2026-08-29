@@ -4,19 +4,17 @@ import { cache } from 'react'
 
 import { CACHE_TAGS } from '@/lib/cache/tags'
 import { overlayDraft } from '@/lib/drafts/overlay'
+import { readTapasDocument } from '@/lib/menu/tapas'
 import { dishDraft, menuCategoryDraft } from '@/lib/schemas/menu'
 import { monthlyBurgerDraft, weeklySpecialDraft } from '@/lib/schemas/specials'
 import type { IsoDate } from '@/lib/time/calendar'
 
-import { field, numberField, objectArrayField, stringArrayField, stringField } from './document'
 import { assertNoQueryError, columns, definePublicRead, type ContentAccess } from './source'
 import type {
   Dish,
   MenuCategory,
   MenuCategoryKind,
   MonthlyBurger,
-  TapasDetails,
-  TapasGroup,
   WeeklySpecial,
 } from './types'
 
@@ -113,37 +111,16 @@ const WEEKLY_COLUMNS =
 const MONTHLY_COLUMNS =
   'name, description, price_ore, starts_on, ends_on, sold_out_on, show_on_homepage'
 
-const TAPAS_GROUP_IDS = ['base', 'choose7', 'dressing'] as const
-
-/**
- * Read `dishes.details` as the Tapas document, or `null`.
+/*
+ * The Tapas document is read by `readTapasDocument` (`lib/menu/tapas.ts`), which the
+ * administration's editor uses too.
  *
- * The group ids and their order are fixed by the schema (§4, decision 3); a document
- * with any other shape is simply not a Tapas document, and the entry then renders as
- * an ordinary dish rather than throwing on a visitor.
+ * One reader rather than two, deliberately. The ids, the order, the `mode` and the
+ * `choose` counts are structural rules stated once in `TAPAS_GROUP_RULES`; a second
+ * reader here would be a second place for them to be stated, and the first place they
+ * would drift. A document with any other shape is simply not a Tapas document, and the
+ * entry then renders as an ordinary dish rather than throwing on a visitor.
  */
-function readTapasDetails(details: unknown): TapasDetails | null {
-  if (field(details, 'kind') !== 'tapas') return null
-
-  const groups: TapasGroup[] = []
-
-  for (const raw of objectArrayField(details, 'groups')) {
-    const id = stringField(raw, 'id')
-    if (id === null || !TAPAS_GROUP_IDS.includes(id as TapasGroup['id'])) continue
-
-    const mode = stringField(raw, 'mode') === 'choose' ? 'choose' : 'fixed'
-
-    groups.push({
-      id: id as TapasGroup['id'],
-      heading: stringField(raw, 'heading') ?? '',
-      mode,
-      choose: mode === 'choose' ? numberField(raw, 'choose') : null,
-      items: stringArrayField(raw, 'items'),
-    })
-  }
-
-  return groups.length > 0 ? { kind: 'tapas', groups } : null
-}
 
 function toDish(row: DishRow): Dish {
   return {
@@ -153,7 +130,7 @@ function toDish(row: DishRow): Dish {
     secondaryNote: row.secondary_note,
     priceOre: row.price_ore,
     labels: row.labels ?? [],
-    tapas: readTapasDetails(row.details),
+    tapas: readTapasDocument(row.details),
     soldOutOn: row.sold_out_on as IsoDate | null,
   }
 }

@@ -48,7 +48,12 @@ function FieldShell({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-meta text-neutral-ink font-medium" htmlFor={id}>
+      {/*
+        The label carries an id as well as a `for`, so a control that needs a *longer*
+        accessible name than its visible label can point at this element together with
+        one that supplies the context — see `labelledBy` below. Harmless everywhere else.
+      */}
+      <label className="text-meta text-neutral-ink font-medium" htmlFor={id} id={labelId(id)}>
         {label}
       </label>
 
@@ -68,6 +73,11 @@ function FieldShell({
       )}
     </div>
   )
+}
+
+/** The id of a field's own `<label>`, for a control that composes a longer name. */
+export function labelId(id: string): string {
+  return `${id}-etiket`
 }
 
 /** What a control needs to point at its own hint and message. */
@@ -90,6 +100,15 @@ export type FieldProps = {
   autoComplete?: string
   inputMode?: 'text' | 'decimal'
   maxLength?: number
+  /**
+   * Element ids whose text, joined, is this control's accessible name.
+   *
+   * For a field whose visible label is only meaningful in context — "Punkt 1" inside one
+   * of three Tapas lists (phase 5F). Pass the context element's id *and* this field's own
+   * `labelId(id)`, so the spoken name contains the visible label rather than replacing
+   * it. The `<label for>` is still there, so clicking the words still focuses the field.
+   */
+  labelledBy?: string
 }
 
 export function TextField({
@@ -103,11 +122,13 @@ export function TextField({
   autoComplete = 'off',
   inputMode,
   maxLength,
+  labelledBy,
 }: FieldProps) {
   return (
     <FieldShell id={id} label={label} hint={hint} error={error}>
       <input
         aria-describedby={describedBy(id, hint, error)}
+        aria-labelledby={labelledBy}
         aria-invalid={error === undefined ? undefined : true}
         autoComplete={autoComplete}
         className={controlClass(error !== undefined, 'min-h-12 px-3')}

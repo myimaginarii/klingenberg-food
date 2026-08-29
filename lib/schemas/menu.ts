@@ -1,6 +1,12 @@
 import { z } from 'zod'
 
 import { MAX_CUSTOM_LABEL_LENGTH, MAX_DISH_LABELS } from '@/lib/menu/labels'
+import {
+  MAX_TAPAS_HEADING_LENGTH,
+  MAX_TAPAS_ITEM_LENGTH,
+  MAX_TAPAS_ITEMS,
+  TAPAS_GROUP_RULES,
+} from '@/lib/menu/tapas'
 
 import { defineDraft } from './define'
 import {
@@ -33,36 +39,61 @@ import {
  * publish machinery, the draft overlay and the pgTAP suite all need them.
  */
 
-/** The Tapas content document stored in `dishes.details` (§4, decision 3). */
-const TAPAS_GROUPS = [
-  { id: 'base', mode: 'fixed' },
-  { id: 'choose7', mode: 'choose' },
-  { id: 'dressing', mode: 'choose' },
-] as const
-
+/**
+ * The Tapas content document stored in `dishes.details` (§4, decision 3).
+ *
+ * The structure — which groups exist, in which order, with which `mode` and which
+ * `choose` count — comes from `TAPAS_GROUP_RULES` in `lib/menu/tapas.ts` and is stated
+ * nowhere else. This schema is where that structure is *enforced*: a fourth group, a
+ * renamed id, a group in the wrong place, a changed `mode` and a changed `choose` count
+ * are each a refusal, so a hand-built request cannot turn "Vælg 7" into "Vælg 12" and a
+ * stored draft written by an older editor cannot reach a live menu carrying a shape the
+ * current rules would refuse.
+ *
+ * `choose` may be **absent** where the rules say `null`, which is what `supabase/seed.sql`
+ * writes for the fixed-contents group: there is nothing to choose, so there is nothing to
+ * say. Writing it explicitly as `null` is equally accepted, and is what the editor stores.
+ *
+ * Only `heading` and `items` are content, and they are the only things the editor
+ * submits (`app/(admin)/admin/menu/tapas-form.ts`).
+ */
 export const tapasDetailsSchema = z.strictObject({
   kind: z.literal('tapas'),
   groups: z
     .array(
       z.strictObject({
-        id: z.enum(TAPAS_GROUPS.map((group) => group.id), {
-          error: 'Ukendt tapasgruppe.',
-        }),
-        heading: requiredText(80, 'Gruppens overskrift'),
+        id: z.enum(
+          TAPAS_GROUP_RULES.map((rule) => rule.id),
+          { error: 'Ukendt tapasgruppe.' },
+        ),
+        heading: requiredText(MAX_TAPAS_HEADING_LENGTH, 'Gruppens overskrift'),
         mode: z.enum(['fixed', 'choose'], { error: 'Ukendt gruppetype.' }),
         // "Vælg 7" and "Vælg 3 dressinger" — the number a guest chooses, not a price.
-        choose: z.union([z.int().min(1).max(20), z.null()]),
+        choose: z.union([z.int().min(1).max(20), z.null()]).optional(),
         items: z
-          .array(requiredText(120, 'Et punkt på listen'))
-          .max(60, { error: 'Listen kan højst have 60 punkter.' }),
+          .array(requiredText(MAX_TAPAS_ITEM_LENGTH, 'Et punkt på listen'))
+          .max(MAX_TAPAS_ITEMS, {
+            error: `Listen kan højst have ${MAX_TAPAS_ITEMS} punkter.`,
+          }),
       }),
     )
-    // The group ids and the group count are fixed by the schema; only the heading and
-    // the items are editable (§4, decision 3).
-    .length(TAPAS_GROUPS.length, { error: 'Tapaslisten har præcis tre grupper.' })
+    .length(TAPAS_GROUP_RULES.length, { error: 'Tapaslisten har præcis tre grupper.' })
     .refine(
-      (groups) => groups.every((group, index) => group.id === TAPAS_GROUPS[index]?.id),
-      { error: 'Tapasgrupperne skal stå i den faste rækkefølge.' },
+      (groups) =>
+        groups.every((group, index) => {
+          const rule = TAPAS_GROUP_RULES[index]
+
+          return (
+            rule !== undefined &&
+            group.id === rule.id &&
+            group.mode === rule.mode &&
+            (group.choose ?? null) === rule.choose
+          )
+        }),
+      {
+        error:
+          'Tapasgrupperne skal stå i den faste rækkefølge med deres faste type og antal.',
+      },
     ),
 })
 

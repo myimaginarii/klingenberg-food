@@ -3,6 +3,33 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 5F — no dependencies added (2026-08-30)
+
+The Tapas list editor (`lib/menu/tapas.ts`, the Tapas Server Action, the three list
+forms) added **nothing** — no runtime dependency, no development dependency, no database
+object and no migration.
+
+### Why no drag-and-drop library, again
+
+Phase 5E's reasoning below applies unchanged and more strongly: a Tapas group is a
+handful of plain strings in a single list, and Flyt op / Flyt ned are ordinary submit
+buttons in the same form as the item they move. The phase brief asked for simplicity over
+elaborate drag visuals, so this editor has **no pointer gesture at all** — the buttons are
+the mouse, touch and keyboard path alike, and they work with JavaScript switched off. The
+sortable-library names are already forbidden by
+`tests/unit/policy/public-javascript.test.ts`.
+
+### No database object either, and no second reorder engine
+
+A Tapas edit writes `details` into `dishes.draft` through the phase-4 draft writer and
+goes live through `publish_dish`, unchanged. `supabase/tests/009_tapas.test.sql` asserts
+that no tapas function, table or view exists, so a later phase cannot quietly add one.
+
+`lib/menu/reorder.ts` is deliberately **not** reused: `reorderDishes` exists to feed
+`sortOrderWrites`, which turns a list of dishes into per-row `sort_order` drafts, and a
+Tapas group has no rows and no positions to write. `moveListItem` in `lib/menu/tapas.ts`
+is nine lines and shares the same four properties, asserted separately.
+
 ## Phase 5E — no dependencies added (2026-08-29)
 
 Menu reordering (`lib/menu/reorder.ts`, the reorder Server Action, the drag handle)

@@ -54,6 +54,8 @@ function dish(overrides: Partial<AdminDish> & Pick<AdminDish, 'id' | 'name'>): A
     labels: [],
     sortOrder: 1,
     liveSortOrder: 1,
+    tapas: null,
+    liveTapas: null,
     soldOutOn: null,
     isNewDraft: false,
     hasDraft: false,

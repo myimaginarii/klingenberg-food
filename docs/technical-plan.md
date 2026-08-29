@@ -198,7 +198,11 @@ components/
     AnnouncementExpiryGuard.tsx # 'use client' — the only new client component (decision C1)
     StaticMap.tsx               # <a> + <img> + optional attribution line (decision 6)
   admin/                        # Field, Toggle, UndoToast, ReorderList, ConfirmDialog, ConflictSheet …
-    ListGroupEditor.tsx         # tapas lists; reuses ReorderList (decision 3)
+    TapasEditor.tsx             # tapas lists (decision 3) — built in phase 5F as
+    TapasGroupEditor.tsx        #   three forms with their own tiny `moveListItem`,
+                                #   *not* as a reuse of the dish ReorderList: that
+                                #   abstraction writes per-row `sort_order` drafts and
+                                #   a tapas group has no rows. See docs/dependencies.md.
   ui/                           # token-level primitives shared by both
 lib/
   config/site.ts                # SITE_URL resolution — the ONLY place a domain may appear (decision 10)

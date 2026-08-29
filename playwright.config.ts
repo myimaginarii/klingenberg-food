@@ -58,6 +58,7 @@ export default defineConfig({
         'e2e/menu-sold-out.spec.ts',
         'e2e/menu-delete.spec.ts',
         'e2e/menu-reorder.spec.ts',
+        'e2e/menu-tapas.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -70,6 +71,7 @@ export default defineConfig({
         'e2e/menu-sold-out.spec.ts',
         'e2e/menu-delete.spec.ts',
         'e2e/menu-reorder.spec.ts',
+        'e2e/menu-tapas.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -169,6 +171,30 @@ export default defineConfig({
         viewport: { width: 375, height: 812 },
         hasTouch: true,
       },
+    },
+    /*
+     * The Tapas lists (phase 5F), at both widths, and chained after the reorder runs for
+     * the reason every write suite is chained: it publishes, publishing expires the
+     * `menu` cache tag, and a guest assertion about the tapas board would be a coin toss
+     * if another run could act between the write and the read.
+     *
+     * Two widths rather than one, because the phone is the primary admin device (§15) and
+     * the editor's promise there is specific: three distinguishable lists, 44 px controls
+     * and no sideways scrolling. Those are asserted inside the suite, so the phone run is
+     * a different assertion rather than the same one at a smaller size. Each run leaves
+     * the seeded board published, with nothing pending.
+     */
+    {
+      name: 'menu-tapas',
+      testMatch: 'e2e/menu-tapas.spec.ts',
+      dependencies: ['menu-reorder-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: 'menu-tapas-mobile',
+      testMatch: 'e2e/menu-tapas.spec.ts',
+      dependencies: ['menu-tapas'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
   ],
 

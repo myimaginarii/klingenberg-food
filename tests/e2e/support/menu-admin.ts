@@ -404,3 +404,221 @@ export async function publicOrder(
 
   return headings.map((text) => text.trim()).filter((name) => among.includes(name))
 }
+
+// ---------------------------------------------------------------------------
+// The Tapas lists (phase 5F) — technical plan §4, decision 3
+// ---------------------------------------------------------------------------
+
+/** What the administration calls the three lists. Structure, not content. */
+export const TAPAS_LABELS = ['Fast indhold', 'Vælg 7', 'Vælg 3 dressinger'] as const
+
+export type TapasLabel = (typeof TAPAS_LABELS)[number]
+
+/**
+ * Open the Tapas dish's editor.
+ *
+ * Its own helper rather than `openDish(page, 'Tapas', 'Tapas')`, because the section
+ * chip is also a link whose name starts with "Tapas" — so the dish is taken from the
+ * list, by the role the list has, rather than from whatever comes first on the screen.
+ */
+export async function openTapasDish(page: Page): Promise<void> {
+  await openSection(page, 'Tapas')
+  await page
+    .getByRole('list', { name: /^Retter i / })
+    .getByRole('link', { name: /^Tapas/ })
+    .click()
+  await expect(page.getByRole('form', { name: 'Tapas — Fast indhold' })).toBeVisible()
+}
+
+/** One list's form, addressed by its accessible name. */
+export function tapasGroup(page: Page, label: TapasLabel) {
+  return page.getByRole('form', { name: `Tapas — ${label}` })
+}
+
+/** The heading a guest reads above this list on the public menu. */
+export function tapasHeadingField(page: Page, label: TapasLabel) {
+  return tapasField(page, label, 'Overskrift')
+}
+
+/**
+ * One field in a list, by the name a screen reader hears.
+ *
+ * The visible label is "Overskrift" or "Punkt 3", which is only meaningful inside its
+ * own list; each field points at its group's heading as well as at its own label, so the
+ * spoken name is "Fast indhold Punkt 3". Addressed by role and name rather than by
+ * `getByLabel`, because it is the *computed* name — the thing a person actually hears —
+ * that these tests are about.
+ */
+export function tapasField(page: Page, label: TapasLabel, field: string) {
+  return tapasGroup(page, label).getByRole('textbox', { name: `${label} ${field}`, exact: true })
+}
+
+/** One list's item fields, in the order they are shown. */
+export function tapasItemFields(page: Page, label: TapasLabel) {
+  return tapasGroup(page, label).locator('ul input[type="text"]')
+}
+
+/**
+ * What this list currently holds, read from the fields themselves.
+ *
+ * One `inputValue()` per field rather than a single `evaluateAll`, because `evaluateAll`
+ * runs its callback in the page's own JavaScript context — which is exactly what the
+ * no-JavaScript scenario switches off. `inputValue` does not, so this helper reads the
+ * same list whether scripting is on or off.
+ */
+export async function tapasItems(page: Page, label: TapasLabel): Promise<string[]> {
+  const fields = await tapasItemFields(page, label).all()
+
+  return Promise.all(fields.map(async (field) => field.inputValue()))
+}
+
+/**
+ * Wait until one list holds a particular set of items.
+ *
+ * The obvious wait — for the address to change — does not work here for the reason the
+ * reorder suite already documents: two edits of the same list redirect to the same
+ * address, so a second one would resolve instantly against the first one's URL.
+ */
+export async function waitForTapasItems(
+  page: Page,
+  label: TapasLabel,
+  wanted: readonly string[],
+): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        try {
+          return (await tapasItems(page, label)).join(' · ')
+        } catch {
+          // The form is mid-navigation and its fields have gone. Poll again.
+          return ''
+        }
+      },
+      { message: `${label} never took the new list` },
+    )
+    .toBe([...wanted].join(' · '))
+}
+
+/**
+ * The version token the Tapas forms currently carry.
+ *
+ * The dish's `updated_at`, re-rendered by the server after every save. It is the one
+ * signal that distinguishes "the server has answered" from "the browser still shows what
+ * I typed", which is what the wait below needs — see `pressTapas`.
+ */
+async function tapasVersion(page: Page): Promise<string> {
+  return page.locator('#tapas-indhold input[name="tapas_version"]').first().inputValue()
+}
+
+/**
+ * Press one of a list's own buttons, by the name a screen reader hears, and wait for the
+ * server to have answered.
+ *
+ * Waiting for the address to change does not work here, for the reason the reorder
+ * suite already documents: two edits of the same list redirect to the same address. And
+ * waiting for the *fields* does not work either, because a field already holds what was
+ * just typed into it — a poll on the values would pass against the page the click was
+ * made on, and the next press would then submit a stale version token and be refused as
+ * a conflict.
+ *
+ * So the wait is on the two things only a server answer can produce: a new version
+ * token, or a refusal in the address.
+ */
+export async function pressTapas(
+  page: Page,
+  label: TapasLabel,
+  button: string,
+): Promise<void> {
+  const version = await tapasVersion(page)
+  const address = page.url()
+
+  await tapasGroup(page, label).getByRole('button', { name: button, exact: true }).click()
+
+  await expect
+    .poll(
+      async () => {
+        try {
+          if ((await tapasVersion(page)) !== version) return true
+        } catch {
+          // The form is mid-navigation and its fields have gone. Poll again.
+          return false
+        }
+
+        return page.url() !== address && page.url().includes('tapas_fejl=')
+      },
+      { message: `"${button}" never reached the server` },
+    )
+    .toBe(true)
+}
+
+/** Move one item up or down. `position` is one-based, as the control names it. */
+export async function moveTapasItem(
+  page: Page,
+  label: TapasLabel,
+  position: number,
+  direction: 'op' | 'ned',
+): Promise<void> {
+  await pressTapas(page, label, `Flyt ${direction} ${label} punkt ${position}`)
+}
+
+/** Remove one item. A draft change: the public menu is untouched until publication. */
+export async function removeTapasItem(
+  page: Page,
+  label: TapasLabel,
+  position: number,
+): Promise<void> {
+  await pressTapas(page, label, `Fjern ${label} punkt ${position}`)
+}
+
+/** Type into the empty field and press Tilføj punkt. */
+export async function addTapasItem(
+  page: Page,
+  label: TapasLabel,
+  item: string,
+): Promise<void> {
+  await tapasField(page, label, 'Nyt punkt').fill(item)
+  await pressTapas(page, label, `+ Tilføj punkt til ${label}`)
+}
+
+/** Change one item's text and press Gem liste. `position` is one-based. */
+export async function editTapasItem(
+  page: Page,
+  label: TapasLabel,
+  position: number,
+  item: string,
+): Promise<void> {
+  await tapasItemFields(page, label).nth(position - 1).fill(item)
+  await pressTapas(page, label, `Gem liste — ${label}`)
+}
+
+/**
+ * The items one Tapas list shows on the public menu.
+ *
+ * The two lists a guest chooses from are `<ul>`s labelled by their own heading, so they
+ * are read as lists. The fixed contents are one line of names separated by middots (1h),
+ * so that one is read as the line it is and split back apart here.
+ */
+export async function publicTapasItems(
+  page: Page,
+  group: 'base' | 'choose7' | 'dressing',
+): Promise<string[]> {
+  if (group !== 'base') {
+    const items = await page.locator(`#menu-tapas ul[aria-labelledby="tapas-${group}"] li`).allInnerTexts()
+    return items.map((item) => item.trim())
+  }
+
+  // The fixed contents are the one paragraph that directly follows a heading in the
+  // board — the two lists a guest chooses from are `<ul>`s, and the section's own price
+  // note sits outside the card entirely.
+  const line = await page.locator('#menu-tapas h3 + p').first().innerText()
+
+  return line.split('·').map((item) => item.trim())
+}
+
+/** The heading one Tapas list is printed under on the public menu. */
+export async function publicTapasHeadings(page: Page): Promise<string[]> {
+  // `textContent`, not `innerText`: the design sets these headings in small caps with
+  // `text-transform`, and the assertion is about the words the restaurant wrote rather
+  // than about how they are drawn.
+  return (await page.locator('#menu-tapas h3').allTextContents()).map((text) => text.trim())
+}

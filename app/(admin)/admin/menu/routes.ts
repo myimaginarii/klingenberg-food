@@ -80,6 +80,14 @@ export const MENU_PARAM = {
    * unpublished.
    */
   movedDish: 'flyttet',
+  /**
+   * Which Tapas control the screen should come back to (phase 5F).
+   *
+   * The value is an element id built by `tapasGroupAnchor` / `tapasNewItemAnchor`; the
+   * fragment is derived from it rather than the other way round. See the note above the
+   * anchors for why it is a parameter and not only a fragment.
+   */
+  tapasFocus: 'tapas_fokus',
 } as const
 
 /**
@@ -103,6 +111,45 @@ export const EDITOR_ANCHOR = 'ret-editor'
  */
 export const DELETE_BUTTON_ANCHOR = 'slet-ret'
 export const DELETE_DIALOG_ANCHOR = 'slet-bekraeft'
+
+/**
+ * The Tapas editor's anchors — phase 5F.
+ *
+ * Every Tapas edit is a form submission that redirects, so the browser has to be put
+ * back where the person was working. That is done the way the rest of this screen does
+ * it — with a fragment, not with focus management: the group's own `<section>` for a
+ * save, a removal or a move, and the new-item field itself after Tilføj punkt, so the
+ * person can type the next item straight away. An `<input>` is focusable, so that one is
+ * a real focus rather than only a scroll.
+ *
+ * WHY THE TARGET IS ALSO A QUERY PARAMETER, AND NOT ONLY A FRAGMENT
+ *
+ * Two Tapas edits in a row produce two addresses that are otherwise identical — same
+ * section, same dish, same `status=tapas_gemt`. If the *only* difference between them
+ * were the fragment, the router would treat the second redirect as a **hash change**
+ * rather than as a navigation: nothing is re-fetched, and the screen keeps showing the
+ * lists as they were before the save. The write still happens, which is the worst
+ * version of the problem — a person edits Vælg 7 straight after saving Fast indhold,
+ * the draft is stored, and the field springs back to its old text in front of them.
+ *
+ * So `tapas_fokus` carries the target as a parameter and the fragment is derived from
+ * it. Two consecutive edits of *different* lists then differ in the query, and two
+ * consecutive edits of the *same* list produce a byte-identical address, which the
+ * router does re-fetch. It is not a cache-busting token: it is where the screen should
+ * come back to, which is exactly what makes the address restorable on a reload.
+ *
+ * The rule this states for the rest of the screen: **never let two redirect targets
+ * differ only by their fragment.**
+ */
+export const TAPAS_ANCHOR = 'tapas-indhold'
+
+export function tapasGroupAnchor(groupId: string): string {
+  return `tapas-${groupId}`
+}
+
+export function tapasNewItemAnchor(groupId: string): string {
+  return `tapas-${groupId}-nyt`
+}
 
 export type MenuLocation = {
   /** The section slug to open. */
@@ -136,6 +183,15 @@ export type MenuLocation = {
   readonly focusDelete?: boolean
   /** The dish a reorder just moved, for the live region and the keyboard (phase 5E). */
   readonly movedDish?: string | null
+  /**
+   * The element a Tapas edit should come back to (phase 5F).
+   *
+   * Built by `tapasGroupAnchor` / `tapasNewItemAnchor`, never by hand, and only ever set
+   * together with `dish` — the group exists on the screen only while that dish's editor
+   * is open. It becomes both a query parameter and the fragment; see the note above the
+   * anchors for why both.
+   */
+  readonly tapasFocus?: string | null
 }
 
 /**
@@ -161,6 +217,7 @@ export function menuHref(location: MenuLocation = {}, extra?: URLSearchParams): 
 
   if (location.confirmDelete) parameters.set(MENU_PARAM.confirmDelete, location.confirmDelete)
   if (location.movedDish) parameters.set(MENU_PARAM.movedDish, location.movedDish)
+  if (location.tapasFocus) parameters.set(MENU_PARAM.tapasFocus, location.tapasFocus)
 
   if (location.undoDelete) {
     parameters.set(MENU_PARAM.undoDeleteDish, location.undoDelete.dishId)
@@ -180,9 +237,11 @@ export function menuHref(location: MenuLocation = {}, extra?: URLSearchParams): 
     ? DELETE_DIALOG_ANCHOR
     : location.focusDelete === true
       ? DELETE_BUTTON_ANCHOR
-      : editorOpen
-        ? EDITOR_ANCHOR
-        : null
+      : location.tapasFocus
+        ? location.tapasFocus
+        : editorOpen
+          ? EDITOR_ANCHOR
+          : null
 
   return `${MENU_PATH}${query.length > 0 ? `?${query}` : ''}${anchor === null ? '' : `#${anchor}`}`
 }
