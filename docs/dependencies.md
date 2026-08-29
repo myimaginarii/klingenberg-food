@@ -3,6 +3,86 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Advisory check — 2026-08-29 (phase 4 additions)
+
+One runtime dependency was added for phase 4 (draft / preview / publish). Nothing
+already installed was changed, and no development dependency was added.
+
+| Package | Version | Why |
+|---|---|---|
+| `zod` | 4.5.2 | §1 (adjustment 4) names it: "one schema per entity, used by the form and re-parsed by the Server Action. Non-negotiable given how much of this system is free-text content." |
+
+Pinned exactly. `zod@4.5.2` declares **no dependencies at all**, so it adds one package
+to the tree and nothing transitively. Licence: MIT.
+
+**Advisory result: no known advisory affects the selected version.** OSV.dev was queried
+at the resolved version, and again across all versions to catch anything the selected
+version is merely past:
+
+| Package | Advisories ever published | Status |
+|---|---|---|
+| `zod` | GHSA-m95q-7qp3-xv42 (denial of service through a crafted string, MODERATE), fixed in **3.22.3** | resolved version is **4.5.2** — past the fix by two major lines |
+
+`npm audit --audit-level=high` over the full resolved tree: **0 vulnerabilities**.
+
+### Why 4.5.2 and not the 3.x line
+
+`zod@4` is the current stable major (`latest`), and the `next`, `beta` and `canary`
+dist-tags all point at prereleases that are not used. The 4.x line is what this project
+starts on, so there is no migration to weigh — only a choice, and the patched stable
+release is the answer §14 gives.
+
+Two 4.x affordances the schemas rely on and which are worth recording, because they are
+what makes the strict allow-list in §5 of the phase brief expressible rather than
+merely intended:
+
+* `z.strictObject(shape)` and `z.object(shape)` from the *same* shape. The first rejects
+  an unknown key; the second drops it. `lib/schemas/define.ts` builds both, so an entity
+  cannot end up strict on the way in and lax on the way out — or the reverse.
+* `z.iso.datetime({ offset: true })`, which accepts PostgREST's microsecond timestamps
+  unchanged. The optimistic-concurrency token is `updated_at` carried as a string from
+  the database to the form and back (§6); parsing it into a `Date` anywhere would round
+  it and turn every publish into a false conflict.
+
+### Nothing else was added
+
+No form library, no state library and no component library, as the phase brief requires
+and §1 (adjustment 4) already ruled out. The publishing UI is plain `<form>` elements
+posting to Server Actions; the public site's JavaScript budget is unchanged, and
+`tests/unit/policy/public-javascript.test.ts` still asserts both by name.
+
+The publish transaction needed no dependency either: it is a PostgreSQL function per
+entity (`supabase/migrations/20260829140000_draft_publish_core.sql`), called through the
+Supabase client that was already installed in phase 1.
+
+### The caching model is a decision, not a default
+
+Next.js 16 offers two caching models, and phase 4 stays on the one phase 3 already uses:
+route-segment revalidation plus tagged data caching (`unstable_cache`), invalidated with
+`updateTag()` from the publish Server Action. The reasoning is recorded in
+`lib/cache/tags.ts` and summarised here because it is a version decision:
+
+* **Cache Components** (`cacheComponents: true`, `use cache`, `cacheTag`) is stable in
+  16 and is where the framework is going. Enabling it is an application-wide migration,
+  not a flag: it rejects the `export const revalidate` that carries the five-minute
+  safety net §7a depends on, and it fails the prerender on the `new Date()` the
+  open/closed badge, the sold-out reset and the Månedens burger window are all computed
+  from. Adopting it means rebuilding the phase-3 public site around `<Suspense>` and
+  `connection()`.
+* **The previous model** is documented as supported alongside it — "your existing fetch
+  and `unstable_cache` caching keeps working as a separate layer" — and the Supabase
+  reads are not `fetch` calls whose options we control, so `unstable_cache` is the API
+  that can tag them. Its tags feed the same invalidation machinery `cacheTag` does,
+  which is why `updateTag()` expires them; and it bypasses itself while Draft Mode is
+  on, which is exactly the behaviour a preview needs.
+
+The deprecated single-argument `revalidateTag(tag)` is not used anywhere.
+
+Migrating to Cache Components is a phase of its own, to be planned rather than done in
+passing. Until then this is a supported model, not a legacy one.
+
+---
+
 ## Advisory check — 2026-08-29 (phase 3 additions)
 
 Two development dependencies were added for phase 3 (the public read-only site). No
@@ -246,12 +326,12 @@ Node can work without a downgrade, while CI and production stay on 24.
 
 ### Still to add, in the phase that needs it
 
-`zod` (phase 4), `sharp` (phase 10) and the Sentry server SDK (phase 13). Each is
-version-checked and advisory-checked at the point it is added, and this file updated.
+`sharp` (phase 10) and the Sentry server SDK (phase 13). Each is version-checked and
+advisory-checked at the point it is added, and this file updated.
 
 Added in phase 1: `@supabase/supabase-js` and `@supabase/ssr`. Added in phase 3:
-`@playwright/test` and `@axe-core/playwright`. pgTAP needed no npm dependency — it runs
-through the Supabase CLI (see the phase-1 section above).
+`@playwright/test` and `@axe-core/playwright`. Added in phase 4: `zod`. pgTAP needed no
+npm dependency — it runs through the Supabase CLI (see the phase-1 section above).
 
 ### Open schema item — resolved in phase 3
 

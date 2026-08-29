@@ -8,6 +8,7 @@ import { FOOTER_NAV, MAIN_NAV, visibleNav } from '@/lib/site/navigation'
 import { MobileBottomNav } from '@/components/site/layout/MobileBottomNav'
 import { SiteFooter } from '@/components/site/layout/SiteFooter'
 import { SiteHeader } from '@/components/site/layout/SiteHeader'
+import { PreviewBar } from '@/components/site/PreviewBar'
 
 /**
  * The public shell — design 1g, 1l, 1n and technical plan §3.
@@ -21,11 +22,19 @@ import { SiteHeader } from '@/components/site/layout/SiteHeader'
  * The announcement bar the design draws above the header is phase 7. It belongs in the
  * flow above `<SiteHeader>`, so nothing here has to move when it arrives.
  *
+ * **Preview.** `<PreviewBar>` renders nothing unless the request is an authenticated
+ * staff preview (§6). It is above everything else because it describes the whole page
+ * beneath it, and it costs a visitor nothing: no markup, no cookie, no JavaScript.
+ *
  * **Revalidation.** Every public route re-generates at most five minutes after it was
  * last built (§7a). That is the safety net three time-dependent behaviours lean on: the
  * sold-out reset, the Månedens burger window and the open/closed badge — the last of
- * which is also corrected minute by minute in the browser. Publishing does not go
- * through here; on-demand revalidation arrives with the publish transaction in phase 4.
+ * which is also corrected minute by minute in the browser.
+ *
+ * On top of that, each cached read carries the §6 cache tags, and publishing expires
+ * exactly the tags the published entity appears in (`lib/cache/tags.ts`). So a publish
+ * shows on the next request rather than within five minutes, and the five minutes stay
+ * as the safety net they were built to be.
  */
 export const revalidate = 300
 
@@ -52,6 +61,8 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       >
         Spring til indhold
       </a>
+
+      <PreviewBar />
 
       <SiteHeader
         items={navItems}

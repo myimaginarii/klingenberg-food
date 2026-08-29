@@ -1,0 +1,86 @@
+import AxeBuilder from '@axe-core/playwright'
+import { expect, test, type Page } from '@playwright/test'
+
+import { signIn, STAFF } from '../e2e/support/admin'
+
+/**
+ * Accessibility of the phase-4 administration — technical plan §9, design 1aa.
+ *
+ * §9 asks for axe on "the dashboard, menu editor and conflict sheet, at 375 px and
+ * 1440 px". The menu editor and the conflict sheet are phases 5 and 8; what phase 4
+ * builds is the dashboard's publishing half, the content editor and the preview bar, so
+ * those are what is scanned here. Both projects run this file, which is what gives the
+ * two widths.
+ *
+ * Nothing here changes any content: the pages are loaded and read. The suite that
+ * writes runs afterwards, in its own project.
+ */
+
+/** WCAG 2.2 A and AA, the same bar the public pages are held to. */
+const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']
+
+async function violations(page: Page) {
+  const results = await new AxeBuilder({ page }).withTags(TAGS).analyze()
+
+  return results.violations.map((violation) => ({
+    id: violation.id,
+    impact: violation.impact,
+    nodes: violation.nodes.map((node) => node.target.join(' ')),
+  }))
+}
+
+test.describe('the administration', () => {
+  test('the dashboard has no accessibility violations', async ({ page }) => {
+    await signIn(page, STAFF)
+
+    expect(await violations(page)).toEqual([])
+  })
+
+  test('the content editor has no accessibility violations', async ({ page }) => {
+    await signIn(page, STAFF)
+    await page.goto('/admin/indhold')
+
+    expect(await violations(page)).toEqual([])
+  })
+
+  test('every field in the content editor has a label', async ({ page }) => {
+    await signIn(page, STAFF)
+    await page.goto('/admin/indhold')
+
+    for (const field of await page.locator('input:not([type=hidden]), textarea').all()) {
+      const id = await field.getAttribute('id')
+
+      expect(id, 'every visible field carries an id its label points at').not.toBeNull()
+      await expect(page.locator(`label[for="${id}"]`)).toHaveCount(1)
+    }
+  })
+})
+
+test.describe('the preview bar', () => {
+  test('has no accessibility violations on a public page', async ({ page }) => {
+    await signIn(page, STAFF)
+    await page.goto('/api/preview/start?maal=om-os')
+
+    await expect(page.getByText('Forhåndsvisning — ikke live endnu')).toBeVisible()
+    expect(await violations(page)).toEqual([])
+  })
+
+  test('announces itself as a status, and says so in text rather than in colour', async ({
+    page,
+  }) => {
+    await signIn(page, STAFF)
+    await page.goto('/api/preview/start?maal=om-os')
+
+    const bar = page.getByRole('status').filter({ hasText: 'Forhåndsvisning' })
+
+    await expect(bar).toBeVisible()
+    await expect(bar).toContainText('ikke live endnu')
+
+    // The way out is a real link, reachable by keyboard and working without scripting.
+    const exit = page.getByRole('link', { name: 'Afslut forhåndsvisning' })
+    await expect(exit).toHaveAttribute('href', '/api/preview/stop')
+
+    const box = await exit.boundingBox()
+    expect(box?.height ?? 0, 'the exit control meets the 44 px target size (1aa)').toBeGreaterThanOrEqual(44)
+  })
+})

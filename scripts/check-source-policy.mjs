@@ -7,6 +7,8 @@
  *   1. no-hard-coded-domain  A site domain literal may appear only in
  *                            lib/config/site.ts. Choosing the restaurant's domain
  *                            later must be a configuration change, not a code change.
+ *                            Hosts under the reserved `.test` TLD are exempt: they
+ *                            cannot resolve, so they are fixtures, not domains.
  *   2. no-set-x              `set -x` is forbidden in GitHub workflow scripts; it
  *                            echoes commands and can spill secrets into logs.
  *   3. server-secrets        Secrets named in §10e may only be referenced in
@@ -67,6 +69,23 @@ const ALLOWED_HOSTS = new Set([
   // domain later must be configuration, not a code change" — does not apply to it.
   'www.facebook.com',
 ])
+
+/**
+ * Hosts under the reserved `.test` top-level domain (RFC 2606) are allowed anywhere.
+ *
+ * `.test` is reserved by the IETF precisely so that it can never resolve on the public
+ * internet, which makes it the correct home for a fixture host — and the opposite of
+ * what this rule guards against. §10d exists so that *this site's* domain is a
+ * configuration value rather than a literal in the code; a host that cannot exist is
+ * not this site's domain and never will be.
+ *
+ * The security tests need such hosts by name: pgTAP and the schema suite assert which
+ * announcement links are accepted, and the browser suite aims the preview route at a
+ * foreign origin to prove the open-redirect refusal in §8.
+ */
+function isReservedTestHost(host) {
+  return host.endsWith('.test')
+}
 
 /** Secrets that may only be read through lib/env/server.ts (§10e). */
 const SERVER_SECRETS = [
@@ -211,7 +230,7 @@ for (const absolute of sourceFiles()) {
     if (!domainExempt) {
       for (const match of line.matchAll(URL_RE)) {
         const host = (match[1] ?? '').replace(/:\d+$/, '').toLowerCase()
-        if (!ALLOWED_HOSTS.has(host)) {
+        if (!ALLOWED_HOSTS.has(host) && !isReservedTestHost(host)) {
           report('no-hard-coded-domain', relPath, lineNo, line, `absolute URL host "${host}"`)
         }
       }

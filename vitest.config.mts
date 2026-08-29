@@ -3,16 +3,32 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vitest/config'
 
 /**
- * Unit-test configuration. Phase 0 ships no tests — `npm test` runs with
- * `--passWithNoTests` so CI exercises the real runner instead of a placeholder.
+ * Unit-test configuration.
  *
- * The first suites arrive in phase 2 (`lib/hours`, `lib/menu/availability`), which is
- * why the include pattern already points at `tests/unit` and co-located `lib` tests.
+ * The suites live in `tests/unit` and cover the pure layers: the time engines
+ * (`lib/hours`, `lib/menu/availability`), the draft overlay and schemas
+ * (`lib/drafts`, `lib/schemas`), the publish registry (`lib/publishing`) and the
+ * repository's own source policy.
  */
 export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('.', import.meta.url)),
+
+      /**
+       * `server-only` throws on import outside a React Server Component, which is
+       * exactly what it is for: it makes reaching the read layer or the publish
+       * machinery from a Client Component a build error (technical plan §8). Vitest is
+       * neither, so it resolves to the package's own `empty.js` — the same file the
+       * `react-server` condition selects — rather than to the module that throws.
+       *
+       * This weakens nothing. The guarantee is enforced by `next build`, and
+       * `tests/unit/policy/public-javascript.test.ts` asserts over the real source tree
+       * that no client component reaches these modules in the first place.
+       */
+      'server-only': fileURLToPath(
+        new URL('./node_modules/server-only/empty.js', import.meta.url),
+      ),
     },
   },
   test: {

@@ -1,19 +1,21 @@
 import 'server-only'
 
+import { CACHE_TAGS } from '@/lib/cache/tags'
 import type { IsoDate } from '@/lib/time/calendar'
 
 import { booleanField, objectArrayField, stringField } from './document'
-import { assertNoQueryError, publicDatabase } from './source'
+import { assertNoQueryError, definePublicRead, type ContentAccess } from './source'
 import type { NewsArticle, NewsBody, NewsParagraph, NewsSpan } from './types'
 
 /**
- * Published news — technical plan §4, §7f.
+ * News — technical plan §4, §6, §7f.
  *
- * Phase 3 reads and renders published articles. The editor, autosave, publishing and
- * the slug policy are phase 9; nothing here writes, and nothing here can see a draft.
- * That is a privilege guarantee rather than a filter this file remembers to apply:
- * `news.status` is not among the columns granted to `anon` (§8), so a public query
- * cannot name it, and `news_select_public` restricts the rows to published ones.
+ * An article has no `draft` column: it is pending while its `status` is still 'draft',
+ * and publishing flips that status (§4). So a visitor sees published articles because
+ * `news.status` is not among the columns granted to `anon` at all (§8) and
+ * `news_select_public` restricts the rows; a staff member in preview sees the
+ * unpublished ones too, at their real slug, which is what makes "Forhåndsvis" work for
+ * an article that does not exist publicly yet (§6).
  *
  * The body is structured JSON, never HTML (§8). It is read into typed nodes here and
  * rendered by our own components, so there is no HTML parsing anywhere on the public
@@ -73,33 +75,54 @@ function toArticle(row: NewsRow): NewsArticle {
   }
 }
 
+/** `0` means "every article" — the list page — rather than a limit of nothing. */
+const NO_LIMIT = 0
+
+const readNewsList = definePublicRead(
+  'news-list',
+  [CACHE_TAGS.news],
+  async (access: ContentAccess, limit: number): Promise<NewsArticle[]> => {
+    let query = access.database
+      .from('news')
+      .select(COLUMNS)
+      .order('display_date', { ascending: false, nullsFirst: false })
+      .order('published_at', { ascending: false })
+
+    // A staff preview reads through their own JWT, so `news_select_staff` returns
+    // unpublished articles too — which is the point of previewing one.
+    if (limit !== NO_LIMIT) query = query.limit(limit)
+
+    const { data, error } = await query.returns<NewsRow[]>()
+    assertNoQueryError('the news articles', error)
+
+    return (data ?? []).map(toArticle)
+  },
+)
+
+const readArticleBySlug = definePublicRead(
+  'news-article',
+  [CACHE_TAGS.news],
+  async (access: ContentAccess, slug: string): Promise<NewsArticle | null> => {
+    const { data, error } = await access.database
+      .from('news')
+      .select(COLUMNS)
+      .eq('slug', slug)
+      .maybeSingle<NewsRow>()
+
+    assertNoQueryError('the news article', error)
+
+    return data ? toArticle(data) : null
+  },
+)
+
 /** Every published article, newest first — the Nyheder list and the Forside teaser. */
-export async function readPublishedNews(limit?: number): Promise<NewsArticle[]> {
-  let query = publicDatabase()
-    .from('news')
-    .select(COLUMNS)
-    .order('display_date', { ascending: false, nullsFirst: false })
-    .order('published_at', { ascending: false })
-
-  if (limit !== undefined) query = query.limit(limit)
-
-  const { data, error } = await query.returns<NewsRow[]>()
-  assertNoQueryError('the news articles', error)
-
-  return (data ?? []).map(toArticle)
+export function readPublishedNews(limit?: number): Promise<NewsArticle[]> {
+  return readNewsList(limit ?? NO_LIMIT)
 }
 
 /** One published article by slug, or `null` — an unpublished slug is a 404 (§7f). */
-export async function readPublishedArticle(slug: string): Promise<NewsArticle | null> {
-  const { data, error } = await publicDatabase()
-    .from('news')
-    .select(COLUMNS)
-    .eq('slug', slug)
-    .maybeSingle<NewsRow>()
-
-  assertNoQueryError('the news article', error)
-
-  return data ? toArticle(data) : null
+export function readPublishedArticle(slug: string): Promise<NewsArticle | null> {
+  return readArticleBySlug(slug)
 }
 
 /** The one- or two-line teaser the list and the Forside card show, from the first paragraph. */

@@ -2,10 +2,14 @@ import 'server-only'
 
 import { cache } from 'react'
 
+import { CACHE_TAGS } from '@/lib/cache/tags'
+import { overlayDraft } from '@/lib/drafts/overlay'
+import { dishDraft, menuCategoryDraft } from '@/lib/schemas/menu'
+import { monthlyBurgerDraft, weeklySpecialDraft } from '@/lib/schemas/specials'
 import type { IsoDate } from '@/lib/time/calendar'
 
 import { field, numberField, objectArrayField, stringArrayField, stringField } from './document'
-import { assertNoQueryError, publicDatabase } from './source'
+import { assertNoQueryError, columns, definePublicRead, type ContentAccess } from './source'
 import type {
   Dish,
   MenuCategory,
@@ -17,22 +21,25 @@ import type {
 } from './types'
 
 /**
- * The menu — technical plan §4, §7d.
+ * The menu — technical plan §4, §6, §7d.
  *
- * Four queries, never one per category: the categories and the dishes are read in
- * parallel and joined in memory, which is what keeps a nine-section menu at a fixed
- * cost rather than N+1. The two singletons — Ugens ret and Månedens burger — are read
- * alongside them.
+ * Three independently cached reads rather than one, because §6 gives them three
+ * different tags: `menu` for the sections and dishes, `weekly` for Ugens ret and
+ * `monthly` for Månedens burger. Publishing next week's dish must not expire the
+ * whole menu, and this is where that becomes true rather than aspirational.
+ *
+ * Within the `menu` read, the categories and the dishes are still read in parallel and
+ * joined in memory, which is what keeps a nine-section menu at a fixed cost rather
+ * than N+1.
  *
  * The rows a public page may see are decided by RLS, not by this file: invisible
- * categories, soft-deleted dishes, dishes that have never been published and a Månedens
- * burger outside its date window are all unreadable to `anon`. Two of those rules are
- * not even restatable here — `deleted_at` and `is_new_draft` are deliberately outside
- * the `anon` column grants (§8), so a public query cannot name them, let alone forget
- * them. `visible` is granted and is restated, because a reader of this file should be
- * able to see at least where the boundary is.
+ * categories, soft-deleted dishes, dishes that have never been published and a
+ * Månedens burger outside its date window are all unreadable to `anon`. A staff member
+ * in preview reads through their own JWT and therefore sees more, so the two rules
+ * that are genuinely about *display* rather than privilege — a dish is not deleted,
+ * and a section is visible — are restated in the query for both paths.
  *
- * No decision about *display* is made here. Whether an item is currently sold out, and
+ * No decision about display is made here. Whether an item is currently sold out, and
  * whether the monthly burger falls inside its window today, are resolved by the pure
  * functions in `lib/menu` from the same hours engine the rest of the site uses.
  */
@@ -45,6 +52,7 @@ type CategoryRow = {
   note: string | null
   kind: MenuCategoryKind
   sort_order: number
+  draft?: unknown
 }
 
 type DishRow = {
@@ -58,6 +66,7 @@ type DishRow = {
   details: unknown
   sold_out_on: string | null
   sort_order: number
+  draft?: unknown
 }
 
 type WeeklySpecialRow = {
@@ -75,6 +84,7 @@ type WeeklySpecialRow = {
   sat_price_ore: number | null
   sat_deadline: string | null
   sat_sold_out_on: string | null
+  draft?: unknown
 }
 
 type MonthlyBurgerRow = {
@@ -85,14 +95,23 @@ type MonthlyBurgerRow = {
   ends_on: string | null
   sold_out_on: string | null
   show_on_homepage: boolean
+  draft?: unknown
 }
 
-/** Everything the menu page and the Forside's featured burgers need, in one read. */
+/** Everything the menu page and the Forside's featured burgers need. */
 export type MenuContent = {
   categories: MenuCategory[]
   weeklySpecial: WeeklySpecial | null
   monthlyBurger: MonthlyBurger | null
 }
+
+const CATEGORY_COLUMNS = 'id, slug, name, intro, note, kind, sort_order'
+const DISH_COLUMNS =
+  'id, category_id, name, description, secondary_note, price_ore, labels, details, sold_out_on, sort_order'
+const WEEKLY_COLUMNS =
+  'iso_year, iso_week, days, name, description, price_small_ore, price_large_ore, sold_out_on, sat_enabled, sat_name, sat_description, sat_price_ore, sat_deadline, sat_sold_out_on'
+const MONTHLY_COLUMNS =
+  'name, description, price_ore, starts_on, ends_on, sold_out_on, show_on_homepage'
 
 const TAPAS_GROUP_IDS = ['base', 'choose7', 'dressing'] as const
 
@@ -100,8 +119,8 @@ const TAPAS_GROUP_IDS = ['base', 'choose7', 'dressing'] as const
  * Read `dishes.details` as the Tapas document, or `null`.
  *
  * The group ids and their order are fixed by the schema (§4, decision 3); a document
- * with any other shape is simply not a Tapas document, and the entry then renders as an
- * ordinary dish rather than throwing on a visitor.
+ * with any other shape is simply not a Tapas document, and the entry then renders as
+ * an ordinary dish rather than throwing on a visitor.
  */
 function readTapasDetails(details: unknown): TapasDetails | null {
   if (field(details, 'kind') !== 'tapas') return null
@@ -139,11 +158,27 @@ function toDish(row: DishRow): Dish {
   }
 }
 
-function groupDishesByCategory(rows: DishRow[]): Map<string, Dish[]> {
+/**
+ * The dishes a request may see.
+ *
+ * `deleted_at` and `is_new_draft` are not granted to `anon` at all, so the published
+ * path cannot name them; `dishes_select_public` already excludes both. A preview reads
+ * through a staff JWT and sees everything, so the soft-delete rule — which is about
+ * display rather than privilege — is restated for that path only.
+ */
+function dishQuery(access: ContentAccess) {
+  const query = access.database.from('dishes').select(columns(access, DISH_COLUMNS))
+
+  return access.includeDrafts ? query.is('deleted_at', null) : query
+}
+
+function groupDishesByCategory(rows: DishRow[], includeDrafts: boolean): Map<string, Dish[]> {
   const byCategory = new Map<string, Dish[]>()
 
-  for (const row of rows) {
+  for (const raw of rows) {
+    const { row } = overlayDraft<DishRow>(raw, includeDrafts ? raw.draft : null, dishDraft)
     const dishes = byCategory.get(row.category_id)
+
     if (dishes === undefined) {
       byCategory.set(row.category_id, [toDish(row)])
     } else {
@@ -154,93 +189,128 @@ function groupDishesByCategory(rows: DishRow[]): Map<string, Dish[]> {
   return byCategory
 }
 
-function toWeeklySpecial(row: WeeklySpecialRow | null | undefined): WeeklySpecial | null {
-  if (!row) return null
+/** The nine sections with their dishes. Tag: `menu`. */
+const readMenuSections = definePublicRead(
+  'menu-sections',
+  [CACHE_TAGS.menu],
+  async (access: ContentAccess): Promise<MenuCategory[]> => {
+    const [categoriesResult, dishesResult] = await Promise.all([
+      access.database
+        .from('menu_categories')
+        .select(columns(access, CATEGORY_COLUMNS))
+        .eq('visible', true)
+        .order('sort_order', { ascending: true })
+        .returns<CategoryRow[]>(),
+      dishQuery(access).order('sort_order', { ascending: true }).returns<DishRow[]>(),
+    ])
 
-  return {
-    isoYear: row.iso_year,
-    isoWeek: row.iso_week,
-    days: row.days ?? [],
-    name: row.name,
-    description: row.description,
-    priceSmallOre: row.price_small_ore,
-    priceLargeOre: row.price_large_ore,
-    soldOutOn: row.sold_out_on as IsoDate | null,
-    saturday: {
-      enabled: row.sat_enabled,
-      name: row.sat_name,
-      description: row.sat_description,
-      priceOre: row.sat_price_ore,
-      deadline: row.sat_deadline,
-      soldOutOn: row.sat_sold_out_on as IsoDate | null,
-    },
-  }
-}
+    assertNoQueryError('the menu sections', categoriesResult.error)
+    assertNoQueryError('the dishes', dishesResult.error)
 
-function toMonthlyBurger(row: MonthlyBurgerRow | null | undefined): MonthlyBurger | null {
-  if (!row || row.name === null) return null
+    const dishesByCategory = groupDishesByCategory(dishesResult.data ?? [], access.includeDrafts)
 
-  return {
-    name: row.name,
-    description: row.description,
-    priceOre: row.price_ore,
-    startsOn: row.starts_on as IsoDate | null,
-    endsOn: row.ends_on as IsoDate | null,
-    soldOutOn: row.sold_out_on as IsoDate | null,
-    showOnHomepage: row.show_on_homepage,
-  }
-}
-
-/** Deduplicated per request: the Forside's featured burgers come from the same read. */
-export const readMenuContent = cache(async (): Promise<MenuContent> => {
-  const database = publicDatabase()
-
-  const [categoriesResult, dishesResult, weeklyResult, monthlyResult] = await Promise.all([
-    database
-      .from('menu_categories')
-      .select('id, slug, name, intro, note, kind, sort_order')
-      .eq('visible', true)
-      .order('sort_order', { ascending: true })
-      .returns<CategoryRow[]>(),
-    // No `deleted_at` / `is_new_draft` filter: the columns are not granted to `anon`,
-    // and `dishes_select_public` already excludes both.
-    database
-      .from('dishes')
-      .select(
-        'id, category_id, name, description, secondary_note, price_ore, labels, details, sold_out_on, sort_order',
+    return (categoriesResult.data ?? []).map((raw) => {
+      const { row } = overlayDraft<CategoryRow>(
+        raw,
+        access.includeDrafts ? raw.draft : null,
+        menuCategoryDraft,
       )
-      .order('sort_order', { ascending: true })
-      .returns<DishRow[]>(),
-    database
+
+      return {
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        intro: row.intro,
+        note: row.note,
+        kind: row.kind,
+        dishes: dishesByCategory.get(row.id) ?? [],
+      }
+    })
+  },
+)
+
+/** Ugens ret and the optional Lørdagsmenu, one singleton row. Tag: `weekly`. */
+const readWeeklySpecial = definePublicRead(
+  'weekly-special',
+  [CACHE_TAGS.weekly],
+  async (access: ContentAccess): Promise<WeeklySpecial | null> => {
+    const { data, error } = await access.database
       .from('weekly_special')
-      .select(
-        'iso_year, iso_week, days, name, description, price_small_ore, price_large_ore, sold_out_on, sat_enabled, sat_name, sat_description, sat_price_ore, sat_deadline, sat_sold_out_on',
-      )
-      .maybeSingle<WeeklySpecialRow>(),
-    database
+      .select(columns(access, WEEKLY_COLUMNS))
+      .maybeSingle<WeeklySpecialRow>()
+
+    assertNoQueryError('Ugens ret', error)
+    if (data === null) return null
+
+    const { row } = overlayDraft<WeeklySpecialRow>(
+      data,
+      access.includeDrafts ? data.draft : null,
+      weeklySpecialDraft,
+    )
+
+    return {
+      isoYear: row.iso_year,
+      isoWeek: row.iso_week,
+      days: row.days ?? [],
+      name: row.name,
+      description: row.description,
+      priceSmallOre: row.price_small_ore,
+      priceLargeOre: row.price_large_ore,
+      soldOutOn: row.sold_out_on as IsoDate | null,
+      saturday: {
+        enabled: row.sat_enabled,
+        name: row.sat_name,
+        description: row.sat_description,
+        priceOre: row.sat_price_ore,
+        deadline: row.sat_deadline,
+        soldOutOn: row.sat_sold_out_on as IsoDate | null,
+      },
+    }
+  },
+)
+
+/** Månedens burger, one singleton row. Tag: `monthly`. */
+const readMonthlyBurger = definePublicRead(
+  'monthly-burger',
+  [CACHE_TAGS.monthly],
+  async (access: ContentAccess): Promise<MonthlyBurger | null> => {
+    const { data, error } = await access.database
       .from('monthly_burger')
-      .select('name, description, price_ore, starts_on, ends_on, sold_out_on, show_on_homepage')
-      .maybeSingle<MonthlyBurgerRow>(),
+      .select(columns(access, MONTHLY_COLUMNS))
+      .maybeSingle<MonthlyBurgerRow>()
+
+    assertNoQueryError('Månedens burger', error)
+    if (data === null) return null
+
+    const { row } = overlayDraft<MonthlyBurgerRow>(
+      data,
+      access.includeDrafts ? data.draft : null,
+      monthlyBurgerDraft,
+    )
+
+    // An unfilled burger is not a burger. The date window is applied later, at read
+    // time, by `lib/menu/view.ts` (§7d).
+    if (row.name === null) return null
+
+    return {
+      name: row.name,
+      description: row.description,
+      priceOre: row.price_ore,
+      startsOn: row.starts_on as IsoDate | null,
+      endsOn: row.ends_on as IsoDate | null,
+      soldOutOn: row.sold_out_on as IsoDate | null,
+      showOnHomepage: row.show_on_homepage,
+    }
+  },
+)
+
+/** Deduplicated per request: the Forside's featured burgers come from the same reads. */
+export const readMenuContent = cache(async (): Promise<MenuContent> => {
+  const [categories, weeklySpecial, monthlyBurger] = await Promise.all([
+    readMenuSections(),
+    readWeeklySpecial(),
+    readMonthlyBurger(),
   ])
 
-  assertNoQueryError('the menu sections', categoriesResult.error)
-  assertNoQueryError('the dishes', dishesResult.error)
-  assertNoQueryError('Ugens ret', weeklyResult.error)
-  assertNoQueryError('Månedens burger', monthlyResult.error)
-
-  const dishesByCategory = groupDishesByCategory(dishesResult.data ?? [])
-
-  return {
-    categories: (categoriesResult.data ?? []).map((row) => ({
-      id: row.id,
-      slug: row.slug,
-      name: row.name,
-      intro: row.intro,
-      note: row.note,
-      kind: row.kind,
-      dishes: dishesByCategory.get(row.id) ?? [],
-    })),
-    weeklySpecial: toWeeklySpecial(weeklyResult.data),
-    monthlyBurger: toMonthlyBurger(monthlyResult.data),
-  }
+  return { categories, weeklySpecial, monthlyBurger }
 })

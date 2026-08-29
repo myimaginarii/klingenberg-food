@@ -7,7 +7,7 @@ import { defineConfig, devices } from '@playwright/test'
  * public site's behaviour under `next build` is what a guest gets, and it is the only
  * build where the caching and revalidation described in §6 are real.
  *
- * Three projects, because the site makes three different promises:
+ * Four projects, because the site makes four different promises:
  *
  *   * `desktop` — 1440 px, the width the approved frames 1g–1k are drawn at.
  *   * `mobile` — 375 px, the width 1l–1o are drawn at, and the one that carries the
@@ -15,6 +15,11 @@ import { defineConfig, devices } from '@playwright/test'
  *   * `no-javascript` — the same site with scripting switched off. §7e (item 11) says
  *     the public site must fully work without it, so that is tested rather than hoped
  *     for.
+ *   * `draft-publish` — the Kladde → Forhåndsvis → Offentliggør flow (§6). It is the
+ *     only suite that writes to the database, so it runs **after** the three read-only
+ *     projects (`dependencies`) and its own tests run in order. Nothing it changes can
+ *     therefore be observed half-done by a spec that is reading the same page, and it
+ *     restores the content it moves.
  *
  * `PLAYWRIGHT_BASE_URL` lets CI point the same suite at a deployed preview. Locally the
  * config builds and starts the site itself.
@@ -42,12 +47,12 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop',
-      testIgnore: 'e2e/no-javascript.spec.ts',
+      testIgnore: ['e2e/no-javascript.spec.ts', 'e2e/draft-publish.spec.ts'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     {
       name: 'mobile',
-      testIgnore: 'e2e/no-javascript.spec.ts',
+      testIgnore: ['e2e/no-javascript.spec.ts', 'e2e/draft-publish.spec.ts'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
     {
@@ -62,6 +67,12 @@ export default defineConfig({
         // also a mode the site genuinely supports (1aa), so this pass covers both.
         contextOptions: { reducedMotion: 'reduce' },
       },
+    },
+    {
+      name: 'draft-publish',
+      testMatch: 'e2e/draft-publish.spec.ts',
+      dependencies: ['desktop', 'mobile', 'no-javascript'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],
 

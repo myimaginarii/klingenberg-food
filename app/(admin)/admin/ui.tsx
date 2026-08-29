@@ -64,28 +64,15 @@ export function Field({
   )
 }
 
-export function SubmitButton({ children }: { children: React.ReactNode }) {
-  return (
-    <button
-      type="submit"
-      className="bg-brand-700 hover:bg-brand-500 active:bg-brand-900 rounded-field min-h-tap px-6 font-semibold text-white"
-    >
-      {children}
-    </button>
-  )
-}
+/**
+ * The status message lives in `components/admin/Notice.tsx`, where the publishing
+ * components can reach it without a component importing from `app/`. It is re-exported
+ * here so the screens that already ask this module for it are untouched.
+ */
+export { Notice, type NoticeTone } from '@/components/admin/Notice'
 
-/** Status is icon + text, never colour alone (1aa "MÆRKATER & STATUS"). */
-export function Notice({ tone, children }: { tone: 'error' | 'success'; children: React.ReactNode }) {
-  const styles =
-    tone === 'error'
-      ? 'bg-error-surface text-error-ink border-error-border'
-      : 'bg-success-surface text-success-ink border-success-border'
-
-  return (
-    <p className={`rounded-field text-meta border px-3 py-2 font-medium ${styles}`} role="status">
-      <span aria-hidden="true">{tone === 'error' ? '✕ ' : '✓ '}</span>
-      {children}
-    </p>
-  )
-}
+/**
+ * The primary button lives in `components/admin/SubmitButton.tsx` for the same reason,
+ * and is re-exported here for the screens that already import it from this module.
+ */
+export { SubmitButton } from '@/components/admin/SubmitButton'
