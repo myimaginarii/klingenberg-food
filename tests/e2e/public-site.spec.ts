@@ -183,6 +183,31 @@ test.describe('opening hours come from the phase 2 engine', () => {
   })
 })
 
+test.describe('Forsiden', () => {
+  test('shows the three featured dishes, undisturbed by Månedens burger', async ({ page }) => {
+    await page.goto('/')
+
+    const featured = page.getByRole('region', { name: 'Tre fra menuen' })
+    await expect(featured.getByRole('listitem')).toHaveCount(3)
+    await expect(featured.getByRole('heading', { name: 'Odin', exact: true })).toBeVisible()
+    await expect(featured.getByRole('heading', { name: 'Frigg', exact: true })).toBeVisible()
+    await expect(featured.getByRole('heading', { name: 'Ragnar', exact: true })).toBeVisible()
+  })
+
+  test('hides the whole Månedens burger section rather than saying one is missing', async ({
+    page,
+  }) => {
+    // Nothing is configured in the seed (1ab lists Månedens burger as still outstanding),
+    // so the section must be absent from the Forside — not present and empty, and not
+    // carrying the menu page's "ikke oplyst endnu" development wording.
+    await page.goto('/')
+
+    await expect(page.locator('#maanedens-burger-titel')).toHaveCount(0)
+    await expect(page.getByRole('main').getByText('Månedens burger')).toHaveCount(0)
+    await expect(page.getByRole('main').getByText('ikke oplyst endnu')).toHaveCount(0)
+  })
+})
+
 test.describe('the menu', () => {
   test('lists the nine confirmed sections in the approved order', async ({ page }) => {
     await page.goto('/menu')
@@ -267,6 +292,11 @@ test.describe('the menu', () => {
     const card = page.locator('#menu-burgere').getByRole('article').last()
     await expect(card.getByRole('heading', { name: 'Månedens burger' })).toBeVisible()
     await expect(card.getByText('ikke oplyst endnu', { exact: false })).toBeVisible()
+
+    // The menu carries the in-list card and only that. The Forside's promotional
+    // section is the Forside's alone, in any burger state, so its heading must never
+    // appear here — the menu page does not ask the Forside's question (§7d).
+    await expect(page.locator('#maanedens-burger-titel')).toHaveCount(0)
   })
 })
 

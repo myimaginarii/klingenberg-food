@@ -77,6 +77,27 @@ export function formatDanishDate(date: IsoDate): string {
   return `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${String(year)}`
 }
 
+/**
+ * The period a date-windowed item is shown in, written as its dateline:
+ * "01.09.2026–30.09.2026", "Til og med 30.09.2026", "Fra 01.09.2026".
+ *
+ * Månedens burger is the one thing on the public site that is deliberately temporary
+ * (§7d), and the Forside says so by printing the window rather than by decorating the
+ * section. An open end is not a boundary, so it is not printed as one — a burger with
+ * no `starts_on` reads "Til og med …", not "— – 30.09.2026".
+ *
+ * `null` when neither end is set: there is nothing true to say, so nothing is said.
+ */
+export function formatDatePeriod(startsOn: IsoDate | null, endsOn: IsoDate | null): string | null {
+  if (startsOn !== null && endsOn !== null) {
+    return `${formatDanishDate(startsOn)}–${formatDanishDate(endsOn)}`
+  }
+  if (endsOn !== null) return `Til og med ${formatDanishDate(endsOn)}`
+  if (startsOn !== null) return `Fra ${formatDanishDate(startsOn)}`
+
+  return null
+}
+
 /** The two lines of the date circle a photo-less news item gets: "24" over "DEC" (1j). */
 export function formatDateCircle(date: IsoDate): { day: string; month: string } {
   const { month, day } = parseIsoDate(date)

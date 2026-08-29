@@ -7,6 +7,7 @@ import {
   formatServingDays,
   isMonthlyBurgerInWindow,
   selectFeaturedDishes,
+  selectHomepageMonthlyBurger,
 } from '@/lib/menu/view'
 import { copenhagenInstantOf } from '@/lib/time/copenhagen'
 import { CONFIRMED_SCHEDULE, closedOverride } from '../fixtures/hours'
@@ -251,5 +252,78 @@ describe('selectFeaturedDishes', () => {
 
   it('returns nothing when no dish has been featured', () => {
     expect(selectFeaturedDishes(view.categories, [])).toEqual([])
+  })
+})
+
+describe('selectHomepageMonthlyBurger', () => {
+  /**
+   * The Forside's own question, asked of a burger that `buildMenuView` has already
+   * judged to be inside its window. Each of the six cases the restaurant asked for is
+   * asserted end to end from published content, so a regression in either layer fails
+   * here rather than only in a browser.
+   */
+  function homepageBurger(overrides: Partial<MonthlyBurger>, now: string) {
+    const view = buildMenuView(
+      content({ monthlyBurger: monthlyBurger({ showOnHomepage: true, ...overrides }) }),
+      HOURS,
+      copenhagenInstantOf(now, '18:00'),
+    )
+
+    return selectHomepageMonthlyBurger(view.monthlyBurger)
+  }
+
+  it('shows an active burger the administration put on the Forside', () => {
+    expect(homepageBurger({}, '2026-09-15')?.name).toBe('Månedens burger')
+  })
+
+  it('hides it when "Vis på forsiden" is off, even inside the window', () => {
+    expect(homepageBurger({ showOnHomepage: false }, '2026-09-15')).toBeNull()
+  })
+
+  it('hides it before starts_on', () => {
+    expect(homepageBurger({}, '2026-08-31')).toBeNull()
+  })
+
+  it('hides it after ends_on', () => {
+    expect(homepageBurger({}, '2026-10-01')).toBeNull()
+  })
+
+  it('keeps a sold-out burger on the Forside, carrying its sold-out state', () => {
+    const burger = homepageBurger({ soldOutOn: '2026-09-15' }, '2026-09-15')
+
+    expect(burger).not.toBeNull()
+    expect(burger?.soldOut).toBe(true)
+  })
+
+  it('is null when no burger is configured at all', () => {
+    const view = buildMenuView(content(), HOURS, copenhagenInstantOf('2026-09-15', '18:00'))
+
+    expect(selectHomepageMonthlyBurger(view.monthlyBurger)).toBeNull()
+  })
+
+  it('never takes one of the three featured slots away from a normal dish', () => {
+    const view = buildMenuView(
+      content({
+        categories: [
+          category({
+            dishes: [
+              dish({ id: 'a', name: 'Odin' }),
+              dish({ id: 'b', name: 'Frigg' }),
+              dish({ id: 'c', name: 'Ragnar' }),
+            ],
+          }),
+        ],
+        monthlyBurger: monthlyBurger({ showOnHomepage: true }),
+      }),
+      HOURS,
+      copenhagenInstantOf('2026-09-15', '18:00'),
+    )
+
+    expect(selectFeaturedDishes(view.categories, ['a', 'b', 'c']).map((d) => d.name)).toEqual([
+      'Odin',
+      'Frigg',
+      'Ragnar',
+    ])
+    expect(selectHomepageMonthlyBurger(view.monthlyBurger)).not.toBeNull()
   })
 })

@@ -133,6 +133,10 @@ export function buildMenuView(
  *
  * A referenced dish that has since been deleted or unpublished simply drops out — the
  * design shows three cards, never a hole where one used to be (§7e, item 4).
+ *
+ * These three slots are the ordinary menu dishes and nothing else. Månedens burger has
+ * its own Forside section and never takes one of them: publishing it does not push a
+ * normal featured dish off the page.
  */
 export function selectFeaturedDishes(
   categories: readonly MenuCategoryView[],
@@ -146,4 +150,37 @@ export function selectFeaturedDishes(
   return featuredDishIds
     .map((id) => byId.get(id))
     .filter((dish): dish is DishView => dish !== undefined)
+}
+
+/**
+ * Månedens burger as the Forside shows it — or `null`, which hides the whole section.
+ *
+ * The Forside has a dedicated Månedens burger section beside its three featured dishes,
+ * not instead of one of them, so this is a second, independent question and not a
+ * variation on {@link selectFeaturedDishes}.
+ *
+ * Three conditions have to hold, and each is already owned by the layer that knows it,
+ * so nothing is decided twice:
+ *
+ *  * **It has content.** `lib/content/menu.ts` returns `null` for an unfilled row — a
+ *    burger without a name is not a burger.
+ *  * **Today is inside its window.** {@link buildMenuView} has already applied
+ *    `starts_on` / `ends_on` as a read-time Copenhagen date comparison (§7d).
+ *  * **The administration asked for it.** `show_on_homepage`, the only part of the
+ *    question that is about the Forside rather than about the burger — which is the
+ *    whole reason this function exists and the menu page does not call it.
+ *
+ * When it returns `null` the Forside renders nothing at all. A guest is never told that
+ * a burger they have not heard of is missing; that sentence belongs in the
+ * administration, where somebody can act on it.
+ *
+ * Sold out is deliberately *not* a condition. An active burger that ran out today stays
+ * on the Forside carrying "Udsolgt i dag", exactly as it does on the menu (§7b).
+ */
+export function selectHomepageMonthlyBurger(
+  monthlyBurger: MonthlyBurgerView | null,
+): MonthlyBurgerView | null {
+  if (monthlyBurger === null) return null
+
+  return monthlyBurger.showOnHomepage ? monthlyBurger : null
 }

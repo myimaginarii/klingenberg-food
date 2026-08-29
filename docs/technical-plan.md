@@ -9,6 +9,12 @@ backup destination, dependency version policy) and one clarification (Månedens 
 Architecture from revision 1 is preserved except where a decision required a change; every such
 change is listed in §0.
 
+**Requirement change — 2026-08-29, approved by the restaurant, applied after phase 4.** Forsiden gets
+a **dedicated Månedens burger section** in addition to its three featured dishes. The earlier rule in
+§7e item 3 — that "Vis på forsiden" took featured slot 3 and displaced a normal dish — is withdrawn;
+see §7d and §7e item 3 for what replaces it. `monthly_burger` remains the single source of truth: no
+new table, no duplicated data, no second availability rule.
+
 Confirmed business facts (from design section 1ab — do not invent beyond these):
 
 - Name: Klingenberg Food, Carl Nielsen Hallen
@@ -502,7 +508,15 @@ and the no-database-request constraint is what makes this component acceptable i
 - **Publishing is an explicit staff action.** There is no scheduled publish, no job, no service.
 - Once published, `starts_on` and `ends_on` decide whether the published item is *shown*: a read-time
   comparison against today's Copenhagen date, inclusive at both ends, applied on the menu page and
-  (with `show_on_homepage`) on Forsiden.
+  (with `show_on_homepage`) in Forsiden's **own Månedens burger section**, which is separate from
+  the three featured dishes and never replaces one of them. `lib/menu/view.ts` answers both
+  questions: `buildMenuView` applies the window, `selectHomepageMonthlyBurger` applies
+  `show_on_homepage`. No date, availability or database logic lives in the Forside component.
+- **When there is nothing to show, the section is absent.** The public site never prints "Månedens
+  burger er ikke oplyst endnu" or any other placeholder for it; that sentence belongs in the
+  administration, where somebody can act on it. A burger that is inside its window but sold out
+  today stays on Forsiden carrying "Udsolgt i dag", with its ordering action withdrawn — the same
+  §7b rule as everywhere else, not a second one.
 - The window boundary therefore takes effect within ≤5 minutes of local midnight, via the same
   background revalidation. A date boundary does not need second-level precision and no guest is
   reading the menu at 00:00.
@@ -517,7 +531,7 @@ and the no-database-request constraint is what makes this component acceptable i
 
 1. **Dashboard "Offentliggør ændringer" publishes another person's unfinished draft.** The confirmation lists each pending item with who last edited it; items can be unchecked.
 2. **Concurrent edits.** Optimistic concurrency on `updated_at`; on conflict show "Nogen andre har rettet dette" rather than silently overwriting.
-3. **Månedens burger + Udvalgte burgere.** "Vis på forsiden" takes one of the three slots (per 1ah). Månedens burger takes slot 3; the displaced dish is pushed out with a visible note in the forside editor.
+3. **Månedens burger + Udvalgte burgere.** *Superseded — approved requirement change, 29 August 2026.* The forside has a **dedicated Månedens burger section** in addition to its three featured dishes, not instead of one of them. "Vis på forsiden" (`show_on_homepage`) governs that section alone: publishing or displaying Månedens burger never displaces a featured dish, and there is no slot arithmetic and no "pushed out" note. The section renders only when the burger has content, today is inside its window and `show_on_homepage` is true; otherwise the forside omits it entirely, with **no public placeholder text**. Design 1ah's toggle helper still reads "Optager en af de tre pladser under ‘Tre fra menuen’"; the approved frame is left as drawn, and phase 6 must ship the toggle with wording that matches this rule instead — e.g. "Vises som sit eget afsnit på forsiden".
 4. **Deleting a dish that is featured on the forside**, or an image that is in use. Both warn and then null the reference — never a dangling id (design 1w already shows the image warning).
 5. **Ugens ret week rollover.** Changing the week number blanks the form as a draft; the live site keeps the current card, including its week number, until publish. The editor shows the live week number next to the draft one so the difference is obvious. "Kopiér sidste uge" is the shortcut past the blank form.
 6. **Override deleted after it generated an announcement.** Ask, and default to removing the announcement too when `source='opening_hours'` and it points at that date.
@@ -615,7 +629,7 @@ No map library. No tile provider called at runtime. No JavaScript. The entire ma
 - **Announcement expiry guard** — jsdom with fake timers: already expired at hydration hides immediately; expiring in 30 s hides at 30 s; a `visibilitychange` after a simulated three-hour background hides it; unmount clears the timer; a far-future expiry does not overflow `setTimeout`.
 - Publish/merge: draft overlay merges correctly, publishing clears the draft, partial drafts do not blank unrelated fields.
 - **`copyPreviousWeekToDraft`** — copies every field, advances the ISO week across a year boundary, clears both sold-out fields, and leaves every live column untouched.
-- Månedens burger visibility across period boundaries, inclusive at both ends, in Copenhagen local dates.
+- Månedens burger visibility across period boundaries, inclusive at both ends, in Copenhagen local dates, **and `selectHomepageMonthlyBurger`**: shown when active and `show_on_homepage`; hidden when the toggle is off, before `starts_on`, after `ends_on`, or when nothing is configured; kept — with its sold-out state — when sold out today; and never at the cost of one of the three featured dishes. The Forside section itself is rendered with `react-dom/server` to assert it emits nothing when there is no burger.
 - Tapas `details` Zod schema: fixed group ids, `choose` counts, rejection of unknown keys.
 - News slug generation: Danish characters, collisions, and immutability after publish.
 - Danish price and date formatting.

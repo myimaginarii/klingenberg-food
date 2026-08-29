@@ -4,13 +4,14 @@ import { readMenuContent } from '@/lib/content/menu'
 import { articleExcerpt, readPublishedNews } from '@/lib/content/news'
 import { readHomeDocument } from '@/lib/content/pages'
 import { readOpenStatus } from '@/lib/hours/status'
-import { buildMenuView, selectFeaturedDishes } from '@/lib/menu/view'
+import { buildMenuView, selectFeaturedDishes, selectHomepageMonthlyBurger } from '@/lib/menu/view'
 import { homeMetadata } from '@/lib/seo/metadata'
 import { directionsUrl, toPostalAddress } from '@/lib/site/links'
 
 import { AwardBand } from '@/components/site/AwardBand'
 import { FeaturedDishes } from '@/components/site/home/FeaturedDishes'
 import { HomeHero } from '@/components/site/home/HomeHero'
+import { MonthlyBurgerFeature } from '@/components/site/home/MonthlyBurgerFeature'
 import { NewsAndAbout } from '@/components/site/home/NewsAndAbout'
 import { VisitPanel } from '@/components/site/home/VisitPanel'
 
@@ -20,6 +21,13 @@ import { VisitPanel } from '@/components/site/home/VisitPanel'
  * The page reads and composes; every section is its own component. The award wording is
  * the confirmed competition result (1ab) with a sensible fallback, because the Forsiden
  * editor that lets the owner reword it does not exist until phase 11.
+ *
+ * The section order alternates the two approved page surfaces — cream hero, burgundy
+ * award, beige Månedens burger, cream Tre fra menuen, beige Seneste nyt, cream Besøg.
+ * Månedens burger sits between the award and the three featured dishes because it is
+ * the freshest thing on the page, and it is an addition to them rather than one of
+ * them: publishing it never displaces a featured dish. When there is no active burger
+ * the section renders nothing and the page reads exactly as it did before it.
  */
 export const metadata = homeMetadata(
   'Burgerbaren i Carl Nielsen Hallen i Nørre Lyndelse. Vinder af Fyn & Øer ved Danmarks Bedste Burger 2026. Bestilling på telefon.',
@@ -44,6 +52,7 @@ export default async function ForsidePage() {
   const openStatus = readOpenStatus(now, hours.schedule, hours.overrides)
   const menuView = buildMenuView(menu, hours, now)
   const featured = selectFeaturedDishes(menuView.categories, home?.featuredDishIds ?? [])
+  const monthlyBurger = selectHomepageMonthlyBurger(menuView.monthlyBurger)
   const address = toPostalAddress(contact)
   const latestArticle = latestNews[0] ?? null
 
@@ -64,6 +73,8 @@ export default async function ForsidePage() {
         title={home?.award.title ?? AWARD_FALLBACK.title}
         text={home?.award.text ?? AWARD_FALLBACK.text}
       />
+
+      <MonthlyBurgerFeature burger={monthlyBurger} primaryPhone={contact.primaryPhone} />
 
       <FeaturedDishes dishes={featured} />
 

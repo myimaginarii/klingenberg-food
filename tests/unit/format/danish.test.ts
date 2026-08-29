@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { formatDanishDate, formatDateCircle, formatPrice } from '@/lib/format/danish'
+import {
+  formatDanishDate,
+  formatDateCircle,
+  formatDatePeriod,
+  formatPrice,
+} from '@/lib/format/danish'
 
 describe('formatPrice', () => {
   it('writes a whole-krone price the way the menu does', () => {
@@ -48,5 +53,24 @@ describe('formatDateCircle', () => {
   it('uses the Danish month abbreviations, not the English ones', () => {
     expect(formatDateCircle('2026-10-02').month).toBe('OKT')
     expect(formatDateCircle('2026-05-02').month).toBe('MAJ')
+  })
+})
+
+describe('formatDatePeriod', () => {
+  it('writes a closed window as its two dates', () => {
+    expect(formatDatePeriod('2026-09-01', '2026-09-30')).toBe('01.09.2026–30.09.2026')
+  })
+
+  it('names only the boundary that exists, rather than printing an empty one', () => {
+    expect(formatDatePeriod(null, '2026-09-30')).toBe('Til og med 30.09.2026')
+    expect(formatDatePeriod('2026-09-01', null)).toBe('Fra 01.09.2026')
+  })
+
+  it('gives null when there is no window, so no dateline renders', () => {
+    expect(formatDatePeriod(null, null)).toBeNull()
+  })
+
+  it('rejects a date that does not exist, like every other date here', () => {
+    expect(() => formatDatePeriod('2026-02-30', null)).toThrow(TypeError)
   })
 })

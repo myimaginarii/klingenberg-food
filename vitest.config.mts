@@ -9,6 +9,11 @@ import { defineConfig } from 'vitest/config'
  * (`lib/hours`, `lib/menu/availability`), the draft overlay and schemas
  * (`lib/drafts`, `lib/schemas`), the publish registry (`lib/publishing`) and the
  * repository's own source policy.
+ *
+ * `.tsx` suites are included as well. A Server Component with a visibility rule — a
+ * section that must render nothing rather than a placeholder — is worth asserting as
+ * markup, and `react-dom/server` renders one in this environment with no test renderer
+ * and no DOM. Anything needing a real DOM belongs in the Playwright suites instead.
  */
 export default defineConfig({
   resolve: {
@@ -33,7 +38,7 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['tests/unit/**/*.test.ts', 'lib/**/*.test.ts'],
+    include: ['tests/unit/**/*.test.ts', 'tests/unit/**/*.test.tsx', 'lib/**/*.test.ts'],
     // Time-dependent logic is central to this system (technical plan §7); tests must
     // never inherit the machine's timezone.
     env: { TZ: 'Europe/Copenhagen' },
