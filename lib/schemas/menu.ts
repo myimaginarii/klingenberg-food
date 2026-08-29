@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { MAX_CUSTOM_LABEL_LENGTH, MAX_DISH_LABELS } from '@/lib/menu/labels'
+
 import { defineDraft } from './define'
 import {
   optionalRowId,
@@ -82,13 +84,25 @@ export const dishDraft = defineDraft({
 
   // At most four distinct, non-blank labels — the shape the database CHECK enforces.
   // The value set is deliberately open: the approved design uses the four system
-  // labels *and* short descriptive ones (see docs/dependencies.md, phase 3).
+  // labels *and* short descriptive ones (see docs/dependencies.md, phase 3, and the
+  // confirmed phase-5B decision recorded in `lib/menu/labels.ts`).
+  //
+  // Three rules, each mirroring one the editor already applied, because this schema is
+  // also what a *stored* draft is re-validated against before it is published: a draft
+  // written by an older editor, or by anything that is not the editor, must not reach
+  // a live menu carrying a label the current rules would refuse.
+  //
+  // The case-insensitive duplicate check is deliberately stricter than the database's
+  // own `distinct`. "Kylling" and "kylling" beside the same dish is a mistake every
+  // time, and the database cannot know that.
   labels: z
-    .array(requiredText(40, 'En mærkat'))
-    .max(4, { error: 'En ret kan højst have fire mærkater.' })
-    .refine((labels) => new Set(labels).size === labels.length, {
-      error: 'Den samme mærkat kan kun stå én gang.',
-    })
+    .array(requiredText(MAX_CUSTOM_LABEL_LENGTH, 'En mærkat'))
+    .max(MAX_DISH_LABELS, { error: `En ret kan højst have ${MAX_DISH_LABELS} mærkater.` })
+    .refine(
+      (labels) =>
+        new Set(labels.map((label) => label.toLocaleLowerCase('da-DK'))).size === labels.length,
+      { error: 'Den samme mærkat kan kun stå én gang.' },
+    )
     .optional(),
 
   // `null` clears the tapas document, which is how an entry stops being the Tapas
@@ -98,3 +112,35 @@ export const dishDraft = defineDraft({
   image_id: optionalRowId('Billedet').optional(),
   sort_order: sortOrder.optional(),
 })
+
+/**
+ * The dish draft's editable field names, as a type.
+ *
+ * Derived from the schema rather than typed a second time, so `lib/menu/admin.ts`
+ * cannot describe a pending change in a field the schema does not have — and a field
+ * added here without a Danish name there is a compile error rather than a row that
+ * says nothing useful.
+ */
+export const MENU_DRAFT_FIELDS = dishDraft.fields as readonly (keyof typeof dishDraft.input.shape)[]
+
+export type MenuDraftField = (typeof MENU_DRAFT_FIELDS)[number]
+
+/**
+ * Creating a dish — design 1r ("+ Tilføj ret"), technical plan §4, §6.
+ *
+ * A new dish starts life as an unpublished row (`is_new_draft = true`), so the two
+ * things it cannot be created without are the two things that decide where it goes and
+ * what it is called. Everything else — price, description, labels — is an ordinary
+ * draft edit afterwards and is therefore governed by `dishDraft` above.
+ *
+ * Strict, like every other write path: an unknown key is a refusal rather than
+ * something to ignore. The category is re-checked against `mayHoldDishes` in the
+ * Server Action, because "is this a real uuid" and "is this a section that may hold
+ * dishes" are different questions and only the second one knows about Ugens ret.
+ */
+export const newDishInput = z.strictObject({
+  category_id: rowId('Sektionen'),
+  name: requiredText(200, 'Rettens navn'),
+})
+
+export type NewDishInput = z.infer<typeof newDishInput>

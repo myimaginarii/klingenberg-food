@@ -21,11 +21,13 @@ export function AdminShell({
   children: React.ReactNode
 }) {
   return (
-    <main className="mx-auto w-full max-w-[38rem]">
-      <p className="font-mono text-label text-ink-3 uppercase">{eyebrow}</p>
-      <h1 className="font-display text-title-sm mt-3">{title}</h1>
-      <div className="mt-6 flex flex-col gap-6">{children}</div>
-    </main>
+    <div className="mx-auto max-w-content px-gutter py-section md:px-8">
+      <main className="mx-auto w-full max-w-[38rem]">
+        <p className="font-mono text-label text-ink-3 uppercase">{eyebrow}</p>
+        <h1 className="font-display text-title-sm mt-3">{title}</h1>
+        <div className="mt-6 flex flex-col gap-6">{children}</div>
+      </main>
+    </div>
   )
 }
 

@@ -69,10 +69,22 @@ export default async function AdminDashboard({
       </Card>
 
       <Card>
+        <h2 className="text-heading font-semibold">Rediger menu</h2>
+        <p className="text-ink-2 text-meta mt-2">
+          Retter, priser, beskrivelser og mærkater i menuens sektioner.
+        </p>
+        <p className="mt-3">
+          <Link className="text-brand-700 text-meta underline" href="/admin/menu">
+            Åbn menuen
+          </Link>
+        </p>
+      </Card>
+
+      <Card>
         <h2 className="text-heading font-semibold">Rediger indhold</h2>
         <p className="text-ink-2 text-meta mt-2">
-          Sidetekster og kontaktoplysninger. De øvrige redigeringsskærme — menu, ugens
-          ret, nyheder, beskeder og åbningstider — kommer i de næste faser.
+          Sidetekster og kontaktoplysninger. De øvrige redigeringsskærme — ugens ret,
+          nyheder, beskeder og åbningstider — kommer i de næste faser.
         </p>
         <p className="mt-3">
           <Link className="text-brand-700 text-meta underline" href="/admin/indhold">

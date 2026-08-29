@@ -33,6 +33,23 @@ import { applyEntityFilter, locateEntityRow } from './locate'
  * The new draft is merged into the existing one rather than replacing it, using the
  * same `mergeDraftValues` the preview overlay uses. Editing a heading on Monday and a
  * price on Tuesday leaves one draft carrying both.
+ *
+ * TWO KINDS OF EDITOR, AND WHY `mode` EXISTS
+ *
+ * Merging is right for a **partial** editor — a form that owns some of an entity's
+ * fields and says nothing about the rest. Every phase-4 content form is one of those.
+ *
+ * It is wrong for a **whole-entity** editor, and the menu's dish panel (1r) is one: it
+ * renders every editable field the dish has and submits all of them, already reduced to
+ * the ones that differ from the live values. Merging such a submission would keep a
+ * field the person had just changed back — they would revert a price, save, and the old
+ * draft price would still be there, invisible in the form and live on the next publish.
+ * `mode: 'replace'` says "these values *are* the draft".
+ *
+ * A draft that ends up with no fields at all is written as `null` rather than as `{}`.
+ * An empty object is not "no pending change" to anything that reads `draft is not null`
+ * — the `pending_changes` view, the Kladde badge, the dashboard count — so an entity
+ * whose edits have all been reverted stops being pending, as it should.
  */
 
 export type SaveDraftStatus =
@@ -65,6 +82,12 @@ export type SaveDraftRequest = {
   readonly expectedUpdatedAt: string
   /** Raw, unvalidated values. Parsed here and never used before that. */
   readonly values: unknown
+  /**
+   * `merge` (the default) adds these values to any existing draft; `replace` makes them
+   * the whole draft. Use `replace` only from an editor that submits the entity's every
+   * editable field — see the note above.
+   */
+  readonly mode?: 'merge' | 'replace'
 }
 
 function refusal(status: SaveDraftStatus, messages: readonly string[] = []): SaveDraftResult {
@@ -114,13 +137,18 @@ export async function saveEntityDraft(
   if (current.error) return refusal('failed')
   if (current.data === null) return refusal('not_found')
 
-  const existing = isPlainObject(current.data.draft) ? current.data.draft : {}
+  const existing =
+    request.mode === 'replace' || !isPlainObject(current.data.draft) ? {} : current.data.draft
 
-  const { row: nextDraft } = mergeDraftValues(
+  const { row: merged } = mergeDraftValues(
     existing,
     parsed.data as Record<string, unknown>,
     draft.spec,
   )
+
+  // No fields left is no pending change. `{}` would keep the entity in
+  // `pending_changes` — and in the Kladde badge — with nothing to publish.
+  const nextDraft = Object.keys(merged).length === 0 ? null : merged
 
   // The version check is part of the write, not a separate read before it, so two
   // saves that both started from the same version cannot both succeed.

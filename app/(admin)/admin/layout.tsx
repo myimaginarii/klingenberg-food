@@ -21,10 +21,12 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
 }
 
+/**
+ * The layout owns the page's ground and nothing else. The container that used to live
+ * here moved into `AdminShell` (`./ui.tsx`), which every centred screen already uses,
+ * so that a section screen can draw the full-width burgundy bar the approved design
+ * gives it (1r, 1y) without fighting a padding it did not ask for.
+ */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="bg-bg text-ink min-h-screen">
-      <div className="mx-auto max-w-content px-gutter py-section md:px-8">{children}</div>
-    </div>
-  )
+  return <div className="bg-bg text-ink min-h-screen">{children}</div>
 }

@@ -15,11 +15,15 @@ import { defineConfig, devices } from '@playwright/test'
  *   * `no-javascript` — the same site with scripting switched off. §7e (item 11) says
  *     the public site must fully work without it, so that is tested rather than hoped
  *     for.
- *   * `draft-publish` — the Kladde → Forhåndsvis → Offentliggør flow (§6). It is the
- *     only suite that writes to the database, so it runs **after** the three read-only
- *     projects (`dependencies`) and its own tests run in order. Nothing it changes can
- *     therefore be observed half-done by a spec that is reading the same page, and it
- *     restores the content it moves.
+ *   * `draft-publish` — the Kladde → Forhåndsvis → Offentliggør flow (§6), and
+ *   * `menu-admin` — the same flow through Rediger menu (phase 5B).
+ *
+ * The last two write to the database, so they run **after** the three read-only
+ * projects (`dependencies`) and their own tests run in order. They are also two
+ * separate projects, one depending on the other, rather than two files in one: both
+ * publish, and publishing expires cache tags, so a `draft-publish` assertion that the
+ * menu's cached page was *not* expired would be a coin toss if a menu publish could run
+ * beside it. Each suite restores the content it moves.
  *
  * `PLAYWRIGHT_BASE_URL` lets CI point the same suite at a deployed preview. Locally the
  * config builds and starts the site itself.
@@ -47,12 +51,20 @@ export default defineConfig({
   projects: [
     {
       name: 'desktop',
-      testIgnore: ['e2e/no-javascript.spec.ts', 'e2e/draft-publish.spec.ts'],
+      testIgnore: [
+        'e2e/no-javascript.spec.ts',
+        'e2e/draft-publish.spec.ts',
+        'e2e/menu-admin.spec.ts',
+      ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     {
       name: 'mobile',
-      testIgnore: ['e2e/no-javascript.spec.ts', 'e2e/draft-publish.spec.ts'],
+      testIgnore: [
+        'e2e/no-javascript.spec.ts',
+        'e2e/draft-publish.spec.ts',
+        'e2e/menu-admin.spec.ts',
+      ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
     {
@@ -72,6 +84,12 @@ export default defineConfig({
       name: 'draft-publish',
       testMatch: 'e2e/draft-publish.spec.ts',
       dependencies: ['desktop', 'mobile', 'no-javascript'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: 'menu-admin',
+      testMatch: 'e2e/menu-admin.spec.ts',
+      dependencies: ['draft-publish'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],
