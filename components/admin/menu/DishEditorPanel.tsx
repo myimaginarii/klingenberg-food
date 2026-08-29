@@ -5,6 +5,7 @@ import { SubmitButton } from '@/components/admin/SubmitButton'
 import type { AdminCategory, DishAvailability } from '@/lib/menu/admin'
 
 import { AvailabilityBlock, type AvailabilityForm } from './AvailabilitySwitch'
+import { DeleteDishLink } from './DeleteDishControls'
 import { LabelFields } from './LabelFields'
 
 /**
@@ -60,6 +61,8 @@ export function DishEditorPanel({
   section,
   dishName,
   isNewDraft,
+  deleteHref,
+  deleteAnchorId,
 }: {
   anchorId: string
   heading: string
@@ -95,7 +98,18 @@ export function DishEditorPanel({
   /** The dish's name, for the availability control's accessible name. */
   dishName?: string
   isNewDraft?: boolean
+  /**
+   * Where Slet ret leads — the confirmation, never the deletion itself (1r, §6).
+   * Absent for a dish that does not exist yet: there is nothing to delete.
+   */
+  deleteHref?: string
+  /** The anchor the confirmation's Behold-knap comes back to. */
+  deleteAnchorId?: string
 }) {
+  // A dish that does not exist yet has nothing to delete, so the row is drawn without
+  // the control rather than with a disabled one.
+  const deletable = deleteHref !== undefined && deleteAnchorId !== undefined
+
   return (
     <section
       aria-labelledby={`${anchorId}-titel`}
@@ -221,14 +235,37 @@ export function DishEditorPanel({
           standard={values.standardLabels}
         />
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
-          <Link
-            className="rounded-field border-field-border text-neutral-ink hover:border-rule min-h-tap inline-flex items-center border-[1.5px] px-4 font-semibold"
-            href={closeHref}
-          >
-            Fortryd
-          </Link>
-          <SubmitButton>Gem</SubmitButton>
+        {/*
+          1r's footer row: Slet ret on the left, Fortryd and Gem on the right. The
+          destructive control is deliberately at the other end of the row from the one
+          a person's hand is already near after filling in the fields.
+
+          Slet ret is a `<Link>`, not a submit, so it does not need — and must not have
+          — a form of its own inside this one: pressing it opens the confirmation, and
+          the confirmation is what deletes.
+        */}
+        <div
+          className={`flex flex-wrap items-center gap-2 ${
+            deletable ? 'justify-between' : 'justify-end'
+          }`}
+        >
+          {deletable ? (
+            <DeleteDishLink
+              anchorId={deleteAnchorId}
+              dishName={dishName ?? values.name}
+              href={deleteHref}
+            />
+          ) : null}
+
+          <span className="flex flex-wrap items-center gap-2">
+            <Link
+              className="rounded-field border-field-border text-neutral-ink hover:border-rule min-h-tap inline-flex items-center border-[1.5px] px-4 font-semibold"
+              href={closeHref}
+            >
+              Fortryd
+            </Link>
+            <SubmitButton>Gem</SubmitButton>
+          </span>
         </div>
 
         <p className="text-ink-3 text-micro">

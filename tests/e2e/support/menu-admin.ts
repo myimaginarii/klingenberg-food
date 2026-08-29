@@ -169,3 +169,57 @@ export function publicDish(page: Page, dish: string) {
     .filter({ has: page.getByRole('heading', { name: dish, exact: true }) })
     .first()
 }
+
+/**
+ * The deletion confirmation, addressed by the question it asks (phase 5D).
+ *
+ * A native `<dialog>` opened with `showModal()`, so Playwright's `dialog` role finds it
+ * and its accessible name is the heading — which is what a screen reader announces too.
+ */
+export function deleteDialog(page: Page) {
+  return page.getByRole('dialog')
+}
+
+/** Open a dish's editor and press Slet ret. Nothing is deleted by this. */
+export async function openDeleteConfirmation(
+  page: Page,
+  section: string,
+  dish: string,
+): Promise<void> {
+  await openDish(page, section, dish)
+  await page.getByRole('link', { name: new RegExp(`^Slet ret — ${dish}$`) }).click()
+  await expect(deleteDialog(page)).toBeVisible()
+}
+
+/**
+ * Confirm the open dialog, and wait for the redirect the action performs.
+ *
+ * The wait names a parameter the *result* carries — the Fortryd offer, or a refusal
+ * code — rather than the path. The confirmation is itself a `/admin/menu?…` address, so
+ * a pattern that only matched the path would resolve before the action had answered,
+ * and a caller reading `page.url()` afterwards would read the address it started from.
+ */
+export async function confirmDelete(page: Page): Promise<void> {
+  await deleteDialog(page).getByRole('button', { name: /^Slet ret/ }).click()
+  await page.waitForURL(/\/admin\/menu\?.*(fortryd_slet=|status=)/)
+}
+
+/** Cancel the open dialog, and wait for the navigation back to the editor. */
+export async function cancelDelete(page: Page): Promise<void> {
+  await deleteDialog(page).getByRole('link', { name: 'Behold ret' }).click()
+  await page.waitForURL(/#slet-ret$/)
+}
+
+/**
+ * Restore a dish through the Fortryd strip the deletion left behind.
+ *
+ * Deliberately not a helper that "restores a dish by id": the strip is the only path
+ * this administration offers, and a test that reached past it would stop testing the
+ * thing that has to work.
+ */
+export async function pressDeleteUndo(page: Page): Promise<void> {
+  await undoStrip(page).getByRole('button', { name: /^Fortryd/ }).click()
+  // Same reason as `confirmDelete`: the strip is rendered on a `/admin/menu?…` address,
+  // so the wait has to name something only the answer carries.
+  await page.waitForURL(/\/admin\/menu\?.*status=/)
+}

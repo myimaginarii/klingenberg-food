@@ -49,6 +49,15 @@ type CategoryRow = {
   draft: unknown
 }
 
+/** A soft-deleted dish, for the ten seconds its Fortryd is on offer (phase 5D). */
+export type DeletedDish = {
+  readonly id: string
+  readonly name: string
+  readonly isNewDraft: boolean
+  /** The version token the Fortryd submits back (§6). */
+  readonly updatedAt: string
+}
+
 type DishRow = {
   id: string
   category_id: string
@@ -107,8 +116,8 @@ function toAdminDish(raw: DishRow): AdminDish {
     priceOre: row.price_ore,
     labels: row.labels ?? [],
     sortOrder: row.sort_order,
-    // Read for display only in phase 5B. Marking a dish Udsolgt is the immediate path
-    // with a 10 s Fortryd (§6) and belongs to phase 5C; nothing here writes it.
+    // Read for display. Marking a dish Udsolgt is the immediate path with a 10 s
+    // Fortryd (§6, `lib/menu/sold-out.ts`); nothing here writes it.
     soldOutOn: raw.sold_out_on,
     isNewDraft: raw.is_new_draft,
     hasDraft: raw.draft !== null && raw.draft !== undefined,
@@ -125,8 +134,9 @@ function toAdminDish(raw: DishRow): AdminDish {
  * navigation lists (1r) even though its content is edited elsewhere.
  *
  * Soft-deleted dishes are excluded. A deleted dish is on its way out rather than
- * waiting to go live, which is the same rule `pending_changes` applies (§4); deletion
- * itself, and its 10-second Fortryd, are phase 5C.
+ * waiting to go live, which is the same rule `pending_changes` applies (§4). Bringing
+ * one back is `readDeletedDish()` below, which is the only read in this file that
+ * reaches past that exclusion — and it reaches exactly one row, by id.
  */
 export const readAdminMenuContent = cache(async (): Promise<AdminMenuContent> => {
   const supabase = await createSupabaseServerClient()
@@ -157,3 +167,84 @@ export const readAdminMenuContent = cache(async (): Promise<AdminMenuContent> =>
     dishes: (dishes.data ?? []).map(toAdminDish),
   }
 })
+
+/**
+ * One soft-deleted dish, by id — phase 5D.
+ *
+ * `readAdminMenuContent()` excludes deleted dishes, and rightly: a deleted dish is not
+ * part of the menu anybody is editing. But the Fortryd strip has to *name* the dish it
+ * offers to bring back, and the query string carries an id rather than a sentence —
+ * exactly as the availability strip does, and for the same reason: a name in the URL is
+ * a name somebody could type.
+ *
+ * So this is a targeted read of the one row, performed only while the strip is on
+ * offer. It answers `null` for an id that names nothing, for a dish RLS hides, and for
+ * a dish that is **not** deleted — which is what makes a hand-built query string
+ * produce no strip at all rather than an offer to "restore" a dish that is already
+ * there. It reads through the staff member's own JWT, uncached, like everything else
+ * the administration reads.
+ */
+export async function readDeletedDish(dishId: string): Promise<DeletedDish | null> {
+  const supabase = await createSupabaseServerClient()
+
+  const { data, error } = await supabase
+    .from('dishes')
+    .select('id, name, is_new_draft, updated_at')
+    .eq('id', dishId)
+    .not('deleted_at', 'is', null)
+    .maybeSingle<{ id: string; name: string; is_new_draft: boolean; updated_at: string }>()
+
+  if (error !== null) {
+    throw new Error(`Could not read the deleted dish: ${error.message}`)
+  }
+
+  if (data === null) return null
+
+  return {
+    id: data.id,
+    name: data.name,
+    isNewDraft: data.is_new_draft,
+    updatedAt: data.updated_at,
+  }
+}
+
+/**
+ * Which dishes the **published** Forside currently features — technical plan §7e item 4.
+ *
+ * Read here, on the server, from the Forside document itself. The browser is never
+ * asked whether a dish is featured, and could not be believed if it were: a submitted
+ * `featured=true` would let anyone put a warning on the screen, and — worse — a
+ * submitted `featured=false` would take a true one off it.
+ *
+ * It is **information, not authority**. Nothing downstream of this decides whether the
+ * deletion may proceed; the answer only chooses whether the confirmation carries the
+ * Forside sentence. Deleting the dish leaves `pages.home` exactly as the Owner wrote it
+ * either way, and this function has no write path of any kind — it is a `select` of one
+ * column of one row.
+ *
+ * `published`, deliberately, and not the draft: a Forside the Owner is midway through
+ * rewriting is not what a guest currently sees, and the warning is about what a guest
+ * currently sees. Staff may read `pages` (`pages_select_staff`), which is the whole of
+ * the access this needs — they may not update the `home` row, and this function does
+ * not widen that by a single privilege.
+ */
+export async function readHomeFeaturedDishIds(): Promise<readonly string[]> {
+  const supabase = await createSupabaseServerClient()
+
+  const { data, error } = await supabase
+    .from('pages')
+    .select('published')
+    .eq('key', 'home')
+    .maybeSingle<{ published: unknown }>()
+
+  if (error !== null) {
+    throw new Error(`Could not read the Forside document: ${error.message}`)
+  }
+
+  const published = data?.published
+  if (typeof published !== 'object' || published === null) return []
+
+  const ids = (published as Record<string, unknown>)['featured_dish_ids']
+
+  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : []
+}

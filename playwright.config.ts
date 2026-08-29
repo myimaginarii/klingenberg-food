@@ -56,6 +56,7 @@ export default defineConfig({
         'e2e/draft-publish.spec.ts',
         'e2e/menu-admin.spec.ts',
         'e2e/menu-sold-out.spec.ts',
+        'e2e/menu-delete.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -66,6 +67,7 @@ export default defineConfig({
         'e2e/draft-publish.spec.ts',
         'e2e/menu-admin.spec.ts',
         'e2e/menu-sold-out.spec.ts',
+        'e2e/menu-delete.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -115,6 +117,25 @@ export default defineConfig({
       name: 'menu-sold-out-mobile',
       testMatch: 'e2e/menu-sold-out.spec.ts',
       dependencies: ['menu-sold-out'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    /*
+     * Slet ret (phase 5D), at both widths, and chained after the sold-out runs for the
+     * same reason those two are chained to each other: it deletes a dish the other
+     * suites read, and it expires the `menu` cache tag while doing it. A guest assertion
+     * about Odin would be a coin toss if another run could act between the write and the
+     * read. Each run leaves every dish present and every draft as it found it.
+     */
+    {
+      name: 'menu-delete',
+      testMatch: 'e2e/menu-delete.spec.ts',
+      dependencies: ['menu-sold-out-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: 'menu-delete-mobile',
+      testMatch: 'e2e/menu-delete.spec.ts',
+      dependencies: ['menu-delete'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
   ],

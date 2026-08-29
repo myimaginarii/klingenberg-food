@@ -3,6 +3,8 @@ import { notFound } from 'next/navigation'
 import { AdminSectionBar, BarLink, BarSubmit } from '@/components/admin/menu/AdminSectionBar'
 import { AvailabilityUndo } from '@/components/admin/menu/AvailabilityUndo'
 import { CategoryChips } from '@/components/admin/menu/CategoryChips'
+import { DeleteDishDialog } from '@/components/admin/menu/DeleteDishDialog'
+import { DeleteUndo } from '@/components/admin/menu/DeleteUndo'
 import { DishEditorPanel } from '@/components/admin/menu/DishEditorPanel'
 import { DishList } from '@/components/admin/menu/DishList'
 import { MenuPendingNotice } from '@/components/admin/menu/MenuPendingNotice'
@@ -10,13 +12,18 @@ import { MenuStatusNotice } from '@/components/admin/menu/MenuStatusNotice'
 import { WeeklySpecialNotice } from '@/components/admin/menu/WeeklySpecialNotice'
 import { requireStaff } from '@/lib/auth/guards'
 import { readOpeningHours } from '@/lib/content/hours'
-import { readAdminMenuContent } from '@/lib/content/menu-admin'
+import {
+  readAdminMenuContent,
+  readDeletedDish,
+  readHomeFeaturedDishIds,
+} from '@/lib/content/menu-admin'
 import {
   assignableCategories,
   describeAvailability,
   groupDishesBySection,
   mayHoldDishes,
 } from '@/lib/menu/admin'
+import { describeDishDeleted, describeDishDeletion } from '@/lib/menu/delete'
 import { isMenuPublishable } from '@/lib/menu/pending'
 import { readPendingChanges } from '@/lib/publishing/pending'
 import type { IsoDate } from '@/lib/time/calendar'
@@ -24,6 +31,8 @@ import type { IsoDate } from '@/lib/time/calendar'
 import { setDishAvailability } from './availability-actions'
 import { AVAILABILITY_FORM } from './availability-form'
 import { createDish } from './create-actions'
+import { setDishDeletion } from './delete-actions'
+import { DELETE_FORM } from './delete-form'
 import {
   decodeDishErrors,
   DISH_ERROR_FIELD,
@@ -36,7 +45,13 @@ import {
   type DishErrorField,
 } from './dish-form'
 import { publishMenuChanges } from './publish-actions'
-import { EDITOR_ANCHOR, MENU_PARAM, menuHref } from './routes'
+import {
+  DELETE_BUTTON_ANCHOR,
+  DELETE_DIALOG_ANCHOR,
+  EDITOR_ANCHOR,
+  MENU_PARAM,
+  menuHref,
+} from './routes'
 import { saveDishDraft } from './save-actions'
 
 /**
@@ -44,19 +59,25 @@ import { saveDishDraft } from './save-actions'
  *
  * SCOPE. The list, the section navigation with its counts, the Kladde states, the
  * editor panel, creating a dish, moving one between sections, preview and publish
- * (phase 5B), plus the immediate Tilgængelig / Udsolgt control with its computed reset
- * label and its ~10-second Fortryd (phase 5C). Deliberately **not** here, and not
- * stubbed either: delete, drag-reorder, and the Tapas list editor. Each of those is its
- * own interaction with its own rules, and drawing an inert version of one would be
- * worse than not drawing it.
+ * (phase 5B), the immediate Tilgængelig / Udsolgt control with its computed reset label
+ * and its ~10-second Fortryd (phase 5C), and Slet ret with its confirmation and its own
+ * ~10-second Fortryd (phase 5D). Deliberately **not** here, and not stubbed either:
+ * drag-reorder and the Tapas list editor. Each of those is its own interaction with its
+ * own rules, and drawing an inert version of one would be worse than not drawing it.
  *
  * THE TWO PATHS, SIDE BY SIDE
  *
- * Everything on this screen except the availability control writes a draft and waits
- * for Offentliggør (§6). The availability control writes the hjemmeside immediately and
- * offers Fortryd for about ten seconds. The distinction is drawn rather than explained:
- * a pending change puts its row in the warning tone and says what is waiting, and the
+ * Everything on this screen except the availability control and Slet ret writes a draft
+ * and waits for Offentliggør (§6). Those two write the hjemmeside immediately and offer
+ * Fortryd for about ten seconds. The distinction is drawn rather than explained: a
+ * pending change puts its row in the warning tone and says what is waiting, and an
  * immediate change produces a green strip that says what is already live.
+ *
+ * The two immediate operations are two implementations, not one parameterised one. They
+ * share the green strip (`UndoStrip`) and the ten-second timer (`AutoDismiss`), because
+ * those are presentation; they share nothing else. Each has its own Server Action, its
+ * own strictly-parsed field names, its own database function and its own audit action,
+ * so what either of them can and cannot do is answerable by reading one file.
  *
  * `requireStaff()` is called here, in the page. `proxy.ts` also redirects an
  * unauthenticated visitor, but that is convenience — this call is the enforcement (§5),
@@ -94,6 +115,20 @@ import { saveDishDraft } from './save-actions'
 const AVAILABILITY_FORM_BINDING = {
   action: setDishAvailability,
   fieldNames: AVAILABILITY_FORM,
+} as const
+
+/**
+ * The deletion path's binding: its own action, its own field names.
+ *
+ * Separate from the availability binding on purpose. The two immediate operations look
+ * alike and are not the same operation, and keeping their vocabularies apart is what
+ * makes a forged submission unable to cross from one to the other — a form carrying
+ * `udsolgt` cannot reach the deletion action, and one carrying `slettet` cannot reach
+ * the availability one.
+ */
+const DELETE_FORM_BINDING = {
+  action: setDishDeletion,
+  fieldNames: DELETE_FORM,
 } as const
 
 /** A repeated parameter is a malformed request, not two answers: take the first. */
@@ -163,6 +198,31 @@ export default async function MenuAdminPage({
   const undoVersion = one(params[MENU_PARAM.undoVersion])
   const undoSoldOut = one(params[MENU_PARAM.undoSoldOut])
 
+  /*
+   * The deletion confirmation, and the Fortryd a deletion leaves behind.
+   *
+   * Both are read from the URL and both are resolved against the database rather than
+   * believed: the confirmation is rendered for a dish this person can actually see, and
+   * the strip for a dish that is actually deleted. An id naming neither produces no
+   * dialog and no strip — the same rule the availability strip follows.
+   *
+   * `readHomeFeaturedDishIds()` is asked only while the confirmation is open, and only
+   * to decide whether one sentence appears. It reads the published Forside document
+   * through this staff member's own JWT; it cannot, and does not, write to it.
+   */
+  const confirming = menu.dishes.find(
+    (dish) => dish.id === one(params[MENU_PARAM.confirmDelete]),
+  )
+
+  // Two reads, each performed only when the screen state that needs it is on. They are
+  // never both on — a confirmation address carries no Fortryd offer and the reverse —
+  // so this is two conditional queries rather than one parallel pair.
+  const featuredDishIds = confirming === undefined ? [] : await readHomeFeaturedDishIds()
+
+  const undoDeleteId = one(params[MENU_PARAM.undoDeleteDish])
+  const undoDeleteVersion = one(params[MENU_PARAM.undoDeleteVersion])
+  const deletedDish = undoDeleteId === undefined ? null : await readDeletedDish(undoDeleteId)
+
   return (
     <>
       <AdminSectionBar backHref="/admin" title="Rediger menu">
@@ -220,6 +280,26 @@ export default async function MenuAdminPage({
           />
         )}
 
+        {/*
+          The deletion's own Fortryd strip. The dish it names is no longer in the list —
+          `readAdminMenuContent` excludes deleted dishes — so it is read by id, and the
+          sentence it carries is composed by the same module that composed the question
+          the person answered a moment ago.
+        */}
+        {deletedDish === null || undoDeleteVersion === undefined ? null : (
+          <DeleteUndo
+            dishId={deletedDish.id}
+            dishName={deletedDish.name}
+            form={DELETE_FORM_BINDING}
+            message={describeDishDeleted({
+              dishName: deletedDish.name,
+              isNewDraft: deletedDish.isNewDraft,
+            })}
+            section={activeSection.category.slug}
+            version={undoDeleteVersion}
+          />
+        )}
+
         <MenuPendingNotice action={publishMenuChanges} pending={menuPending} />
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-5">
@@ -266,6 +346,12 @@ export default async function MenuAdminPage({
                   availabilityForm={AVAILABILITY_FORM_BINDING}
                   categories={assignable}
                   closeHref={sectionHref(activeSection.category.slug)}
+                  deleteAnchorId={DELETE_BUTTON_ANCHOR}
+                  deleteHref={menuHref({
+                    section: activeSection.category.slug,
+                    dish: editing.id,
+                    confirmDelete: editing.id,
+                  })}
                   dishId={editing.id}
                   dishName={editing.name}
                   errorFor={errorFor}
@@ -280,6 +366,38 @@ export default async function MenuAdminPage({
             </div>
           ) : null}
         </div>
+
+        {/*
+          The confirmation. It is a `<dialog>`, so with JavaScript it is modal — focus
+          moves in, focus is trapped, and clicking outside does not dismiss it (1ae) —
+          and without JavaScript it is an ordinary block at the end of the screen, which
+          the Slet ret link's own `#slet-bekraeft` fragment scrolls to. Either way the
+          deletion itself is a form somebody has to submit.
+
+          It is rendered here rather than inside the editor column so that a person who
+          arrives at `?slet=…` directly still meets a complete, operable confirmation
+          rather than one that depends on the panel being open.
+        */}
+        {confirming === undefined ? null : (
+          <DeleteDishDialog
+            anchorId={DELETE_DIALOG_ANCHOR}
+            cancelHref={menuHref({
+              section: activeSection.category.slug,
+              dish: confirming.id,
+              focusDelete: true,
+            })}
+            dishId={confirming.id}
+            dishName={confirming.name}
+            form={DELETE_FORM_BINDING}
+            prompt={describeDishDeletion({
+              dishName: confirming.name,
+              isNewDraft: confirming.isNewDraft,
+              featuredOnHomepage: featuredDishIds.includes(confirming.id),
+            })}
+            section={activeSection.category.slug}
+            version={confirming.updatedAt}
+          />
+        )}
       </main>
     </>
   )

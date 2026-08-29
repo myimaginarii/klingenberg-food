@@ -101,6 +101,34 @@ test.describe('the menu administration', () => {
     expect(await violations(page)).toEqual([])
   })
 
+  /*
+   * The deletion confirmation is reachable from the URL alone — `?slet=<id>` is all the
+   * page needs to render it — so it is scanned here, in the read-only suite, at both
+   * widths. Opening it deletes nothing; the deletion itself is exercised in
+   * `e2e/menu-delete.spec.ts`.
+   */
+  test('the deletion confirmation has no accessibility violations', async ({ page }) => {
+    await signIn(page, STAFF)
+    const id = await firstDishId(page)
+    await page.goto(`/admin/menu?ret=${id}&slet=${id}`)
+
+    await expect(page.getByRole('dialog')).toBeVisible()
+    expect(await violations(page)).toEqual([])
+  })
+
+  test('the deletion Fortryd strip has no accessibility violations', async ({ page }) => {
+    await signIn(page, STAFF)
+    const id = await firstDishId(page)
+    await page.goto(
+      `/admin/menu?fortryd_slet=${id}&fortryd_slet_version=2026-08-29T12%3A00%3A00.000Z`,
+    )
+
+    // The dish is not deleted, so no strip is drawn — which is itself the rule being
+    // scanned: a hand-built address produces a screen, not an offer.
+    await expect(page.getByRole('list', { name: /^Retter i / })).toBeVisible()
+    expect(await violations(page)).toEqual([])
+  })
+
   test('the section that is managed elsewhere has no accessibility violations', async ({
     page,
   }) => {
@@ -186,6 +214,33 @@ test.describe('the promises 1aa makes by name', () => {
     // a screen reader needs and a sighted person can already see — which dish, and
     // where pressing leads.
     await expect(control).toHaveAccessibleName(/^Tilgængelig — .+\. Skift til udsolgt\.$/)
+  })
+
+  test('Slet ret is a 44 px target that names the dish it would remove', async ({ page }) => {
+    await signIn(page, STAFF)
+    await page.goto(`/admin/menu?ret=${await firstDishId(page)}`)
+
+    const control = page.getByRole('link', { name: /^Slet ret — / })
+
+    // The word is in the control, so the destructive action survives the colours being
+    // switched off (1aa) — and the dish is in its accessible name, so a screen reader
+    // is never asked to delete "a ret".
+    await expect(control).toContainText('Slet ret')
+
+    const box = await control.boundingBox()
+    expect(box?.height ?? 0, 'Slet ret is at least 44 px tall').toBeGreaterThanOrEqual(44)
+  })
+
+  test('the deletion confirmation is named by its own question', async ({ page }) => {
+    await signIn(page, STAFF)
+    const id = await firstDishId(page)
+    await page.goto(`/admin/menu?ret=${id}&slet=${id}`)
+
+    const dialog = page.getByRole('dialog')
+
+    await expect(dialog).toHaveAccessibleName(/^Slet .+\?$/)
+    // Focus is inside the dialog, on the safe choice, and the page behind is inert.
+    await expect(dialog.getByRole('link', { name: 'Behold ret' })).toBeFocused()
   })
 
   test('the availability control is operable from the keyboard alone', async ({ page }) => {

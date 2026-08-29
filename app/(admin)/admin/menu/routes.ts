@@ -41,6 +41,31 @@ export const MENU_PARAM = {
   undoDish: 'fortryd',
   undoVersion: 'fortryd_version',
   undoSoldOut: 'fortryd_udsolgt',
+  /**
+   * The dish whose deletion is being confirmed (phase 5D, design 1r).
+   *
+   * Slet ret is a **link**, not a button: pressing it navigates here and nothing has
+   * happened yet. That is what makes an accidental one-click deletion impossible
+   * without any JavaScript being involved in preventing it — the destructive step is a
+   * separate form, on a separate screen state, with its own submit.
+   *
+   * The id is not authority either. The confirmation is rendered from the dish the
+   * *server* looked up, and the version token in its form is the one the server just
+   * read — so a hand-typed id produces either a real confirmation for a real dish this
+   * person may already delete, or nothing at all.
+   */
+  confirmDelete: 'slet',
+  /**
+   * The ~10-second Fortryd after a deletion went live (§6).
+   *
+   * Its own two parameters rather than the availability strip's, so the two offers can
+   * never be confused for one another — a `fortryd` that means "put the dish back" and
+   * a `fortryd` that means "make it available again" would be one query string with two
+   * meanings. Neither is authority: the action re-authorizes, re-parses and hands the
+   * version to the database, which refuses a stale one.
+   */
+  undoDeleteDish: 'fortryd_slet',
+  undoDeleteVersion: 'fortryd_slet_version',
 } as const
 
 /**
@@ -52,6 +77,18 @@ export const MENU_PARAM = {
  * and nothing to restore on close.
  */
 export const EDITOR_ANCHOR = 'ret-editor'
+
+/**
+ * The Slet ret control's anchor, and the confirmation's.
+ *
+ * Cancelling the confirmation navigates back to `#slet-ret`, which is the control the
+ * person pressed to open it — so the browser puts them back where they were rather than
+ * at the top of the screen, with no focus management to write and nothing to restore.
+ * It is the same mechanism the editor panel already uses for `#ret-editor`, applied to
+ * the one dialog this screen has.
+ */
+export const DELETE_BUTTON_ANCHOR = 'slet-ret'
+export const DELETE_DIALOG_ANCHOR = 'slet-bekraeft'
 
 export type MenuLocation = {
   /** The section slug to open. */
@@ -69,6 +106,20 @@ export type MenuLocation = {
     /** The state Fortryd would put the dish back into. */
     readonly soldOut: boolean
   } | null
+  /** Open the deletion confirmation for this dish. Nothing has happened yet. */
+  readonly confirmDelete?: string | null
+  /** The Fortryd offer for a deletion that just went live (§6). */
+  readonly undoDelete?: {
+    readonly dishId: string
+    readonly version: string
+  } | null
+  /**
+   * Land on the Slet ret control rather than on the editor panel.
+   *
+   * Used by the confirmation's own Behold-knap, so cancelling returns the person — and
+   * the keyboard — to the control they opened it from.
+   */
+  readonly focusDelete?: boolean
 }
 
 /**
@@ -92,13 +143,29 @@ export function menuHref(location: MenuLocation = {}, extra?: URLSearchParams): 
     parameters.set(MENU_PARAM.undoSoldOut, location.undo.soldOut ? '1' : '0')
   }
 
+  if (location.confirmDelete) parameters.set(MENU_PARAM.confirmDelete, location.confirmDelete)
+
+  if (location.undoDelete) {
+    parameters.set(MENU_PARAM.undoDeleteDish, location.undoDelete.dishId)
+    parameters.set(MENU_PARAM.undoDeleteVersion, location.undoDelete.version)
+  }
+
   if (extra !== undefined) {
     for (const [key, value] of extra) parameters.append(key, value)
   }
 
   const query = parameters.toString()
   const editorOpen = Boolean(location.dish) || location.creating === true
-  const fragment = editorOpen ? `#${EDITOR_ANCHOR}` : ''
 
-  return `${MENU_PATH}${query.length > 0 ? `?${query}` : ''}${fragment}`
+  // Most specific first: a confirmation is what the person just asked for, and coming
+  // back from one should land on the control rather than at the top of the panel.
+  const anchor = location.confirmDelete
+    ? DELETE_DIALOG_ANCHOR
+    : location.focusDelete === true
+      ? DELETE_BUTTON_ANCHOR
+      : editorOpen
+        ? EDITOR_ANCHOR
+        : null
+
+  return `${MENU_PATH}${query.length > 0 ? `?${query}` : ''}${anchor === null ? '' : `#${anchor}`}`
 }

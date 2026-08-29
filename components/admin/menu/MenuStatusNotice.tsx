@@ -44,6 +44,16 @@ const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
     tone: 'error',
     text: 'Tilgængeligheden kunne ikke ændres, fordi datoen ikke passede. Hent siden igen og prøv en gang til.',
   },
+  // The deletion path (§6, §7e item 4). A successful deletion has no entry here either:
+  // it is reported by the green Fortryd strip, for the same reason.
+  gendannet: {
+    tone: 'success',
+    text: 'Retten er hentet tilbage. Den er på hjemmesiden igen, hvis den var offentliggjort.',
+  },
+  slettet: {
+    tone: 'success',
+    text: 'Retten er fjernet fra hjemmesiden. Du kan hente den tilbage fra ændringsloggen.',
+  },
   invalid: { tone: 'error', text: 'Ret det, der er markeret herunder, og gem igen.' },
   invalid_category: { tone: 'error', text: 'Retten kan ikke ligge i den sektion.' },
   forbidden: { tone: 'error', text: 'Du har ikke adgang til at rette menuen.' },

@@ -1,5 +1,5 @@
-import { AutoDismiss } from './AutoDismiss'
 import { AvailabilityFields, type AvailabilityForm } from './AvailabilitySwitch'
+import { UndoStrip, UndoSubmit } from './UndoStrip'
 
 /**
  * The ~10-second Fortryd after an immediate availability change — design 1r, 1y, 1aa;
@@ -7,9 +7,14 @@ import { AvailabilityFields, type AvailabilityForm } from './AvailabilitySwitch'
  *
  * 1r draws it as a green strip in the list: *"«Thor» er nu markeret som udsolgt på
  * hjemmesiden."* with a Fortryd button beside it. 1y puts the same strip at the foot of
- * the phone screen. It is rendered here once, at the top of the screen's main column,
- * so it is on screen at both widths without scrolling — a message that lasts ten
- * seconds should not need to be looked for.
+ * the phone screen. It is rendered once, at the top of the screen's main column, so it
+ * is on screen at both widths without scrolling — a message that lasts ten seconds
+ * should not need to be looked for.
+ *
+ * The bar, its timer and its button are `UndoStrip`; what is here is the half that is
+ * about *availability* — which sentence to say, and which fields the Fortryd submits.
+ * The deletion strip beside it (`DeleteUndo`) is a separate file for the same reason:
+ * the presentation is shared, the operation is not.
  *
  * **THE CHANGE IS ALREADY LIVE.** This is not a confirmation and not a pending state.
  * The dish changed, the public cache tag was expired, and an audit row was written
@@ -55,44 +60,24 @@ export function AvailabilityUndo({
   return (
     // `key` on the version token: a second availability change is a new message with a
     // fresh ten seconds, rather than the previous one's timer running out under it.
-    <AutoDismiss key={version}>
-      <div
-        className="rounded-field border-success-border bg-success-surface flex flex-wrap items-center gap-3 border-l-4 border-[1.5px] border-l-success px-3 py-2"
-        // Polite, so it is announced without interrupting and without taking focus (1aa).
-        role="status"
-      >
-        <span
-          aria-hidden="true"
-          className="bg-success flex size-[1.125rem] shrink-0 items-center justify-center rounded-full text-[0.6875rem] font-semibold text-white"
-        >
-          ✓
-        </span>
-        <b className="text-success-ink text-meta min-w-0 flex-1 font-semibold">{message}</b>
+    <UndoStrip key={version} message={message}>
+      {/*
+        The same fields the switch itself submits — one component, so a Fortryd and a
+        press of the control cannot come to disagree about what an availability
+        submission looks like.
+      */}
+      <form action={form.action}>
+        <AvailabilityFields
+          dishId={dishId}
+          editorOpen={editorOpen}
+          fieldNames={form.fieldNames}
+          section={section}
+          soldOut={restoreSoldOut}
+          version={version}
+        />
 
-        {/*
-          The same fields the switch itself submits — one component, so a Fortryd and a
-          press of the control cannot come to disagree about what an availability
-          submission looks like.
-        */}
-        <form action={form.action}>
-          <AvailabilityFields
-            dishId={dishId}
-            editorOpen={editorOpen}
-            fieldNames={form.fieldNames}
-            section={section}
-            soldOut={restoreSoldOut}
-            version={version}
-          />
-
-          <button
-            className="rounded-field border-success-border text-success-ink hover:bg-success-surface min-h-tap bg-surface inline-flex items-center border-[1.5px] px-4 font-semibold"
-            type="submit"
-          >
-            Fortryd
-            <span className="sr-only"> — sæt «{dishName}» tilbage</span>
-          </button>
-        </form>
-      </div>
-    </AutoDismiss>
+        <UndoSubmit>sæt «{dishName}» tilbage</UndoSubmit>
+      </form>
+    </UndoStrip>
   )
 }
