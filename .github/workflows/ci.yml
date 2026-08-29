@@ -1,12 +1,16 @@
 name: CI
 
-# Phase 0 CI skeleton (technical plan §9, §14).
+# CI (technical plan §9, §14).
 #
-# The full pipeline described in §9 is typecheck -> lint -> unit -> pgTAP -> npm audit
-# -> CodeQL -> build -> Playwright against the Vercel preview deployment. Only the
-# steps that have something real to run today are present. pgTAP arrives with the
-# schema in phase 1; Playwright arrives with the public site in phase 3. Nothing here
-# pretends a test suite exists that does not.
+# The pipeline §9 describes is typecheck -> lint -> unit -> pgTAP -> npm audit -> CodeQL
+# -> build -> Playwright. Every step now has something real to run.
+#
+# The build is **not** in the `verify` job. From phase 3 the six public routes are
+# prerendered from published content, so `next build` needs a database — which is why it
+# runs in the `browser` job, beside the Playwright suite that needs the same stack. §10b
+# describes the same shape for the deployed pipeline: migrations are applied to staging,
+# then the build runs against it. Until a staging project exists, CI uses the local
+# Supabase the repository already knows how to start.
 #
 # Third-party actions are pinned by commit SHA, never by tag (§14) — a moving tag is a
 # supply-chain hole. The comment records which release each SHA is.
@@ -32,7 +36,7 @@ env:
 
 jobs:
   verify:
-    name: Typecheck, lint, test, build
+    name: Typecheck, lint, unit tests
     runs-on: ubuntu-latest
     timeout-minutes: 15
 
@@ -60,12 +64,58 @@ jobs:
       - name: Source policy
         run: npm run check:policy
 
-      # Passes with no tests today; the first suites land in phase 2.
       - name: Unit tests
         run: npm test
 
-      - name: Build
-        run: npm run build
+  browser:
+    name: Build, browser and accessibility tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Only Chromium. The public site uses no browser-specific API, and a second engine
+      # would double the slowest job in the pipeline for no new information.
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      # Migrations and `supabase/seed.sql` in one step, so the build renders the same
+      # confirmed content a developer sees locally.
+      - name: Start local Supabase
+        run: npx supabase start
+
+      # The URL and the anon key are public by design (§10e). They are read from the CLI
+      # and passed as environment variables, never as command-line arguments (§8).
+      - name: Build and run the browser suite
+        run: |
+          eval "$(npx supabase status -o env)"
+          export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
+          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
+          npm run build
+          npm run test:e2e
+
+      - name: Upload the Playwright report on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx supabase stop --no-backup
 
   database:
     name: Database permissions (pgTAP)

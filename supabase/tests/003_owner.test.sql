@@ -13,6 +13,15 @@ select plan(26);
 -- Fixtures
 -- ---------------------------------------------------------------------------
 
+-- The seed (`supabase/seed.sql`) loads the restaurant's confirmed menu and its
+-- placeholder news from phase 3. These tests assert exact counts over whole tables, so
+-- that content is cleared here, inside the transaction: the fixtures below are then the
+-- entire world, and the rollback at the end of the file leaves the developer's database
+-- exactly as it was. Dishes go first — the category reference is ON DELETE RESTRICT.
+delete from public.dishes;
+delete from public.menu_categories;
+delete from public.news;
+
 insert into public.menu_categories (id, slug, name, sort_order) values
   ('11111111-1111-4111-8111-111111111111', 'burgere', 'Burgere', 1);
 

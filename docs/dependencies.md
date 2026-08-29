@@ -3,6 +3,74 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Advisory check — 2026-08-29 (phase 3 additions)
+
+Two development dependencies were added for phase 3 (the public read-only site). No
+runtime dependency was added, and nothing already installed was changed.
+
+| Package | Version | Why |
+|---|---|---|
+| `@playwright/test` | 1.62.1 | Real-browser tests: the six public routes, the no-JavaScript pass, and the drive for axe. §9 names it. |
+| `@axe-core/playwright` | 4.13.0 | The accessibility scan §1 (adjustment 4) calls for by name. Brings `axe-core@4.13.0`. |
+
+Both are pinned exactly. `@axe-core/playwright@4.13.0` depends on `axe-core: ~4.13.0`,
+so the two move together.
+
+**Advisory result: no known advisory affects any selected version.** OSV.dev was queried
+per package at the resolved version, and again per package across all versions to catch
+anything the selected version is merely past:
+
+| Package | Advisories ever published | Status |
+|---|---|---|
+| `@playwright/test` | none | — |
+| `playwright-core` | none | — |
+| `@axe-core/playwright` | none | — |
+| `axe-core` | none | — |
+| `playwright` | GHSA-7mvr-c777-76hp (browsers downloaded without verifying the TLS certificate, HIGH), fixed in **1.55.1** | resolved version is **1.62.1** — past the fix |
+
+`npm audit --audit-level=high` over the full resolved tree: **0 vulnerabilities**.
+
+### Playwright browsers are not an npm dependency
+
+`npx playwright install chromium` fetches the browser into a machine-level cache, not
+into `node_modules`, so it does not enter the lockfile. CI installs **Chromium only**:
+the public site uses no browser-specific API, and a second engine would double the
+slowest job for no new information.
+
+### Lighthouse is not a dependency either
+
+The phase-3 performance target is measured with `npx --yes lighthouse@12`, run against a
+production build on demand. It is a measuring instrument, not something the application
+needs, so it stays out of `package.json` (§1, adjustment 4).
+
+### Nothing else was added
+
+Phase 3 needed no runtime dependency at all. In particular, and by §1 (adjustment 4) and
+§7g, the public site still has **no** map library or tile provider, no date library, no
+state-management library, no client data-fetching library, no component library and no
+analytics or tag manager. `tests/unit/policy/public-javascript.test.ts` now asserts that
+against `package.json` by name, so an accidental addition fails a test rather than
+passing review.
+
+### The `dishes.labels` enumeration stays open — deliberately
+
+The phase-1 record left this as "a one-line forward migration once the design file is
+available". The design file is now in the repository, and it does **not** support a
+closed set of four:
+
+* frame 1aa's label row draws **Populær · Ny · Stærk · Vegetar**, each with its own tone;
+* frame 1h prints **Pulled pork** beside Glade Gris, and 1g and 1l print **Kylling** and
+  **Størst** on the Forside cards — all in the neutral tone.
+
+So the approved design uses the four system labels *and* short descriptive ones. Pinning
+an enumeration of four would reject content the design itself contains, so **no forward
+migration was written**. The shape rule the initial migration already enforces — at most
+four distinct, non-blank strings — stands, and `components/site/menu/DishBadge.tsx`
+holds the one rule that is real: the four system labels carry their approved tone, and
+anything else is neutral.
+
+---
+
 ## Phase 2 — no dependencies added (2026-08-29)
 
 The time engines (`lib/time`, `lib/hours`, `lib/menu/availability`) added **nothing**.
@@ -178,25 +246,19 @@ Node can work without a downgrade, while CI and production stay on 24.
 
 ### Still to add, in the phase that needs it
 
-`zod` (phase 4), `@playwright/test` and `@axe-core/playwright` (phase 3), `sharp`
-(phase 10), Sentry server SDK (phase 13). Each is version-checked and advisory-checked
-at the point it is added, and this file updated.
+`zod` (phase 4), `sharp` (phase 10) and the Sentry server SDK (phase 13). Each is
+version-checked and advisory-checked at the point it is added, and this file updated.
 
-Added in phase 1: `@supabase/supabase-js` and `@supabase/ssr`. pgTAP needed no npm
-dependency — it runs through the Supabase CLI (see the phase-1 section above).
+Added in phase 1: `@supabase/supabase-js` and `@supabase/ssr`. Added in phase 3:
+`@playwright/test` and `@axe-core/playwright`. pgTAP needed no npm dependency — it runs
+through the Supabase CLI (see the phase-1 section above).
 
-### Open schema item carried into a later phase
+### Open schema item — resolved in phase 3
 
-`dishes.labels` is constrained by shape only — at most four distinct, non-blank strings.
-The plan (§4) also fixes *which* four labels exist, but the label values are defined by
-the approved design file (`Klingenberg Food Hi-fi.dc.html`, frame 1a), which is not part
-of this repository. They were deliberately not invented. Pinning the enumeration is a
-one-line forward migration once the design file is available — a phase-5 prerequisite,
-not a phase-1 blocker.
-
-The same reasoning applies to `supabase/seed.sql`: it seeds the confirmed contact and
-opening-hours facts, and deliberately does not invent the nine menu sections, the dishes
-or the page copy, all of which come from the same design file in phase 3.
+`dishes.labels` is constrained by shape only, and stays that way; the reasoning is in
+the phase-3 section at the top of this file. `supabase/seed.sql` now carries the nine
+menu sections, the dishes and the page copy, extracted from the approved design file in
+phase 3 exactly as this note anticipated.
 
 > **Repository settings to enable** (not expressible in the repository itself):
 > secret scanning, push protection, and Dependabot security updates; branch protection

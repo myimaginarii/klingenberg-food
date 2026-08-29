@@ -33,12 +33,22 @@
   --color-bg: #fbf7f0; /* sidebaggrund */
   --color-surface: #fffdfa; /* kort / surface */
   --color-section: #f3ece0; /* sektion / beige */
+  /* Dæmpet kortflade — en udsolgt ret træder tilbage uden at forsvinde (1h, 1af). */
+  --color-surface-muted: #f5f1ea;
   --color-border: #e4dacc; /* streg / border */
 
   /* Text (1a "Tekst") */
   --color-ink: #241e1b; /* brødtekst · 13.9:1 on --color-bg */
   --color-ink-2: #6b615a; /* sekundær · 5.2:1 */
-  --color-ink-3: #8c8279; /* mono-labels, billedtekst */
+  /* ACCESSIBILITY CORRECTION to the approved palette, reported rather than silent.
+     1a samples this label grey as #8C8279, which reaches only 3.5:1 on the cream page
+     and 3.1:1 on the beige band — short of the 4.5:1 that 11–13 px text needs, and
+     short of what 1aa itself promises ("Kontrast … status = ikon + tekst"). #726860 is
+     the lightest value on the same warm grey ramp that clears 4.5:1 on every surface
+     this site uses (bg 5.09 · surface 5.35 · section 4.63 · brand-50 4.75 ·
+     neutral 4.54 · muted 4.83). The labels read very slightly darker; nothing else
+     about the design changes.                                                        */
+  --color-ink-3: #726860; /* mono-labels, billedtekst */
   --color-ink-display: #171412; /* display / admin-bar */
 
   /* Status — base tokens (1aa "FARVETOKENS") */
@@ -70,6 +80,10 @@
   --color-field-border: #d8cdbc;
   --color-disabled-surface: #d8cdbc;
   --color-disabled-ink: #8c8279;
+
+  /* Grøn prik på burgundy-flade — fuldskærmsmenuens status (1n). De øvrige
+     statusfarver har ikke kontrast nok på #720401.                            */
+  --color-success-on-brand: #7fd08a;
 
   /* Announcement bar (1aa "BESKEDBJÆLKE") — brand-50 flade, aldrig fuld burgundy */
   --color-announce-surface: #f7eeea;
@@ -123,6 +137,13 @@
   --text-meta: 0.84375rem; /* 13.5 */
   --text-meta--line-height: 1.5;
 
+  /* 11.5 px — the smallest size in the approved frames, used for every chip
+     ("Populær", "Udsolgt i dag", "Uge 35", a news category), the wordmark's venue line
+     and the bottom bar's labels. 1b's scale stops at 13.5/11, but this size recurs
+     often enough across 1g–1o to be a token rather than a number typed into nine
+     components.                                                                      */
+  --text-micro: 0.71875rem; /* 11.5 */
+
   --text-label: 0.6875rem; /* 11 */
   --text-label--line-height: 1;
   --text-label--letter-spacing: 0.16em;
@@ -135,6 +156,7 @@
   --spacing-section-mobile: 1.5rem; /* 24 — sektion mobil */
   --spacing-tap: 2.75rem; /* 44 — mindste tryk-mål */
   --spacing-gutter: 1rem; /* 16 — mobil gutter */
+  --spacing-bottom-nav: 3.75rem; /* 60 — mobil bundnavigation, uden safe-area (1l) */
 
   /* ---- Layout (1aa "BRUDPUNKTER") ---------------------------------------
      >=1440 indhold maks 1280 · 1024-1439 2-kolonne · 768-1023 2 kort pr. række
@@ -149,6 +171,9 @@
 
   /* ---- Radius (1aa "RADIUS & SKYGGE") — 8 felt/knap · 12-14 kort · 999 badge */
   --radius-field: 0.5rem; /* 8 */
+  /* 1aa states "8 felt/knap", but every button drawn in 1g–1o is 10 px. The drawn
+     frames are the visual source of truth for buttons; 8 stays for form fields.   */
+  --radius-button: 0.625rem; /* 10 */
   --radius-card: 0.75rem; /* 12 */
   --radius-card-lg: 0.875rem; /* 14 */
   --radius-badge: 9999px;
@@ -165,8 +190,11 @@
 
   /* ---- Image containers (1aa "BILLEDCONTAINERE — FASTE FORHOLD") --------- */
   --aspect-hero: 3 / 2; /* hero, ret, nyhed */
+  --aspect-square: 1 / 1; /* mobil-ret */
   --aspect-portrait: 4 / 5; /* portræt */
   --aspect-team: 16 / 7; /* holdfoto */
+  /* 4:3 er ikke listet i 1aa, men tegnes som "FOTO 4:3" i 1g, 1h, 1j og 1ai. */
+  --aspect-card: 4 / 3;
 }
 
 /* Font families are supplied by next/font (app/layout.tsx) as CSS variables on
@@ -256,5 +284,105 @@
     font-family: var(--font-display);
     font-weight: 600;
     font-variant-numeric: tabular-nums;
+  }
+
+  /* ------------------------------------------------------------------------
+     Fuldskærmsmenuen på mobil (1n).
+
+     Built on <details>/<summary> rather than a client component, so it works with
+     JavaScript disabled, is keyboard-operable and is announced as a disclosure by a
+     screen reader without a single ARIA attribute of our own. The one control moves:
+     it is the hamburger in the header while closed, and the × in the panel's corner
+     while open — which is exactly what the approved design draws, with no second
+     button and no focus to hand back.
+
+     The element keeps its 46 px footprint when the summary goes fixed, so the header
+     does not reflow as the menu opens.                                            */
+  .site-menu {
+    width: 2.875rem; /* 46 */
+    height: 2.875rem;
+  }
+
+  /* The size lives here rather than on the element, because a Tailwind utility sits in
+     a later cascade layer and would win over this rule no matter how specific it is —
+     and the open state has to be able to change it. */
+  .site-menu > summary {
+    list-style: none;
+    width: 100%;
+    height: 100%;
+  }
+
+  .site-menu > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .site-menu[open] > summary {
+    position: fixed;
+    top: 0.625rem;
+    right: var(--spacing-gutter);
+    z-index: 60;
+    /* A fixed element's percentage size resolves against the viewport, so the summary
+       keeps its own 46 px box explicitly rather than filling the screen. */
+    width: 2.875rem;
+    height: 2.875rem;
+    border-color: rgb(255 255 255 / 0.6);
+    color: var(--color-white);
+  }
+
+  .site-menu[open] .site-menu-open-icon,
+  .site-menu:not([open]) .site-menu-close-icon {
+    display: none;
+  }
+
+  /* The page behind a fullscreen panel must not scroll. Only while the panel is
+     actually on screen — the disclosure is hidden from 1024 px up. */
+  @media (width < 64rem) {
+    html:has(.site-menu[open]) {
+      overflow: hidden;
+    }
+  }
+
+  /* "Fuldskærmsmenu: 200 ms fade + 4 px" (1aa "Bevægelse"). Opacity and transform
+     only, and not at all for a visitor who asked for less motion. */
+  @media (prefers-reduced-motion: no-preference) {
+    .site-menu[open] .site-menu-panel {
+      animation: site-menu-in var(--duration-base) var(--ease-standard);
+    }
+  }
+
+  @keyframes site-menu-in {
+    from {
+      opacity: 0;
+      transform: translateY(4px);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* The horizontally scrolling category chips on the menu page (1m). The scrollbar is
+     hidden because the row is duplicated as real anchors that wrap on desktop; the row
+     is still reachable with a keyboard, because every chip is a link in the tab order. */
+  .chip-scroller {
+    scrollbar-width: none;
+  }
+
+  .chip-scroller::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* The approved placeholder hatching for an image that has not been supplied yet
+     (1aa "Billedcontainere", and the `.ph` treatment used across every frame). It is
+     the design's own development marker, not decoration — real photography replaces
+     it in phase 14. The space is always reserved with aspect-ratio, so nothing on the
+     page moves when an image finally loads. */
+  .media-placeholder {
+    background-image: repeating-linear-gradient(
+      45deg,
+      #ebe0d0 0 9px,
+      #f5eee2 9px 18px
+    );
   }
 }

@@ -1,0 +1,175 @@
+import type { IsoDate } from '@/lib/time/calendar'
+
+/**
+ * The shape of published content as the public site consumes it — technical plan §4.
+ *
+ * These are *domain* types, not row types. The database columns are snake_case and
+ * carry draft and administration fields the public half has no business seeing; the
+ * loaders in this folder map each row down to exactly what a page needs, in camelCase,
+ * with prices in øre and dates as civil `YYYY-MM-DD` strings.
+ *
+ * Nothing here is a `Date`. Every value is a primitive that survives serialisation
+ * unchanged, so a page can pass it to a Client Component (the open/closed badge) with
+ * no conversion step to get wrong.
+ */
+
+/** `site_contact` — the facts that appear on every page (§4). */
+export type SiteContact = {
+  venueName: string | null
+  addressLine1: string | null
+  postalCode: string | null
+  city: string | null
+  primaryPhone: string | null
+  secondaryPhone: string | null
+  email: string | null
+  facebookUrl: string | null
+  mapAttribution: string | null
+}
+
+/** One of the four short labels a dish may carry (1aa "Mærkater & status"). */
+export type DishLabel = string
+
+/**
+ * The Tapas content document (§4, decision 3).
+ *
+ * Three fixed groups whose ids and count are part of the schema; only the heading and
+ * the items are editable. This is a content list and not an ordering configurator:
+ * nothing is selectable by a visitor and nothing is priced per item.
+ */
+export type TapasGroup = {
+  id: 'base' | 'choose7' | 'dressing'
+  heading: string
+  mode: 'fixed' | 'choose'
+  choose: number | null
+  items: string[]
+}
+
+export type TapasDetails = {
+  kind: 'tapas'
+  groups: TapasGroup[]
+}
+
+/** `dishes`, reduced to what the public menu renders. */
+export type Dish = {
+  id: string
+  name: string
+  description: string | null
+  /** "Som menu med pommes frites og sodavand 124 kr." (1h), "1 kg · frost" (Varm selv). */
+  secondaryNote: string | null
+  priceOre: number | null
+  labels: DishLabel[]
+  /** Present only for the Tapas entry; `null` for every ordinary dish. */
+  tapas: TapasDetails | null
+  /** Copenhagen-local date the item was marked sold out. `null` = available (§7b). */
+  soldOutOn: IsoDate | null
+}
+
+/** `menu_categories.kind` — an ordinary list of dishes, or the Ugens ret section. */
+export type MenuCategoryKind = 'dishes' | 'weekly_special'
+
+/** `menu_categories` with its dishes already attached — one grouped read, never N+1. */
+export type MenuCategory = {
+  id: string
+  slug: string
+  name: string
+  intro: string | null
+  note: string | null
+  kind: MenuCategoryKind
+  dishes: Dish[]
+}
+
+/** `weekly_special` — Ugens ret and the optional Lørdagsmenu, one singleton row (§4). */
+export type WeeklySpecial = {
+  isoYear: number | null
+  isoWeek: number | null
+  /** Weekday keys the dish is served on, in schedule order. */
+  days: string[]
+  name: string | null
+  description: string | null
+  priceSmallOre: number | null
+  priceLargeOre: number | null
+  soldOutOn: IsoDate | null
+  saturday: {
+    enabled: boolean
+    name: string | null
+    description: string | null
+    priceOre: number | null
+    deadline: string | null
+    soldOutOn: IsoDate | null
+  }
+}
+
+/** `monthly_burger` — Månedens burger, shown only inside its date window (§7d). */
+export type MonthlyBurger = {
+  name: string
+  description: string | null
+  priceOre: number | null
+  startsOn: IsoDate | null
+  endsOn: IsoDate | null
+  soldOutOn: IsoDate | null
+  showOnHomepage: boolean
+}
+
+/** One run of text inside a news paragraph. The editor offers exactly bold and link (§7f). */
+export type NewsSpan = {
+  text: string
+  bold?: boolean
+  href?: string
+}
+
+export type NewsParagraph = {
+  type: 'paragraph'
+  spans: NewsSpan[]
+}
+
+/**
+ * `news.body`, stored as structured JSON rather than HTML (§8).
+ *
+ * There is no HTML parsing anywhere in the renderer, no `dangerouslySetInnerHTML`, and
+ * therefore no sanitizer to get wrong. A new node type is a deliberate, reviewable
+ * schema change — not an open HTML field.
+ */
+export type NewsBody = {
+  blocks: NewsParagraph[]
+}
+
+/** `news`, published only. */
+export type NewsArticle = {
+  id: string
+  title: string
+  slug: string
+  category: string | null
+  displayDate: IsoDate | null
+  body: NewsBody
+}
+
+/** `pages.published` for `home` (§4, "Document shapes"). */
+export type HomeDocument = {
+  hero: { heading: string | null; intro: string | null }
+  award: { title: string | null; text: string | null }
+  featuredDishIds: string[]
+  aboutExcerpt: { heading: string | null; text: string | null }
+}
+
+/** One free text section on Mad ud af huset. The page has no fixed list of packages. */
+export type TakeawaySection = {
+  id: string
+  heading: string | null
+  body: string | null
+}
+
+/** `pages.published` for `takeaway`. */
+export type TakeawayDocument = {
+  heading: string | null
+  intro: string | null
+  sections: TakeawaySection[]
+  ctaLabel: string | null
+}
+
+/** `pages.published` for `about`. */
+export type AboutDocument = {
+  heading: string | null
+  storyBlocks: string[]
+  team: { text: string | null }
+  method: { heading: string | null; text: string | null }
+}

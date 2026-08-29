@@ -1,0 +1,123 @@
+import { readSiteContact } from '@/lib/content/contact'
+import { readOpeningHours } from '@/lib/content/hours'
+import { readOpenStatus } from '@/lib/hours/status'
+import { pageMetadata } from '@/lib/seo/metadata'
+import { directionsUrl, toPostalAddress } from '@/lib/site/links'
+
+import { ActionLink } from '@/components/site/ActionLink'
+import { AddressBlock } from '@/components/site/contact/AddressBlock'
+import { FollowUsCard } from '@/components/site/contact/FollowUsCard'
+import { PhoneNumbers } from '@/components/site/contact/PhoneNumbers'
+import { Eyebrow } from '@/components/site/Eyebrow'
+import { OpeningHours } from '@/components/site/hours/OpeningHours'
+import { OpenStatus } from '@/components/site/OpenStatus'
+import { PageContainer } from '@/components/site/PageContainer'
+import { PhoneAction } from '@/components/site/PhoneAction'
+import { StaticMap } from '@/components/site/StaticMap'
+
+/**
+ * Find os — design 1k (desktop) and 1o (mobile, the primary mobile screen).
+ *
+ * The two things a guest arrives here for are at the top and full width on a phone: ring
+ * and vis vej. The address is real text, the hours are the site's one schedule, and the
+ * map is a single static image wrapped in a directions link with no map library and no
+ * tile request (§7g).
+ *
+ * The "Følg os" card appears only when the Facebook link is filled in — an empty field
+ * removes the whole card rather than leaving a gap (1k, 1o).
+ */
+export const metadata = pageMetadata(
+  'Find os',
+  'Klingenberg Food ligger i Carl Nielsen Hallen, Lumbyvej 62, 5792 Nørre Lyndelse. Se åbningstider og ring for at bestille.',
+)
+
+export default async function FindOsPage() {
+  const [contact, hours] = await Promise.all([readSiteContact(), readOpeningHours()])
+
+  const openStatus = readOpenStatus(new Date(), hours.schedule, hours.overrides)
+  const address = toPostalAddress(contact)
+
+  return (
+    <PageContainer className="py-7 md:py-11">
+      <div className="grid gap-8 md:grid-cols-[1fr_1.15fr] md:gap-9">
+        <div>
+          <h1 className="font-display text-[2.25rem] tracking-[-0.03em] md:text-[3rem]">Find os</h1>
+
+          <OpenStatus
+            initialStatus={openStatus}
+            schedule={hours.schedule}
+            overrides={hours.overrides}
+            variant="pill"
+            className="mt-4"
+          />
+
+          <div className="mt-4 flex flex-col gap-2.5 md:flex-row">
+            {contact.primaryPhone ? (
+              <PhoneAction
+                phone={contact.primaryPhone}
+                label="Ring"
+                showNumber
+                size="large"
+                block
+                className="md:w-auto"
+              />
+            ) : null}
+            {address ? (
+              <ActionLink
+                href={directionsUrl(address)}
+                variant="secondary"
+                size="large"
+                block
+                className="md:w-auto"
+              >
+                Vis vej
+              </ActionLink>
+            ) : null}
+          </div>
+
+          {address ? (
+            <div className="mt-6">
+              <Eyebrow>Adresse</Eyebrow>
+              <AddressBlock address={address} venueName={contact.venueName} className="mt-2" />
+            </div>
+          ) : null}
+
+          {contact.primaryPhone ? (
+            <div className="mt-6">
+              <Eyebrow>Telefon</Eyebrow>
+              <PhoneNumbers
+                primaryPhone={contact.primaryPhone}
+                secondaryPhone={contact.secondaryPhone}
+                size="prominent"
+                className="mt-2"
+              />
+            </div>
+          ) : null}
+
+          <section
+            id="aabningstider"
+            aria-labelledby="find-os-tider"
+            className="bg-surface border-border rounded-card-lg mt-6 scroll-mt-4 border p-4 md:p-5"
+          >
+            <Eyebrow as="h2" id="find-os-tider">
+              Åbningstider
+            </Eyebrow>
+            <OpeningHours
+              schedule={hours.schedule}
+              todayWeekday={openStatus.todayWeekday}
+              className="mt-3"
+            />
+          </section>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          {address ? (
+            <StaticMap address={address} frame="card" attribution={contact.mapAttribution} />
+          ) : null}
+
+          <FollowUsCard facebookUrl={contact.facebookUrl} />
+        </div>
+      </div>
+    </PageContainer>
+  )
+}

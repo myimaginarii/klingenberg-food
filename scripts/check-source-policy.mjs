@@ -2,7 +2,7 @@
 /**
  * Repository source-policy checks — technical plan §8, §10d, §10f.
  *
- * Three rules, all cheap, all run in CI before the build:
+ * Four rules, all cheap, all run in CI before the build:
  *
  *   1. no-hard-coded-domain  A site domain literal may appear only in
  *                            lib/config/site.ts. Choosing the restaurant's domain
@@ -11,6 +11,8 @@
  *                            echoes commands and can spill secrets into logs.
  *   3. server-secrets        Secrets named in §10e may only be referenced in
  *                            lib/env/server.ts (and documentation).
+ *   4. map-provenance        The static map asset must record where it came from, so
+ *                            the launch check has something to read (§7g, §13 item C).
  *
  * Exit code 1 on any violation, with file:line and the offending text.
  */
@@ -238,6 +240,41 @@ for (const absolute of sourceFiles()) {
       }
     }
   })
+}
+
+// --- 4. map-provenance (§7g) -------------------------------------------------------
+//
+// The Find os map is a single licensed static image. Until the licensed asset arrives it
+// is a placeholder, and the plan makes shipping that placeholder a launch-blocking
+// mistake. This check keeps the record it will be caught by: the provenance field must
+// exist and must say something. Phase 14 tightens the same check to reject the value
+// `placeholder` in a production build.
+
+const MAP_LICENCE = 'public/map/LICENSE.md'
+const PROVENANCE_RE = /^\|\s*\*\*Provenance\*\*\s*\|\s*`?([^|`]+?)`?\s*\|/m
+
+const licencePath = join(ROOT, MAP_LICENCE)
+if (!existsSync(licencePath)) {
+  violations.push({
+    rule: 'map-provenance',
+    where: MAP_LICENCE,
+    detail: 'the static map asset has no provenance record',
+    line: '',
+  })
+} else {
+  const licence = readFileSync(licencePath, 'utf8')
+  const provenance = PROVENANCE_RE.exec(licence)?.[1]?.trim()
+
+  if (!provenance) {
+    violations.push({
+      rule: 'map-provenance',
+      where: MAP_LICENCE,
+      detail: 'no **Provenance** row — record where the map image came from',
+      line: '',
+    })
+  } else {
+    console.log(`source-policy: map asset provenance is "${provenance}".`)
+  }
 }
 
 // A check that silently inspects nothing is worse than no check: it reports success
