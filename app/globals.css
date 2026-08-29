@@ -1,0 +1,260 @@
+@import 'tailwindcss';
+
+/* ==========================================================================
+   Klingenberg Food — design tokens
+   Source of truth: "Klingenberg Food Hi-fi.dc.html", frame 1aa
+   ("Tokens, komponenter, tilstande"), with the colour sampling from frame 1a
+   and the type scale from frame 1b.
+
+   Nothing in this file may be changed without a corresponding change to the
+   approved design. Values are copied verbatim from 1aa; the comment beside each
+   token records the Danish label it carries in the design.
+   ========================================================================== */
+
+@theme {
+  /* ---- Colours -----------------------------------------------------------
+     Tailwind's default palette is cleared on purpose. The approved design
+     enumerates its colours exhaustively and explicitly rules out anything
+     outside them ("Bevidst fravalgt: knaldrød fastfood-rød, sort dominans,
+     gradienter og neon" — 1a). A stray `bg-blue-500` should not compile.     */
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+  --color-white: #ffffff;
+  --color-black: #000000;
+
+  /* Brand — sampled directly from the supplied logo file (1a) */
+  --color-brand-900: #4e0301; /* dyb · footer, pressed */
+  --color-brand-700: #720401; /* brand · the single voice */
+  --color-brand-500: #9a2b28; /* hover, links */
+  --color-brand-50: #f7eeea; /* tone · badges, aktive felter */
+
+  /* Backgrounds & surfaces (1a "Baggrunde & flader") */
+  --color-bg: #fbf7f0; /* sidebaggrund */
+  --color-surface: #fffdfa; /* kort / surface */
+  --color-section: #f3ece0; /* sektion / beige */
+  --color-border: #e4dacc; /* streg / border */
+
+  /* Text (1a "Tekst") */
+  --color-ink: #241e1b; /* brødtekst · 13.9:1 on --color-bg */
+  --color-ink-2: #6b615a; /* sekundær · 5.2:1 */
+  --color-ink-3: #8c8279; /* mono-labels, billedtekst */
+  --color-ink-display: #171412; /* display / admin-bar */
+
+  /* Status — base tokens (1aa "FARVETOKENS") */
+  --color-success: #2f6b3f;
+  --color-warning: #b4741a;
+  --color-error: #b3261e;
+
+  /* Status — component surfaces (1aa "MÆRKATER & STATUS" / "BESKEDER I ADMIN").
+     Status is always icon + text + colour, never colour alone.               */
+  --color-success-surface: #edf3ec;
+  --color-success-border: #bbd3bc;
+  --color-success-ink: #1f4a2b;
+  --color-success-ink-2: #4f6b53;
+
+  --color-warning-surface: #fbf2e2;
+  --color-warning-border: #e4c793;
+  --color-warning-ink: #7a4a0b;
+  --color-warning-ink-2: #8a6528;
+
+  --color-error-surface: #fbecea;
+  --color-error-border: #e8b7b1;
+  --color-error-ink: #8e1e17;
+  --color-error-ink-2: #96453e;
+
+  /* Neutral chip, form fields, disabled (1aa "FELTER" / "TILSTANDE — KNAP") */
+  --color-neutral-surface: #f0eae0; /* Vegetar · Skjult */
+  --color-neutral-ink: #4a423c; /* feltlabels, passiv navigation */
+  --color-field-bg: #fbfaf7;
+  --color-field-border: #d8cdbc;
+  --color-disabled-surface: #d8cdbc;
+  --color-disabled-ink: #8c8279;
+
+  /* Announcement bar (1aa "BESKEDBJÆLKE") — brand-50 flade, aldrig fuld burgundy */
+  --color-announce-surface: #f7eeea;
+  --color-announce-border: #eadcd6;
+
+  /* Hairline rules and inert arrows */
+  --color-rule: #c3b8a9;
+
+  /* Keyboard focus ring — 3 px, 2 px offset (1aa "TILGÆNGELIGHED") */
+  --color-focus: #b4741a;
+
+  /* ---- Typography --------------------------------------------------------
+     display-72/52 · Bricolage 700     title-40/32 · Bricolage 700
+     heading-22 · Work 600             body-17 · Work 400/1.65
+     nav-15 · Work 500                 meta-13.5 · Work 400
+     label-11 · Work 500 +.16em        price · Bricolage 600 tabular          */
+  --text-display: 4.5rem; /* 72 */
+  --text-display--line-height: 0.98;
+  --text-display--letter-spacing: -0.025em;
+  --text-display--font-weight: 700;
+
+  --text-display-sm: 3.25rem; /* 52 */
+  --text-display-sm--line-height: 0.98;
+  --text-display-sm--letter-spacing: -0.025em;
+  --text-display-sm--font-weight: 700;
+
+  --text-title: 2.5rem; /* 40 */
+  --text-title--line-height: 1.04;
+  --text-title--letter-spacing: -0.02em;
+  --text-title--font-weight: 700;
+
+  --text-title-sm: 2rem; /* 32 */
+  --text-title-sm--line-height: 1.08;
+  --text-title-sm--letter-spacing: -0.02em;
+  --text-title-sm--font-weight: 700;
+
+  --text-heading: 1.375rem; /* 22 */
+  --text-heading--line-height: 1.3;
+  --text-heading--font-weight: 600;
+
+  --text-body: 1.0625rem; /* 17 — web */
+  --text-body--line-height: 1.65;
+
+  --text-body-mobile: 1rem; /* 16 — mobil; aldrig under 15 */
+  --text-body-mobile--line-height: 1.6;
+
+  --text-nav: 0.9375rem; /* 15 */
+  --text-nav--line-height: 1.4;
+  --text-nav--font-weight: 500;
+
+  --text-meta: 0.84375rem; /* 13.5 */
+  --text-meta--line-height: 1.5;
+
+  --text-label: 0.6875rem; /* 11 */
+  --text-label--line-height: 1;
+  --text-label--letter-spacing: 0.16em;
+  --text-label--font-weight: 500;
+
+  /* ---- Spacing — the 4-scale (1aa "MELLEMRUM · 4-SKALA") ------------------
+     4 · 8 · 12 · 16 · 24 · 32 · 44 come from Tailwind's 0.25rem base
+     (1 2 3 4 6 8 11). These are the named steps the design calls out.        */
+  --spacing-section: 2.75rem; /* 44 — sektion desktop */
+  --spacing-section-mobile: 1.5rem; /* 24 — sektion mobil */
+  --spacing-tap: 2.75rem; /* 44 — mindste tryk-mål */
+  --spacing-gutter: 1rem; /* 16 — mobil gutter */
+
+  /* ---- Layout (1aa "BRUDPUNKTER") ---------------------------------------
+     >=1440 indhold maks 1280 · 1024-1439 2-kolonne · 768-1023 2 kort pr. række
+     <768 1 kolonne, bundnav, 16 px gutter.
+     Tailwind's own sm/2xl steps are cleared so only the design's exist.      */
+  --breakpoint-*: initial;
+  --breakpoint-md: 48rem; /* 768 */
+  --breakpoint-lg: 64rem; /* 1024 */
+  --breakpoint-xl: 90rem; /* 1440 */
+
+  --container-content: 80rem; /* 1280 — maksimal indholdsbredde */
+
+  /* ---- Radius (1aa "RADIUS & SKYGGE") — 8 felt/knap · 12-14 kort · 999 badge */
+  --radius-field: 0.5rem; /* 8 */
+  --radius-card: 0.75rem; /* 12 */
+  --radius-card-lg: 0.875rem; /* 14 */
+  --radius-badge: 9999px;
+
+  /* ---- Shadow — website: ingen skygge ----------------------------------- */
+  --shadow-admin-card: 0 1px 2px rgb(36 30 27 / 0.05);
+  --shadow-panel: 0 8px 24px rgb(36 30 27 / 0.1);
+
+  /* ---- Motion (1aa "BEVÆGELSE") — 150-250 ms, ease-out, kun opacity/transform */
+  --ease-standard: cubic-bezier(0, 0, 0.2, 1);
+  --duration-fast: 150ms;
+  --duration-base: 200ms;
+  --duration-slow: 250ms;
+
+  /* ---- Image containers (1aa "BILLEDCONTAINERE — FASTE FORHOLD") --------- */
+  --aspect-hero: 3 / 2; /* hero, ret, nyhed */
+  --aspect-portrait: 4 / 5; /* portræt */
+  --aspect-team: 16 / 7; /* holdfoto */
+}
+
+/* Font families are supplied by next/font (app/layout.tsx) as CSS variables on
+   <html>, so they must resolve at use site rather than be inlined here. */
+@theme inline {
+  --font-display: var(--font-bricolage), 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-work-sans), 'Work Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+/* ==========================================================================
+   Base layer — the shared styling foundation. Page and component work belongs
+   to later phases; only what the whole site depends on lives here.
+   ========================================================================== */
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-size: var(--text-body-mobile); /* 16 på mobil */
+    line-height: 1.6;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  @media (width >= 48rem) {
+    body {
+      font-size: var(--text-body); /* 17 på web */
+      line-height: 1.65;
+    }
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: var(--font-display);
+    color: var(--color-ink);
+    text-wrap: pretty;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  a {
+    color: var(--color-brand-700);
+  }
+
+  a:hover {
+    color: var(--color-brand-500);
+  }
+
+  /* Synlig fokusring: 3 px #B4741A, 2 px offset (1aa "TILGÆNGELIGHED").
+     Applied globally so no interactive element can ship without one. */
+  :focus-visible {
+    outline: 3px solid var(--color-focus);
+    outline-offset: 2px;
+  }
+
+  /* Bevægelse respekterer prefers-reduced-motion (1aa "BEVÆGELSE"). */
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer components {
+  /* Prices are Bricolage 600 with tabular figures so columns line up (1aa). */
+  .tabular-price {
+    font-family: var(--font-display);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+}

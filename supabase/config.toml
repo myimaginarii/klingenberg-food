@@ -1,0 +1,125 @@
+# Klingenberg Food — local Supabase configuration (technical plan §10a, §10b, §10c).
+#
+# This file configures the LOCAL development stack only (`npm run db:start`).
+# Staging and production are separate hosted projects in eu-central-1; their settings
+# are applied from this file where the CLI supports it, and otherwise recorded in
+# docs/runbooks/. Nothing here contains a secret.
+#
+# Reference: the Supabase local-development CLI config documentation.
+
+project_id = "klingenberg-food"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+# NOTE (phase 1): `auto_expose_new_tables` is deliberately left at the platform default
+# so local matches the hosted projects. Table exposure is controlled by RLS policies —
+# every table gets RLS, and `anon` gets SELECT on published rows only (§8).
+
+[db]
+port = 54322
+shadow_port = 54320
+# Must match the hosted projects. Bump only together with staging and production.
+major_version = 17
+
+[db.migrations]
+enabled = true
+schema_paths = []
+
+[db.seed]
+# Seeds run after migrations on `npm run db:reset`. The seed carries the confirmed
+# business facts and throwaway test accounts — never real restaurant accounts (§5).
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[db.pooler]
+enabled = false
+
+[realtime]
+# Deliberately off. The architecture uses tag-based revalidation, never a realtime
+# subscription (§1 "Explicitly not used", §2).
+enabled = false
+
+[studio]
+enabled = true
+port = 54323
+
+[local_smtp]
+# The CLI mail catcher. Every password-reset and invite email during development is
+# captured here and leaves the machine (§10c). Production uses Resend custom SMTP,
+# configured in the Supabase project settings rather than in this file.
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+# Phone photos are downscaled to max 2560 px in the browser before upload and
+# re-encoded server-side with sharp (§1, adjustment 3), so the cap is generous
+# rather than large.
+file_size_limit = "10MiB"
+
+[storage.s3_protocol]
+# Kept on locally so the phase-13 off-platform backup path (§10f) can be rehearsed
+# against the same interface production uses.
+enabled = true
+
+[auth]
+enabled = true
+# Local only. Every absolute URL in the application resolves through
+# lib/config/site.ts (§10d); this value is the Supabase Auth redirect allow-list.
+site_url = "http://localhost:3000"
+additional_redirect_urls = ["http://localhost:3000", "http://127.0.0.1:3000"]
+jwt_expiry = 3600
+enable_refresh_token_rotation = true
+refresh_token_reuse_interval = 10
+
+# Public signup is disabled at the project level. Accounts are created by the owner
+# through an invite flow (§5, decision 11).
+enable_signup = false
+enable_anonymous_sign_ins = false
+enable_manual_linking = false
+
+minimum_password_length = 12
+password_requirements = "lower_upper_letters_digits"
+
+[auth.email]
+enable_signup = false
+double_confirm_changes = true
+enable_confirmations = true
+secure_password_change = true
+max_frequency = "1s"
+otp_length = 6
+otp_expiry = 3600
+
+# Phase 1: the Danish "Glemt adgangskode" and invite templates are versioned under
+# supabase/templates/ and wired up here, so they are reviewed in a pull request rather
+# than clicked into a dashboard and lost (§10c).
+# [auth.email.template.invite]
+# subject = "Du er blevet inviteret til Klingenberg Food"
+# content_path = "./templates/invite.html"
+# [auth.email.template.recovery]
+# subject = "Nulstil din adgangskode"
+# content_path = "./templates/recovery.html"
+
+[auth.rate_limit]
+# Credential-stuffing and reset-spam protection (§8). Raised slightly above the CLI
+# default so password-reset flows are actually testable locally.
+email_sent = 10
+
+[auth.sms]
+enable_signup = false
+enable_confirmations = false
+
+[auth.mfa]
+max_enrolled_factors = 10
+
+[edge_runtime]
+# No edge functions in this system. Every mutation is a Next.js Server Action (§1).
+enabled = false
+
+[analytics]
+# No analytics anywhere in this project (§12).
+enabled = false

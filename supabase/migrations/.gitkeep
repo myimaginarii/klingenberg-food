@@ -1,0 +1,4 @@
+Migrations are the only way schema changes happen (technical plan §10b).
+The first migration arrives in phase 1. Create one with:
+
+    npx supabase migration new <name>

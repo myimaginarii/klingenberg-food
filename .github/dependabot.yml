@@ -1,0 +1,55 @@
+version: 2
+
+# Dependency update policy — technical plan §14.
+#
+#   * security updates immediately
+#   * non-security updates grouped, weekly
+#   * majors never auto-merged (Dependabot cannot auto-merge on its own; branch
+#     protection plus review keeps that true)
+#
+# GitHub Actions are pinned by commit SHA in the workflows. Dependabot understands SHA
+# pins and rewrites them, keeping the comment that records the release — which is the
+# only sustainable way to keep SHA pinning current (§14).
+
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Copenhagen
+    open-pull-requests-limit: 5
+    versioning-strategy: increase
+    labels:
+      - dependencies
+    groups:
+      # One PR for the routine patch/minor churn, so review effort goes to the
+      # updates that actually change something.
+      non-major:
+        applies-to: version-updates
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Majors are deliberate, reviewed changes, raised by a person — not by a bot.
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '06:00'
+      timezone: Europe/Copenhagen
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions
+    groups:
+      actions:
+        applies-to: version-updates
+        patterns:
+          - '*'

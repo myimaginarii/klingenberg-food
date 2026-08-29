@@ -1,0 +1,41 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next
+/out
+next-env.d.ts
+
+# production
+/build
+
+# testing
+/coverage
+/test-results
+/playwright-report
+
+# local env — never commit secrets. Names only live in .env.example
+.env
+.env.*
+!.env.example
+
+# supabase local
+/supabase/.branches
+/supabase/.temp
+/supabase/.env
+
+# editor / os
+.DS_Store
+Thumbs.db
+*.swp
+.idea
+.vscode/*
+!.vscode/extensions.json
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+
+# NOTE: package-lock.json is intentionally NOT ignored — CI runs `npm ci`.

@@ -1,0 +1,114 @@
+name: CI
+
+# Phase 0 CI skeleton (technical plan §9, §14).
+#
+# The full pipeline described in §9 is typecheck -> lint -> unit -> pgTAP -> npm audit
+# -> CodeQL -> build -> Playwright against the Vercel preview deployment. Only the
+# steps that have something real to run today are present. pgTAP arrives with the
+# schema in phase 1; Playwright arrives with the public site in phase 3. Nothing here
+# pretends a test suite exists that does not.
+#
+# Third-party actions are pinned by commit SHA, never by tag (§14) — a moving tag is a
+# supply-chain hole. The comment records which release each SHA is.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# No production credentials are available to this workflow. Read-only by default.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Keeps CI output free of interactive noise and progress spinners.
+  CI: true
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  verify:
+    name: Typecheck, lint, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # `npm ci` — never a resolving install. Fails if the lockfile is out of date (§14).
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      # No hard-coded domains, no `set -x` in workflows, no stray secret access (§8, §10d).
+      - name: Source policy
+        run: npm run check:policy
+
+      # Passes with no tests today; the first suites land in phase 2.
+      - name: Unit tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+  dependencies:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Blocks the pipeline on a high or critical advisory (§14). Dependabot handles
+      # the routine upgrades; this catches anything that lands between them.
+      - name: npm audit
+        run: npm audit --audit-level=high
+
+  codeql:
+    name: CodeQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    permissions:
+      contents: read
+      security-events: write
+      actions: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
+        with:
+          languages: javascript-typescript
+          build-mode: none
+
+      - name: Analyze
+        uses: github/codeql-action/analyze@cdf488f595d80d6e07e03d4674febd5ab45fa938 # v4.37.9
