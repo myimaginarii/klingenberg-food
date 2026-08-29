@@ -1,14 +1,20 @@
 import Link from 'next/link'
 
 import { formatPrice } from '@/lib/format/danish'
-import { describePendingChange, type AdminDish } from '@/lib/menu/admin'
+import { describePendingChange, type AdminDish, type DishAvailability } from '@/lib/menu/admin'
+
+import {
+  AvailabilityResetNote,
+  AvailabilitySwitch,
+  type AvailabilityForm,
+} from './AvailabilitySwitch'
 
 /**
  * One dish in the administration's list — design 1r (row) and 1y (card).
  *
  * The two frames are not the same layout at two sizes, and this component does not
  * pretend they are. 1r puts everything on one line: name, the line beneath it, the
- * price field, the availability state and the labels. 1y stacks a card — name and
+ * price field, the availability control and the labels. 1y stacks a card — name and
  * "Tryk for at rette" first, then a row holding the price and the availability. The
  * markup below is the *card*, and from the `md` breakpoint the same elements lay
  * themselves out as the row. One list, one tab order, one set of states, two
@@ -21,12 +27,14 @@ import { describePendingChange, type AdminDish } from '@/lib/menu/admin'
  * `describePendingChange`. Nothing about pending state is held in the browser, so the
  * row cannot claim a change the database does not have.
  *
- * UDSOLGT IS SHOWN, NOT OFFERED
+ * AVAILABILITY IS THE ONE IMMEDIATE CONTROL
  *
- * Availability is rendered from `sold_out_on` and is **read-only in phase 5B**. The
- * toggle in 1r is the immediate path with a 10-second Fortryd (§6) and belongs to the
- * next increment; drawing a control that does nothing would be worse than drawing the
- * state it already has, so the slot shows the state as a badge.
+ * The switch posts to its own Server Action and changes the hjemmeside at once (§6);
+ * everything else on this row is a link into the editor, where a change becomes a
+ * draft. The two are deliberately not the same shape: a Kladde row is drawn in the
+ * warning tone and says what is waiting, and this control says what is *live*. When a
+ * dish is sold out the row also carries the §7b reset sentence, so the person can see
+ * when it lifts without opening anything.
  */
 
 /** The price field from 1r, and the price line of the 1y card. */
@@ -45,31 +53,6 @@ function PriceTag({ priceOre, pending }: { priceOre: number | null; pending: boo
   )
 }
 
-/**
- * Tilgængelig / Udsolgt, as state rather than as a control (1r, 1y, 1aa).
- *
- * Icon shape *and* text *and* colour: a ring for sold out, a filled dot for available,
- * so the two are distinguishable with the colours switched off (1aa).
- */
-function AvailabilityState({ soldOut }: { soldOut: boolean }) {
-  return (
-    <p
-      className={`rounded-field min-h-12 flex items-center gap-2 border-[1.5px] px-3 text-meta font-semibold ${
-        soldOut
-          ? 'border-field-border bg-surface-muted text-ink-2'
-          : 'border-success-border bg-success-surface text-success-ink'
-      }`}
-    >
-      {soldOut ? (
-        <span aria-hidden="true" className="border-error size-2 shrink-0 rounded-full border-2" />
-      ) : (
-        <span aria-hidden="true" className="bg-success size-2 shrink-0 rounded-full" />
-      )}
-      {soldOut ? 'Udsolgt' : 'Tilgængelig'}
-    </p>
-  )
-}
-
 /** The Kladde badge from 1aa: a rotated square, the word, and the warning tone. */
 export function KladdeBadge() {
   return (
@@ -80,7 +63,21 @@ export function KladdeBadge() {
   )
 }
 
-export function DishRow({ dish, href, soldOut }: { dish: AdminDish; href: string; soldOut: boolean }) {
+export function DishRow({
+  dish,
+  href,
+  availability,
+  availabilityForm,
+  section,
+}: {
+  dish: AdminDish
+  href: string
+  availability: DishAvailability
+  /** The immediate Server Action and the field names it reads (§6). */
+  availabilityForm: AvailabilityForm
+  /** The section chip the immediate action should reopen. Navigation only. */
+  section: string
+}) {
   const pending = describePendingChange(dish)
   const priceChanged = dish.draftFields.includes('price_ore')
 
@@ -122,7 +119,14 @@ export function DishRow({ dish, href, soldOut }: { dish: AdminDish; href: string
 
         <div className="flex items-center gap-2 md:gap-3">
           <PriceTag priceOre={dish.priceOre} pending={priceChanged} />
-          <AvailabilityState soldOut={soldOut} />
+          <AvailabilitySwitch
+            availability={availability}
+            form={availabilityForm}
+            dishId={dish.id}
+            dishName={dish.name}
+            section={section}
+            version={dish.updatedAt}
+          />
         </div>
 
         {/* 1r reserves a narrow slot for the labels beside the row; 1y has no room for
@@ -140,6 +144,14 @@ export function DishRow({ dish, href, soldOut }: { dish: AdminDish; href: string
           </ul>
         )}
       </div>
+
+      {/* Only a sold-out dish has something pending about it, so only a sold-out dish
+          gets a second line. §7b's sentence, computed from the current hours. */}
+      {availability.resetText === null ? null : (
+        <div className="mt-2">
+          <AvailabilityResetNote>{availability.resetText}</AvailabilityResetNote>
+        </div>
+      )}
     </li>
   )
 }

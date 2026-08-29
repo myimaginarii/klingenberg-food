@@ -75,6 +75,81 @@ export async function setStandardLabel(page: Page, label: string, on: boolean): 
   await expect(checkbox).toBeChecked({ checked: on })
 }
 
+/**
+ * One dish's row in the open section, by the name a person reads.
+ *
+ * The list is a `<ul>` of rows, each holding the dish's link, its price and its
+ * availability control — so scoping to the row is what keeps "Thor is udsolgt" from
+ * being satisfied by the word appearing somewhere else on the screen.
+ */
+export function dishRow(page: Page, dish: string) {
+  return page
+    .getByRole('list', { name: /^Retter i / })
+    .getByRole('listitem')
+    .filter({ has: page.getByRole('link', { name: new RegExp(`^${dish}`) }) })
+    .first()
+}
+
+/**
+ * The availability control in a dish's row.
+ *
+ * Found by its accessible name, which carries the current state *and* the dish — a
+ * screen reader hears "Tilgængelig — Thor. Skift til udsolgt.", and so does this.
+ */
+export function availabilityControl(page: Page, dish: string, soldOut: boolean) {
+  return dishRow(page, dish).getByRole('button', {
+    name: new RegExp(`^${soldOut ? 'Udsolgt' : 'Tilgængelig'}.*${dish}`),
+  })
+}
+
+/**
+ * Press a dish's availability control and wait for the redirect the action performs.
+ *
+ * `soldOut` is the dish's state *now*; pressing changes it to the other one. Naming
+ * the current state rather than the wanted one is deliberate: a test that presses the
+ * control has to know what it is pressing, and a helper that quietly did nothing when
+ * the dish was already in the wanted state would make "and now it changed" untrue.
+ */
+export async function toggleAvailability(
+  page: Page,
+  dish: string,
+  soldOut: boolean,
+): Promise<void> {
+  await availabilityControl(page, dish, soldOut).click()
+  await page.waitForURL(/\/admin\/menu\?/)
+}
+
+/** Is this dish currently sold out, as the administration reads it right now? */
+export async function isSoldOut(page: Page, dish: string): Promise<boolean> {
+  return availabilityControl(page, dish, true).isVisible()
+}
+
+/**
+ * Put a dish into a known state, whatever it is in now.
+ *
+ * For the `beforeAll` baseline and for restoring between scenarios — never inside an
+ * assertion, where the point is that a specific press had a specific effect.
+ */
+export async function ensureAvailability(
+  page: Page,
+  section: string,
+  dish: string,
+  soldOut: boolean,
+): Promise<void> {
+  await openSection(page, section)
+
+  if ((await isSoldOut(page, dish)) !== soldOut) {
+    await toggleAvailability(page, dish, !soldOut)
+  }
+
+  await expect(availabilityControl(page, dish, soldOut)).toBeVisible()
+}
+
+/** The green Fortryd strip an immediate availability change leaves behind (1r / 1y). */
+export function undoStrip(page: Page) {
+  return page.getByRole('status').filter({ has: page.getByRole('button', { name: /^Fortryd/ }) })
+}
+
 /** Press the menu screen's own Offentliggør ændringer, and wait for the report. */
 export async function publishMenu(page: Page): Promise<void> {
   await page.goto(MENU_ADMIN_PATH)

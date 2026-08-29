@@ -55,6 +55,7 @@ export default defineConfig({
         'e2e/no-javascript.spec.ts',
         'e2e/draft-publish.spec.ts',
         'e2e/menu-admin.spec.ts',
+        'e2e/menu-sold-out.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -64,6 +65,7 @@ export default defineConfig({
         'e2e/no-javascript.spec.ts',
         'e2e/draft-publish.spec.ts',
         'e2e/menu-admin.spec.ts',
+        'e2e/menu-sold-out.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -91,6 +93,29 @@ export default defineConfig({
       testMatch: 'e2e/menu-admin.spec.ts',
       dependencies: ['draft-publish'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    /*
+     * The immediate Udsolgt path (phase 5C), at both widths the design is drawn at.
+     *
+     * It is run twice rather than once because 1r and 1y are two arrangements of the
+     * same control, not one control at two sizes — on a phone the editor replaces the
+     * list, so "flip the switch inside the panel" is a different journey there. The two
+     * runs are chained rather than parallel for the same reason the other write suites
+     * are: both change a live dish and expire the `menu` cache tag, and a guest
+     * assertion about that dish would be a coin toss if the other run could act between
+     * the write and the read. Each run leaves Thor available.
+     */
+    {
+      name: 'menu-sold-out',
+      testMatch: 'e2e/menu-sold-out.spec.ts',
+      dependencies: ['menu-admin'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: 'menu-sold-out-mobile',
+      testMatch: 'e2e/menu-sold-out.spec.ts',
+      dependencies: ['menu-sold-out'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
   ],
 

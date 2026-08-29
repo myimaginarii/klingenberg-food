@@ -29,6 +29,18 @@ export const MENU_PARAM = {
   creating: 'ny',
   /** The outcome of the last action, as a closed set of codes. */
   status: 'status',
+  /**
+   * The ~10-second Fortryd offer after an immediate availability change (§6, 1r).
+   *
+   * Three values, and none of them is authority: the dish, the version token the undo
+   * must match, and which state to put the dish back into. The Server Action
+   * re-authorizes and re-validates all three, so a hand-typed query string can produce
+   * a strip that offers an undo — and the undo itself is refused exactly as any other
+   * forged request would be.
+   */
+  undoDish: 'fortryd',
+  undoVersion: 'fortryd_version',
+  undoSoldOut: 'fortryd_udsolgt',
 } as const
 
 /**
@@ -50,6 +62,13 @@ export type MenuLocation = {
   readonly creating?: boolean
   /** A save or publish outcome, from the closed set each action defines. */
   readonly status?: string | null
+  /** The Fortryd offer for an availability change that just went live (§6). */
+  readonly undo?: {
+    readonly dishId: string
+    readonly version: string
+    /** The state Fortryd would put the dish back into. */
+    readonly soldOut: boolean
+  } | null
 }
 
 /**
@@ -66,6 +85,12 @@ export function menuHref(location: MenuLocation = {}, extra?: URLSearchParams): 
   if (location.dish) parameters.set(MENU_PARAM.dish, location.dish)
   if (location.creating === true) parameters.set(MENU_PARAM.creating, '1')
   if (location.status) parameters.set(MENU_PARAM.status, location.status)
+
+  if (location.undo) {
+    parameters.set(MENU_PARAM.undoDish, location.undo.dishId)
+    parameters.set(MENU_PARAM.undoVersion, location.undo.version)
+    parameters.set(MENU_PARAM.undoSoldOut, location.undo.soldOut ? '1' : '0')
+  }
 
   if (extra !== undefined) {
     for (const [key, value] of extra) parameters.append(key, value)

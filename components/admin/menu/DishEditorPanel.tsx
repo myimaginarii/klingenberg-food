@@ -2,8 +2,9 @@ import Link from 'next/link'
 
 import { SelectField, TextAreaField, TextField } from '@/components/admin/Field'
 import { SubmitButton } from '@/components/admin/SubmitButton'
-import type { AdminCategory } from '@/lib/menu/admin'
+import type { AdminCategory, DishAvailability } from '@/lib/menu/admin'
 
+import { AvailabilityBlock, type AvailabilityForm } from './AvailabilitySwitch'
 import { LabelFields } from './LabelFields'
 
 /**
@@ -54,7 +55,10 @@ export function DishEditorPanel({
   closeHref,
   fieldNames,
   errorFor,
-  soldOut,
+  availability,
+  availabilityForm,
+  section,
+  dishName,
   isNewDraft,
 }: {
   anchorId: string
@@ -79,8 +83,17 @@ export function DishEditorPanel({
   }
   /** The message for one field, or undefined. Bound with `aria-describedby`. */
   errorFor: (field: 'navn' | 'pris' | 'sektion' | 'maerkater') => string | undefined
-  /** Display only in phase 5B — the Udsolgt action is the next increment (§6). */
-  soldOut?: boolean
+  /**
+   * The dish's live availability and, when it is sold out, the §7b reset sentence.
+   * Absent for a dish that does not exist yet.
+   */
+  availability?: DishAvailability
+  /** The immediate Server Action the availability block posts to, and its fields (§6). */
+  availabilityForm?: AvailabilityForm
+  /** The section chip that action should reopen. Navigation only. */
+  section?: string | null
+  /** The dish's name, for the availability control's accessible name. */
+  dishName?: string
   isNewDraft?: boolean
 }) {
   return (
@@ -100,6 +113,33 @@ export function DishEditorPanel({
           Luk
         </Link>
       </div>
+
+      {/*
+        The immediate path, first and separate. Forms cannot nest and this one posts
+        somewhere else than Gem, so it is a sibling of the editor rather than a row
+        inside it — and putting it above the fields is what keeps §6's single exception
+        from being buried among the fields that all wait for Offentliggør. A dish that
+        does not exist yet has no availability to change.
+      */}
+      {dishId === undefined ||
+      availability === undefined ||
+      availabilityForm === undefined ||
+      version === undefined ? null : (
+        <div className="mb-4">
+          {isNewDraft === true ? (
+            <NewDishNotice />
+          ) : (
+            <AvailabilityBlock
+              availability={availability}
+              form={availabilityForm}
+              dishId={dishId}
+              dishName={dishName ?? values.name}
+              section={section}
+              version={version}
+            />
+          )}
+        </div>
+      )}
 
       <form action={action} aria-label={heading} className="flex flex-col gap-4">
         {dishId === undefined ? null : (
@@ -181,10 +221,6 @@ export function DishEditorPanel({
           standard={values.standardLabels}
         />
 
-        {dishId === undefined ? null : (
-          <AvailabilityNotice isNewDraft={isNewDraft === true} soldOut={soldOut === true} />
-        )}
-
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Link
             className="rounded-field border-field-border text-neutral-ink hover:border-rule min-h-tap inline-flex items-center border-[1.5px] px-4 font-semibold"
@@ -205,40 +241,18 @@ export function DishEditorPanel({
 }
 
 /**
- * Tilgængelig / Udsolgt, shown as the state it currently is.
+ * A dish that has never been published has no availability to change.
  *
- * 1r draws a switch here, and the switch is the immediate path with a 10-second Fortryd
- * (§6). That interaction is the next increment; until it exists the slot reports the
- * state the dish actually has rather than offering a control that would do nothing.
- * Saying so is better than an inert toggle a person will press twice.
+ * Marking it Udsolgt would be a claim about a hjemmeside it is not on: no guest can see
+ * it, so there is nothing to sell out. The block says what *is* true about it instead —
+ * that it is waiting for Offentliggør — rather than offering a control that would
+ * change a column nobody reads.
  */
-function AvailabilityNotice({ soldOut, isNewDraft }: { soldOut: boolean; isNewDraft: boolean }) {
-  if (isNewDraft) {
-    return (
-      <p className="rounded-field border-warning-border bg-warning-surface text-warning-ink border px-3 py-2 text-meta font-medium">
-        <span aria-hidden="true" className="bg-warning mr-2 inline-block size-2 rotate-45" />
-        Ny ret — den vises først på hjemmesiden, når du offentliggør den.
-      </p>
-    )
-  }
-
+function NewDishNotice() {
   return (
-    <p
-      className={`rounded-field border px-3 py-2 text-meta font-medium ${
-        soldOut
-          ? 'border-error-border bg-error-surface text-error-ink'
-          : 'border-success-border bg-success-surface text-success-ink'
-      }`}
-    >
-      <span
-        aria-hidden="true"
-        className={`mr-2 inline-block size-2 rounded-full ${
-          soldOut ? 'border-error border-2' : 'bg-success'
-        }`}
-      />
-      {soldOut
-        ? 'Retten står som udsolgt på hjemmesiden.'
-        : 'Retten er tilgængelig på hjemmesiden.'}
+    <p className="rounded-field border-warning-border bg-warning-surface text-warning-ink border px-3 py-2 text-meta font-medium">
+      <span aria-hidden="true" className="bg-warning mr-2 inline-block size-2 rotate-45" />
+      Ny ret — den vises først på hjemmesiden, når du offentliggør den.
     </p>
   )
 }

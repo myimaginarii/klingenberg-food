@@ -33,6 +33,17 @@ const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
     text: 'Nogen andre har rettet dette. Din ændring blev ikke gemt — hent siden igen, så du retter i den nyeste version.',
   },
   ugyldig: { tone: 'error', text: 'Ret det, der er markeret herunder, og gem igen.' },
+  // The immediate availability path (§6, §7b). A success has no entry here: it is
+  // reported by the green Fortryd strip, and two confirmations of one change is one
+  // too many.
+  uaendret: {
+    tone: 'success',
+    text: 'Retten stod allerede sådan på hjemmesiden. Intet blev ændret.',
+  },
+  udsolgt_dato: {
+    tone: 'error',
+    text: 'Tilgængeligheden kunne ikke ændres, fordi datoen ikke passede. Hent siden igen og prøv en gang til.',
+  },
   invalid: { tone: 'error', text: 'Ret det, der er markeret herunder, og gem igen.' },
   invalid_category: { tone: 'error', text: 'Retten kan ikke ligge i den sektion.' },
   forbidden: { tone: 'error', text: 'Du har ikke adgang til at rette menuen.' },

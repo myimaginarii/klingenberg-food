@@ -1,4 +1,9 @@
+import { formatWeekdayTime } from '@/lib/hours/format'
+import type { OpeningHoursOverride, WeeklySchedule } from '@/lib/hours/types'
 import { MENU_DRAFT_FIELDS, type MenuDraftField } from '@/lib/schemas/menu'
+import type { IsoDate } from '@/lib/time/calendar'
+
+import { resolveSoldOut } from './availability'
 
 /**
  * The menu administration's domain rules — design 1r / 1y, technical plan §4, §6.
@@ -209,6 +214,55 @@ export function describePendingChange(dish: AdminDish): string | null {
 
   const last = named[named.length - 1] ?? ''
   return sentence(`nye ${named.slice(0, -1).join(', ')} og ${last} afventer offentliggørelse`)
+}
+
+/**
+ * What the availability control shows — technical plan §7b, design 1r / 1y.
+ *
+ * `soldOut` drives the switch and the word beside it; `resetText` is the helper line
+ * beneath it. Both come from **one** call to `resolveSoldOut()`, the phase-2 function
+ * the public menu already answers the same question with, so the administration and
+ * the hjemmeside can never disagree about whether Thor is currently sold out or about
+ * when the marking lifts.
+ */
+export type DishAvailability = {
+  readonly soldOut: boolean
+  /** The automatic-reset sentence, or `null` when the dish is available. */
+  readonly resetText: string | null
+}
+
+/**
+ * Describe one dish's availability, for a screen to render.
+ *
+ * The wording is §7b's, and the weekday and time in it are **computed, never written
+ * down**: `clearsAt` is the opening instant the hours engine found, and
+ * `formatWeekdayTime` turns it into Danish. Change the opening hours or publish an
+ * override, and this sentence changes with them on the next request — which is the
+ * whole reason no expiry instant is stored (§4).
+ *
+ * The second sentence is the honest end of the same rule. When no opening day exists
+ * inside the engine's search window there is nothing to promise, so the screen says
+ * so rather than leaving somebody waiting for a reset that will not come.
+ *
+ * An available dish gets no helper text at all. There is nothing pending about it.
+ */
+export function describeAvailability(
+  soldOutOn: IsoDate | null,
+  schedule: WeeklySchedule,
+  overrides: readonly OpeningHoursOverride[],
+  now: Date,
+): DishAvailability {
+  const { soldOut, clearsAt } = resolveSoldOut(soldOutOn, schedule, overrides, now)
+
+  if (!soldOut) return { soldOut: false, resetText: null }
+
+  return {
+    soldOut: true,
+    resetText:
+      clearsAt === null
+        ? 'Nulstilles ikke automatisk — I har ingen åbningsdage planlagt'
+        : `Nulstilles automatisk, når I åbner igen — ${formatWeekdayTime(clearsAt)}`,
+  }
 }
 
 /**

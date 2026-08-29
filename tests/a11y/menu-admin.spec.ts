@@ -83,6 +83,24 @@ test.describe('the menu administration', () => {
     expect(await violations(page)).toEqual([])
   })
 
+  /*
+   * The Fortryd strip is reachable from the URL alone — the three parameters the
+   * action redirects with are all this page needs to draw it — so it can be scanned
+   * here, in the read-only suite, without any suite writing to a dish. The genuinely
+   * sold-out row and panel are scanned in `e2e/menu-sold-out.spec.ts`, where the data
+   * exists, at the same two widths.
+   */
+  test('the Fortryd strip has no accessibility violations', async ({ page }) => {
+    await signIn(page, STAFF)
+    const id = await firstDishId(page)
+    await page.goto(
+      `/admin/menu?fortryd=${id}&fortryd_version=2026-08-29T12%3A00%3A00.000Z&fortryd_udsolgt=1`,
+    )
+
+    await expect(page.getByRole('button', { name: /^Fortryd/ })).toBeVisible()
+    expect(await violations(page)).toEqual([])
+  })
+
   test('the section that is managed elsewhere has no accessibility violations', async ({
     page,
   }) => {
@@ -151,6 +169,43 @@ test.describe('the promises 1aa makes by name', () => {
 
     // The word is in the row, so the state survives the colours being switched off.
     await expect(page.getByText('Tilgængelig').first()).toBeVisible()
+  })
+
+  test('the availability control names both the state and what pressing will do', async ({
+    page,
+  }) => {
+    await signIn(page, STAFF)
+    await page.goto('/admin/menu')
+
+    const control = page
+      .getByRole('list', { name: /^Retter i / })
+      .getByRole('button')
+      .first()
+
+    // WCAG 2.5.3: the visible word comes first in the accessible name. The rest is what
+    // a screen reader needs and a sighted person can already see — which dish, and
+    // where pressing leads.
+    await expect(control).toHaveAccessibleName(/^Tilgængelig — .+\. Skift til udsolgt\.$/)
+  })
+
+  test('the availability control is operable from the keyboard alone', async ({ page }) => {
+    await signIn(page, STAFF)
+    await page.goto('/admin/menu')
+
+    const control = page
+      .getByRole('list', { name: /^Retter i / })
+      .getByRole('button')
+      .first()
+
+    await control.focus()
+    await expect(control).toBeFocused()
+
+    // A real submit button: the focus ring is the global one, and the outline is drawn
+    // rather than removed.
+    const outlineWidth = await control.evaluate(
+      (element) => getComputedStyle(element).outlineWidth,
+    )
+    expect(parseFloat(outlineWidth), 'the focus ring is visible').toBeGreaterThanOrEqual(3)
   })
 
   test('every control on the screen meets the 44 px minimum target size', async ({ page }) => {

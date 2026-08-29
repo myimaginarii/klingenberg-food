@@ -122,12 +122,35 @@ describe('the public site ships no Supabase client to the browser', () => {
 
 describe('client components stay the documented exception', () => {
   it('is exactly the set the plan allows outside the administration', () => {
+    // The budget is the *public* site's. §7e (item 11) is explicit that "the admin may
+    // require JavaScript", so both halves of the administration are outside this rule:
+    // its routes, and the components only its routes render. `components/site/` — the
+    // public half — stays fully covered, which is what makes the assertion meaningful.
     const publicClientFiles = clientFiles
       .map((file) => file.path)
-      .filter((path) => !path.startsWith('app/(admin)/'))
+      .filter((path) => !path.startsWith('app/(admin)/') && !path.startsWith('components/admin/'))
       .sort()
 
     expect(publicClientFiles).toEqual([...ALLOWED_PUBLIC_CLIENT_COMPONENTS.keys()].sort())
+  })
+
+  /**
+   * The dependency direction the codebase states in prose, asserted.
+   *
+   * `components/admin/Notice.tsx` puts it plainly: "a component in `components/`
+   * importing from `app/` would be the dependency the wrong way round". It is why
+   * `DishEditorPanel` takes `fieldNames` as a prop instead of importing `DISH_FORM`,
+   * and why the availability control takes its action and its field names together.
+   * A rule that only lives in a comment is a rule that gets broken by the next person
+   * who needs one constant.
+   */
+  it('never imports from app/ into components/', () => {
+    const offenders = sourceFiles
+      .filter((file) => file.path.startsWith('components/'))
+      .filter((file) => /from '@\/app\//.test(file.source))
+      .map((file) => file.path)
+
+    expect(offenders).toEqual([])
   })
 
   it('does not fetch or poll from the browser', () => {
