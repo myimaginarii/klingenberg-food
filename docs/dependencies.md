@@ -3,6 +3,28 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 2 — no dependencies added (2026-08-29)
+
+The time engines (`lib/time`, `lib/hours`, `lib/menu/availability`) added **nothing**.
+
+§1 (adjustment 4) rules out a date library unless a tested `Intl` helper proves fragile
+in review. It did not. Two native primitives carried the whole phase:
+
+- `Intl.DateTimeFormat` with `timeZone: 'Europe/Copenhagen'` and `hourCycle: 'h23'`,
+  which carries the IANA rules for every past and future transition, and
+- `Date.UTC` used purely as an offset-free number line for calendar arithmetic.
+
+Both Danish daylight-saving transitions, the ambiguous hour in October and the skipped
+hour in March are covered by unit tests, and the suite re-runs a cross-section under
+seven host timezones to prove no result is machine-local. `lib/time/copenhagen.ts` is
+the only module that names a timezone, so if a library ever does become necessary it is
+one file that changes.
+
+The `zod`, `@playwright/test`, `@axe-core/playwright`, `sharp` and Sentry additions
+listed below remain scheduled for their own phases.
+
+---
+
 ## Advisory check — 2026-08-29 (phase 1 additions)
 
 Two runtime dependencies were added for phase 1 (schema + authentication). Nothing
