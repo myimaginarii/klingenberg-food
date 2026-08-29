@@ -21,6 +21,13 @@ select plan(26);
 delete from public.dishes;
 delete from public.menu_categories;
 delete from public.news;
+-- `audit_log` accumulates a row per publish, so a database that has been used at all
+-- carries history the "owner can read the audit log" assertion would otherwise count.
+-- It is cleared here for the same reason as the tables above: the single row inserted
+-- below must be the entire log. The delete runs before `set local role authenticated`,
+-- i.e. still as the table owner — no RLS policy grants DELETE on this table to anyone,
+-- and that rule is asserted from the Owner session further down.
+delete from public.audit_log;
 
 insert into public.menu_categories (id, slug, name, sort_order) values
   ('11111111-1111-4111-8111-111111111111', 'burgere', 'Burgere', 1);
