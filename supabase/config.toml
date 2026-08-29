@@ -86,7 +86,16 @@ minimum_password_length = 12
 password_requirements = "lower_upper_letters_digits"
 
 [auth.email]
-enable_signup = false
+# IMPORTANT, and easy to get wrong: this key does NOT mean "allow email signups". It
+# maps to GOTRUE_EXTERNAL_EMAIL_ENABLED, which enables the email/password provider as a
+# whole. Setting it to false disables email *logins* too — the auth server answers
+# every sign-in with "Email logins are disabled" (422 email_provider_disabled).
+#
+# Public signup is disabled by `enable_signup = false` in the [auth] section above,
+# which is the setting that actually means what it says. The two together give what §5
+# requires: email/password login and password reset work; nobody can create an account
+# for themselves.
+enable_signup = true
 double_confirm_changes = true
 enable_confirmations = true
 secure_password_change = true
@@ -94,15 +103,20 @@ max_frequency = "1s"
 otp_length = 6
 otp_expiry = 3600
 
-# Phase 1: the Danish "Glemt adgangskode" and invite templates are versioned under
-# supabase/templates/ and wired up here, so they are reviewed in a pull request rather
-# than clicked into a dashboard and lost (§10c).
-# [auth.email.template.invite]
-# subject = "Du er blevet inviteret til Klingenberg Food"
-# content_path = "./templates/invite.html"
-# [auth.email.template.recovery]
-# subject = "Nulstil din adgangskode"
-# content_path = "./templates/recovery.html"
+# The Danish "Glemt adgangskode" template is versioned under supabase/templates/ and
+# wired up here, so it is reviewed in a pull request rather than clicked into a
+# dashboard and lost (§10c).
+#
+# NOTE: `content_path` resolves from the PROJECT ROOT, unlike `[db.seed] sql_paths`
+# above, which resolves from this file's directory. The CLI is inconsistent here; a
+# relative "./templates/..." fails to start with an ENOENT that names the wrong path.
+[auth.email.template.recovery]
+subject = "Nulstil din adgangskode"
+content_path = "./supabase/templates/recovery.html"
+
+# The invite template arrives with user management in phase 11, together with
+# /admin/brugere. Adding it now would version wording for a flow that cannot yet be
+# triggered or reviewed.
 
 [auth.rate_limit]
 # Credential-stuffing and reset-spam protection (§8). Raised slightly above the CLI

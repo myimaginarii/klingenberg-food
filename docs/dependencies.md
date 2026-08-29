@@ -3,7 +3,58 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
-## Advisory check — 2026-08-29
+## Advisory check — 2026-08-29 (phase 1 additions)
+
+Two runtime dependencies were added for phase 1 (schema + authentication). Nothing
+else was added, and no phase-0 dependency was changed.
+
+| Package | Version | Why |
+|---|---|---|
+| `@supabase/supabase-js` | 2.112.4 | Supabase client. Used server-side only. |
+| `@supabase/ssr` | 0.12.5 | Cookie-based session handling for the App Router. |
+
+Both are pinned exactly, and `@supabase/ssr@0.12.5` declares
+`@supabase/supabase-js: ^2.112.4` as a peer, so the two are a matched pair. The only
+transitive addition of note is `cookie@^1.0.2`.
+
+**Advisory result: no known advisory affects any selected version.** OSV.dev was queried
+per package *at the resolved version*, and again per package across all versions to
+catch anything our version is merely past:
+
+| Package | Advisories ever published | Status |
+|---|---|---|
+| `@supabase/supabase-js` | none | — |
+| `@supabase/ssr` | none | — |
+| `@supabase/postgrest-js`, `realtime-js`, `storage-js` | none | — |
+| `@supabase/auth-js` | GHSA-8r88-6cj9-9fh5 (insecure path routing from malformed user input), fixed in **2.70.0** | resolved version is **2.112.4** — well past the fix |
+| `cookie` | none at 1.0.2 | the 0.7.0 `cookie` advisory class does not apply to the 1.x line |
+
+`npm audit --audit-level=high` over the full resolved tree: **0 vulnerabilities**.
+
+### `@supabase/supabase-js` 3.x is not used
+
+The `next` dist-tag currently carries `3.0.0-next.29`. It is a prerelease, and
+`@supabase/ssr@0.12.5` peers on `^2`. 2.112.4 is the current patched stable release and
+is what is installed. Revisit when 3.x is stable *and* `@supabase/ssr` supports it.
+
+### pgTAP adds no npm dependency
+
+Database permission tests run through the Supabase CLI, which was already a phase-0
+devDependency (`supabase@2.116.0`):
+
+```bash
+npm run db:test        # supabase test db
+```
+
+The CLI runs `pg_prove` in a container against the local database, and pgTAP 1.3.3 ships
+in the Supabase Postgres image. The extension is created **inside each test's
+transaction** and rolled back with it, so pgTAP never appears in a migration and never
+reaches staging or production. No test framework, no assertion library, and no
+JavaScript database client were added for this.
+
+---
+
+## Advisory check — 2026-08-29 (phase 0)
 
 Sources consulted for every direct dependency below:
 
@@ -105,10 +156,25 @@ Node can work without a downgrade, while CI and production stay on 24.
 
 ### Still to add, in the phase that needs it
 
-`@supabase/supabase-js` and `@supabase/ssr` (phase 1), `zod` (phase 4), `sharp`
-(phase 10), `@playwright/test` and `@axe-core/playwright` (phase 3), `pgTAP`
-(phase 1, database-side), Sentry server SDK (phase 13). Each is version-checked and
-advisory-checked at the point it is added, and this file updated.
+`zod` (phase 4), `@playwright/test` and `@axe-core/playwright` (phase 3), `sharp`
+(phase 10), Sentry server SDK (phase 13). Each is version-checked and advisory-checked
+at the point it is added, and this file updated.
+
+Added in phase 1: `@supabase/supabase-js` and `@supabase/ssr`. pgTAP needed no npm
+dependency — it runs through the Supabase CLI (see the phase-1 section above).
+
+### Open schema item carried into a later phase
+
+`dishes.labels` is constrained by shape only — at most four distinct, non-blank strings.
+The plan (§4) also fixes *which* four labels exist, but the label values are defined by
+the approved design file (`Klingenberg Food Hi-fi.dc.html`, frame 1a), which is not part
+of this repository. They were deliberately not invented. Pinning the enumeration is a
+one-line forward migration once the design file is available — a phase-5 prerequisite,
+not a phase-1 blocker.
+
+The same reasoning applies to `supabase/seed.sql`: it seeds the confirmed contact and
+opening-hours facts, and deliberately does not invent the nine menu sections, the dishes
+or the page copy, all of which come from the same design file in phase 3.
 
 > **Repository settings to enable** (not expressible in the repository itself):
 > secret scanning, push protection, and Dependabot security updates; branch protection

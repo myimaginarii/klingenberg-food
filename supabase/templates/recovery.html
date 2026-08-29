@@ -1,0 +1,40 @@
+<!--
+  Klingenberg Food — "Glemt adgangskode" (technical plan §10c).
+
+  Versioned here and applied through supabase/config.toml, so the wording is reviewed
+  in a pull request rather than clicked into a dashboard and lost.
+
+  The link deliberately does NOT use {{ .ConfirmationURL }}. That form lands in the
+  browser with the token in the URL fragment, which only client-side JavaScript can
+  read — and this application has no Supabase client in the browser at all (§1,
+  adjustment 2). Instead the token hash is passed to /admin/bekraeft, a server route
+  handler that exchanges it and writes httpOnly session cookies. The token never
+  reaches client-side JavaScript.
+
+  Plain text and one link. No images, no tracking pixel, no external stylesheet.
+-->
+<h2>Nulstil din adgangskode</h2>
+
+<p>Hej,</p>
+
+<p>
+  Der er bedt om en ny adgangskode til administrationen af Klingenberg Food.
+  Tryk på linket herunder for at vælge en ny adgangskode.
+</p>
+
+<p>
+  <a href="{{ .SiteURL }}/admin/bekraeft?token_hash={{ .TokenHash }}&type=recovery">
+    Vælg ny adgangskode
+  </a>
+</p>
+
+<p>
+  Linket kan kun bruges én gang og udløber efter en time.
+</p>
+
+<p>
+  Har du ikke selv bedt om det, kan du roligt ignorere denne e-mail.
+  Din nuværende adgangskode bliver ikke ændret.
+</p>
+
+<p>Venlig hilsen<br />Klingenberg Food</p>

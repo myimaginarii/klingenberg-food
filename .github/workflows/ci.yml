@@ -67,6 +67,52 @@ jobs:
       - name: Build
         run: npm run build
 
+  database:
+    name: Database permissions (pgTAP)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # A full local stack from a clean database: migrations, then the seed. This is
+      # also the check that the initial migration still applies from scratch.
+      - name: Start local Supabase
+        run: npx supabase start
+
+      # The permission tests need the two local identities, which are created through
+      # the supported admin API rather than by seeding auth internals (§5).
+      #
+      # The credentials come from `supabase status -o env` and are passed as environment
+      # variables, never as command-line arguments (§8 — log hygiene). They are the
+      # CLI's fixed local demo keys for a container on this runner, not secrets, and
+      # they are never echoed. `set -x` is forbidden here and CI-checked.
+      - name: Create local identities
+        run: |
+          eval "$(npx supabase status -o env)"
+          NEXT_PUBLIC_SUPABASE_URL="$API_URL" \
+          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+            npm run db:users
+
+      # The §5 permission matrix, the anonymous surface and the owner invariant,
+      # asserted against real Owner and Staff JWT contexts (§9).
+      - name: pgTAP
+        run: npm run db:test
+
+      - name: Stop local Supabase
+        if: always()
+        run: npx supabase stop --no-backup
+
   dependencies:
     name: Dependency audit
     runs-on: ubuntu-latest

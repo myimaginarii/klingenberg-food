@@ -59,6 +59,11 @@ const ALLOWED_HOSTS = new Set([
   'www.schema.org',
   'www.w3.org', // SVG / XML namespaces
   'www.google.com', // Google Maps directions URL (§7g) — not a site domain
+  // The restaurant's Facebook page is a confirmed business fact and is stored as
+  // content in `site_contact.facebook_url`, seeded in supabase/seed.sql. It is a
+  // third-party profile URL, not this site's origin, so the §10d rule — "choosing our
+  // domain later must be configuration, not a code change" — does not apply to it.
+  'www.facebook.com',
 ])
 
 /** Secrets that may only be read through lib/env/server.ts (§10e). */
@@ -71,9 +76,22 @@ const SERVER_SECRETS = [
   'SUPABASE_STORAGE_S3_',
 ]
 
+/**
+ * `lib/env/server.ts` is the single door to a secret for the Next.js runtime: it
+ * imports `server-only`, so anything reaching it from a Client Component is a build
+ * error. Application code asks it for a capability (`getServiceRoleKey()`) and never
+ * names the variable, which is what keeps this list short.
+ *
+ * `scripts/seed-local-users.mjs` (phase 1) is the exception, and a deliberate one. It
+ * is a local development bootstrap run with `node`, not part of any bundle, and it
+ * cannot import `lib/env/server.ts` precisely because that module imports
+ * `server-only`. It reads the service-role key from the environment directly, and it
+ * refuses to run against anything but a loopback Supabase.
+ */
 const SECRET_ALLOWED_FILES = new Set(
   [
     'lib/env/server.ts',
+    'scripts/seed-local-users.mjs',
     'eslint.config.mjs',
     'scripts/check-source-policy.mjs',
     '.env.example',

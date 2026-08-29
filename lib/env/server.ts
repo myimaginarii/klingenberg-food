@@ -43,3 +43,19 @@ export function requireSecret(name: ServerSecretName): string {
   }
   return value
 }
+
+/**
+ * The Supabase service-role key (\u00a78, \u00a710e).
+ *
+ * Exposed as its own accessor so that no other file in `lib/` or `app/` ever needs to
+ * write the variable's name. `scripts/check-source-policy.mjs` enforces exactly that.
+ * Callers ask for the capability, not for the environment variable.
+ *
+ * The key bypasses RLS entirely. Per \u00a78 it has three intended call sites across the
+ * whole project \u2014 signed upload URLs, migrations and seeding, and the one-time owner
+ * bootstrap \u2014 and it is reachable only from modules that, like this one, import
+ * `server-only`, so it cannot enter a browser bundle.
+ */
+export function getServiceRoleKey(): string {
+  return requireSecret('SUPABASE_SERVICE_ROLE_KEY')
+}
