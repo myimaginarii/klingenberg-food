@@ -8,6 +8,7 @@ import {
   AvailabilitySwitch,
   type AvailabilityForm,
 } from './AvailabilitySwitch'
+import { ReorderControls, type ReorderForm } from './ReorderControls'
 
 /**
  * One dish in the administration's list — design 1r (row) and 1y (card).
@@ -68,6 +69,7 @@ export function DishRow({
   href,
   availability,
   availabilityForm,
+  reorder,
   section,
 }: {
   dish: AdminDish
@@ -75,6 +77,20 @@ export function DishRow({
   availability: DishAvailability
   /** The immediate Server Action and the field names it reads (§6). */
   availabilityForm: AvailabilityForm
+  /**
+   * Everything this row needs to be movable, or `null` when it is not — a section with
+   * one dish in it has no order to change (phase 5E).
+   */
+  reorder: {
+    readonly form: ReorderForm
+    /** Zero-based position in the section's list. */
+    readonly index: number
+    readonly total: number
+    /** The fingerprint of the order this screen was rendered from (§7e item 2). */
+    readonly baseline: string
+    /** True when this is the dish the last reorder moved. Focus recovery only. */
+    readonly justMoved: boolean
+  } | null
   /** The section chip the immediate action should reopen. Navigation only. */
   section: string
 }) {
@@ -83,13 +99,33 @@ export function DishRow({
 
   return (
     <li
-      className={`rounded-card border p-3 md:px-4 ${
+      /*
+       * `relative` and the two `data-` states exist for the drag gesture and for nothing
+       * else. `ReorderHandle` sets `data-dragging` on the row under the pointer and
+       * `data-drop` on the row it would land beside; both are removed when the gesture
+       * ends. The styling is stated here, with the rest of the row's appearance, so the
+       * client component moves an attribute rather than carrying a stylesheet.
+       */
+      className={`rounded-card relative border p-3 data-[dragging=true]:shadow-panel md:px-4 data-[drop=after]:border-b-[3px] data-[drop=after]:border-b-brand-700 data-[drop=before]:border-t-[3px] data-[drop=before]:border-t-brand-700 ${
         pending === null
           ? 'border-border bg-surface'
           : 'border-warning-border bg-warning-surface border-[1.5px]'
       }`}
     >
       <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+        {reorder === null ? null : (
+          <ReorderControls
+            baseline={reorder.baseline}
+            dishId={dish.id}
+            dishName={dish.name}
+            form={reorder.form}
+            index={reorder.index}
+            justMoved={reorder.justMoved}
+            section={section}
+            total={reorder.total}
+          />
+        )}
+
         <div className="min-w-0 flex-1">
           <Link className="min-h-tap flex flex-col justify-center gap-1" href={href}>
             <span className="flex flex-wrap items-center gap-2">

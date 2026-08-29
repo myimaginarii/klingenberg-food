@@ -57,6 +57,7 @@ export default defineConfig({
         'e2e/menu-admin.spec.ts',
         'e2e/menu-sold-out.spec.ts',
         'e2e/menu-delete.spec.ts',
+        'e2e/menu-reorder.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -68,6 +69,7 @@ export default defineConfig({
         'e2e/menu-admin.spec.ts',
         'e2e/menu-sold-out.spec.ts',
         'e2e/menu-delete.spec.ts',
+        'e2e/menu-reorder.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -137,6 +139,36 @@ export default defineConfig({
       testMatch: 'e2e/menu-delete.spec.ts',
       dependencies: ['menu-delete'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    /*
+     * Reordering (phase 5E), at both widths, and chained after the deletion runs for the
+     * reason every write suite is chained: it publishes, publishing expires the `menu`
+     * cache tag, and a guest assertion about the order of the burgers would be a coin
+     * toss if another run could act between the write and the read.
+     *
+     * Two widths rather than one, because 1r and 1y arrange the same three controls
+     * differently — on the phone the strip sits at the foot of the card with its words
+     * showing, on the desktop it sits at the left of the row with the words carried for
+     * a screen reader. The suite also drags with a pointer at 375 px, which is what a
+     * finger produces once mouse-to-touch translation is out of the picture, and holds
+     * the touch path itself to the same server round-trip. Each run leaves the section
+     * in the seeded order, published, with nothing pending.
+     */
+    {
+      name: 'menu-reorder',
+      testMatch: 'e2e/menu-reorder.spec.ts',
+      dependencies: ['menu-delete-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: 'menu-reorder-mobile',
+      testMatch: 'e2e/menu-reorder.spec.ts',
+      dependencies: ['menu-reorder'],
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 375, height: 812 },
+        hasTouch: true,
+      },
     },
   ],
 

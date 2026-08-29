@@ -46,6 +46,39 @@ export type DishDraftValues = {
   labels: string[]
 }
 
+/**
+ * Written as a `Record` so the compiler insists on every key. `Object.keys` of an
+ * exhaustive record cannot fall behind the type it is keyed by, which is the point:
+ * a field added to `DishDraftValues` without being listed here is a compile error.
+ */
+const DISH_EDITOR_FIELD_SET: Record<keyof DishDraftValues, true> = {
+  category_id: true,
+  name: true,
+  description: true,
+  secondary_note: true,
+  price_ore: true,
+  labels: true,
+}
+
+/**
+ * The draft fields the dish editor panel (1r) owns — and, just as importantly, the ones
+ * it does not.
+ *
+ * `dishDraft` has nine fields; the panel renders six. The other three belong to other
+ * interactions: `sort_order` to the reorder controls (phase 5E), `details` to the Tapas
+ * list editor, `image_id` to the image library. A save from the panel must therefore
+ * say *"these six are mine, and any of mine that no longer differ from the published
+ * values should leave the draft"* — and say nothing at all about the other three.
+ *
+ * Getting this wrong is not a cosmetic mistake. Before this list existed the panel
+ * saved with `mode: 'replace'`, which discards the whole stored draft and writes the
+ * submission in its place; a colleague's pending reorder vanished the moment anybody
+ * saved a price on the same dish, silently, leaving half a new order waiting to publish.
+ */
+export const DISH_EDITOR_FIELDS = Object.keys(DISH_EDITOR_FIELD_SET) as readonly (
+  keyof DishDraftValues
+)[]
+
 /** One dish as the administration sees it, drafts included. */
 export type AdminDish = {
   readonly id: string
@@ -56,7 +89,18 @@ export type AdminDish = {
   readonly secondaryNote: string | null
   readonly priceOre: number | null
   readonly labels: readonly string[]
+  /** The position the administration shows — the draft's, when it carries one. */
   readonly sortOrder: number
+  /**
+   * The **published** position. What a guest currently sees (phase 5E).
+   *
+   * Kept beside `sortOrder` rather than inside `live` for the same reason `sortOrder`
+   * is not a field of `DishDraftValues`: the dish editor does not submit a position, so
+   * it must not appear in the panel's delta. Reordering is the only editor that writes
+   * it, and it needs both numbers — the one on screen, and the one to measure a real
+   * change against (`lib/menu/reorder.ts`).
+   */
+  readonly liveSortOrder: number
   /** Display only in phase 5B; the Udsolgt action itself is phase 5C (§6). */
   readonly soldOutOn: string | null
   /** True while the dish has never been published and is invisible to guests (§4). */

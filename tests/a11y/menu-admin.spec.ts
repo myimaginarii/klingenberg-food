@@ -205,9 +205,12 @@ test.describe('the promises 1aa makes by name', () => {
     await signIn(page, STAFF)
     await page.goto('/admin/menu')
 
+    // Named, not positional. A row now begins with the reorder handle (phase 5E), so
+    // "the first button in the list" is no longer the availability control — and a test
+    // that says which control it means keeps saying it whatever else joins the row.
     const control = page
       .getByRole('list', { name: /^Retter i / })
-      .getByRole('button')
+      .getByRole('button', { name: /^Tilgængelig/ })
       .first()
 
     // WCAG 2.5.3: the visible word comes first in the accessible name. The rest is what
@@ -247,9 +250,11 @@ test.describe('the promises 1aa makes by name', () => {
     await signIn(page, STAFF)
     await page.goto('/admin/menu')
 
+    // Named rather than positional, for the same reason as above: the reorder handle now
+    // comes first in a row, and this test is about the availability control.
     const control = page
       .getByRole('list', { name: /^Retter i / })
-      .getByRole('button')
+      .getByRole('button', { name: /^Tilgængelig/ })
       .first()
 
     await control.focus()

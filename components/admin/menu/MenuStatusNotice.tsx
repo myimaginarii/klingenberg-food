@@ -54,6 +54,14 @@ const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
     tone: 'success',
     text: 'Retten er fjernet fra hjemmesiden. Du kan hente den tilbage fra ændringsloggen.',
   },
+  // Reordering (phase 5E). An ordinary draft change, so the sentence says the same
+  // thing a saved price says: it is stored, and it is not on the hjemmesiden yet. The
+  // dish and its new position are announced separately, by the list's polite live
+  // region, so this line does not repeat them.
+  flyttet: {
+    tone: 'success',
+    text: 'Den nye rækkefølge er gemt som kladde. Hjemmesiden viser stadig den gamle rækkefølge.',
+  },
   invalid: { tone: 'error', text: 'Ret det, der er markeret herunder, og gem igen.' },
   invalid_category: { tone: 'error', text: 'Retten kan ikke ligge i den sektion.' },
   forbidden: { tone: 'error', text: 'Du har ikke adgang til at rette menuen.' },

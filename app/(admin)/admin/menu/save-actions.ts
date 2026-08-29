@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
-import { dishDraftDelta } from '@/lib/menu/admin'
+import { dishDraftDelta, DISH_EDITOR_FIELDS } from '@/lib/menu/admin'
 import { saveEntityDraft } from '@/lib/publishing/drafts'
 import { draftTargetSchema } from '@/lib/publishing/requests'
 
@@ -95,19 +95,36 @@ export async function saveDishDraft(formData: FormData): Promise<void> {
 
   // Moving a dish to another section places it at the end of that section's order, in
   // the draft — the public position is unchanged until this is published (§6).
-  const values =
+  const values: Record<string, unknown> =
     delta.category_id === undefined
-      ? delta
+      ? { ...delta }
       : { ...delta, sort_order: menu.endOfCategory(delta.category_id) }
 
-  // `replace`, because this editor owns every field of the dish: a value the person has
-  // just changed back to what is live must leave the draft, not survive inside it.
+  /*
+   * `merge` plus an explicit `clear`, and **not** `replace`.
+   *
+   * `replace` used to be right, and its reasoning still is for the fields this panel
+   * renders: a value somebody has just changed back to what is live must leave the
+   * draft rather than survive invisibly inside it. What changed is that the panel is no
+   * longer the only editor a dish has. Phase 5E writes `sort_order` from the list, and
+   * `replace` would have thrown that away — silently — the next time anybody saved a
+   * price on the same dish, leaving half a new order pending and nobody any the wiser.
+   *
+   * So the panel now says exactly what it means: merge the six fields it owns, and
+   * remove the ones of *those six* that no longer differ from the published values.
+   * `sort_order`, `details` and `image_id` belong to other interactions and are not
+   * mentioned either way, so they survive a save from here untouched — which is the
+   * same courtesy the reorder already extends to a pending price.
+   */
+  const clear = DISH_EDITOR_FIELDS.filter((field) => values[field] === undefined)
+
   const result = await saveEntityDraft(profile, {
     entity: 'dish',
     entityId: dish.id,
     expectedUpdatedAt: target.data.expectedUpdatedAt,
-    mode: 'replace',
+    mode: 'merge',
     values,
+    clear,
   })
 
   // Stay on the section the dish is in *after* the save, so a move is visible at once.

@@ -116,6 +116,7 @@ function toAdminDish(raw: DishRow): AdminDish {
     priceOre: row.price_ore,
     labels: row.labels ?? [],
     sortOrder: row.sort_order,
+    liveSortOrder: raw.sort_order,
     // Read for display. Marking a dish Udsolgt is the immediate path with a 10 s
     // Fortryd (§6, `lib/menu/sold-out.ts`); nothing here writes it.
     soldOutOn: raw.sold_out_on,

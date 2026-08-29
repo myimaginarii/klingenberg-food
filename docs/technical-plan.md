@@ -15,6 +15,20 @@ a **dedicated Månedens burger section** in addition to its three featured dishe
 see §7d and §7e item 3 for what replaces it. `monthly_burger` remains the single source of truth: no
 new table, no duplicated data, no second availability rule.
 
+**Corrections — 2026-08-29, applied after phase 5D, recorded before phase 5E.** Two statements this
+document made about deleting a dish were wrong. They are corrected in place *and* listed in §0a, so
+the change is visible rather than invisible: a reader who remembers the old rule can see that it was
+withdrawn, and why.
+
+- **§7e item 4 said a deletion "nulls the reference"** the Forside holds to a featured dish. It does
+  not, and must not. Forsiden is Owner-only (§5), so a Staff member's Slet ret cannot become a path
+  that writes `pages.home`. What phase 5D actually built — warn, leave the document alone, let the
+  reference stop resolving — is now what §7e item 4 says.
+- **§6's immediate-path table said a soft-deleted dish is "purged after 30 days".** There is no such
+  purge. Nothing in this system hard-deletes a dish, no retention job exists, and none is planned or
+  scheduled into a phase. Soft-deleted rows are kept until an explicit retention feature is designed
+  and approved, which is now open item G in §13.
+
 Confirmed business facts (from design section 1ab — do not invent beyond these):
 
 - Name: Klingenberg Food, Carl Nielsen Hallen
@@ -47,6 +61,23 @@ Confirmed business facts (from design section 1ab — do not invent beyond these
 | C2 | Storage backup must be off-platform | Corrects revision 1, which synced to another **Supabase** bucket — that is not off-platform. Weekly GitHub Actions job to an external object store. |
 | C3 | Do not pin framework versions from this document | Version selection and advisory review move to implementation time. Lockfile committed, scanning in CI. |
 | C4 | Månedens burger prepared as a draft | Confirms the read-time date-window model. Explicitly no scheduled-publishing service. |
+
+---
+
+## 0a. Corrections applied after phase 5D
+
+Revision 2's §0 records what changed when the twelve decisions closed. This section records
+something different and worth keeping separate: two places where **this document was wrong about
+what the system does**, found while building phases 5A–5D and corrected before phase 5E. Neither is
+a new decision. Both are the plan catching up with a rule it already stated elsewhere.
+
+| # | Where | What it said | What is true, and why |
+|---|---|---|---|
+| D1 | §7e item 4 | Deleting a dish that Forsiden features "warns and then nulls the reference". | It warns and **leaves `pages.home` exactly as the Owner wrote it**. Nulling the reference would need a Staff member's delete button to write an Owner-only document (§5) — a privilege-elevation path, in the one place the permission matrix is least expected to be routed around. The public selector already drops an id it cannot resolve, so the Forside stays valid with two cards rather than three; restoring the dish brings it back automatically while the Owner's reference is still there; and the Owner tidies a genuinely stale slot in the Forsiden editor whenever they like. `supabase/migrations/20260829180000_soft_delete_dishes.sql` names no `public.pages` statement, which is what makes this a property of the text rather than a promise. |
+| D2 | §6, immediate-path table | A soft-deleted dish is "purged after 30 days". | **There is no automatic hard purge, and no purge job is planned.** Nothing in the system issues a `DELETE` against `dishes`; §8's recovery story for a dish is the row itself, which only works if the row is still there. Soft-deleted rows remain stored until an explicit retention feature is designed and approved — §13 open item G. A 30-day timer would have quietly destroyed the thing the soft delete exists to preserve. |
+
+Both corrections are the *binding* statement of the behaviour. Where an older paragraph elsewhere in
+this document still reads as though a deletion edits Forsiden or expires a row, this section wins.
 
 ---
 
@@ -367,7 +398,7 @@ currently *shown*, which is a read-time filter on dates the staff themselves ent
 | Tilgængelig / Udsolgt on a dish, Ugens ret, Lørdagsmenu, Månedens burger | writes `sold_out_on` (today's Copenhagen date, or `NULL`) directly + `revalidateTag('menu')` | 10 s Fortryd = a second write back to the previous value |
 | "Vis besked" off / "Fjern beskeden nu" | writes `is_visible=false` + revalidate | 10 s Fortryd |
 | Replace an existing announcement | writes new values, stashes the old in `previous jsonb` | 10 s Fortryd restores from `previous` |
-| Delete a dish | soft delete (`deleted_at`) | 10 s Fortryd clears `deleted_at`; purged after 30 days |
+| Delete a dish | soft delete (`deleted_at`) | 10 s Fortryd clears `deleted_at`. **The row is never purged** — see §0a D2 |
 
 Undo is not server-held state. The change is already live; undo is simply a second authorized write. If the browser navigates away inside the 10 seconds the undo is lost — acceptable, and recoverable from `audit_log`.
 
@@ -532,7 +563,15 @@ and the no-database-request constraint is what makes this component acceptable i
 1. **Dashboard "Offentliggør ændringer" publishes another person's unfinished draft.** The confirmation lists each pending item with who last edited it; items can be unchecked.
 2. **Concurrent edits.** Optimistic concurrency on `updated_at`; on conflict show "Nogen andre har rettet dette" rather than silently overwriting.
 3. **Månedens burger + Udvalgte burgere.** *Superseded — approved requirement change, 29 August 2026.* The forside has a **dedicated Månedens burger section** in addition to its three featured dishes, not instead of one of them. "Vis på forsiden" (`show_on_homepage`) governs that section alone: publishing or displaying Månedens burger never displaces a featured dish, and there is no slot arithmetic and no "pushed out" note. The section renders only when the burger has content, today is inside its window and `show_on_homepage` is true; otherwise the forside omits it entirely, with **no public placeholder text**. Design 1ah's toggle helper still reads "Optager en af de tre pladser under ‘Tre fra menuen’"; the approved frame is left as drawn, and phase 6 must ship the toggle with wording that matches this rule instead — e.g. "Vises som sit eget afsnit på forsiden".
-4. **Deleting a dish that is featured on the forside**, or an image that is in use. Both warn and then null the reference — never a dangling id (design 1w already shows the image warning).
+4. **Deleting a dish that is featured on the forside.** *Corrected — see §0a D1; the "warn and then null the reference" rule stated here in revisions 1 and 2 is withdrawn.* The binding rule, as built in phase 5D:
+   - **Staff may delete dishes** (§5, first row of the matrix). Owner may too.
+   - **`pages.home` stays Owner-only.** A deletion writes `deleted_at` and its attribution column on `dishes` and nothing else. No statement in the deletion path names `public.pages`, and the function is SECURITY INVOKER, so a Staff caller holds no privilege over the `home` row while it runs.
+   - **Deleting a featured dish warns Staff but does not rewrite the Forside document.** The confirmation says what will happen — the dish goes from the forside, the forside itself is not permanently changed — and the warning is decided by the server from the *published* Forside document, never from a flag the browser sent.
+   - **The public featured-dish selector omits deleted and unresolvable dishes.** `selectFeaturedDishes()` has always dropped an id it cannot resolve, so the forside renders two valid cards rather than three, or one, or none — never a dangling id and never a placeholder.
+   - **Restoring the dish makes it appear again automatically**, with no further action, as long as the Owner's reference is still in the document. That is the direct benefit of not having rewritten it.
+   - **The Owner may clean a genuinely stale reference later**, in the Forsiden editor (phase 11), as an ordinary Owner draft change.
+
+   **An image that is in use is a different question and keeps the original rule**: warn, and then null the reference — never a dangling id (design 1w already shows the image warning). Images are Staff-editable in full (§5), so nulling an image reference is a write Staff already hold; that is exactly the privilege a Forside reference does not have, which is why the two cases part company here.
 5. **Ugens ret week rollover.** Changing the week number blanks the form as a draft; the live site keeps the current card, including its week number, until publish. The editor shows the live week number next to the draft one so the difference is obvious. "Kopiér sidste uge" is the shortcut past the blank form.
 6. **Override deleted after it generated an announcement.** Ask, and default to removing the announcement too when `source='opening_hours'` and it points at that date.
 7. **Override in the past, or on an already-closed day.** The date must be today or later; an override on a Monday is allowed (they may open specially) — and it correctly becomes a sold-out reset day (§7b).
@@ -866,6 +905,7 @@ policy · Månedens burger scheduling.
 | D | **Domain, DNS control, and the Resend sending domain** | before launch (DNS verification takes time) | — |
 | E | **Structured-data gaps** — `priceRange`, coordinates, a public email | before launch | Left out rather than invented |
 | F | **Who owns the Vercel, Supabase and GitHub accounts**, and who pays | phase 0 (administrative) | Developer-owned during build, transferred at handover per `owner-handover.md` |
+| G | **Retention for soft-deleted dishes** — whether a deleted row is ever removed, after how long, and who decides (§0a D2) | not before launch | **Keep indefinitely.** Nothing purges today, and nothing should start purging as a side effect of another phase. A retention feature is its own design, with its own audit and its own consequences for `audit_log` attribution |
 
 ---
 

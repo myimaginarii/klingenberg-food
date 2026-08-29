@@ -172,21 +172,47 @@ function dishQuery(access: ContentAccess) {
   return access.includeDrafts ? query.is('deleted_at', null) : query
 }
 
+/**
+ * Order by the position each row *ends up with*, not the one it was fetched by.
+ *
+ * The query already asks the database for `sort_order` ascending, and for the published
+ * path that is the whole answer — the overlay is a no-op there, so this sort reproduces
+ * exactly the order the database returned. It matters for the **preview**: a draft may
+ * carry a new `sort_order` (phase 5E), and a draft that changes a value the SQL sorted
+ * by has to change the sort too, or Forhåndsvis would show the new order's *contents*
+ * in the old order's *sequence* — a preview that is not a preview.
+ *
+ * The tie-break is by name, in Danish, which is the same rule `groupDishesBySection`
+ * applies in the administration. Two dishes never share a position in practice, but if
+ * they ever did, the administration, the preview and the public menu would still agree
+ * about which came first instead of each taking the database's word for it.
+ */
+function byPosition(a: { sort_order: number; name: string }, b: { sort_order: number; name: string }) {
+  return a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'da-DK')
+}
+
 function groupDishesByCategory(rows: DishRow[], includeDrafts: boolean): Map<string, Dish[]> {
-  const byCategory = new Map<string, Dish[]>()
+  const byCategory = new Map<string, DishRow[]>()
 
   for (const raw of rows) {
+    // Overlay first, group second: a draft may move the dish to another section as well
+    // as to another position, and both are answered by the merged row.
     const { row } = overlayDraft<DishRow>(raw, includeDrafts ? raw.draft : null, dishDraft)
     const dishes = byCategory.get(row.category_id)
 
     if (dishes === undefined) {
-      byCategory.set(row.category_id, [toDish(row)])
+      byCategory.set(row.category_id, [row])
     } else {
-      dishes.push(toDish(row))
+      dishes.push(row)
     }
   }
 
-  return byCategory
+  return new Map(
+    [...byCategory].map(([categoryId, dishes]) => [
+      categoryId,
+      [...dishes].sort(byPosition).map(toDish),
+    ]),
+  )
 }
 
 /** The nine sections with their dishes. Tag: `menu`. */
@@ -209,13 +235,18 @@ const readMenuSections = definePublicRead(
 
     const dishesByCategory = groupDishesByCategory(dishesResult.data ?? [], access.includeDrafts)
 
-    return (categoriesResult.data ?? []).map((raw) => {
-      const { row } = overlayDraft<CategoryRow>(
-        raw,
-        access.includeDrafts ? raw.draft : null,
-        menuCategoryDraft,
-      )
+    const categories = (categoriesResult.data ?? []).map(
+      (raw) =>
+        overlayDraft<CategoryRow>(raw, access.includeDrafts ? raw.draft : null, menuCategoryDraft)
+          .row,
+    )
 
+    // The same rule for the sections themselves, for the same reason: a section's
+    // position is a draft field too (§4), so the sequence has to follow the overlay
+    // rather than the query. Nothing writes a section position yet — the editor for it
+    // is not phase 5E's — but a read that only half-applies a draft is the kind of
+    // incoherence that is found much later and blamed on something else.
+    return [...categories].sort(byPosition).map((row) => {
       return {
         id: row.id,
         slug: row.slug,

@@ -150,10 +150,20 @@ export function undoStrip(page: Page) {
   return page.getByRole('status').filter({ has: page.getByRole('button', { name: /^Fortryd/ }) })
 }
 
-/** Press the menu screen's own Offentliggør ændringer, and wait for the report. */
+/**
+ * Press the menu screen's own publish control, and wait for the report.
+ *
+ * Scoped to the burgundy bar, and matched by a prefix, because the bar's label is one of
+ * the places 1r and 1y genuinely differ: the desktop reads "Offentliggør ændringer" and
+ * the phone reads "Offentliggør". Scoping is what keeps the prefix from also matching
+ * the pending banner's own Offentliggør further down the screen.
+ */
 export async function publishMenu(page: Page): Promise<void> {
   await page.goto(MENU_ADMIN_PATH)
-  await page.getByRole('button', { name: 'Offentliggør ændringer' }).click()
+  await page
+    .getByRole('banner')
+    .getByRole('button', { name: /^Offentliggør/ })
+    .click()
   await page.waitForURL(/\/admin\/menu\?.*status=/)
 }
 
@@ -222,4 +232,175 @@ export async function pressDeleteUndo(page: Page): Promise<void> {
   // Same reason as `confirmDelete`: the strip is rendered on a `/admin/menu?…` address,
   // so the wait has to name something only the answer carries.
   await page.waitForURL(/\/admin\/menu\?.*status=/)
+}
+
+// ---------------------------------------------------------------------------
+// Reordering (phase 5E) — design 1r / 1y
+// ---------------------------------------------------------------------------
+
+/**
+ * The order the administration currently shows, by the names a person reads.
+ *
+ * Read from the list itself rather than from a data attribute, because the order *is*
+ * the rendered sequence — an assertion against anything else would pass while the screen
+ * showed something different.
+ */
+export async function adminOrder(page: Page): Promise<string[]> {
+  // Direct children only: a row that carries labels holds a `<ul>` of its own, and
+  // `getByRole('listitem')` would walk into it and count "Populær" as a dish.
+  const rows = await page.getByRole('list', { name: /^Retter i / }).locator('> li').all()
+
+  // One name per row, taken from inside the row's own link — not the Kladde badge
+  // beside it and not the pending sentence beneath it.
+  return Promise.all(
+    rows.map(async (row) =>
+      (await row.locator('a[href*="ret="] span span').first().innerText()).trim(),
+    ),
+  )
+}
+
+/** One dish's reorder form, addressed by its accessible name. */
+export function reorderForm(page: Page, dish: string) {
+  return page.getByRole('form', { name: `Flyt ${dish}` })
+}
+
+/** The drag handle, by the accessible name that carries the dish and its position. */
+export function reorderHandle(page: Page, dish: string) {
+  return page.getByRole('button', { name: new RegExp(`^Flyt ${dish} — plads \\d+ af \\d+\\.`) })
+}
+
+/** Flyt op / Flyt ned for one dish. The path that needs neither a gesture nor a script. */
+export function moveButton(page: Page, dish: string, direction: 'op' | 'ned') {
+  return page.getByRole('button', { name: `Flyt ${direction} ${dish}`, exact: true })
+}
+
+/**
+ * Wait until the administration's list has taken a particular order.
+ *
+ * The obvious wait — for the address to change — does not work here, and the reason is
+ * worth stating: two moves of the *same* dish redirect to the same address, so a second
+ * move would resolve instantly against the first one's URL and the assertion that
+ * followed would read the previous list. What actually changes is the list, so that is
+ * what is waited for.
+ */
+export async function waitForOrder(page: Page, wanted: readonly string[]): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        try {
+          return (await adminOrder(page)).join(' · ')
+        } catch {
+          // The list is mid-navigation and its rows have gone. Poll again.
+          return ''
+        }
+      },
+      { message: 'the administration never took the new order' },
+    )
+    .toBe([...wanted].join(' · '))
+}
+
+/** Press Flyt op / Flyt ned and wait for the list to take its new order. */
+export async function pressMove(
+  page: Page,
+  dish: string,
+  direction: 'op' | 'ned',
+): Promise<void> {
+  const before = await adminOrder(page)
+  const wanted = [...before]
+  const from = wanted.indexOf(dish)
+  const to = direction === 'op' ? from - 1 : from + 1
+
+  if (from === -1 || to < 0 || to >= wanted.length) {
+    throw new Error(`${dish} cannot be moved ${direction} from position ${from + 1}`)
+  }
+
+  wanted.splice(to, 0, ...wanted.splice(from, 1))
+
+  await moveButton(page, dish, direction).click()
+  await waitForOrder(page, wanted)
+}
+
+/** The polite live region the list announces a move through. */
+export function reorderStatus(page: Page) {
+  return page.getByRole('status', { name: 'Rækkefølge' })
+}
+
+/**
+ * The two pointer positions a drag of `dish` past `onto` needs.
+ *
+ * Shared by the mouse drag below and the touch drag in the reorder suite, because the
+ * geometry is the awkward part and it is identical for both. Three things it gets right
+ * that a naive "drag the handle onto the row" does not:
+ *
+ *   * **It aims past the target's midpoint, not at it.** The handle decides where a row
+ *     lands by counting how many other rows have their midpoint above the dragged row's.
+ *     Landing exactly on a midpoint is the boundary between two answers, so a test that
+ *     aimed there would pass or fail on a pixel.
+ *   * **It measures the travel from the row's midpoint, not the handle's.** On a phone
+ *     the handle sits at the foot of a tall card, a long way from the middle of it, so
+ *     the two are not interchangeable.
+ *   * **It scrolls the destination into view first**, because a pointer cannot be
+ *     dispatched at a coordinate that is not on the screen.
+ */
+export async function dragPointsFor(page: Page, dish: string, onto: string) {
+  await dishRow(page, onto).scrollIntoViewIfNeeded()
+
+  const handle = await reorderHandle(page, dish).boundingBox()
+  const source = await dishRow(page, dish).boundingBox()
+  const target = await dishRow(page, onto).boundingBox()
+
+  if (handle === null || source === null || target === null) {
+    throw new Error('the handle, its row or the destination row is not on screen')
+  }
+
+  const movingUp = target.y < source.y
+  const aim = target.y + target.height / 2 + (movingUp ? -8 : 8)
+  const travel = aim - (source.y + source.height / 2)
+
+  const x = handle.x + handle.width / 2
+  const y = handle.y + handle.height / 2
+
+  return { from: { x, y }, to: { x, y: y + travel } }
+}
+
+/**
+ * Drag one dish's handle past another dish's row, the way a mouse does.
+ *
+ * Deliberately not `dragTo()`: the handle listens to Pointer Events, and a real drag is
+ * a press, several moves and a release. The intermediate steps are what make the
+ * destination follow the pointer rather than jump, which is also what a person does.
+ */
+export async function dragDishOnto(
+  page: Page,
+  dish: string,
+  onto: string,
+  /** The order the list should end up in. Waited for, so the drag is never raced. */
+  expected: readonly string[],
+): Promise<void> {
+  const { from, to } = await dragPointsFor(page, dish, onto)
+
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move(to.x, to.y, { steps: 8 })
+  await page.mouse.up()
+
+  await waitForOrder(page, expected)
+}
+
+/**
+ * The order the named dishes appear in, in one section of the public menu.
+ *
+ * Filtered to `among` rather than returning everything the section holds, because a
+ * section carries more than its dishes — the Månedens burger card sits at the end of
+ * Burgere, and whether it is on screen depends on today's date. Filtering keeps the
+ * assertion about the thing being tested: the *relative order of these dishes*.
+ */
+export async function publicOrder(
+  page: Page,
+  sectionId: string,
+  among: readonly string[],
+): Promise<string[]> {
+  const headings = await page.locator(`#${sectionId} article h3`).allInnerTexts()
+
+  return headings.map((text) => text.trim()).filter((name) => among.includes(name))
 }

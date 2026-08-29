@@ -53,6 +53,7 @@ function dish(overrides: Partial<AdminDish> & Pick<AdminDish, 'id' | 'name'>): A
     priceOre: 8900,
     labels: [],
     sortOrder: 1,
+    liveSortOrder: 1,
     soldOutOn: null,
     isNewDraft: false,
     hasDraft: false,

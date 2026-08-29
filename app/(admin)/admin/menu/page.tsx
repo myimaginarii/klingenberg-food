@@ -45,6 +45,8 @@ import {
   type DishErrorField,
 } from './dish-form'
 import { publishMenuChanges } from './publish-actions'
+import { moveDishInSection } from './reorder-actions'
+import { REORDER_FORM } from './reorder-form'
 import {
   DELETE_BUTTON_ANCHOR,
   DELETE_DIALOG_ANCHOR,
@@ -60,15 +62,19 @@ import { saveDishDraft } from './save-actions'
  * SCOPE. The list, the section navigation with its counts, the Kladde states, the
  * editor panel, creating a dish, moving one between sections, preview and publish
  * (phase 5B), the immediate Tilgængelig / Udsolgt control with its computed reset label
- * and its ~10-second Fortryd (phase 5C), and Slet ret with its confirmation and its own
- * ~10-second Fortryd (phase 5D). Deliberately **not** here, and not stubbed either:
- * drag-reorder and the Tapas list editor. Each of those is its own interaction with its
- * own rules, and drawing an inert version of one would be worse than not drawing it.
+ * and its ~10-second Fortryd (phase 5C), Slet ret with its confirmation and its own
+ * ~10-second Fortryd (phase 5D), and reordering the dishes inside one section — handle,
+ * touch, keyboard and a no-JavaScript fallback — as an ordinary draft change (phase 5E).
+ * Deliberately **not** here, and not stubbed either: the Tapas list editor. It is its
+ * own interaction with its own rules, and drawing an inert version of it would be worse
+ * than not drawing it.
  *
  * THE TWO PATHS, SIDE BY SIDE
  *
  * Everything on this screen except the availability control and Slet ret writes a draft
- * and waits for Offentliggør (§6). Those two write the hjemmeside immediately and offer
+ * and waits for Offentliggør (§6) — **reordering included**: dragging a row changes the
+ * administration's list and the preview, and changes nothing a guest can see until
+ * somebody publishes. Those two write the hjemmeside immediately and offer
  * Fortryd for about ten seconds. The distinction is drawn rather than explained: a
  * pending change puts its row in the warning tone and says what is waiting, and an
  * immediate change produces a green strip that says what is already live.
@@ -129,6 +135,20 @@ const AVAILABILITY_FORM_BINDING = {
 const DELETE_FORM_BINDING = {
   action: setDishDeletion,
   fieldNames: DELETE_FORM,
+} as const
+
+/**
+ * The reorder path's binding: its own action, its own field names.
+ *
+ * A third vocabulary, kept apart from the other two for the same reason they are kept
+ * apart from each other — a form carrying `til` cannot reach the deletion or the
+ * availability action, and neither of theirs can reach this one. It is also the one of
+ * the three that writes a **draft** rather than the hjemmeside, which is why it is bound
+ * to `saveEntityDraft` through `reorder-actions.ts` and to no cache-expiring path at all.
+ */
+const REORDER_FORM_BINDING = {
+  action: moveDishInSection,
+  fieldNames: REORDER_FORM,
 } as const
 
 /** A repeated parameter is a malformed request, not two answers: take the first. */
@@ -317,7 +337,9 @@ export default async function MenuAdminPage({
                 hrefForDish={(dishId) =>
                   menuHref({ section: activeSection.category.slug, dish: dishId })
                 }
+                movedDishId={one(params[MENU_PARAM.movedDish])}
                 now={now}
+                reorderForm={REORDER_FORM_BINDING}
                 section={activeSection}
               />
             ) : (

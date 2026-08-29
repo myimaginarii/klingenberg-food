@@ -66,6 +66,20 @@ export const MENU_PARAM = {
    */
   undoDeleteDish: 'fortryd_slet',
   undoDeleteVersion: 'fortryd_slet_version',
+  /**
+   * The dish a reorder just moved (phase 5E, design 1r / 1y).
+   *
+   * One parameter, and it is neither authority nor a record of anything: the move is
+   * already saved as a draft, and this only decides two presentational things on the
+   * page that comes back — which sentence the polite live region carries, and which
+   * handle gets the keyboard back if the browser dropped it (see `ReorderHandle`).
+   *
+   * There is deliberately **no `fortryd` for a reorder.** Moving a dish is an ordinary
+   * draft change (§6), not one of the two immediate paths, so nothing about it is on the
+   * hjemmeside to undo — the way back is to move it again, or to leave the draft
+   * unpublished.
+   */
+  movedDish: 'flyttet',
 } as const
 
 /**
@@ -120,6 +134,8 @@ export type MenuLocation = {
    * the keyboard — to the control they opened it from.
    */
   readonly focusDelete?: boolean
+  /** The dish a reorder just moved, for the live region and the keyboard (phase 5E). */
+  readonly movedDish?: string | null
 }
 
 /**
@@ -144,6 +160,7 @@ export function menuHref(location: MenuLocation = {}, extra?: URLSearchParams): 
   }
 
   if (location.confirmDelete) parameters.set(MENU_PARAM.confirmDelete, location.confirmDelete)
+  if (location.movedDish) parameters.set(MENU_PARAM.movedDish, location.movedDish)
 
   if (location.undoDelete) {
     parameters.set(MENU_PARAM.undoDeleteDish, location.undoDelete.dishId)

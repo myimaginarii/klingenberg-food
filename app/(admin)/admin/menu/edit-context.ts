@@ -41,12 +41,24 @@ export type MenuEditContext = {
   readonly slugOf: (categoryId: string) => string | null
   /** The position a dish takes when it joins this section: the end of its order. */
   readonly endOfCategory: (categoryId: string) => number
+  /**
+   * This section's dishes, in the order the administration shows them (phase 5E).
+   *
+   * The **server's** answer to "what does this list look like", which is the list a
+   * reorder is computed against. A submission never carries an order, so there is no
+   * browser-supplied list for an action to reach for by mistake — the same reason
+   * `categoryAllows` is built from the read rather than passed in.
+   */
+  readonly dishesIn: (categoryId: string) => readonly AdminDish[]
 }
 
 export async function readMenuEditContext(): Promise<MenuEditContext> {
   const { categories, dishes } = await readAdminMenuContent()
   const sections = groupDishesBySection(categories, dishes)
   const allowed = new Set(assignableCategories(categories).map((category) => category.id))
+
+  const dishesIn = (categoryId: string): readonly AdminDish[] =>
+    sections.find((section) => section.category.id === categoryId)?.dishes ?? []
 
   return {
     categories,
@@ -55,7 +67,7 @@ export async function readMenuEditContext(): Promise<MenuEditContext> {
     categoryAllows: (categoryId) => allowed.has(categoryId),
     slugOf: (categoryId) =>
       categories.find((category) => category.id === categoryId)?.slug ?? null,
-    endOfCategory: (categoryId) =>
-      nextSortOrderIn(sections.find((section) => section.category.id === categoryId)?.dishes ?? []),
+    endOfCategory: (categoryId) => nextSortOrderIn(dishesIn(categoryId)),
+    dishesIn,
   }
 }

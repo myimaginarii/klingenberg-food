@@ -84,6 +84,42 @@ export function mergeDraftValues<Base extends object>(
 }
 
 /**
+ * What a draft column should hold after one save — technical plan §4, §6.
+ *
+ * The last step of `saveEntityDraft`, kept here rather than there because it is pure and
+ * because it is the step with the rule in it. Three things happen, in this order, and
+ * the order is the whole of the behaviour:
+ *
+ *   1. the already-validated new values are merged over the existing draft (rules 1–3
+ *      above), so an edit to one field leaves a colleague's edit to another alone;
+ *   2. the names in `clear` are removed — the only way a *partial* editor can say "this
+ *      field is no longer a pending change", which phase 5E needs when a dish is moved
+ *      back to the position it is published at. Removal is last, so a field that is both
+ *      written and cleared ends up cleared;
+ *   3. a draft with no fields left becomes `null`, not `{}`. `pending_changes`, the
+ *      Kladde badge and the dashboard count all read `draft is not null`, so an entity
+ *      whose every edit has been reverted has to stop being pending — and an empty
+ *      object would keep it there forever, offering a publish with nothing to publish.
+ *
+ * `clear` goes through the same `spec.fields` allow-list a write does, so it can take a
+ * field out of a draft and can never reach a name the schema does not know.
+ */
+export function nextDraftValues(
+  existing: Record<string, unknown>,
+  values: Record<string, unknown>,
+  spec: DraftSpec,
+  clear: readonly string[] = [],
+): Record<string, unknown> | null {
+  const { row: merged } = mergeDraftValues(existing, values, spec)
+
+  for (const field of clear) {
+    if (spec.fields.includes(field)) delete merged[field]
+  }
+
+  return Object.keys(merged).length === 0 ? null : merged
+}
+
+/**
  * Apply a stored `draft` value over a live row or document.
  *
  * `live` is the row exactly as the database returned it — database casing, database

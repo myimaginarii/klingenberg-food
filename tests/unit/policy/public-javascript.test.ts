@@ -210,6 +210,24 @@ describe('the dependency surface stays as small as the plan requires', () => {
     'dayjs',
     'date-fns',
     'luxon',
+    // drag-and-drop and sortable-list frameworks (§1, adjustment 4; phase 5E)
+    //
+    // Phase 5E's reorder is a handle, two submit buttons and about a hundred lines of
+    // Pointer Events, because that is what the approved design actually needs: one list,
+    // one axis, no cross-container drags, and a server that owns the order either way.
+    // Every library below solves a much larger problem and brings its own accessibility
+    // model, which would then have to be reconciled with the keyboard and no-JavaScript
+    // paths the brief requires rather than replacing them.
+    '@dnd-kit/core',
+    '@dnd-kit/sortable',
+    'react-beautiful-dnd',
+    '@hello-pangea/dnd',
+    'react-dnd',
+    'react-sortable-hoc',
+    'sortablejs',
+    'react-sortablejs',
+    'dragula',
+    'react-draggable',
     // component libraries and headless CMSes (§1)
     'bootstrap',
     '@mui/material',

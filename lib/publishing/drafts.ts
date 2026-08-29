@@ -3,7 +3,7 @@ import 'server-only'
 import { z } from 'zod'
 
 import type { Profile } from '@/lib/auth/session'
-import { isPlainObject, mergeDraftValues } from '@/lib/drafts/overlay'
+import { isPlainObject, nextDraftValues } from '@/lib/drafts/overlay'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 import { mayChangeEntity } from './authorize'
@@ -39,12 +39,20 @@ import { applyEntityFilter, locateEntityRow } from './locate'
  * Merging is right for a **partial** editor — a form that owns some of an entity's
  * fields and says nothing about the rest. Every phase-4 content form is one of those.
  *
- * It is wrong for a **whole-entity** editor, and the menu's dish panel (1r) is one: it
- * renders every editable field the dish has and submits all of them, already reduced to
- * the ones that differ from the live values. Merging such a submission would keep a
- * field the person had just changed back — they would revert a price, save, and the old
- * draft price would still be there, invisible in the form and live on the next publish.
- * `mode: 'replace'` says "these values *are* the draft".
+ * It is wrong for a **whole-entity** editor: one that renders every editable field an
+ * entity has and submits all of them, already reduced to the ones that differ from the
+ * live values. Merging such a submission would keep a field the person had just changed
+ * back — they would revert a price, save, and the old draft price would still be there,
+ * invisible in the form and live on the next publish. `mode: 'replace'` says "these
+ * values *are* the draft".
+ *
+ * The distinction is a claim about an editor, and a claim that can stop being true. The
+ * menu's dish panel (1r) was a whole-entity editor until phase 5E gave `sort_order` an
+ * editor of its own; `replace` then meant the panel silently discarded a pending
+ * reorder. It now uses `merge` with an explicit `clear` naming the six fields it
+ * actually owns, which is the honest way to say the same thing for a *partial* editor.
+ * Before reaching for `replace`, check that the entity has no other editor — and
+ * remember that it may acquire one later.
  *
  * A draft that ends up with no fields at all is written as `null` rather than as `{}`.
  * An empty object is not "no pending change" to anything that reads `draft is not null`
@@ -88,6 +96,24 @@ export type SaveDraftRequest = {
    * editable field — see the note above.
    */
   readonly mode?: 'merge' | 'replace'
+  /**
+   * Fields to **remove** from the existing draft, applied after the merge.
+   *
+   * `replace` mode gets "a value changed back to what is live must leave the draft" for
+   * free, because it discards the old draft wholesale. A partial editor cannot: merging
+   * can add a field and change one, but it has no way to say *take this one out again*.
+   *
+   * Phase 5E is the first editor that needs to. Moving a dish down and then back up
+   * leaves its position identical to the published one, so `sort_order` is no longer a
+   * pending change — and a draft that kept it would put a Kladde badge on a row with
+   * nothing waiting, and make Offentliggør claim a change it will not make. §4 says a
+   * draft holds "only the changed fields"; this is how a partial editor keeps that
+   * literally true.
+   *
+   * A name outside the entity's `spec.fields` is ignored, exactly as it is on the way
+   * in — this widens what a draft may *contain* by nothing at all.
+   */
+  readonly clear?: readonly string[]
 }
 
 function refusal(status: SaveDraftStatus, messages: readonly string[] = []): SaveDraftResult {
@@ -137,18 +163,18 @@ export async function saveEntityDraft(
   if (current.error) return refusal('failed')
   if (current.data === null) return refusal('not_found')
 
-  const existing =
+  const existing: Record<string, unknown> =
     request.mode === 'replace' || !isPlainObject(current.data.draft) ? {} : current.data.draft
 
-  const { row: merged } = mergeDraftValues(
+  // Merge, then remove what `clear` names, then reduce an empty draft to `null`. All
+  // three rules live in `lib/drafts/overlay.ts` beside the merge the preview uses, so
+  // they are pure, tested directly, and identical wherever a draft is composed.
+  const nextDraft = nextDraftValues(
     existing,
     parsed.data as Record<string, unknown>,
     draft.spec,
+    request.clear,
   )
-
-  // No fields left is no pending change. `{}` would keep the entity in
-  // `pending_changes` — and in the Kladde badge — with nothing to publish.
-  const nextDraft = Object.keys(merged).length === 0 ? null : merged
 
   // The version check is part of the write, not a separate read before it, so two
   // saves that both started from the same version cannot both succeed.

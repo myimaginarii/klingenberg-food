@@ -3,6 +3,51 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 5E — no dependencies added (2026-08-29)
+
+Menu reordering (`lib/menu/reorder.ts`, the reorder Server Action, the drag handle)
+added **nothing** — no runtime dependency, no development dependency, and no database
+object either.
+
+### Why no drag-and-drop library
+
+§1 (adjustment 4) rules out a library unless the native implementation genuinely cannot
+satisfy the requirement. It can, and by a wide margin, because the requirement is far
+narrower than what a sortable framework solves:
+
+* **One list, one axis, one container.** No cross-list drags, no nesting, no
+  multi-select, no virtualised rows. A section holds a dozen dishes at most.
+* **The server owns the order.** The gesture proposes a *position in a list*; the server
+  recomputes the move with a pure function and writes the drafts. There is no client-side
+  list state to keep in step, so the hard part every sortable library exists to solve is
+  not part of this problem.
+* **The accessible paths are not the library's.** Flyt op / Flyt ned are ordinary submit
+  buttons that work with no JavaScript at all, and the arrow keys submit the same form.
+  A library's own keyboard model would have to be reconciled with those rather than
+  replacing them — more code, not less.
+
+What that left is one Client Component of roughly 200 lines using Pointer Events, which
+is the whole of the browser-side feature. `@dnd-kit`, `react-beautiful-dnd`,
+`@hello-pangea/dnd`, `react-dnd`, `react-sortable-hoc`, `sortablejs`, `dragula` and
+`react-draggable` are now named in `tests/unit/policy/public-javascript.test.ts`, so
+adding one is a failing test rather than a review someone has to remember to do.
+
+### No database object either
+
+Reordering writes `sort_order` into `dishes.draft` through the phase-4 draft writer and
+goes live through `publish_dish`, unchanged. There is no reorder function, no second
+ordering table and no trigger; `supabase/tests/008_reorder.test.sql` asserts the absence
+of all three, so a later phase cannot quietly add one.
+
+The one change to shared machinery is additive: `SaveDraftRequest` gained an optional
+`clear` list, so a *partial* editor can take a field back out of a draft the way
+`mode: 'replace'` does for a whole-entity one. It is implemented in
+`lib/drafts/overlay.ts` beside the merge the preview already uses, and it widens what a
+draft may contain by nothing — `clear` goes through the same `spec.fields` allow-list a
+write does.
+
+---
+
 ## Advisory check — 2026-08-29 (phase 4 additions)
 
 One runtime dependency was added for phase 4 (draft / preview / publish). Nothing
