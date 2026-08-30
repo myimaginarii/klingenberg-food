@@ -73,10 +73,37 @@ export function BarLink({ href, children }: { href: string; children: React.Reac
  * through a script — see `ModalDialog`. A bar without such a dialog passes nothing and
  * renders exactly as before.
  */
-export function BarSubmit({ children, id }: { children: React.ReactNode; id?: string }) {
+export function BarSubmit({
+  children,
+  id,
+  disabled = false,
+  describedBy,
+}: {
+  children: React.ReactNode
+  id?: string
+  /**
+   * Greyed out, in 1aa's disabled tokens — for a screen whose publish has a *stated*
+   * precondition. 1ad draws exactly one: "Offentliggør er nedtonet, indtil feltet er
+   * gyldigt."
+   *
+   * It is an explanation, never a permission. Every publish action re-reads what is
+   * pending and re-checks the rule on the server, and the database function checks it a
+   * third time (§5, §8), so a press that arrives anyway is refused rather than obeyed.
+   * Bars that pass nothing render exactly as before.
+   */
+  disabled?: boolean
+  /** The id of the element saying *why* it is disabled, so the reason is announced. */
+  describedBy?: string
+}) {
   return (
     <button
-      className="rounded-field text-brand-700 min-h-tap inline-flex items-center bg-white px-4 text-meta font-semibold hover:bg-brand-50"
+      aria-describedby={describedBy}
+      className={
+        disabled
+          ? 'rounded-field bg-disabled-surface text-disabled-ink min-h-tap inline-flex items-center px-4 text-meta font-semibold'
+          : 'rounded-field text-brand-700 min-h-tap inline-flex items-center bg-white px-4 text-meta font-semibold hover:bg-brand-50'
+      }
+      disabled={disabled}
       id={id}
       type="submit"
     >

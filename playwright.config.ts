@@ -61,6 +61,7 @@ export default defineConfig({
         'e2e/menu-tapas.spec.ts',
         'e2e/weekly-special.spec.ts',
         'e2e/monthly-burger.spec.ts',
+        'e2e/announcement.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -76,6 +77,7 @@ export default defineConfig({
         'e2e/menu-tapas.spec.ts',
         'e2e/weekly-special.spec.ts',
         'e2e/monthly-burger.spec.ts',
+        'e2e/announcement.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -246,6 +248,32 @@ export default defineConfig({
       name: 'monthly-burger-mobile',
       testMatch: 'e2e/monthly-burger.spec.ts',
       dependencies: ['monthly-burger'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    /*
+     * Besked pa hjemmesiden (phase 7A), at both widths, and chained after the monthly
+     * runs for the reason every write suite is chained: it publishes, publishing expires
+     * the `announcement` cache tag, and the bar is in the shared layout — so a guest
+     * assertion made by any other suite would be a coin toss if this one could act
+     * between its own write and its own read.
+     *
+     * Two widths rather than one, because 1ac draws two different bars: on the desktop
+     * the link is a phrase after the message in a centred row, and on the phone the
+     * message wraps, the link sits under it and the whole row is one 52 px target. Each
+     * run leaves the announcement published and **expired** — a guest reads nothing,
+     * exactly as they do from the seed — because taking a message down by hand is 1ad's
+     * "Fjern beskeden nu", which is the immediate path and belongs to phase 7B.
+     */
+    {
+      name: 'announcement',
+      testMatch: 'e2e/announcement.spec.ts',
+      dependencies: ['monthly-burger-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: 'announcement-mobile',
+      testMatch: 'e2e/announcement.spec.ts',
+      dependencies: ['announcement'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
   ],

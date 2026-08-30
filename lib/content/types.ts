@@ -1,3 +1,4 @@
+import type { AnnouncementLink } from '@/lib/announcements/link'
 import type { IsoDate } from '@/lib/time/calendar'
 
 /**
@@ -108,6 +109,24 @@ export type MonthlyBurger = {
   endsOn: IsoDate | null
   soldOutOn: IsoDate | null
   showOnHomepage: boolean
+}
+
+/**
+ * `announcement` — the one sitewide message, as the public bar renders it (§4, §7c).
+ *
+ * The row's administration fields are not here. `is_visible`, `source`, `previous` and
+ * `replaced_at` decide *whether* there is an announcement to render, which the loader
+ * has already answered by returning this object at all; the bar only needs the words,
+ * the optional link and the instant it stops being shown.
+ *
+ * `expiresAt` is an ISO 8601 **instant** string rather than a `Date`, for the reason
+ * stated at the top of this file: it is handed to a Client Component — the expiry guard
+ * §7c calls for — and a primitive is what survives that boundary unchanged.
+ */
+export type SiteAnnouncement = {
+  message: string
+  link: AnnouncementLink | null
+  expiresAt: string
 }
 
 /** One run of text inside a news paragraph. The editor offers exactly bold and link (§7f). */

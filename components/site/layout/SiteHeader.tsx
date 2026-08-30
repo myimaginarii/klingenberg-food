@@ -17,9 +17,10 @@ import { SiteLogo } from './SiteLogo'
  * Deliberately not sticky: the approved design pins the menu page's category bar to the
  * top of the viewport, and a sticky header would either cover it or steal its place.
  *
- * The announcement bar the design draws above this belongs to phase 7 and is not built
- * here. It sits in the flow above the header when it arrives, so nothing in this
- * component has to move to accommodate it.
+ * The announcement bar the design draws above this is `AnnouncementRegion`, rendered by
+ * the shared layout in the flow above the header (1ac, phase 7A). Nothing in this
+ * component knows about it: the bar pushes the header down rather than overlapping it,
+ * which is the whole reason 1ac keeps it in the flow.
  */
 export function SiteHeader({
   items,

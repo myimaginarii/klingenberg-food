@@ -7,6 +7,7 @@ import { PendingChanges } from '@/components/admin/PendingChanges'
 import { PublishSummary } from '@/components/admin/PublishSummary'
 
 import { signOut } from './actions'
+import { ANNOUNCEMENT_PATH } from './besked/routes'
 import { publishSelectedChanges } from './publish-actions'
 import { AdminShell, Card, Notice, SubmitButton } from './ui'
 
@@ -103,10 +104,23 @@ export default async function AdminDashboard({
       </Card>
 
       <Card>
+        <h2 className="text-heading font-semibold">Besked på hjemmesiden</h2>
+        <p className="text-ink-2 text-meta mt-2">
+          Én kort besked øverst på siden — ændrede tider, en lukkedag, et arrangement.
+          Den forsvinder af sig selv, når udløbstidspunktet passerer.
+        </p>
+        <p className="mt-1">
+          <Link className={STANDALONE_LINK} href={ANNOUNCEMENT_PATH}>
+            Åbn beskeden
+          </Link>
+        </p>
+      </Card>
+
+      <Card>
         <h2 className="text-heading font-semibold">Rediger indhold</h2>
         <p className="text-ink-2 text-meta mt-2">
-          Sidetekster og kontaktoplysninger. De øvrige redigeringsskærme — ugens ret,
-          nyheder, beskeder og åbningstider — kommer i de næste faser.
+          Sidetekster og kontaktoplysninger. De øvrige redigeringsskærme — nyheder og
+          åbningstider — kommer i de næste faser.
         </p>
         <p className="mt-1">
           <Link className={STANDALONE_LINK} href="/admin/indhold">

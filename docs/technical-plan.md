@@ -333,6 +333,77 @@ possible at all.
 
 ---
 
+## 0f. Phase 7A — the announcement editor and the public bar, complete (2026-08-30)
+
+Phase 7 (Announcements, §15) has two halves. **7A — the core system — is built and
+green**: the editor at `/admin/besked` (frame 1ad), the public bar in the shared layout
+(frame 1ac), the client expiry guard (§7c), and Kladde → Forhåndsvis → Offentliggør
+through phase 4's machinery, unchanged. **7B — the immediate path — is not started**, and
+what belongs to it is listed below rather than left to be inferred.
+
+**What phase 7A delivers:**
+
+| Capability | Path | Where it lives |
+|---|---|---|
+| The announcement editor — message, optional link, required future expiry, 1ad's suggestion chips, the "sådan ser den ud" panel | Kladde → Forhåndsvis → Offentliggør (§6) | `app/(admin)/admin/besked/`, `components/admin/announcement/` |
+| The public bar, above the navigation, on every page or on none | — | `components/site/announcement/`, rendered by `app/(site)/layout.tsx` |
+| **The expiry guard** (§7c, correction C1) — one client component, one timer, `visibilitychange` and `pageshow`, no request of any kind | — | `components/site/announcement/AnnouncementExpiryGuard.tsx` |
+| The expiry rule itself, shared byte for byte between server and browser | — | `lib/announcements/expiry.ts` — **imports nothing**, which is what lets the guard share it |
+| The editor's civil-time half: Copenhagen wall clock ↔ instant, and 1ad's chips | draft | `lib/announcements/expiry-editor.ts` |
+| §8's link rule — six approved internal routes, or an `https:` address rendered with `rel="noopener noreferrer"` | draft | `lib/announcements/link.ts` |
+| Public eligibility, the publish outlook, the delta and the computed state | — | `lib/announcements/lifecycle.ts` |
+| Responsive at 375 / 768 / 1440, keyboard-operable throughout, axe-clean at 375 and 1440 | — | `tests/a11y/announcement-admin.spec.ts`, `tests/e2e/announcement.spec.ts` |
+
+**One migration, one function, no new entity and no new table.** `announcement` was
+already a publishable entity with a draft column, a publish function and its own RLS
+policies (phases 1 and 4). `20260830160000_announcement_admin.sql` replaces
+`public.publish_announcement` and changes nothing else — see the finding below.
+
+### The one thing phase 7A had to change in phase 4's machinery
+
+**Publishing an announcement now sets `is_visible = true`, and refuses a draft that would
+produce a blank message or a missing or already-past expiry.**
+
+§6's immediate-path table names `"Vis besked" off / "Fjern beskeden nu"` — the **off**
+direction only — and nothing anywhere else turned a bar *on*. The phase-4 function
+therefore merged the content and left `is_visible` alone, which meant a staff member could
+write a message, preview it, publish it, and watch nothing happen: the row would hold a
+perfect announcement that `announcement_select_public` would never return.
+
+1ad settles which path owns the on direction, in its own words: *"Skrive eller ændre → tre
+trin. Ret → Forhåndsvis → Offentliggør."* against *"Fjerne → ét tryk."* So publishing is
+how a message reaches the hjemmeside, and switching one off stays outside every draft,
+exactly as §6 requires. §6's table is a table of *immediate* operations and is unchanged;
+this paragraph is the statement of the other direction, which it never covered.
+
+The two refusals are 1ac's rules in SQL — *"Højst én besked ad gangen · Kort besked · Link
+er valgfrit · **Udløb er påkrævet**"*. The first three are already CHECK constraints; the
+fourth cannot be, because "in the future" is not immutable, so it is checked at the moment
+of the merge. The application checks the same two rules first (`announcementPublishOutlook`)
+so a person gets a Danish sentence and a greyed-out Offentliggør; the database check is the
+answer a forged request gets. `lib/publishing/publish.ts` accepts one further RPC status,
+`invalid_draft`, which is the word it already used for a draft that no longer parses and
+means the same thing to a caller: nothing was written, and the draft is still there.
+
+### What phase 7A deliberately does not contain
+
+| Not in 7A | Owned by | Note |
+|---|---|---|
+| **"Vis besked" off, and "Fjern beskeden nu"** | phase 7B | §6's immediate path, with its ~10 s Fortryd. 1ad draws both; they are absent from the editor rather than present and inert, for the same reason 1ah's image control is absent from the Månedens burger editor. |
+| **Replacing an active announcement**, `previous`, `replaced_at`, and the 10-second restore | phase 7B | §6's immediate table. Nothing in 7A reads or writes those two columns. |
+| **Generated opening-hours announcements** (`source='opening_hours'`) and 1ae's conflict sheet | phase 8 | `source` is read by nothing on the editor and written by nothing in 7A; it stays `'manual'`. |
+| An announcement archive, a history list, a second simultaneous bar | **never** | 1ad: *"intet arkiv, ingen kladdeliste, ingen historik — én besked ad gangen med et påkrævet udløb."* §4 lists the history table among the tables deliberately not created. |
+
+### Three readings the build had to make, recorded so they are not re-opened
+
+| # | Question | The answer |
+|---|---|---|
+| A | **How is an announcement taken down in 7A, when the immediate path is 7B?** | **By its expiry, which is mandatory — and by nothing else.** A publish with a blank message is refused (1ac: the bar *is* a message), so there is no take-down through the three-step path either. The editor says so in words beside the state banner: shorten the expiry and publish again. This is a real, stated limitation of 7A rather than an oversight, and it is what 7B's one press removes. |
+| B | **Where does the expiry comparison happen, given a five-minute cache?** | **Three layers, none of them trusted alone.** RLS filters `expires_at > now()` when the row is *fetched*; `AnnouncementRegion` filters again against *this render's* clock, because a clock reading taken inside the cached read would be frozen into the cache entry; and the guard removes a bar whose expiry passes while the page is already open. The unit suite asserts that the first two compose into exactly `isAnnouncementPubliclyVisible`. A statically generated page still carries a stale bar for up to five minutes with JavaScript off, which is precisely the figure §7a states. |
+| C | **How do 1ad's suggestion chips work without JavaScript?** | **They are radio buttons in the editor's own form.** Choosing one submits *which chip*, and the server resolves it against the published opening hours and its own clock — so a chip cannot carry a value the fields could not, cannot bypass the "must be in the future" rule, and needs no script. The stored row holds an instant and no record of how it was produced, so the checked chip is recomputed on every render; a chip whose instant the hours have since moved simply shows as "Vælg selv". Two of the frame's four chips name the same instant ("Når vi lukker søndag" and "I aften kl. 20:00"), so one chip ships that words itself from the instant it found. |
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -656,6 +727,11 @@ currently *shown*, which is a read-time filter on dates the staff themselves ent
 | Replace an existing announcement | writes new values, stashes the old in `previous jsonb` | 10 s Fortryd restores from `previous` |
 | Delete a dish | soft delete (`deleted_at`) | 10 s Fortryd clears `deleted_at`. **The row is never purged** — see §0a D2 |
 
+*The announcement rows above are **phase 7B**; phase 7A built the ordinary three-step path
+only (§0f). Note that this table describes the **immediate** operations, so the only
+announcement visibility change in it is the one that switches a bar **off**. Turning one
+on is Offentliggør, and `publish_announcement()` sets `is_visible` — see §0f.*
+
 Undo is not server-held state. The change is already live; undo is simply a second authorized write. If the browser navigates away inside the 10 seconds the undo is lost — acceptable, and recoverable from `audit_log`.
 
 ### "Kopiér sidste uge" — Ugens ret (decision 4)
@@ -787,6 +863,17 @@ as it already is for the manual "Fjern beskeden nu" path, so removal reflows ide
 **Accepted limitation.** The guard trusts the visitor's device clock. A device several hours off
 would hide or keep the bar by that offset. The server correction still arrives within five minutes,
 and the no-database-request constraint is what makes this component acceptable in the first place.
+
+*Built in phase 7A (§0f).* It is `components/site/announcement/AnnouncementExpiryGuard.tsx`,
+and the rule it applies is not its own: `isAnnouncementExpired` and
+`nextExpiryCheckDelayMs` live in `lib/announcements/expiry.ts`, which **imports nothing**,
+so the server's comparison and the browser's are the same function rather than two
+functions that agree today. The clamp, the boundary and the "already expired at mount"
+case are therefore unit-tested as arithmetic; what the component itself promises — no
+request, no storage, one timer cleared before each re-arm, both listeners removed on
+unmount, focus blurred rather than moved — is asserted over its source in
+`tests/unit/announcements/expiry-guard-source.test.ts` and proved in a real browser, with
+the request log asserted empty, in `tests/e2e/announcement.spec.ts`.
 
 ### 7d. Månedens burger (clarification C4)
 
@@ -1165,7 +1252,7 @@ policy · Månedens burger scheduling.
 | E | **Structured-data gaps** — `priceRange`, coordinates, a public email | before launch | Left out rather than invented |
 | F | **Who owns the Vercel, Supabase and GitHub accounts**, and who pays | phase 0 (administrative) | Developer-owned during build, transferred at handover per `owner-handover.md` |
 | G | **Retention for soft-deleted dishes** — whether a deleted row is ever removed, after how long, and who decides (§0a D2) | not before launch | **Keep indefinitely.** Nothing purges today, and nothing should start purging as a side effect of another phase. A retention feature is its own design, with its own audit and its own consequences for `audit_log` attribution |
-| H | **The phase-4 dashboard's two standalone links** — "Åbn menuen" and "Åbn indhold" on `/admin` are 16 px tall, below 1aa's 44 px minimum target. Found by phase 6's completion pass, and left alone by it: the dashboard is phase 4 scaffolding that phase 11 replaces with the remaining section screens and phase 12 reworks for the phone, and changing it inside a phase-6 lock commit would put a phase-4 correction in the wrong record. ("Ejer-området" is inline in a sentence and is exempt under WCAG 2.2 target-size.) | phase 11 or 12, whichever reaches `/admin` first | Give both links the same `min-h-tap` block treatment the section screens use |
+| ~~H~~ | **Closed, 2026-08-30.** The phase-4 dashboard's two standalone links — "Åbn menuen" and "Åbn indhold" — were measured at 16 px and given the same `min-h-tap` inline-flex treatment `AdminSectionBar`'s `BarLink` uses, so the words keep their size, colour and underline and only the target grows. "Ejer-området" is left alone: it is inside a sentence and exempt under WCAG 2.2's target-size criterion. `tests/a11y/admin-pages.spec.ts` carries the assertion that failed first, and it now covers the phase-7A "Åbn beskeden" link too. | — | — |
 
 ---
 
@@ -1212,7 +1299,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 4 | Draft/publish core | `draft` overlay, publish transaction, Draft Mode preview, audit log, dashboard pending-changes view with per-item attribution | Change a `pages.home` value → invisible until publish |
 | 5 | Menu administration | Category tabs, dish CRUD, reorder, side panel, Kladde badges, **immediate Udsolgt with 10 s Fortryd and the computed reset label**, **tapas list editor**, soft delete | E2E 2, 3 and 10 pass |
 | 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (done):** Månedens burger with its date window, its computed admin state, "Vis på forsiden" as a normal draft field and its own immediate Udsolgt path | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes — see §0d. **Complete and locked** by the completion pass of 2026-08-30 — see §0e |
-| 7 | Announcements | Bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, live preview, immediate remove | E2E 4 passes, including the no-network assertion |
+| 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (not started):** "Vis besked" off, "Fjern beskeden nu", replacing an active announcement and its ~10 s Fortryd | 7A: E2E 4 passes, including the no-network assertion — see §0f |
 | 8 | Opening hours administration | Weekly editor (owner), one-off overrides, generated announcement, **conflict sheet 1ae with both branches** | E2E 5 passes, including "hours always save" |
 | 9 | News | List, editor with structured body, autosave, publish/unpublish, **`/nyheder/[slug]` with the slug policy and `NewsArticle` JSON-LD**, forside teaser | E2E 6 passes, incl. unpublish → 404 |
 | 10 | Images | Signed upload, client downscale, sharp derivatives, library with usage labels, replace/delete warnings | E2E 7 passes |
@@ -1223,7 +1310,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-08-30: phases 0–6 are complete and locked.** Phase 5 was closed by a completion
+**Status, 2026-08-30: phases 0–6 are complete and locked, and phase 7A is complete.** Phase 5 was closed by a completion
 pass and is recorded in full in §0b, including the five capabilities it delivered and the five
 things that are deliberately outside it. Phase 6 was then built in two increments that share
 nothing but a table row: **6A — Ugens ret and Lørdagsmenu — is recorded in §0c**, and **6B —
@@ -1236,4 +1323,9 @@ reviewed the three immediate-path database functions and the two domain modules 
 than singly, and recorded the result. §0c and §0d are left as written — they are each increment's
 own account of its decisions — and §0e is what "phase 6" means as a whole.
 
-**Phase 7 (Announcements) is the next phase, and none of it is started.**
+**Phase 7A is complete and green, and is recorded in §0f.** The announcement editor,
+the public bar and the client expiry guard are built; open item H was closed on the way
+past it. **Phase 7B — the immediate path: "Vis besked" off, "Fjern beskeden nu",
+replacing an active announcement, and the ~10 s Fortryd that belongs to each — is not
+started**, and neither is phase 8's generated opening-hours announcement. Phase 7 as a
+whole is therefore **not** locked.

@@ -1,3 +1,4 @@
+import { readAnnouncement } from '@/lib/content/announcement'
 import { readSiteContact } from '@/lib/content/contact'
 import { readOpeningHours } from '@/lib/content/hours'
 import { readHiddenPageKeys } from '@/lib/content/pages'
@@ -5,6 +6,7 @@ import { readOpenStatus } from '@/lib/hours/status'
 import { directionsUrl, toPostalAddress } from '@/lib/site/links'
 import { FOOTER_NAV, MAIN_NAV, visibleNav } from '@/lib/site/navigation'
 
+import { AnnouncementRegion } from '@/components/site/announcement/AnnouncementRegion'
 import { MobileBottomNav } from '@/components/site/layout/MobileBottomNav'
 import { SiteFooter } from '@/components/site/layout/SiteFooter'
 import { SiteHeader } from '@/components/site/layout/SiteHeader'
@@ -19,8 +21,11 @@ import { PreviewBar } from '@/components/site/PreviewBar'
  * with the pages beneath it through React's `cache`, so a page that also needs the hours
  * does not ask for them twice.
  *
- * The announcement bar the design draws above the header is phase 7. It belongs in the
- * flow above `<SiteHeader>`, so nothing here has to move when it arrives.
+ * **The announcement bar** (1ac) sits in the flow above `<SiteHeader>`, which is where
+ * phase 3 left room for it. It is a layout concern and only a layout concern: one read,
+ * one region, on every public page or on none. `<AnnouncementRegion>` renders nothing
+ * when there is no current message, so a site without one is byte-identical to what it
+ * was before phase 7 — no element, no padding, no reserved height (1ac).
  *
  * **Preview.** `<PreviewBar>` renders nothing unless the request is an authenticated
  * staff preview (§6). It is above everything else because it describes the whole page
@@ -39,10 +44,11 @@ import { PreviewBar } from '@/components/site/PreviewBar'
 export const revalidate = 300
 
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
-  const [contact, hours, hiddenPageKeys] = await Promise.all([
+  const [contact, hours, hiddenPageKeys, announcement] = await Promise.all([
     readSiteContact(),
     readOpeningHours(),
     readHiddenPageKeys(),
+    readAnnouncement(),
   ])
 
   const navItems = visibleNav(MAIN_NAV, hiddenPageKeys)
@@ -63,6 +69,8 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
       </a>
 
       <PreviewBar />
+
+      <AnnouncementRegion announcement={announcement} />
 
       <SiteHeader
         items={navItems}

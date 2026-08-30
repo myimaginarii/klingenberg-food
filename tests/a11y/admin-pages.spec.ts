@@ -30,7 +30,7 @@ async function violations(page: Page) {
 }
 
 /** The dashboard's links that stand on their own, rather than inside a sentence. */
-const STANDALONE_DASHBOARD_LINKS = ['Åbn menuen', 'Åbn indhold'] as const
+const STANDALONE_DASHBOARD_LINKS = ['Åbn menuen', 'Åbn beskeden', 'Åbn indhold'] as const
 
 test.describe('the administration', () => {
   test('the dashboard has no accessibility violations', async ({ page }) => {

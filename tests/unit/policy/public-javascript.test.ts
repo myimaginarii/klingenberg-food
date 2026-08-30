@@ -35,6 +35,11 @@ const SUPABASE_OWNERS = ['lib/supabase/server.ts', 'lib/supabase/service.ts', 'p
 const ALLOWED_PUBLIC_CLIENT_COMPONENTS = new Map([
   ['components/site/OpenStatus.tsx', 'recomputes the open/closed badge every minute (§7a)'],
   ['components/site/layout/NavLink.tsx', 'a layout cannot read the pathname'],
+  [
+    'components/site/announcement/AnnouncementExpiryGuard.tsx',
+    'removes an announcement whose expiry passes while the page is open (§7a, §7c) — ' +
+      'the third of three expiry layers, and the only one that can act without a request',
+  ],
 ])
 
 function* walk(directory: string): Generator<string> {

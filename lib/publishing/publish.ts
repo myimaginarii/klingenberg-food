@@ -65,7 +65,18 @@ export type PublishResult = {
   readonly cacheTags: readonly CacheTag[]
 }
 
-/** The database function's reply. Anything else is treated as a failure. */
+/**
+ * The database function's reply. Anything else is treated as a failure.
+ *
+ * `invalid_draft` is in the set because one publish function can decide it: an
+ * announcement's expiry has to be *in the future*, and "in the future" is not something
+ * a CHECK constraint can express, so `publish_announcement()` checks it at the moment of
+ * the merge and refuses (§7c, 1ac's "Udløb er påkrævet"). It is the same status this
+ * module already produces when a **stored draft** no longer parses, and it means the
+ * same thing to a caller — nothing was written, and the draft is still there — so it
+ * reuses the word rather than inventing a second one for the same outcome. Every other
+ * publish function simply never returns it.
+ */
 const rpcResultSchema = z.object({
   status: z.enum([
     'published',
@@ -73,6 +84,7 @@ const rpcResultSchema = z.object({
     'nothing_to_publish',
     'not_found',
     'forbidden',
+    'invalid_draft',
   ]),
 })
 

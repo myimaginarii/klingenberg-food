@@ -186,6 +186,41 @@ export function DateField({
   )
 }
 
+/**
+ * A time of day — design 1ad's "20:00" beside the expiry date.
+ *
+ * `type="time"` for the same three reasons `DateField` is `type="date"`: it is the
+ * control the phone already has, its value is exactly the `HH:MM` the domain calls a
+ * civil time (`lib/time/calendar.ts`), and it needs no JavaScript — where the browser has
+ * no time control it degrades to a text field and the server parses the value either way.
+ *
+ * No `min`, no `max` and no `step`. "In the future" depends on the date beside it and on
+ * the server's clock, so a browser-enforced bound would be a rule the server did not
+ * state — and would be wrong for every time of day on any later date.
+ */
+export function TimeField({
+  id,
+  name,
+  label,
+  defaultValue,
+  hint,
+  error,
+}: Omit<FieldProps, 'inputMode' | 'autoComplete' | 'maxLength' | 'labelledBy' | 'required'>) {
+  return (
+    <FieldShell id={id} label={label} hint={hint} error={error}>
+      <input
+        aria-describedby={describedBy(id, hint, error)}
+        aria-invalid={error === undefined ? undefined : true}
+        className={controlClass(error !== undefined, 'min-h-12 px-3 tabular-nums')}
+        defaultValue={defaultValue}
+        id={id}
+        name={name}
+        type="time"
+      />
+    </FieldShell>
+  )
+}
+
 export function TextAreaField({
   id,
   name,

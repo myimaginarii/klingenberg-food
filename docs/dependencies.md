@@ -3,6 +3,68 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 7A — no dependencies added (2026-08-30)
+
+Phase 7A (the announcement editor, the public bar and the client expiry guard — technical
+plan §0f) added **nothing**: no runtime dependency, no development dependency, and no npm
+package of any kind. One migration replaces one existing function; everything else is
+TypeScript, JSX and tokens that already existed.
+
+### The one dependency §9 sketched, and why it is not here
+
+§9's testing plan describes the expiry-guard suite as *"jsdom with fake timers"*. **jsdom
+was not added**, and the decision is recorded here rather than left as an omission.
+
+Three things weighed against it. §1 (adjustment 4) says to add Zod and axe and nothing
+else, and a DOM environment is not a small package — it is a second HTML parser, a second
+CSS parser and a second event loop, all of which then have to be kept patched for a
+component of forty lines. The behaviour jsdom would simulate is already asserted **in a
+real browser**: `tests/e2e/announcement.spec.ts` publishes a message, controls the
+browser's clock with Playwright's `page.clock`, watches the bar remove itself with no
+reload, and asserts the request log is empty — which is exactly the assertion §9 asks for
+in E2E 4, and a stronger one than a fake timer against a fake DOM. And the part jsdom
+would genuinely have added — the arithmetic — was moved out of the component instead:
+`lib/announcements/expiry.ts` holds the comparison and the `setTimeout` clamp as pure
+functions with no imports at all, so they are unit-tested directly *and* shared byte for
+byte with the server.
+
+What is left in the component is wiring, and the wiring is asserted over its own source in
+`tests/unit/announcements/expiry-guard-source.test.ts` — the same idiom phase 5C
+established with `sold-out-mapping.test.ts`. No `fetch`, no storage, one timer cleared
+before each re-arm, both listeners removed on unmount, focus blurred rather than moved.
+
+Revisit if a second client component ever needs a DOM test that a browser cannot give.
+
+### Playwright's clock API is not a new dependency either
+
+`page.clock` ships inside `@playwright/test` 1.62.1, which phase 3 already added. It is
+what makes the expiry test deterministic instead of a twenty-second wait: the guest's
+browser is started twenty seconds before the expiry the editor actually published, and the
+test moves that clock rather than the wall clock. `setSystemTime` — which moves the clock
+*without* running pending timers — is what reproduces §7c's bfcache case honestly.
+
+### No date library, again
+
+`lib/announcements/expiry-editor.ts` converts between a Copenhagen wall clock and an
+instant in both directions, and computes "the next closing time" and "a week from now"
+across both daylight-saving transitions. All of it goes through `lib/time/copenhagen.ts`
+and `lib/hours/engine.ts`, which phase 2 built and tested. Nothing here does date
+arithmetic of its own, so nothing here needed a library to do it with — which is the same
+answer phases 6A and 6B recorded.
+
+### One migration, and what it does not contain
+
+`20260830160000_announcement_admin.sql` is a single `create or replace function` on
+`public.publish_announcement`. No new table, no view, no trigger, no index, no grant, no
+policy, and **no immediate-path RPC** — that is phase 7B, and
+`supabase/tests/012_announcement.test.sql` asserts that no such function exists yet.
+
+### `npm audit --audit-level=high` — clean
+
+Re-run from a clean `npm ci` on 2026-08-30 as part of the phase 7A regression:
+**0 vulnerabilities** over the full resolved tree. No advisory affects the pinned set
+below, which is unchanged since phase 4.
+
 ## Phase 6 completion pass — no dependencies added (2026-08-30)
 
 The pass that closed phase 6 (see technical plan §0e) added **nothing**: no runtime
