@@ -26,6 +26,7 @@ import {
 } from '@/lib/menu/admin'
 import { describeDishDeleted, describeDishDeletion } from '@/lib/menu/delete'
 import { isMenuPublishable } from '@/lib/menu/pending'
+import { describeAvailabilityChange } from '@/lib/menu/sold-out'
 import { readPendingChanges } from '@/lib/publishing/pending'
 import type { IsoDate } from '@/lib/time/calendar'
 
@@ -321,6 +322,12 @@ export default async function MenuAdminPage({
             dishName={undoDish.name}
             editorOpen={editing?.id === undoDish.id}
             form={AVAILABILITY_FORM_BINDING}
+            // The strip reports what just happened, which is the opposite of what
+            // Fortryd would restore.
+            message={describeAvailabilityChange({
+              dishName: undoDish.name,
+              soldOut: undoSoldOut !== '1',
+            })}
             restoreSoldOut={undoSoldOut === '1'}
             section={activeSection.category.slug}
             version={undoVersion}

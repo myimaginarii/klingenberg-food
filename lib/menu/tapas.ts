@@ -162,6 +162,33 @@ function isPosition(value: number, length: number): boolean {
  * fallback here is a heading that is missing or blank in the *stored* document, which
  * falls back to the group's own label; a group with no heading cannot be labelled at all
  * otherwise, and the label is the same word the plan and the design use for it.
+ *
+ * WHY THIS REPAIR CANNOT HIDE AN APPLICATION BUG — reviewed at the phase-5 lock
+ *
+ * The repair runs on **read**, and every application write is strict on the way in, so
+ * nothing a person can type reaches a state this function would have to tidy up:
+ *
+ *   * an ordinary edit goes through `applyTapasGroupEdit`, which *refuses* a blank item,
+ *     a duplicate, an over-long item, a blank heading and an over-full list, each with a
+ *     message bound to the field that earned it. Nothing is dropped on the way in;
+ *   * the document that survives that is re-parsed by `tapasDetailsSchema` inside
+ *     `saveEntityDraft` — strictly, so an unknown key is a refusal — and re-parsed again
+ *     before it can be published. Neither pass tolerates a non-string item, a missing
+ *     group or a renamed id;
+ *   * so the only values this function ever actually repairs are ones no application
+ *     path can produce: `supabase/seed.sql`'s fixed-contents group, which omits `choose`,
+ *     and whatever a `psql` session writes by hand.
+ *
+ * The reverse direction is closed as well: the repair fixes **structure**, never content.
+ * It cannot turn a blank item into an accepted one — a blank string is a string, so it
+ * survives the read exactly as stored and shows up as blank — which is what keeps a
+ * write-path regression visible rather than silently laundered.
+ *
+ * And it cannot bring the public menu down: it is total. Every branch is guarded
+ * (`isPlainObject`, `Array.isArray`, the `typeof` filter), it throws nothing, and it
+ * returns either `null` — "this is not the Tapas dish" — or exactly three canonical
+ * groups. `lib/content/menu.ts` reads `dishes.details` through it and through nothing
+ * else, so the worst a corrupt stored document can do to a guest is show empty lists.
  */
 export function readTapasDocument(details: unknown): TapasDetails | null {
   if (!isPlainObject(details) || details['kind'] !== 'tapas') return null

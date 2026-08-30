@@ -3,6 +3,28 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 5 completion pass — no dependencies added (2026-08-30)
+
+The pass that closed phase 5 (see technical plan §0b) added **nothing**: no runtime
+dependency, no development dependency, no migration and no database object. It made two
+visual corrections, four target-size corrections and one refactor, all inside files that
+already existed, plus one new development-only script.
+
+### `scripts/clear-data-cache.mjs` is not a dependency
+
+It imports `node:fs` and `node:path` and nothing else. `npm run db:reset` now runs it, so
+a local database reset no longer leaves Next's on-disk data cache
+(`.next/cache/fetch-cache`) holding content that references the previous seed's uuids —
+the development-only problem every phase-5 report noticed. It deletes that one directory
+and neither `.next` nor `.next/cache`, and it changes no production caching behaviour:
+the deployed site has no such directory a developer can reach, and
+`lib/content/source.ts` is untouched.
+
+### `npm audit --audit-level=high` — clean
+
+Re-run from a clean `npm ci` on 2026-08-30 as part of the completion regression. Result
+recorded with the rest of that run; no advisory affects the pinned set below.
+
 ## Phase 5F — no dependencies added (2026-08-30)
 
 The Tapas list editor (`lib/menu/tapas.ts`, the Tapas Server Action, the three list

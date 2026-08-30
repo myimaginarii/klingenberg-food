@@ -7,14 +7,16 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phase 1 (Schema + authentication) complete.** The full initial schema, RLS,
-the role helpers and the owner invariant are in place, together with email/password
-login, logout, password reset and the `requireStaff()` / `requireOwner()` guards.
+**Status: phases 0–5 complete.** The public site renders from the database; the
+Kladde → Forhåndsvis → Offentliggør flow works end to end; and **Rediger menu**
+(`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
+immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
+Fortryd, reordering inside a section, and the Tapas list editor. Technical plan §0b
+records exactly what phase 5 contains and what is deliberately outside it.
 
-`/admin` is a **foundation-level** screen that exists to verify authentication and
-authorization — it is not the approved admin design, which arrives from phase 4 onward.
-`/` is still the phase-0 token screen. There is no public site yet. Phase 2 is the pure
-time engines (`lib/hours`, `lib/menu/availability`).
+The next phase is 6 (Ugens ret / Lørdagsmenu / Månedens burger editors). `/admin` itself
+is still the **foundation-level** dashboard from phase 4 plus the phase-5 menu entry — the
+remaining section screens arrive in their own phases.
 
 ## Requirements
 
@@ -37,6 +39,12 @@ npm run db:reset:full  # migrations + seed, then the local login identities
 npm run db:test        # pgTAP permission tests
 npm run db:stop
 ```
+
+`npm run db:reset` also clears Next's on-disk data cache (`.next/cache/fetch-cache`)
+through `npm run db:cache:clear`. A reset gives every row a new uuid, and nothing expires
+a cache tag when that happens, so without this step `next start` would keep serving the
+*previous* database's content and ids. Only that one directory is removed — not `.next`,
+and not the bundler cache beside it.
 
 `npm run db:start` prints local credentials. Put them in `.env.local` (git-ignored);
 `.env.example` documents every name. Studio is on port 54323 and the mail catcher —
@@ -77,9 +85,20 @@ then open the mail catcher at `http://localhost:54324`. The Danish template live
 npm run check          # typecheck + lint + source policy + unit tests
 ```
 
+```bash
+npm run check:all      # the above, plus `next build` and the full Playwright suite
+```
+
 Individually: `npm run typecheck`, `npm run lint`, `npm run check:policy`, `npm test`,
-`npm run build`. Database permission tests are separate because they need Docker:
-`npm run db:test`. CI runs all of them plus `npm audit --audit-level=high` and CodeQL.
+`npm run build`, `npm run test:e2e`. Database permission tests are separate because they
+need Docker: `npm run db:test`. CI runs all of them plus `npm audit --audit-level=high`
+and CodeQL.
+
+`npm run test:e2e` builds the site and serves it on port 3100. The read-only projects
+(`desktop`, `mobile`, `no-javascript`) run first; the projects that write to the database
+run after them, one after another, and each restores what it moved. The axe suites in
+`tests/a11y/` run inside the `desktop` (1440 px) and `mobile` (375 px) projects, so every
+accessibility assertion is made at both widths.
 
 `npm run check:policy` enforces three repository rules from the technical plan:
 
@@ -97,30 +116,47 @@ Individually: `npm run typecheck`, `npm run lint`, `npm run check:policy`, `npm 
 app/
   layout.tsx          root layout — lang="da", the three approved fonts
   globals.css         design tokens from frame 1aa, in Tailwind v4 @theme
-  page.tsx            phase-0 foundation screen (development only)
-  (admin)/admin/      phase-1 foundation admin — NOT the approved design
+  (site)/             the public pages: forside, menu, om os, nyheder, find os, takeaway
+  (admin)/admin/      the administration
     actions.ts        sign in / out, password reset — Server Actions only
-    login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
+    menu/             Rediger menu (phase 5) — one page, one Server Action per operation
+      page.tsx        the screen; every piece of its state is in the URL (routes.ts)
+      *-actions.ts    save · create · publish · availability · delete · reorder · tapas
+      *-form.ts       the field names each action parses, strictly, one file each
+    indhold/ login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
+  api/preview/        start and stop Draft Mode — staff session required
 proxy.ts              session refresh + unauthenticated redirect. Authorizes nothing.
+components/
+  site/               the public site's components
+  admin/menu/         the menu administration's components. No business rules here.
 lib/
   config/site.ts      the only place an absolute site URL is produced
   env/server.ts       the only place a server secret is read
   supabase/
     config.ts         the public URL and anon key
     server.ts         request-scoped client (user JWT) + cookie-free public client
-    service.ts        service-role client, behind `server-only`. Unused in phase 1.
-  auth/
-    session.ts        getUser()-backed session and profile resolution
-    guards.ts         requireStaff() / requireOwner() — the real authorization boundary
+    service.ts        service-role client, behind `server-only`. Still unused — the
+                      first caller is the phase-10 upload path.
+  auth/               session, and requireStaff() / requireOwner()
+  content/            the read layer. `source.ts` is its single door to the database.
+  publishing/         drafts, publish, pending changes — the phase-4 machinery
+  menu/               the menu's rules: pricing, labels, sold-out, delete, reorder, tapas
+  hours/ time/        the pure time engines
+  schemas/            the Zod shapes every write is re-parsed against
 scripts/
   check-source-policy.mjs
-  seed-local-users.mjs  local Owner/Staff identities via the supported admin API
+  seed-local-users.mjs   local Owner/Staff identities via the supported admin API
+  clear-data-cache.mjs   development only — see "Getting started"
 supabase/
   config.toml       local stack: public signup off, no realtime, mail catcher on
-  migrations/       the initial schema: 13 tables, RLS, role helpers, owner invariant
-  seed.sql          the confirmed contact and opening-hours facts
+  migrations/       schema, RLS, the draft/publish core, immediate sold-out, soft delete
+  seed.sql          the confirmed contact, opening-hours and menu facts
   templates/        Danish auth emails, versioned and applied through config.toml
-  tests/            pgTAP — the §5 permission matrix and the owner invariant
+  tests/            pgTAP — the §5 permission matrix, the owner invariant, and every
+                    write path phases 4–5 added
+tests/
+  unit/             the pure rules, under Vitest
+  e2e/ a11y/        Playwright, against a production build; axe at 375 and 1440
 ```
 
 There is deliberately **no browser Supabase client** anywhere in the repository
@@ -149,11 +185,9 @@ asserts affected-row counts and stored values rather than merely "did not throw"
 they point AI tooling at the bundled Next 16 docs. Disable with `agentRules: false` in
 `next.config.ts` if they are unwanted.
 
-The route groups the plan describes — `app/(site)/` for the public pages and
-`app/(admin)/admin/` for the administration — are **not** created yet, and neither are
-the `lib/` modules that have no implementation. Empty files that only announce a future
+Directories appear in the phase that fills them. Empty files that only announce a future
 intention are worse than the plan's own §3 tree, which already records the target
-structure. Directories appear in the phase that fills them.
+structure — so `lib/` and `components/` hold only what something imports today.
 
 ## Design tokens
 
@@ -175,11 +209,17 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 2 onward, plus: the weekly off-platform backup workflow
-(phase 13, §10f), Playwright and axe (phase 3), and Sentry (phase 13).
-`docs/dependencies.md` records which package arrives in which phase.
+Everything in §15 from phase 6 onward, plus: the weekly off-platform backup workflow
+(phase 13, §10f) and Sentry (phase 13). `docs/dependencies.md` records which package
+arrives in which phase.
 
-Two things phase 1 deliberately did not invent, because they come from the approved
-design file rather than from the technical plan: the nine menu sections with their
-dishes (seeded in phase 3), and the four fixed `dishes.labels` values (a forward
-migration, needed by phase 5). Both are recorded in `docs/dependencies.md`.
+Four things the **menu administration** deliberately does not do, and the phase that owns
+each, are listed in technical plan §0b: the Ugens ret and Lørdagsmenu editors and the
+Månedens burger editor (phase 6), and the image library and upload (phase 10). Every dish
+therefore still renders the reserved photo frame rather than a photo.
+
+A fifth is deferred with **no phase**: there is no editor for a menu *category's own*
+content — its name, intro, note or order. The chips navigate between sections and a dish
+can be assigned to one; changing what a section says is a screen the approved design file
+does not draw, and it should be designed before it is built. The data path for it already
+exists and is tested (`menuCategoryDraft`, the `menu_category` publishable entity).

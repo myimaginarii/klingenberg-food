@@ -76,7 +76,7 @@ export function LabelFields({
                   sibling selector `peer-checked` rather than by a nested element the
                   combinator could not reach — and it is decoration, so a screen reader
                   never reads it instead of the checkbox's own state. */}
-              <span className="rounded-badge border-field-border text-neutral-ink peer-checked:bg-brand-700 peer-checked:border-brand-700 peer-checked:before:mr-1.5 peer-checked:before:content-['✓'] peer-focus-visible:outline-focus min-h-10 inline-flex items-center border px-4 text-meta font-medium peer-checked:font-semibold peer-checked:text-white peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2">
+              <span className="rounded-badge border-field-border text-neutral-ink peer-checked:bg-brand-700 peer-checked:border-brand-700 peer-checked:before:mr-1.5 peer-checked:before:content-['✓'] peer-focus-visible:outline-focus min-h-tap inline-flex items-center border px-4 text-meta font-medium peer-checked:font-semibold peer-checked:text-white peer-focus-visible:outline-[3px] peer-focus-visible:outline-offset-2">
                 {label}
               </span>
             </label>
@@ -106,7 +106,7 @@ export function LabelFields({
                 </label>
                 <input
                   autoComplete="off"
-                  className="rounded-badge bg-field-bg border-field-border text-ink min-h-10 w-40 border-[1.5px] px-4 text-meta"
+                  className="rounded-badge bg-field-bg border-field-border text-ink min-h-tap w-40 border-[1.5px] px-4 text-meta"
                   defaultValue={custom[index] ?? ''}
                   id={id}
                   maxLength={MAX_CUSTOM_LABEL_LENGTH}

@@ -47,7 +47,14 @@ export function CategoryChips({
             <li className="shrink-0" key={category.id}>
               <Link
                 aria-current={active ? 'page' : undefined}
-                className={`rounded-badge min-h-tap inline-flex items-center gap-1 px-4 text-meta whitespace-nowrap ${
+                /*
+                  `relative` is load-bearing, not decoration. The count below is an
+                  `sr-only` span, which is absolutely positioned; without a positioned
+                  ancestor its containing block is the page itself, so it escapes this
+                  row's horizontal scroll clip and stretches the document sideways —
+                  the whole admin screen then scrolled at 375 px, which 1aa forbids.
+                */
+                className={`rounded-badge min-h-tap relative inline-flex items-center gap-1 px-4 text-meta whitespace-nowrap ${
                   active
                     ? 'bg-brand-700 font-semibold text-white'
                     : 'border-border text-ink hover:border-rule border font-medium'

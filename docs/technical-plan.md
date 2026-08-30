@@ -81,6 +81,48 @@ this document still reads as though a deletion edits Forsiden or expires a row, 
 
 ---
 
+## 0b. Phase 5 — complete and locked (2026-08-30)
+
+Phase 5 (Menu administration, §15) was built in five increments — 5B core dish administration,
+5C the immediate Udsolgt path, 5D soft delete, 5E reorder, 5F the Tapas editor — and closed by a
+completion pass on 2026-08-30. This section records what "phase 5" *is*, so that a later reader
+does not have to reconstruct it from five commit messages.
+
+**What phase 5 contains, and what is therefore finished:**
+
+| Capability | Path | Where it lives |
+|---|---|---|
+| Dish CRUD as drafts — create, edit, section assignment, Kladde badges, Forhåndsvis, Offentliggør | Kladde → Forhåndsvis → Offentliggør (§6) | `app/(admin)/admin/menu/{create,save,publish}-actions.ts`, `lib/publishing/*` |
+| Labels — the four standard ones plus the restaurant's own, at most four, case-insensitively distinct | draft | `lib/menu/labels.ts`, `components/admin/menu/LabelFields.tsx` |
+| Category assignment — moving a dish between sections, placed at the end of the new one | draft | `app/(admin)/admin/menu/dish-form.ts`, `save-actions.ts` |
+| Tilgængelig / Udsolgt with the computed §7b reset sentence and its ~10 s Fortryd | **immediate** (§6) | `lib/menu/sold-out.ts`, `availability-actions.ts` |
+| Slet ret — soft delete, its confirmation, the Forside warning, and its ~10 s Fortryd | **immediate** (§6) | `lib/menu/delete.ts`, `delete-actions.ts` |
+| Reorder inside a section — handle, touch, keyboard, and a no-JavaScript path | draft | `lib/menu/reorder.ts`, `reorder-actions.ts` |
+| Tapas list editing — three fixed groups, free headings and items, add / remove / move | draft | `lib/menu/tapas.ts`, `tapas-actions.ts` |
+| Responsive menu administration at 375 / 768 / 1440, keyboard-operable throughout | — | `components/admin/menu/*` |
+
+**What is deliberately outside phase 5**, and stays outside it until the phase that owns it:
+
+| Not in phase 5 | Owned by | Note |
+|---|---|---|
+| Ugens ret editor | phase 6 (1ag) | The section appears as a chip and says it is edited elsewhere; it holds no dishes (§4). |
+| Lørdagsmenu editor | phase 6 (1ag) | Same row, same screen. |
+| Månedens burger editor | phase 6 (1ah) | The public Forside feature and the date window already exist; the editor does not. |
+| Image library and upload | phase 10 (1w) | Every dish row and the editor panel therefore show no photo control at all. 1r's `FOTO` frame is a phase-10 slot, not a phase-5 omission. |
+| **Menu-category content editor** — a section's name, intro text, note and order | **not scheduled** | See below. |
+
+**The menu-category content editor is intentionally deferred, not missing.** Phase 5's scope is the
+*dishes*: the chips navigate between sections and a dish can be assigned to one, and that is the whole
+of what the approved frames 1r and 1y draw. Editing a section's own **name**, **intro**, **note** or
+**order** is a different screen, and **there is no approved admin design for it** — 1r shows the chips
+as navigation, not as an editable list, and no frame in `Klingenberg Food Hi-fi.dc.html` draws such an
+editor. `lib/schemas/menu.ts` already carries `menuCategoryDraft` with those four fields, and
+`menu_category` is already a publishable entity, so the data path exists and is tested; what does not
+exist is a screen, and inventing one here would mean designing an approved-looking admin surface that
+nobody approved. It should be designed first and built in the phase that gets a frame for it.
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -966,3 +1008,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
+
+**Status, 2026-08-30: phases 0–5 are complete.** Phase 5 was closed by a completion pass and is
+recorded in full in §0b, including the five capabilities it delivered and the five things that are
+deliberately outside it. The next phase is 6 (Weekly + monthly).

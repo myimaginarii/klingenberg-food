@@ -168,3 +168,32 @@ export async function setDishSoldOut(
     cacheTags: status === 'updated' ? publishableEntity('dish').cacheTags : [],
   }
 }
+
+/**
+ * The Fortryd strip's sentence, after an availability change went through.
+ *
+ * 1r's own wording, unchanged: *"«Thor» er nu markeret som udsolgt på hjemmesiden."*
+ * The available half is its mirror.
+ *
+ * It lives here rather than inside the strip for the reason `describeDishDeleted` in
+ * `lib/menu/delete.ts` gives: the two immediate operations (§6) each own their
+ * own vocabulary, both are asserted by the unit suite, and neither is composed in a
+ * component that a test would have to render to read. `AvailabilityUndo` is then the
+ * same shape as `DeleteUndo` — a strip that is handed a sentence rather than one that
+ * decides one.
+ *
+ * `soldOut` is the state the dish is in **now**, which is what the sentence reports.
+ * It is deliberately not the state Fortryd would restore: a strip that described the
+ * undo rather than the change would be reporting something that has not happened.
+ */
+export function describeAvailabilityChange({
+  dishName,
+  soldOut,
+}: {
+  readonly dishName: string
+  readonly soldOut: boolean
+}): string {
+  return soldOut
+    ? `«${dishName}» er nu markeret som udsolgt på hjemmesiden.`
+    : `«${dishName}» er nu tilgængelig på hjemmesiden.`
+}

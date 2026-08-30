@@ -112,7 +112,17 @@ export function DishRow({
           : 'border-warning-border bg-warning-surface border-[1.5px]'
       }`}
     >
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:gap-4">
+      {/*
+        `md:flex-wrap` plus the name column's own minimum is what keeps 1r's row from
+        crushing itself. The row carries four things beside the name — the reorder
+        cluster, the price, the availability control and the label slot — and their
+        widths are fixed, so in a narrow container the only thing left to shrink was the
+        name: at 768 px, and at any width with the editor panel open, "Glade Gris"
+        wrapped onto two lines and its description truncated to "P…". Now the trailing
+        group drops onto a second line instead, which is the arrangement 1y already
+        draws on the phone. Nothing about the wide row changes.
+      */}
+      <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:gap-4">
         {reorder === null ? null : (
           <ReorderControls
             baseline={reorder.baseline}
@@ -126,7 +136,7 @@ export function DishRow({
           />
         )}
 
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 md:min-w-60">
           <Link className="min-h-tap flex flex-col justify-center gap-1" href={href}>
             <span className="flex flex-wrap items-center gap-2">
               <span className="text-ink font-semibold">{dish.name}</span>
@@ -153,7 +163,11 @@ export function DishRow({
           </Link>
         </div>
 
-        <div className="flex items-center gap-2 md:gap-3">
+        {/*
+          The price, the availability control and the label slot travel together, so a
+          row that has to wrap wraps once rather than shedding them one at a time.
+        */}
+        <div className="flex items-center gap-2 md:ml-auto md:gap-3">
           <PriceTag priceOre={dish.priceOre} pending={priceChanged} />
           <AvailabilitySwitch
             availability={availability}
@@ -163,22 +177,28 @@ export function DishRow({
             section={section}
             version={dish.updatedAt}
           />
-        </div>
 
-        {/* 1r reserves a narrow slot for the labels beside the row; 1y has no room for
-            them, and the editor is one tap away. */}
-        {dish.labels.length === 0 ? null : (
-          <ul className="hidden flex-wrap gap-1 md:flex md:w-32">
-            {dish.labels.map((label) => (
-              <li
-                className="rounded-badge bg-brand-50 text-brand-700 px-2.5 py-1 text-micro leading-none font-medium"
-                key={label}
-              >
-                {label}
-              </li>
-            ))}
-          </ul>
-        )}
+          {/*
+            1r reserves a narrow slot for the labels beside the row — and reserves it on
+            every row, labelled or not, which is what keeps the price fields of six
+            dishes in one column. 1y has no room for them at all, and the editor is one
+            tap away, so below `md` the slot is not there rather than empty.
+          */}
+          <div className="hidden w-32 shrink-0 md:block">
+            {dish.labels.length === 0 ? null : (
+              <ul className="flex flex-wrap gap-1">
+                {dish.labels.map((label) => (
+                  <li
+                    className="rounded-badge bg-brand-50 text-brand-700 px-2.5 py-1 text-micro leading-none font-medium"
+                    key={label}
+                  >
+                    {label}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Only a sold-out dish has something pending about it, so only a sold-out dish

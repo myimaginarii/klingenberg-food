@@ -346,8 +346,9 @@ test.describe('the promises 1aa makes by name', () => {
       const name = (await control.textContent())?.trim() ?? '(unnamed)'
 
       // 1aa: "Tryk-mål mindst 44 × 44 px". The bar's own controls are drawn at 40 px in
-      // the frame and are given 44 here rather than shipping the smaller value.
-      expect(box?.height ?? 0, `${name} is at least 44 px tall`).toBeGreaterThanOrEqual(40)
+      // the frame and are given 44 here rather than shipping the smaller value — so the
+      // number asserted is 44, which is what the sentence above it says.
+      expect(box?.height ?? 0, `${name} is at least 44 px tall`).toBeGreaterThanOrEqual(44)
     }
   })
 

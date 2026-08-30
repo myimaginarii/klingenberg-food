@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { describeAvailability } from '@/lib/menu/admin'
-import { soldOutDateFor } from '@/lib/menu/sold-out'
+import { describeAvailabilityChange, soldOutDateFor } from '@/lib/menu/sold-out'
 
 import {
   ALWAYS_CLOSED_SCHEDULE,
@@ -124,5 +124,25 @@ describe('the reset helper the administration shows (§7b)', () => {
       soldOut: false,
       resetText: null,
     })
+  })
+})
+
+describe('the Fortryd strip’s sentence (§6, design 1r)', () => {
+  it('reports what just happened when a dish was marked sold out', () => {
+    expect(describeAvailabilityChange({ dishName: 'Thor', soldOut: true })).toBe(
+      '«Thor» er nu markeret som udsolgt på hjemmesiden.',
+    )
+  })
+
+  it('reports what just happened when a dish was made available again', () => {
+    expect(describeAvailabilityChange({ dishName: 'Thor', soldOut: false })).toBe(
+      '«Thor» er nu tilgængelig på hjemmesiden.',
+    )
+  })
+
+  it('names the dish it is about, so two strips in a row cannot be confused', () => {
+    expect(describeAvailabilityChange({ dishName: 'Glade Gris', soldOut: true })).toContain(
+      '«Glade Gris»',
+    )
   })
 })

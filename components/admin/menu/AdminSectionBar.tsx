@@ -46,11 +46,17 @@ export function AdminSectionBar({
   )
 }
 
-/** "Forhåndsvis" — outlined on the burgundy bar (1r). */
+/**
+ * "Forhåndsvis" — outlined on the burgundy bar (1r).
+ *
+ * 44 px tall, not the 40 the frame draws. 1aa's own accessibility list says "Tryk-mål
+ * mindst 44 × 44 px" and states no exception for the bar — and this bar is the one on a
+ * phone where a mis-tap costs the most, because Offentliggør is the control beside it.
+ */
 export function BarLink({ href, children }: { href: string; children: React.ReactNode }) {
   return (
     <a
-      className="rounded-field min-h-10 inline-flex items-center border border-white/50 px-4 text-meta font-medium text-white hover:border-white"
+      className="rounded-field min-h-tap inline-flex items-center border border-white/50 px-4 text-meta font-medium text-white hover:border-white"
       href={href}
     >
       {children}
@@ -58,11 +64,11 @@ export function BarLink({ href, children }: { href: string; children: React.Reac
   )
 }
 
-/** "Offentliggør ændringer" — the one filled control on the bar (1r). */
+/** "Offentliggør ændringer" — the one filled control on the bar (1r). 44 px, per 1aa. */
 export function BarSubmit({ children }: { children: React.ReactNode }) {
   return (
     <button
-      className="rounded-field text-brand-700 min-h-10 inline-flex items-center bg-white px-4 text-meta font-semibold hover:bg-brand-50"
+      className="rounded-field text-brand-700 min-h-tap inline-flex items-center bg-white px-4 text-meta font-semibold hover:bg-brand-50"
       type="submit"
     >
       {children}

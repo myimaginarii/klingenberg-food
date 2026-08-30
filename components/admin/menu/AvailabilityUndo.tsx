@@ -12,9 +12,13 @@ import { UndoStrip, UndoSubmit } from './UndoStrip'
  * should not need to be looked for.
  *
  * The bar, its timer and its button are `UndoStrip`; what is here is the half that is
- * about *availability* — which sentence to say, and which fields the Fortryd submits.
- * The deletion strip beside it (`DeleteUndo`) is a separate file for the same reason:
- * the presentation is shared, the operation is not.
+ * about *availability* — which fields the Fortryd submits. The sentence itself is
+ * composed by `describeAvailabilityChange` in `lib/menu/sold-out.ts` and handed in, the
+ * same way `DeleteUndo` is handed the deletion's sentence: menu vocabulary belongs
+ * beside the menu rules, where the unit suite can assert it.
+ *
+ * The deletion strip beside it is a separate file for the reason its own sentence is a
+ * separate function: the presentation is shared, the operation is not.
  *
  * **THE CHANGE IS ALREADY LIVE.** This is not a confirmation and not a pending state.
  * The dish changed, the public cache tag was expired, and an audit row was written
@@ -38,6 +42,8 @@ export function AvailabilityUndo({
   form,
   dishId,
   dishName,
+  /** What just happened, in one sentence. Composed in `lib/menu/sold-out.ts`. */
+  message,
   version,
   /** The state Fortryd would put the dish back into — the opposite of what it is now. */
   restoreSoldOut,
@@ -47,16 +53,12 @@ export function AvailabilityUndo({
   form: AvailabilityForm
   dishId: string
   dishName: string
+  message: string
   version: string
   restoreSoldOut: boolean
   section?: string | null
   editorOpen?: boolean
 }) {
-  // What just happened is the opposite of what Fortryd would restore.
-  const message = restoreSoldOut
-    ? `«${dishName}» er nu tilgængelig på hjemmesiden.`
-    : `«${dishName}» er nu markeret som udsolgt på hjemmesiden.`
-
   return (
     // `key` on the version token: a second availability change is a new message with a
     // fresh ten seconds, rather than the previous one's timer running out under it.
