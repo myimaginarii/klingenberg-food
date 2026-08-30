@@ -29,16 +29,17 @@ import { ANNOUNCEMENT_PAGE_OPTIONS, type AnnouncementLink } from '@/lib/announce
  * draws a bar with one sentence in it, and 1ac's rules say why — "Højst én besked ad
  * gangen".
  *
- * WHAT 1ad DRAWS THAT PHASE 7A DELIBERATELY DOES NOT SHIP
+ * WHAT 1ad DRAWS THAT IS NOT IN THIS CARD, AND WHERE IT IS INSTEAD
  *
  * The "Vis besked" switch at the top of the frame and the "Fjern beskeden nu" button in
  * its footer are **the immediate path** (§6): one press, no preview, no publish. 1ad
  * itself separates them from everything else — *"Skrive eller ændre → tre trin"* against
- * *"Fjerne → ét tryk"* — and they are phase 7B. They are absent here rather than present
- * and inert, for the same reason 1ah's image control is absent from the Månedens burger
- * editor: a control that cannot do its job is worse than a control that is not there yet.
- * The screen says so in words instead, beside the expiry, so nobody looks for a switch
- * that has not been built.
+ * *"Fjerne → ét tryk"* — and this file is the first side of that line, whole.
+ *
+ * They were built in phase 7B and live in `./AnnouncementVisibility.tsx`, rendered by the
+ * screen as **siblings** of this card rather than inside it: HTML forms cannot nest, and
+ * an immediate write must not share a form with one that waits for Offentliggør. Nothing
+ * in this file writes `is_visible`, and nothing in that one writes a draft.
  *
  * THE EXPIRY IS ONE ANSWER GIVEN BY THREE CONTROLS
  *

@@ -17,9 +17,18 @@ export function announcementForm(page: Page) {
   return page.getByRole('form', { name: 'Besked på hjemmesiden', exact: true })
 }
 
-/** The band that appears when a draft is waiting. */
+/**
+ * The band that appears when a draft is waiting.
+ *
+ * Matched on its own opening words rather than on the tail they share with the
+ * "Der er ingen ændringer, der venter på at blive offentliggjort" notice — which is the
+ * message a publish gives when there is *nothing* pending, and which a looser filter
+ * would report as a pending band.
+ */
 export function pendingBand(page: Page) {
-  return page.getByRole('status').filter({ hasText: 'venter på at blive offentliggjort' })
+  return page
+    .getByRole('status')
+    .filter({ hasText: 'Ændringer venter på at blive offentliggjort' })
 }
 
 /** The computed statement of what the hjemmeside is showing right now. */
@@ -145,6 +154,98 @@ export async function saveAnnouncement(
   if (fields.time !== undefined) await form.getByLabel('Klokkeslæt').fill(fields.time)
 
   await pressAndSettle(page, () => form.getByRole('button', { name: 'Gem' }).click())
+}
+
+/**
+ * 1ad's "Vis besked" card, by its own accessible name.
+ *
+ * It is a `<form>` while the message is showing, so `getByRole('form')` finds it exactly
+ * when the switch exists — which is what makes "the on direction is not offered" a thing
+ * a test can assert rather than infer.
+ */
+export function visibilityCard(page: Page) {
+  return page.getByRole('form', { name: 'Vis besked', exact: true })
+}
+
+/** The statement that replaces it once the message is off. */
+export function visibilityOffCard(page: Page) {
+  return page.getByRole('region', { name: 'Vis besked — slået fra' })
+}
+
+/** 1ad's footer control. */
+export function removeNowButton(page: Page) {
+  return page.getByRole('button', { name: 'Fjern beskeden nu' })
+}
+
+/** The green strip a removal or a restore leaves behind (1aa, §6). */
+export function undoStrip(page: Page) {
+  return page.getByRole('status').filter({ hasText: /Beskeden (er fjernet|vises igen)/ })
+}
+
+/** The Fortryd inside it. */
+export function undoButton(page: Page) {
+  return undoStrip(page).getByRole('button', { name: /^Fortryd/ })
+}
+
+/** Turn 1ad's switch off — the "Vis besked" entrance to the immediate path. */
+export async function pressVisibilitySwitch(page: Page): Promise<void> {
+  await pressAndSettle(page, () => visibilityCard(page).getByRole('button').click())
+}
+
+/** Press "Fjern beskeden nu" — the footer entrance to the same operation. */
+export async function pressRemoveNow(page: Page): Promise<void> {
+  await pressAndSettle(page, () => removeNowButton(page).click())
+}
+
+/** Press Fortryd on the strip. */
+export async function pressUndo(page: Page): Promise<void> {
+  await pressAndSettle(page, () => undoButton(page).click())
+}
+
+/**
+ * The field names and values a form would post, read straight out of the markup.
+ *
+ * Used to assert that 1ad's two controls are two entrances to **one** operation: same
+ * names, same requested state, same version token.
+ *
+ * Next.js's own `$ACTION_*` dispatch fields are left out. They are the framework's, not
+ * the screen's — a person cannot choose them and this application never reads them — and
+ * `formActionId` below asserts the one thing they *are* good for.
+ */
+export async function formFields(
+  locator: ReturnType<Page['getByRole']>,
+): Promise<Record<string, string>> {
+  return locator.evaluate((element) => {
+    const form = element.tagName === 'FORM' ? element : element.closest('form')
+    if (form === null) return {}
+
+    const fields: Record<string, string> = {}
+    for (const input of Array.from(form.querySelectorAll('input[name]'))) {
+      const name = input.getAttribute('name') ?? ''
+      if (name.startsWith('$ACTION')) continue
+      fields[name] = (input as HTMLInputElement).value
+    }
+    return fields
+  })
+}
+
+/**
+ * Which Server Action a form dispatches to, as Next.js's own identifier.
+ *
+ * Two forms carrying the same id are two entrances to the same function — which is the
+ * whole of 1ad's "'Vis besked' fra eller 'Fjern beskeden nu'" being one operation rather
+ * than two implementations to keep in step.
+ */
+export async function formActionId(
+  locator: ReturnType<Page['getByRole']>,
+): Promise<string | null> {
+  return locator.evaluate((element) => {
+    const form = element.tagName === 'FORM' ? element : element.closest('form')
+    if (form === null) return null
+
+    const field = form.querySelector('input[name^="$ACTION_ID"]')
+    return field === null ? null : field.getAttribute('name')
+  })
 }
 
 /** Press this screen's own Offentliggør, in the bar. */

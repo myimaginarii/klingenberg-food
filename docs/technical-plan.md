@@ -404,6 +404,108 @@ means the same thing to a caller: nothing was written, and the draft is still th
 
 ---
 
+## 0g. Phase 7B — the immediate path: taking the announcement down by hand (2026-08-30)
+
+Phase 7 has two halves. §0f records **7A** — the editor, the public bar and the client
+expiry guard. This section records **7B — the immediate path**, which is built and green:
+1ad's *"Fjerne → ét tryk"* side of the screen, with the ~10 s Fortryd §6 requires.
+
+§0f is left exactly as it was written. It is 7A's own account of what it decided and why,
+including its statement that *"phase 7A has no way to take a message down by hand"* — a
+limitation that was true when it was written and that this section removes. **Phase 7 as a
+whole is not locked**: what remains for a lock pass is listed at the end of this section.
+
+**What phase 7B delivers:**
+
+| Capability | Path | Where it lives |
+|---|---|---|
+| **"Fjern beskeden nu"** — 1ad's footer control | **immediate** (§6) | `RemoveAnnouncementNowButton`, `app/(admin)/admin/besked/visibility-actions.ts` |
+| **"Vis besked" off** — 1ad's switch, the same operation by another entrance | **immediate** (§6) | `AnnouncementVisibilityCard`, the same action |
+| The public bar disappearing **at once** — the `announcement` cache tag expired after the transaction commits, and only then | — | `expirePublicCacheTags` in the Server Action; the domain module returns the tags and expires none |
+| The **~10 s Fortryd**, as a second authorized write | **immediate** (§6) | `AnnouncementVisibilityUndo` over phase 5C's `UndoStrip` / `AutoDismiss` |
+| The transaction — one column, one audit row, optimistic concurrency, `security invoker` | — | `public.set_announcement_visible()` |
+| The audited shape of a visibility change | — | `public.announcement_visibility()` |
+| The refusal that keeps an expired message off the site even when an undo asks for it | — | `set_announcement_visible` → `not_showable`; `lib/announcements/visibility.ts` maps it to `expired` |
+| Responsive at 375 / 1440, keyboard-operable throughout, axe-clean at both | — | `tests/e2e/announcement-remove.spec.ts`, both Playwright projects |
+
+**One migration, two functions, no new entity, no new table and no new column.**
+`20260830180000_announcement_visibility.sql` adds `announcement_visibility()` and
+`set_announcement_visible()` and changes nothing else. There is deliberately **no generic
+immediate-action RPC**: this function takes no table name, no column name and no row id —
+the singleton locates itself — for the reason §0e answer A records for the three sold-out
+functions. A function that builds an identifier from an argument is a function that can be
+pointed at a table nobody reviewed.
+
+### The four readings this phase had to settle
+
+| # | Question | The answer |
+|---|---|---|
+| A | **Does "Vis besked" turn a bar back *on*?** | **No — and that is a reading of the source of truth, not a shortcut.** §6's immediate-path table names *"'Vis besked' off / 'Fjern beskeden nu'"*, the **off** direction only; 1ad's own annotation names only that direction, twice (*"Slå fra, og den forsvinder straks"*, *"'Vis besked' fra eller 'Fjern beskeden nu' virker straks"*); and §0f settles the on direction as Offentliggør. So the switch is drawn, in its on state, exactly while there is a bar to switch off, and a **statement** stands in its place when there is not — the same choice §0f made when it left both controls off the screen rather than shipping them inert. The one write in the on direction is Fortryd (reading B). **The consequence is recorded as a limitation, not hidden:** after the ten seconds have passed, putting the same message back is 1ad's three-step path — edit it, and press Offentliggør, which sets `is_visible` (§0f). The screen says so where the switch used to be. |
+| B | **What does Fortryd restore?** | **Visibility, of the same unchanged published announcement — and nothing else.** It is a second call to the same function with `p_visible => true` and the version token the first write returned, so it is guarded, validated, concurrency-checked and audited exactly as the first press was. It is **not** the `previous jsonb` mechanism: `previous` and `replaced_at` are named by no statement in the migration and by no line of the application, and remain unused by the whole of phase 7. A colleague who changes the row between the removal and the undo makes the undo a `conflict`, which writes nothing and logs nothing. |
+| C | **What happens when the expiry passes inside the ten seconds?** | **The undo is refused, and says so.** Writing `is_visible = true` on a row whose `expires_at` has gone would put `true` into a column the anonymous policy — `is_visible and message is not null and expires_at is not null and expires_at > now()` — goes on filtering out, and the screen would then report a bar put back that no guest can read. So the two standing rules of 1ac are checked for the **on** direction only, and the refusal is named (`not_showable`, with a `reason`). **Nothing extends `expires_at` to make an undo succeed.** The **off** direction is never refused for either reason: a message that can no longer be shown is exactly the one somebody may still want switched off, and an operation whose whole purpose is "stop this now" must not have a state it declines to stop. |
+| D | **Can an immediate removal reach a pending draft?** | **No, and the reason is structural.** The UPDATE names one column and `draft` is not it, so a draft written before the removal is byte-identical after it and after the undo — asserted from real JWTs in `supabase/tests/012_announcement.test.sql` and end-to-end at both widths. `lib/announcements/visibility.ts` imports nothing from `lib/publishing` except the role matrix and the entity registry, and nothing at all from `lib/drafts`; the Server Action imports neither. The removal therefore cannot clear a draft, publish one, merge one, change the expiry, change a link, or change `source`. |
+
+### What phase 7B deliberately does not contain
+
+| Not in 7B | Owned by | Note |
+|---|---|---|
+| **Replacing an active announcement**, `previous`, `replaced_at`, and the restore that reads them | **phase 8** | §6's third immediate row. The two columns exist and are written by nothing; the pgTAP suite asserts that no `replace_announcement` or `restore_announcement` function exists. |
+| **"Erstat med den nye besked"** and **1ae's conflict sheet** | **phase 8** | §7e item 8's server-authoritative ordering — the hours are written first and always — belongs with the override that generates the message. |
+| **Generated opening-hours announcements** (`source='opening_hours'`) | **phase 8** | `source` is read by nothing on the editor and written by nothing in phase 7; it stays `'manual'`. |
+| **Turning a bar on from the switch** | — | Reading A. Offentliggør is the on direction (§0f); Fortryd is the one exception, and it restores the same published content. |
+
+### Recorded explicitly, because each of these is a rule somebody could later assume away
+
+| Statement | Where it is enforced |
+|---|---|
+| **One business operation, two controls.** "Vis besked" off and "Fjern beskeden nu" submit the same two field names to the same Server Action and reach the same database function. There is no second implementation to keep in step. | `ANNOUNCEMENT_VISIBILITY_FORM`, `setAnnouncementVisibility`. The E2E suite compares both forms' fields *and* their Next.js action identifiers. |
+| **The browser supplies no authority.** The submission is a state to move to and a version token. No message, no link, no expiry, no `source`, no `previous`, no `replaced_at`, no entity name and no row id — the parser reads two names and no others, and the singleton locates itself. | `readAnnouncementVisibilityForm` (a `strictObject`), `set_announcement_visible(boolean, timestamptz)`. |
+| **The cache is expired only after a write that reached the row.** Not on a refusal, not on a conflict, not on `unchanged`, not on a failed write. | `visibility-actions.ts`; the domain module returns tags and expires none, asserted over its source. |
+| **Both real writes are audited; nothing else is.** `log_audit('visibility', 'announcement', …)` with the before/after pair, actor taken from the JWT. A conflict, an `unchanged`, and every refusal write no audit row. Staff gains no audit-log read access — `audit_log` stays Owner-readable (§5). | `set_announcement_visible`, `public.log_audit`, `supabase/tests/012_announcement.test.sql` §10. |
+| **`previous` and `replaced_at` remain unused by the whole of phase 7.** | The migration names neither; the pgTAP suite asserts both are `null` after a removal and after an undo. |
+| **`source='opening_hours'` remains unused.** | Nothing in phase 7 writes `source`; the pgTAP suite asserts it is still `'manual'` after a removal. |
+| **`AnnouncementExpiryGuard` is unchanged.** Phase 7B added no request, no listener and no state to it; server eligibility and the guard remain the authority on expiry (§7c). | The file is untouched by this phase; `tests/unit/announcements/expiry-guard-source.test.ts` still holds it to no `fetch`, no storage and one timer. |
+| **The removal, and its Fortryd, work with JavaScript switched off.** Every control on the screen is an ordinary `method="POST"` form in the document the server sends; the ten-second timer is `AutoDismiss` and is an enhancement over it, never the mechanism. With scripting off the strip simply stays until the next navigation — §7e item 11's allowed degradation for the admin. | Asserted over the **server's HTML** rather than the hydrated DOM, because a visitor with scripting off never hydrates: `tests/e2e/announcement-remove.spec.ts` fetches the page and holds every form on it to `method="POST"` and to no `javascript:` action. |
+
+### One correction to §0f, and one to §6
+
+Neither is a new decision; both are the document catching up with what is now built.
+
+- **§0f says "phase 7A has no way to take a message down by hand … this is a real, stated
+  limitation of 7A rather than an oversight, and it is what 7B's one press removes."** That
+  press now exists. §0f's paragraph stands as the record of 7A; this section is the record
+  of its removal.
+- **§6's immediate-path table** carries a note reading *"The announcement rows above are
+  phase 7B; phase 7A built the ordinary three-step path only."* The first of those two rows
+  — `"Vis besked" off / "Fjern beskeden nu"` — is now built. The second — *replace an
+  existing announcement*, with its `previous` stash — is **phase 8**, not 7B, and the note
+  now says so.
+
+### What remains before phase 7 can be locked
+
+Recorded here so the lock pass has a list rather than a memory.
+
+1. **A completion pass over 7A and 7B read together**, of the kind §0e was for phase 6:
+   both halves walked against a production build as Staff and as Owner, frames 1ac, 1ad and
+   1aa checked once more against what shipped at 375 / 768 / 1440 px, and the immediate
+   path reviewed beside the three sold-out ones as a set rather than singly.
+2. **A decision on the one limitation reading A records** — that a message switched off by
+   hand comes back only through Ret → Offentliggør. It is the correct reading of §6 and 1ad
+   as they stand; whether the restaurant wants a control for it is a question for the owner,
+   and if the answer is yes it is a design change to 1ad before it is a code change.
+3. **The states neither suite can reach cheaply**: a malformed stored draft with the
+   removal controls on screen, and the screen as it looks to a Staff member whose account
+   is deactivated mid-session. Both are refusals the code states and neither is walked.
+4. Phase 8 remains untouched: no replacement, no `previous`, no conflict sheet, no
+   opening-hours integration.
+
+*(768 px was on this list and is now off it: `tests/e2e/announcement-remove.spec.ts`
+measures the removal controls at the middle width too — no overflow, no control under
+44 px, no wrapped control label — which is the defect phase 6's completion pass found twice
+at exactly that width.)*
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -727,10 +829,19 @@ currently *shown*, which is a read-time filter on dates the staff themselves ent
 | Replace an existing announcement | writes new values, stashes the old in `previous jsonb` | 10 s Fortryd restores from `previous` |
 | Delete a dish | soft delete (`deleted_at`) | 10 s Fortryd clears `deleted_at`. **The row is never purged** — see §0a D2 |
 
-*The announcement rows above are **phase 7B**; phase 7A built the ordinary three-step path
-only (§0f). Note that this table describes the **immediate** operations, so the only
-announcement visibility change in it is the one that switches a bar **off**. Turning one
-on is Offentliggør, and `publish_announcement()` sets `is_visible` — see §0f.*
+*The two announcement rows above belong to two different phases.* **`"Vis besked" off /
+"Fjern beskeden nu"` is built — phase 7B (§0g)**: `set_announcement_visible()` writes
+`is_visible` and its audit row in one transaction, the Server Action expires the
+`announcement` tag only after it commits, and Fortryd is a second call to the same
+function. **Replacing an existing announcement — the `previous jsonb` stash and the restore
+that reads it — is phase 8**, with 1ae's conflict sheet and the generated opening-hours
+message; nothing in phase 7 reads or writes `previous` or `replaced_at`. Note also that
+this table describes the **immediate** operations, so the only announcement visibility
+change in it is the one that switches a bar **off**. Turning one on is Offentliggør, and
+`publish_announcement()` sets `is_visible` — see §0f. The one exception is 7B's Fortryd,
+which restores the visibility of the **same, unchanged, already published** announcement
+for about ten seconds (§0g reading B), and is refused outright if the message has expired
+in the meantime (§0g reading C).*
 
 Undo is not server-held state. The change is already live; undo is simply a second authorized write. If the browser navigates away inside the 10 seconds the undo is lost — acceptable, and recoverable from `audit_log`.
 
@@ -858,7 +969,13 @@ Component shipping no JavaScript. The public site does not become a client-rende
 
 **Accessibility.** The `aria-live="polite"` region stays mounted; only its content is removed, so a
 screen reader is not interrupted by a disappearance. The bar's space is handled by the layout exactly
-as it already is for the manual "Fjern beskeden nu" path, so removal reflows identically.
+as it already is for the manual "Fjern beskeden nu" path, so removal reflows identically. *That path
+was built in phase 7B (§0g), and the two agree by construction: a manual removal produces the same
+absent region a guest gets from the seed — no element, no padding, no reserved height (1ac) — because
+both go through `AnnouncementRegion` returning `null`. **Phase 7B added nothing to the guard**: no
+request, no listener, no state. Server eligibility and `AnnouncementExpiryGuard` remain the authority
+on expiry, and an undo that arrives after the expiry is refused rather than allowed to contradict
+them (§0g reading C).*
 
 **Accepted limitation.** The guard trusts the visitor's device clock. A device several hours off
 would hide or keep the bar by that offset. The server correction still arrives within five minutes,
@@ -1299,7 +1416,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 4 | Draft/publish core | `draft` overlay, publish transaction, Draft Mode preview, audit log, dashboard pending-changes view with per-item attribution | Change a `pages.home` value → invisible until publish |
 | 5 | Menu administration | Category tabs, dish CRUD, reorder, side panel, Kladde badges, **immediate Udsolgt with 10 s Fortryd and the computed reset label**, **tapas list editor**, soft delete | E2E 2, 3 and 10 pass |
 | 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (done):** Månedens burger with its date window, its computed admin state, "Vis på forsiden" as a normal draft field and its own immediate Udsolgt path | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes — see §0d. **Complete and locked** by the completion pass of 2026-08-30 — see §0e |
-| 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (not started):** "Vis besked" off, "Fjern beskeden nu", replacing an active announcement and its ~10 s Fortryd | 7A: E2E 4 passes, including the no-network assertion — see §0f |
+| 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (done):** the immediate path — "Vis besked" off, "Fjern beskeden nu", immediate public removal and its ~10 s Fortryd. *Replacing an active announcement, `previous`/`replaced_at` and 1ae's conflict sheet moved to **phase 8**, where the generated message they belong to lives* | 7A: E2E 4 passes, including the no-network assertion — see §0f. 7B: `tests/e2e/announcement-remove.spec.ts` passes at 1440 and 375 — see §0g. **Not locked**: §0g lists what the lock pass still owes |
 | 8 | Opening hours administration | Weekly editor (owner), one-off overrides, generated announcement, **conflict sheet 1ae with both branches** | E2E 5 passes, including "hours always save" |
 | 9 | News | List, editor with structured body, autosave, publish/unpublish, **`/nyheder/[slug]` with the slug policy and `NewsArticle` JSON-LD**, forside teaser | E2E 6 passes, incl. unpublish → 404 |
 | 10 | Images | Signed upload, client downscale, sharp derivatives, library with usage labels, replace/delete warnings | E2E 7 passes |
@@ -1325,7 +1442,18 @@ own account of its decisions — and §0e is what "phase 6" means as a whole.
 
 **Phase 7A is complete and green, and is recorded in §0f.** The announcement editor,
 the public bar and the client expiry guard are built; open item H was closed on the way
-past it. **Phase 7B — the immediate path: "Vis besked" off, "Fjern beskeden nu",
-replacing an active announcement, and the ~10 s Fortryd that belongs to each — is not
-started**, and neither is phase 8's generated opening-hours announcement. Phase 7 as a
-whole is therefore **not** locked.
+past it.
+
+**Phase 7B is complete and green, and is recorded in §0g.** The immediate path — 1ad's
+*"Fjerne → ét tryk"*: "Vis besked" off, "Fjern beskeden nu", the bar leaving the
+hjemmeside at once, and the ~10 s Fortryd that restores the visibility of the same
+published message — is built, with one migration, two database functions and no new table.
+**Replacing an active announcement is not part of it**: the `previous jsonb` stash, the
+restore that reads it, "Erstat med den nye besked" and 1ae's conflict sheet were moved to
+**phase 8**, where the generated opening-hours message they exist to serve lives. Nothing
+in phase 7 reads or writes `previous` or `replaced_at`, and `source` stays `'manual'`.
+
+**Phase 7 as a whole is still not locked.** §0g's last subsection lists what a lock pass
+owes: a completion pass reading 7A and 7B together against a production build, a decision
+on the one limitation §0g reading A records, and the 768 px width with the removal controls
+on screen. Phase 8 is not started.

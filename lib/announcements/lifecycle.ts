@@ -25,9 +25,10 @@ import type { AnnouncementLinkValues } from './link'
  *
  * WHAT THIS MODULE DELIBERATELY DOES NOT CONTAIN
  *
- *   * **No immediate path.** "Vis besked" off, "Fjern beskeden nu", replacing an active
- *     announcement and restoring the previous one from `previous` are §6's immediate
- *     operations and belong to phase 7B. There is no function here that writes
+ *   * **No immediate path.** "Vis besked" off and "Fjern beskeden nu" are §6's immediate
+ *     operations; they were built in phase 7B and live in `./visibility.ts`, beside this
+ *     module rather than inside it. Replacing an active announcement and restoring the
+ *     previous one from `previous` are phase 8. There is no function here that writes
  *     `is_visible`, no reference to `previous` or `replaced_at`, and no ten-second undo.
  *   * **No opening-hours announcement.** `source` stays `'manual'`; generating a message
  *     from a one-off override, and the conflict sheet 1ae draws for it, are phase 8.
@@ -173,7 +174,8 @@ export type AnnouncementEligibilityInput = AnnouncementValues & {
    *
    * Written by exactly two things, and never by a draft: `publish_announcement()` sets it
    * (1ad — Offentliggør is how a message reaches the hjemmeside), and §6's immediate path
-   * clears it (phase 7B's "Vis besked" off and "Fjern beskeden nu"). See §0f.
+   * moves it — phase 7B's "Vis besked" off and "Fjern beskeden nu", and the Fortryd that
+   * puts the same published message back. See §0f and §0g.
    */
   readonly is_visible: boolean
 }

@@ -1,3 +1,5 @@
+import { z } from 'zod'
+
 import {
   ANNOUNCEMENT_MESSAGE_MAX_LENGTH,
   type AnnouncementValues,
@@ -21,26 +23,34 @@ import {
 } from '@/lib/announcements/link'
 
 /**
- * The two vocabularies this screen submits, in one place — design 1ad.
+ * The three vocabularies this screen submits, in one place — design 1ad.
  *
- * Two, and deliberately disjoint, for the reason the menu, weekly and monthly screens
+ * Three, and deliberately disjoint, for the reason the menu, weekly and monthly screens
  * keep theirs apart: a form carrying one operation's names must not be able to reach
- * another operation's action.
+ * another operation's action. It matters here for the same reason it did on the weekly
+ * and monthly screens — all three act on the *same singleton row*.
  *
  *   * {@link ANNOUNCEMENT_FORM} — 1ad's card. An ordinary draft change (§6).
  *   * {@link ANNOUNCEMENT_PUBLISH_FORM} — Offentliggør. It carries **no fields at all**:
  *     the action re-reads what is pending on the server and publishes that.
+ *   * {@link ANNOUNCEMENT_VISIBILITY_FORM} — "Vis besked" off, "Fjern beskeden nu" and
+ *     the Fortryd that follows either. **Immediate** (§6).
  *
- * WHAT NEITHER OF THEM HAS A FIELD FOR
+ * A submission carrying `vis` cannot reach the content editor, and one carrying `besked`
+ * cannot reach the visibility action — because no parser here reads a name it was not
+ * given, and the visibility schema below is a `strictObject` that requires its own field.
  *
- * There is no field for `is_visible` (§6's immediate path — phase 7B), none for `source`
- * (phase 8 writes `'opening_hours'`; this screen never does), none for `previous` or
- * `replaced_at` (phase 7B's undo), none for an entity name or a row id (the singleton
- * locates itself through the registry), and none for anything on another table. The
- * security tests forge each of those and assert the row is untouched; they pass because
- * these shapes do not have the fields, not because something strips them.
+ * WHAT NONE OF THEM HAS A FIELD FOR
  *
- * The one thing the content form carries is `version`: the `updated_at` the screen was
+ * The visibility form carries a state to move to and nothing else. There is no field for
+ * `source` (phase 8 writes `'opening_hours'`; this screen never does), none for
+ * `previous` or `replaced_at` (replacing an active announcement is phase 8), none for a
+ * message, a link or an expiry on the immediate path, none for an entity name or a row id
+ * (the singleton locates itself through the registry), and none for anything on another
+ * table. The security tests forge each of those and assert the row is untouched; they
+ * pass because these shapes do not have the fields, not because something strips them.
+ *
+ * The one thing every form carries is `version`: the `updated_at` the screen was
  * rendered from, which is the whole of optimistic concurrency (§6). A wrong one causes a
  * refusal, never a wrong write.
  *
@@ -85,6 +95,60 @@ export const ANNOUNCEMENT_FORM = {
  * what this screen submits.
  */
 export const ANNOUNCEMENT_PUBLISH_FORM = {} as const
+
+// ---------------------------------------------------------------------------
+// "Vis besked" / "Fjern beskeden nu" — the immediate path (§6)
+// ---------------------------------------------------------------------------
+
+/**
+ * Two fields: which state to move to, and the version token.
+ *
+ * 1ad draws two controls for this one operation — the switch at the top of the screen
+ * and the button in the footer — and they submit the *same* names to the *same* action,
+ * because they are the same decision. Nothing about which control was pressed is sent,
+ * because nothing about it could change the answer.
+ *
+ * Fortryd is a third form with the same two names and `vis` inverted, so the undo is a
+ * second write down the identical code path rather than an endpoint of its own (§6).
+ */
+export const ANNOUNCEMENT_VISIBILITY_FORM = {
+  version: 'version',
+  /** '1' = show the published announcement, '0' = take it down now. */
+  visible: 'vis',
+} as const
+
+/** What the immediate path was asked to do, or `null` for anything malformed. */
+export type AnnouncementVisibilityRequest = {
+  readonly visible: boolean
+  readonly expectedUpdatedAt: string
+}
+
+/**
+ * `strictObject`, so a submission that carries a message, a link or an expiry alongside
+ * its intent is refused rather than partly honoured. A `vis` that is neither `'0'` nor
+ * `'1'`, or a version that is not a timestamp, is `null` — one refusal message, and never
+ * a guess at what was meant.
+ */
+const visibilitySchema = z.strictObject({
+  visible: z.enum(['0', '1']),
+  expectedUpdatedAt: z.iso.datetime({ offset: true }),
+})
+
+export function readAnnouncementVisibilityForm(
+  formData: FormData,
+): AnnouncementVisibilityRequest | null {
+  const parsed = visibilitySchema.safeParse({
+    visible: text(formData, ANNOUNCEMENT_VISIBILITY_FORM.visible),
+    expectedUpdatedAt: text(formData, ANNOUNCEMENT_VISIBILITY_FORM.version),
+  })
+
+  if (!parsed.success) return null
+
+  return {
+    visible: parsed.data.visible === '1',
+    expectedUpdatedAt: parsed.data.expectedUpdatedAt,
+  }
+}
 
 /** The value the link select carries when there is no link. */
 export const NO_LINK_CHOICE = 'ingen'

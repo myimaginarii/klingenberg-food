@@ -62,6 +62,7 @@ export default defineConfig({
         'e2e/weekly-special.spec.ts',
         'e2e/monthly-burger.spec.ts',
         'e2e/announcement.spec.ts',
+        'e2e/announcement-remove.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -78,6 +79,7 @@ export default defineConfig({
         'e2e/weekly-special.spec.ts',
         'e2e/monthly-burger.spec.ts',
         'e2e/announcement.spec.ts',
+        'e2e/announcement-remove.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -274,6 +276,32 @@ export default defineConfig({
       name: 'announcement-mobile',
       testMatch: 'e2e/announcement.spec.ts',
       dependencies: ['announcement'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    /*
+     * "Vis besked" off and "Fjern beskeden nu" (phase 7B), at both widths, and chained
+     * after the 7A runs for the reason every write suite is chained: it publishes and it
+     * removes, both expire the `announcement` cache tag, and the bar is in the shared
+     * layout — so a guest assertion made by any other suite would be a coin toss if this
+     * one could act between its own write and its own read. It also *starts* from the
+     * state 7A leaves, and leaves that same state behind.
+     *
+     * Two widths rather than one, because 1ad draws the removal differently at each: the
+     * desktop card puts "Fjern beskeden nu" in a footer row beside its explanation, and
+     * the phone card stacks the button above it at full width. The 44 px targets, the
+     * focus ring and the absence of sideways scrolling are asserted inside the suite, so
+     * the phone run is a different assertion rather than the same one at a smaller size.
+     */
+    {
+      name: 'announcement-remove',
+      testMatch: 'e2e/announcement-remove.spec.ts',
+      dependencies: ['announcement-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: 'announcement-remove-mobile',
+      testMatch: 'e2e/announcement-remove.spec.ts',
+      dependencies: ['announcement-remove'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
   ],

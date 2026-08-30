@@ -71,7 +71,14 @@ export function AnnouncementStateBadge({
   )
 }
 
-export function AnnouncementStateBanner({ state }: { state: AnnouncementStateReport }) {
+export function AnnouncementStateBanner({
+  state,
+  showRemoval,
+}: {
+  state: AnnouncementStateReport
+  /** True when there is a bar on the hjemmeside that 1ad's one press could remove. */
+  showRemoval: boolean
+}) {
   const tone = TONE_STYLES[state.tone]
 
   return (
@@ -89,15 +96,19 @@ export function AnnouncementStateBanner({ state }: { state: AnnouncementStateRep
       </p>
 
       {/*
-        Phase 7A has no way to take a message down by hand: "Vis besked" and "Fjern
-        beskeden nu" are §6's immediate path and belong to phase 7B. Saying so here is the
-        honest alternative to drawing a switch that does nothing — and the sentence is
-        true either way, because the expiry is mandatory and does remove the bar on its
-        own.
+        The two ways a message leaves the hjemmeside, said in the order they happen: the
+        mandatory expiry takes it down on its own, and 1ad's one press takes it down now.
+        Phase 7B built the second, so this sentence says it rather than apologising for
+        its absence.
+
+        `showRemoval` is false when there is no bar to remove, so the screen never points
+        at a control that is not on it.
       */}
       <p className="text-ink-2 text-meta">
-        Beskeden forsvinder af sig selv, når udløbstidspunktet passerer. Skal den væk
-        hurtigere, så ryk udløbstidspunktet tættere på nu og offentliggør igen.
+        Beskeden forsvinder af sig selv, når udløbstidspunktet passerer.
+        {showRemoval
+          ? ' Skal den væk med det samme, så slå “Vis besked” fra eller tryk “Fjern beskeden nu” — det virker straks, og du kan fortryde i ca. 10 sekunder.'
+          : ''}
       </p>
     </section>
   )

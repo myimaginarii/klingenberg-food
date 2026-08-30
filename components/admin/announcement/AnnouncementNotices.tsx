@@ -1,12 +1,19 @@
 import { Notice, type NoticeTone } from '@/components/admin/Notice'
+import { UndoStrip, UndoSubmit } from '@/components/admin/menu/UndoStrip'
+
+import {
+  AnnouncementVisibilityFields,
+  ANNOUNCEMENT_VISIBILITY_LABEL,
+  type AnnouncementVisibilityForm,
+} from './AnnouncementVisibility'
 
 /**
- * The three things this screen says about itself — design 1aa, 1ad; §6, §7c.
+ * The four things this screen says about itself — design 1aa, 1ad; §6, §7c.
  *
- * One file, because all three are *reports* rather than editors, and because the
- * vocabulary they share — the Kladde tone, the closed set of status codes, the pending
- * band with its own Offentliggør — is the one phases 5 and 6 established and this phase
- * reuses rather than reinvents.
+ * One file, because all four are *reports* rather than editors, and because the
+ * vocabulary they share — the Kladde tone, the green Fortryd strip, the closed set of
+ * status codes, the pending band with its own Offentliggør — is the one phases 5 and 6
+ * established and this phase reuses rather than reinvents.
  */
 
 /**
@@ -57,6 +64,23 @@ const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
   conflict: {
     tone: 'warning',
     text: 'Nogen andre har rettet dette. Din ændring blev ikke gemt — hent siden igen, så du retter i den nyeste version.',
+  },
+  // The immediate visibility path (§6, 1ad). A success has no entry here: it is reported
+  // by the green Fortryd strip, and two confirmations of one change is one too many.
+  uaendret: {
+    tone: 'success',
+    text: 'Det stod allerede sådan på hjemmesiden. Intet blev ændret.',
+  },
+  // The one refusal a person can actually meet on this path: the udløbstidspunkt passed
+  // while the Fortryd was on offer. Nothing came back to the hjemmeside, and the sentence
+  // says so rather than reporting a restore that did not happen.
+  fortryd_udloebet: {
+    tone: 'warning',
+    text: 'Beskeden nåede at udløbe, så den kunne ikke sættes tilbage. Ret udløbstidspunktet, og offentliggør beskeden igen, hvis den skal frem.',
+  },
+  fortryd_tom: {
+    tone: 'warning',
+    text: 'Der er ingen besked at sætte tilbage. Skriv teksten, og offentliggør den.',
   },
   ugyldig: { tone: 'error', text: 'Ret det, der er markeret herunder, og gem igen.' },
   invalid: { tone: 'error', text: 'Ret det, der er markeret herunder, og gem igen.' },
@@ -151,5 +175,58 @@ export function AnnouncementPendingNotice({
         </form>
       ) : null}
     </div>
+  )
+}
+
+/**
+ * The ~10-second Fortryd after an immediate visibility change — 1aa, §6, 1ad.
+ *
+ * The bar, its timer and its button are `UndoStrip`, shared with the menu, weekly and
+ * monthly screens; what is here is the half that is about *this* operation — which fields
+ * the Fortryd submits. The sentence itself is composed by
+ * `describeAnnouncementVisibilityChange` in `lib/announcements/visibility.ts` and handed
+ * in, the same way the other strips are handed theirs: vocabulary belongs beside the
+ * rules, where the unit suite can assert it.
+ *
+ * **THE CHANGE IS ALREADY LIVE.** This is not a confirmation and not a pending state. The
+ * column changed, the `announcement` cache tag was expired and an audit row was written
+ * before this strip was rendered at all. Fortryd is a *second* write down the same path,
+ * with the same guard, the same validation, the same concurrency check and its own audit
+ * row. Nothing authoritative lives in the browser: the two values the form carries both
+ * come back from the server that performed the write, and neither is trusted on the way
+ * in. The ten seconds are a message's lifetime, never a security boundary.
+ *
+ * **It restores visibility, and only visibility.** The same published message, the same
+ * link, the same expiry — not a replacement, not a restore from `previous`, and never a
+ * pending draft made public.
+ *
+ * It does not move focus — `UndoStrip` is `role="status"` and `AutoDismiss` will not
+ * remove the strip while focus is inside it (1aa).
+ */
+export function AnnouncementVisibilityUndo({
+  form,
+  message,
+  version,
+  /** The state Fortryd would restore — the opposite of what the bar is in now. */
+  restoreVisible,
+}: {
+  form: AnnouncementVisibilityForm
+  message: string
+  version: string
+  restoreVisible: boolean
+}) {
+  return (
+    // `key` on the version token: a second change is a new message with a fresh ten
+    // seconds, rather than the previous one's timer running out under it.
+    <UndoStrip key={version} message={message}>
+      <form action={form.action}>
+        <AnnouncementVisibilityFields
+          fieldNames={form.fieldNames}
+          version={version}
+          visible={restoreVisible}
+        />
+        <UndoSubmit>vis {ANNOUNCEMENT_VISIBILITY_LABEL} igen</UndoSubmit>
+      </form>
+    </UndoStrip>
   )
 }

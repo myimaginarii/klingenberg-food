@@ -19,6 +19,21 @@ export const ANNOUNCEMENT_PATH = '/admin/besked'
 export const ANNOUNCEMENT_PARAM = {
   /** The outcome of the last action, as a closed set of codes. */
   status: 'status',
+  /**
+   * The ~10-second Fortryd after an immediate visibility change (§6, 1ad).
+   *
+   * Two values, and neither is authority: the version token the undo must match, and
+   * which state to put the bar back into. The Server Action re-authorizes and
+   * re-validates both, so a hand-typed query string can produce a strip — and pressing
+   * it is refused exactly as any other forged request is. The timeout on the strip is a
+   * message's lifetime, never a security boundary.
+   *
+   * Its own two names rather than the menu, weekly or monthly screens', so a `fortryd`
+   * that means "put the besked back" and a `fortryd` that means "put a dish back" are
+   * never one query string with two meanings.
+   */
+  undoVersion: 'fortryd_version',
+  undoVisible: 'fortryd_vis',
 } as const
 
 /**
@@ -31,10 +46,16 @@ export const ANNOUNCEMENT_PARAM = {
 export const EDITOR_ANCHOR = 'besked'
 
 export type AnnouncementLocation = {
-  /** A save or publish outcome, from the closed set each action defines. */
+  /** A save, publish or visibility outcome, from the closed set each action defines. */
   readonly status?: string | null
   /** Come back to the editor card. */
   readonly focus?: boolean
+  /** The Fortryd offer for a visibility change that just went live (§6). */
+  readonly undo?: {
+    readonly version: string
+    /** The state Fortryd would put the bar back into. */
+    readonly visible: boolean
+  } | null
 }
 
 /**
@@ -51,6 +72,11 @@ export function announcementHref(
   const parameters = new URLSearchParams()
 
   if (location.status) parameters.set(ANNOUNCEMENT_PARAM.status, location.status)
+
+  if (location.undo) {
+    parameters.set(ANNOUNCEMENT_PARAM.undoVersion, location.undo.version)
+    parameters.set(ANNOUNCEMENT_PARAM.undoVisible, location.undo.visible ? '1' : '0')
+  }
 
   if (extra !== undefined) {
     for (const [key, value] of extra) parameters.append(key, value)

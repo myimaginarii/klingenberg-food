@@ -49,10 +49,10 @@ import { announcementHref } from './routes'
  *
  * **Publishing is what puts the bar on the hjemmeside.** `publish_announcement()` sets
  * `is_visible`, because 1ad's three-step path is how a message becomes public. Taking one
- * down again is the immediate path — "Vis besked" off, "Fjern beskeden nu" — and is
- * deliberately not built here: it is phase 7B, and §6's table is explicit that it never
- * travels through a draft. Nothing in this file writes `is_visible`, `previous`,
- * `replaced_at` or `source`.
+ * down again is the immediate path — "Vis besked" off, "Fjern beskeden nu" — and lives in
+ * `./visibility-actions.ts`, deliberately not here: §6's table is explicit that it never
+ * travels through a draft, and this action is nothing but a draft being published.
+ * Nothing in this file writes `is_visible`, `previous`, `replaced_at` or `source`.
  */
 export async function publishAnnouncement(): Promise<void> {
   const profile = await requireStaff()

@@ -1,8 +1,9 @@
 -- Klingenberg Food — pgTAP: the announcement (§4, §5, §6, §7c, §8, §9).
 --
 -- Phase 7A added one migration with one operation: `public.publish_announcement` gained
--- two rules and one write. This suite asserts, from real Staff, Owner and anonymous JWTs,
--- the properties the application relies on:
+-- two rules and one write. **Phase 7B added the immediate path** — one migration, two
+-- functions, and section 10 below. This suite asserts, from real Staff, Owner and
+-- anonymous JWTs, the properties the application relies on:
 --
 --    1. `anon` may read a *current* announcement's live columns and may not read `draft`,
 --       `previous` or anything else — and the RLS filter is asserted directly, because it
@@ -26,7 +27,15 @@
 --       inconsistent link shape — the three halves of §8's open-redirect rule;
 --   11. the singleton stays a singleton, and no new public write path exists;
 --   12. a draft carrying `is_visible` or `source` cannot smuggle either through a publish,
---       because the merge names six columns and neither is one of them (§6).
+--       because the merge names six columns and neither is one of them (§6);
+--   13. **the immediate path (phase 7B)**: Staff and Owner may take the bar down at once
+--       and Fortryd puts it back; `anon` may execute neither function; the write moves
+--       `is_visible` and leaves every other column — `draft`, `source`, `previous`,
+--       `replaced_at`, the message, the links and the expiry — **byte-identical**; a
+--       stale token writes nothing and logs nothing; a repeat press is `unchanged` and
+--       logs nothing; each real write is audited once, attributed from the JWT; and an
+--       announcement whose expiry passed inside the ten-second Fortryd window is
+--       **refused** rather than made publicly eligible.
 --
 -- The guest's view is checked through `anon`'s own view of the table throughout, because
 -- "a guest never reads a draft" is the promise the draft model exists to keep, and an
@@ -38,7 +47,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(62);
+select plan(103);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures
@@ -535,24 +544,330 @@ select is((select count(*) from public.announcement), 1::bigint,
   'there is exactly one announcement, as §4 requires');
 
 /*
- * Phase 7B's immediate remove/replace RPC does not exist yet, and this suite is where a
- * premature one would be noticed. §6's immediate path for this entity is phase 7B.
+ * Phase 7B's one immediate operation exists, and is the only one. Replacing an active
+ * announcement — `previous`, `replaced_at` and the restore that reads them — is §6's
+ * third immediate row and belongs to phase 8 with 1ae's conflict sheet, so a premature
+ * function for it would be noticed here.
  */
 select is(
   (select count(*) from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'set_announcement_visible'),
+  1::bigint,
+  'the immediate visibility RPC exists — phase 7B');
+
+select is(
+  (select count(*) from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
-      and p.proname in ('set_announcement_visible', 'remove_announcement',
-                        'replace_announcement', 'restore_announcement')),
+      and p.proname in ('remove_announcement', 'replace_announcement',
+                        'restore_announcement', 'set_announcement_source')),
   0::bigint,
-  'no immediate announcement RPC exists yet — that is phase 7B');
+  'and no replacement or restore RPC exists — that is phase 8');
 
 select is(
   (select count(*) from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname like '%announcement%'),
-  2::bigint,
-  'the announcement has exactly two functions: its content reader and its publish');
+  4::bigint,
+  'the announcement has exactly four functions: two content readers, its publish and its visibility write');
+
+/*
+ * SECURITY INVOKER, like every other write function here. A definer-rights function
+ * would run as its owner and hand any authenticated caller the table's own privileges,
+ * which is precisely the escalation §8 lists and RLS is the second layer against.
+ */
+select is(
+  (select p.prosecdef from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'set_announcement_visible'),
+  false,
+  'set_announcement_visible is SECURITY INVOKER — no privilege escalation');
+
+select is(
+  (select p.prosecdef from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'announcement_visibility'),
+  false,
+  'and so is announcement_visibility');
+
+
+-- ===========================================================================
+-- 10. the immediate path: "Vis besked" off / "Fjern beskeden nu" (§6, 1ad)
+-- ===========================================================================
+--
+-- Phase 7B. One operation, two controls, and exactly one column it may move.
+--
+-- The fixture below deliberately carries a **pending draft**, because the property that
+-- matters most here is a negative one: an immediate removal is not a publish, not an
+-- edit and not a replacement, so the draft somebody was in the middle of writing must be
+-- byte-identical before the hide, after the hide and after the undo.
+
+select pg_temp.reset_fixture();
+delete from public.audit_log;
+
+update public.announcement
+   set draft = jsonb_build_object(
+         'message', 'Kladde der skal overleve',
+         'link_label', 'Se tider');
+
+/*
+ * Everything this operation must not move, as one value.
+ *
+ * `is_visible` is what it *may* move; `updated_at` and `updated_by` are stamped by the
+ * table's own touch trigger on any write, which is where attribution comes from (§8).
+ * Everything else — the message, all four link columns, the expiry, `source`,
+ * `previous`, `replaced_at` and `draft` — is compared byte for byte.
+ */
+select set_config('test.untouched',
+  (select (to_jsonb(a) - 'is_visible' - 'updated_at' - 'updated_by')::text
+     from public.announcement a), true);
+
+select set_config('test.expires',
+  (select expires_at::text from public.announcement), true);
+
+select set_config('test.draft',
+  (select draft::text from public.announcement), true);
+
+
+-- --- 10a. Staff may take the bar down, and only the bar ----------------------------
+
+select pg_temp.become_staff();
+
+select is(
+  (select public.set_announcement_visible(false, pg_temp.version()) ->> 'status'),
+  'updated',
+  'staff may remove the announcement immediately');
+
+reset role;
+
+select is((select is_visible from public.announcement), false,
+  'the bar is off');
+
+select is(
+  (select (to_jsonb(a) - 'is_visible' - 'updated_at' - 'updated_by')
+     from public.announcement a),
+  current_setting('test.untouched')::jsonb,
+  'every other column is byte-identical: message, links, expiry, source, previous, replaced_at, draft');
+
+select is((select draft::text from public.announcement), current_setting('test.draft'),
+  'the pending draft is byte-identical — an immediate removal is not a publish');
+select is((select source from public.announcement), 'manual',
+  'source is untouched — generated announcements are phase 8');
+select is((select previous from public.announcement), null,
+  'previous is not written — replacing an announcement is phase 8');
+select is((select replaced_at from public.announcement), null,
+  'replaced_at is not written either');
+select is((select expires_at::text from public.announcement), current_setting('test.expires'),
+  'and the expiry is neither shortened nor extended');
+
+select is((select updated_by from public.announcement),
+  current_setting('test.staff_uid')::uuid,
+  'the row is attributed to the staff member who removed it, from the JWT');
+
+select is(pg_temp.audit_count('visibility', current_setting('test.staff_uid')::uuid), 1::bigint,
+  'exactly one audit row, attributed to whoever pressed it');
+
+select is(
+  (select before ->> 'is_visible' from public.audit_log
+    where entity = 'announcement' and action = 'visibility'
+    order by created_at desc limit 1),
+  'true',
+  'the audit row records the visibility it started from');
+select is(
+  (select after ->> 'is_visible' from public.audit_log
+    where entity = 'announcement' and action = 'visibility'
+    order by created_at desc limit 1),
+  'false',
+  'and the visibility it ended in');
+
+select pg_temp.become_anon();
+select is(pg_temp.public_rows(), 0::bigint,
+  'and a guest no longer sees the announcement at all');
+reset role;
+
+
+-- --- 10b. Pressing it twice is one decision ----------------------------------------
+
+select pg_temp.become_staff();
+
+select is(
+  (select public.set_announcement_visible(false, pg_temp.version()) ->> 'status'),
+  'unchanged',
+  'a second press reports unchanged rather than writing again');
+
+reset role;
+
+select is(pg_temp.audit_total(), 1::bigint,
+  'and writes no second audit row');
+
+
+-- --- 10c. A stale version token writes nothing and logs nothing --------------------
+
+select pg_temp.become_staff();
+
+select is(
+  (select public.set_announcement_visible(true, now() - interval '1 day') ->> 'status'),
+  'conflict',
+  'a stale version token is a conflict (§6, §7e item 2)');
+
+reset role;
+
+select is((select is_visible from public.announcement), false,
+  'the conflict wrote nothing — the bar is still off');
+select is(pg_temp.audit_total(), 1::bigint,
+  'and the conflict logged nothing');
+
+
+-- --- 10d. Fortryd is a second authorized write, and restores visibility only -------
+
+select pg_temp.become_staff();
+
+select is(
+  (select public.set_announcement_visible(true, pg_temp.version()) ->> 'status'),
+  'updated',
+  'Fortryd restores the announcement');
+
+reset role;
+
+select is((select is_visible from public.announcement), true,
+  'the bar is back on');
+select is((select draft::text from public.announcement), current_setting('test.draft'),
+  'the pending draft is still byte-identical — the undo published nothing');
+select is(
+  (select (to_jsonb(a) - 'is_visible' - 'updated_at' - 'updated_by')
+     from public.announcement a),
+  current_setting('test.untouched')::jsonb,
+  'and so is every other column');
+
+select pg_temp.become_anon();
+select is(pg_temp.public_message(), 'Levende besked',
+  'a guest reads the same published message again — never the draft');
+reset role;
+
+select is(pg_temp.audit_total(), 2::bigint,
+  'the undo is audited too: two writes, two rows');
+
+
+-- --- 10e. Owner may do it as well (§5's matrix has the announcement in both rows) --
+
+select pg_temp.become_owner();
+
+select is(
+  (select public.set_announcement_visible(false, pg_temp.version()) ->> 'status'),
+  'updated',
+  'owner may remove the announcement immediately too');
+
+reset role;
+
+select is(pg_temp.audit_count('visibility', current_setting('test.owner_uid')::uuid), 1::bigint,
+  'and that write is attributed to the owner, not to the staff member before them');
+
+
+-- --- 10f. Anonymous may not, at the function, before RLS is consulted --------------
+
+select pg_temp.become_anon();
+
+select throws_ok(
+  $$ select public.set_announcement_visible(false, now()) $$,
+  '42501', null, 'anon cannot execute set_announcement_visible');
+
+select throws_ok(
+  $$ select public.announcement_visibility(a) from public.announcement a $$,
+  '42501', null, 'anon cannot execute announcement_visibility either');
+
+reset role;
+
+
+-- --- 10g. An expired message is not restored, and is not made publicly eligible ----
+--
+-- The one honest race this operation has: Fortryd is offered for about ten seconds, and
+-- an expiry can pass inside them. Writing `is_visible = true` on an expired row would
+-- put `true` into a column the anonymous policy goes on filtering out, and the screen
+-- would report a message put back that no guest can read.
+
+select pg_temp.reset_fixture();
+delete from public.audit_log;
+
+update public.announcement
+   set is_visible = false,
+       expires_at = now() - interval '1 minute';
+
+select pg_temp.become_staff();
+
+select is(
+  (select public.set_announcement_visible(true, pg_temp.version()) ->> 'status'),
+  'not_showable',
+  'an expired announcement is not restored by an undo');
+select is(
+  (select public.set_announcement_visible(true, pg_temp.version()) ->> 'reason'),
+  'expires_at',
+  'and the refusal names the rule it broke (1ac: udloeb er paakraevet)');
+
+reset role;
+
+select is((select is_visible from public.announcement), false,
+  'the refusal wrote nothing');
+select is(pg_temp.audit_total(), 0::bigint,
+  'and logged nothing');
+select cmp_ok((select expires_at from public.announcement), '<', now(),
+  'and did not extend the expiry to make itself succeed');
+
+select pg_temp.become_anon();
+select is(pg_temp.public_rows(), 0::bigint,
+  'expired content does not become publicly eligible merely because visibility was asked for');
+reset role;
+
+
+-- --- 10h. Nor is a message that does not exist ------------------------------------
+
+select pg_temp.reset_fixture();
+update public.announcement set is_visible = false, message = null;
+
+select pg_temp.become_staff();
+
+select is(
+  (select public.set_announcement_visible(true, pg_temp.version()) ->> 'reason'),
+  'message',
+  'a blank announcement is not switched on either');
+
+reset role;
+
+
+-- --- 10i. The off direction is never refused --------------------------------------
+--
+-- A message that can no longer be shown is exactly the one somebody may still want
+-- switched off. An operation whose whole purpose is "stop this now" must not have a
+-- state it declines to stop.
+
+select pg_temp.reset_fixture();
+update public.announcement set expires_at = now() - interval '1 minute';
+
+select pg_temp.become_staff();
+
+select is(
+  (select public.set_announcement_visible(false, pg_temp.version()) ->> 'status'),
+  'updated',
+  'an expired-but-still-flagged announcement can still be switched off');
+
+reset role;
+
+
+-- --- 10j. A call that names no intent ----------------------------------------------
+
+select pg_temp.reset_fixture();
+delete from public.audit_log;
+select pg_temp.become_staff();
+
+select is(
+  (select public.set_announcement_visible(null, pg_temp.version()) ->> 'status'),
+  'invalid_request',
+  'a call naming no state is refused before the row is even read');
+
+reset role;
+select is(pg_temp.audit_total(), 0::bigint,
+  'and it wrote no audit row');
+
 
 select * from finish();
 rollback;

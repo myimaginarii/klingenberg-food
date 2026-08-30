@@ -30,8 +30,10 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
  * {@link AnnouncementValues} — a draft cannot carry it, which is what §6's immediate path
  * requires. It is returned beside the values, from the **live** row, because the state
  * banner has to say what is true of the hjemmeside rather than what a draft proposes.
- * Nothing in phase 7A writes it except `publish_announcement()`; the control that turns
- * it off — 1ad's "Vis besked" switch and "Fjern beskeden nu" — is phase 7B.
+ * Exactly two things write it, and neither is a draft: `publish_announcement()` sets it
+ * (1ad — Offentliggør is how a message reaches the hjemmeside), and
+ * `set_announcement_visible()` moves it for §6's immediate path — 1ad's "Vis besked"
+ * switch and "Fjern beskeden nu", built in phase 7B (§0g).
  */
 
 type AnnouncementRow = {

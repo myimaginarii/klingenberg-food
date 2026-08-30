@@ -5,11 +5,17 @@ import {
   AnnouncementMalformedDraftNotice,
   AnnouncementPendingNotice,
   AnnouncementStatusNotice,
+  AnnouncementVisibilityUndo,
 } from '@/components/admin/announcement/AnnouncementNotices'
 import {
   AnnouncementStateBadge,
   AnnouncementStateBanner,
 } from '@/components/admin/announcement/AnnouncementStateBanner'
+import {
+  AnnouncementVisibilityCard,
+  RemoveAnnouncementNowButton,
+  type AnnouncementVisibilityForm,
+} from '@/components/admin/announcement/AnnouncementVisibility'
 import { AdminSectionBar, BarLink, BarSubmit } from '@/components/admin/menu/AdminSectionBar'
 import { parseExpiryInstant } from '@/lib/announcements/expiry'
 import {
@@ -23,6 +29,7 @@ import {
   describePublishObstacle,
 } from '@/lib/announcements/lifecycle'
 import { resolveAnnouncementLink } from '@/lib/announcements/link'
+import { describeAnnouncementVisibilityChange } from '@/lib/announcements/visibility'
 import { requireStaff } from '@/lib/auth/guards'
 import { readAdminAnnouncement } from '@/lib/content/announcement-admin'
 import { readOpeningHours } from '@/lib/content/hours'
@@ -34,6 +41,7 @@ import {
   ANNOUNCEMENT_ERROR_FIELD,
   ANNOUNCEMENT_ERROR_MESSAGES,
   ANNOUNCEMENT_FORM,
+  ANNOUNCEMENT_VISIBILITY_FORM,
   announcementErrorField,
   announcementFormValues,
   decodeAnnouncementErrors,
@@ -45,26 +53,34 @@ import {
 import { publishAnnouncement } from './publish-actions'
 import { ANNOUNCEMENT_PARAM, EDITOR_ANCHOR } from './routes'
 import { saveAnnouncementDraft } from './save-actions'
+import { setAnnouncementVisibility } from './visibility-actions'
 
 /**
- * Besked på hjemmesiden — design 1ad; technical plan §15 (phase 7A), §6, §7c.
+ * Besked på hjemmesiden — design 1ad; technical plan §15 (phases 7A and 7B), §6, §7c.
  *
  * SCOPE. The message, its optional link, its **required future** expiry with 1ad's
  * suggestion chips, the live "sådan ser den ud" panel, the computed state of what the
- * hjemmeside is showing, and Forhåndsvis → Offentliggør through phase 4's machinery.
+ * hjemmeside is showing, Forhåndsvis → Offentliggør through phase 4's machinery, and —
+ * since phase 7B — 1ad's two immediate controls with their ~10 s Fortryd.
  *
- * **The immediate path is not here**, and its absence is deliberate rather than an
- * omission. §6's table names four immediate operations; two of them belong to this
- * entity — "Vis besked" off / "Fjern beskeden nu", and replacing an active announcement
- * with its ten-second Fortryd — and both are phase 7B. 1ad draws them, and 1ad also
- * draws the line this phase stops at: *"Skrive eller ændre → tre trin"* on one side,
- * *"Fjerne → ét tryk"* on the other. Everything on this screen is on the first side.
- * Nothing here writes `is_visible`, `previous`, `replaced_at` or `source`, and there is
- * no RPC, no action and no form by which it could.
+ * **BOTH OF 1ad's SIDES ARE NOW ON THIS SCREEN, AND THEY STAY APART.** The frame draws
+ * the line itself: *"Skrive eller ændre → tre trin. Ret → Forhåndsvis → Offentliggør."*
+ * against *"Fjerne → ét tryk."* Everything inside `AnnouncementEditor` is on the first
+ * side and reaches the hjemmeside only through Offentliggør; the "Vis besked" card above
+ * the editor and "Fjern beskeden nu" beneath it are on the second and reach it at once.
+ * They are two entrances to **one** operation — `setAnnouncementVisibility` — which
+ * writes `is_visible` and nothing else.
  *
- * **Opening-hours announcements are not here either.** A message generated from a one-off
- * override, `source='opening_hours'`, and 1ae's conflict sheet are phase 8. `source` is
- * read and displayed by nothing on this screen; it is never written.
+ * **What the immediate path still does not do.** It never publishes a draft, never writes
+ * `previous` or `replaced_at`, and never writes `source`. Replacing an active
+ * announcement, restoring the one it replaced, generated opening-hours messages
+ * (`source='opening_hours'`) and 1ae's conflict sheet are **phase 8**. There is no RPC, no
+ * action and no form on this screen by which any of them could happen.
+ *
+ * **Turning a bar back on is Offentliggør**, not the switch (§6's table names the *off*
+ * direction only; §0f names the on direction). The one exception is Fortryd, which
+ * restores the visibility of the **same, unchanged, already published** announcement for
+ * about ten seconds after the press that removed it.
  *
  * `requireStaff()` is called here, in the page. `proxy.ts` also redirects an
  * unauthenticated visitor, but that is convenience — this call is the enforcement (§5),
@@ -83,9 +99,11 @@ import { saveAnnouncementDraft } from './save-actions'
  *     chip and the hjemmeside from disagreeing about when the doors shut.
  *
  * All the state this screen has is in the URL (`./routes.ts`), so there is nothing in the
- * browser to keep in step with the server, and **no client component at all**. Everything
- * that decides anything — the computed state, the chips, whether Offentliggør is
- * available — is decided on the server.
+ * browser to keep in step with the server, and the only client component is the
+ * `AutoDismiss` inside the Fortryd strip — which decides how long a *message* stays on
+ * screen and nothing else. Everything that decides anything — the computed state, the
+ * chips, whether Offentliggør is available, whether a Fortryd is offered — is decided on
+ * the server, and the strip and its undo work with JavaScript switched off.
  */
 
 /** A repeated parameter is a malformed request, not two answers: take the first. */
@@ -216,6 +234,28 @@ export default async function AnnouncementAdminPage({
 
   const publishObstacleId = 'offentliggoer-hvorfor-ikke'
 
+  /*
+   * 1ad's two immediate controls, and the Fortryd that follows either — one action, one
+   * vocabulary, handed to every control that submits it. `is_visible` is read from the
+   * live row, so the switch reports the hjemmeside rather than a draft.
+   */
+  const visibilityForm: AnnouncementVisibilityForm = {
+    action: setAnnouncementVisibility,
+    fieldNames: ANNOUNCEMENT_VISIBILITY_FORM,
+  }
+
+  // Nothing to remove when there is no published message: 1ac's rule for the bar itself,
+  // applied to the controls that take it down. The state banner says what is true instead.
+  const hasPublishedMessage =
+    announcement.live.message !== null && announcement.live.message.trim().length > 0
+  const canRemoveNow = hasPublishedMessage && announcement.isVisible
+
+  // The Fortryd offer, entirely from the URL the action redirected to. A missing version
+  // or a missing state is no offer at all; neither value is authority, and pressing the
+  // strip is re-authorized, re-validated and concurrency-checked like any other write.
+  const undoVersion = one(params[ANNOUNCEMENT_PARAM.undoVersion])
+  const undoVisible = one(params[ANNOUNCEMENT_PARAM.undoVisible])
+
   return (
     <>
       <AdminSectionBar backHref="/admin" backLabel="Oversigt" title="Besked på hjemmesiden">
@@ -243,6 +283,22 @@ export default async function AnnouncementAdminPage({
         <AnnouncementMalformedDraftNotice malformed={announcement.draftMalformed} />
 
         {/*
+          The ~10 s Fortryd (§6, 1aa). The change is already live when this renders: the
+          column moved, the `announcement` tag was expired and an audit row was written
+          before the redirect that produced this URL.
+        */}
+        {undoVersion === undefined || undoVisible === undefined ? null : (
+          <AnnouncementVisibilityUndo
+            form={visibilityForm}
+            // The strip reports the state the bar is in **now**, which is the opposite of
+            // what Fortryd would restore.
+            message={describeAnnouncementVisibilityChange({ visible: undoVisible !== '1' })}
+            restoreVisible={undoVisible === '1'}
+            version={undoVersion}
+          />
+        )}
+
+        {/*
           1ad: "Offentliggør er nedtonet, indtil feltet er gyldigt." A greyed-out control
           with no reason beside it is a dead end, so the reason is a real element the
           button points at with `aria-describedby` — which is also how a screen reader
@@ -265,7 +321,22 @@ export default async function AnnouncementAdminPage({
           sentence={pending}
         />
 
-        <AnnouncementStateBanner state={state} />
+        <AnnouncementStateBanner showRemoval={canRemoveNow} state={state} />
+
+        {/*
+          1ad draws "Vis besked" in its own white card **above** the editor, and that is
+          where it is: the one control on this screen that changes the hjemmeside without
+          a publish is kept visually apart from the fields that all wait for one (1aa).
+          It renders nothing at all when there has never been a published message —
+          there is no bar to show or hide, and the state banner already says so.
+        */}
+        {hasPublishedMessage ? (
+          <AnnouncementVisibilityCard
+            form={visibilityForm}
+            version={announcement.updatedAt}
+            visible={announcement.isVisible}
+          />
+        ) : null}
 
         <AnnouncementEditor
           action={saveAnnouncementDraft}
@@ -281,6 +352,20 @@ export default async function AnnouncementAdminPage({
           values={values}
           version={announcement.updatedAt}
         />
+
+        {/*
+          1ad's footer control, in the footer position the frame draws it in — beneath the
+          card, and deliberately **not** beside Forhåndsvis and Offentliggør in the bar.
+          The frame separates the two kinds of action with two coloured explainer cards
+          ("tre trin" against "ét tryk"), and putting the one press among the three steps
+          would collapse the distinction the frame exists to draw.
+
+          It is the second entrance to the same operation as the switch above: same
+          fields, same action, same database function, same audit row.
+        */}
+        {canRemoveNow ? (
+          <RemoveAnnouncementNowButton form={visibilityForm} version={announcement.updatedAt} />
+        ) : null}
       </main>
     </>
   )

@@ -3,6 +3,47 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 7B — no dependencies added (2026-08-30)
+
+Phase 7B (the immediate announcement path — "Vis besked" off, "Fjern beskeden nu" and the
+~10 s Fortryd; technical plan §0g) added **nothing**: no runtime dependency, no
+development dependency, and no npm package of any kind. One migration adds two functions;
+everything else is TypeScript, JSX and tokens that already existed.
+
+### No toast library, and no second toast system
+
+1aa fixes the behaviour this phase needed — *"Beskeder forsvinder efter 5 sek. — dog 10
+sek., når de indeholder Fortryd. De stjæler aldrig tastaturfokus."* — and phase 5C already
+built it: `components/admin/menu/UndoStrip.tsx` and `AutoDismiss.tsx`, the same pair the
+sold-out and delete paths use. Phase 7B **reuses both unchanged** and adds only the half
+that is about this operation: which fields the Fortryd form submits
+(`AnnouncementVisibilityUndo`). A notification library would have replaced a working
+twenty-line component with a dependency that has its own focus behaviour to argue with.
+
+### No state library for the undo offer either
+
+The offer is two query parameters (`fortryd_version`, `fortryd_vis`), which is where every
+other immediate path in this administration keeps it. Neither is authority: the Server
+Action re-authorizes, re-validates and re-checks the version token, so a hand-typed
+address can produce a strip and pressing it is refused exactly as any other forged request
+is. Nothing about the undo lives in the browser, so nothing needed a store.
+
+### Two migration functions, and what they do not contain
+
+`20260830180000_announcement_visibility.sql` adds `public.announcement_visibility()` — the
+one-field audit shape, the announcement's equivalent of `dish_availability()` — and
+`public.set_announcement_visible()`. No new table, no view, no trigger, no index, no
+policy and no new column. The UPDATE names **one** column, so `message`, all four link
+columns, `expires_at`, `source`, `draft` and — deliberately — `previous` and `replaced_at`
+appear in no statement in the file. Replacing an active announcement is phase 8;
+`supabase/tests/012_announcement.test.sql` asserts that no function for it exists.
+
+### `npm audit --audit-level=high` — clean
+
+Re-run from a clean `npm ci` on 2026-08-30 as part of the phase 7B regression:
+**0 vulnerabilities** over the full resolved tree. The pinned set below is unchanged since
+phase 4.
+
 ## Phase 7A — no dependencies added (2026-08-30)
 
 Phase 7A (the announcement editor, the public bar and the client expiry guard — technical
@@ -58,6 +99,8 @@ answer phases 6A and 6B recorded.
 `public.publish_announcement`. No new table, no view, no trigger, no index, no grant, no
 policy, and **no immediate-path RPC** — that is phase 7B, and
 `supabase/tests/012_announcement.test.sql` asserts that no such function exists yet.
+*(Updated 2026-08-30: phase 7B added it. That assertion now says the visibility RPC exists
+and that no **replacement** RPC does — see the 7B entry above.)*
 
 ### `npm audit --audit-level=high` — clean
 
