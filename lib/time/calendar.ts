@@ -120,6 +120,26 @@ export function parseIsoDate(value: IsoDate): CalendarDate {
   return candidate
 }
 
+/**
+ * Is this a `YYYY-MM-DD` date that exists in the calendar?
+ *
+ * The predicate form of {@link parseIsoDate}, for the one place a malformed value is
+ * *expected* rather than a programmer error: a date field somebody typed into. Every
+ * other caller in this repository holds a value the database already validated, and for
+ * those a throw is the right answer — which is why this is a second, narrow export
+ * rather than a softening of the parser.
+ */
+export function isIsoDate(value: unknown): value is IsoDate {
+  if (typeof value !== 'string') return false
+
+  try {
+    parseIsoDate(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** Render a calendar date as `YYYY-MM-DD`. */
 export function formatIsoDate({ year, month, day }: CalendarDate): IsoDate {
   const pad = (part: number, width: number) => String(part).padStart(width, '0')

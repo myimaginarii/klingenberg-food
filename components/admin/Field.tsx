@@ -144,6 +144,48 @@ export function TextField({
   )
 }
 
+/**
+ * A calendar date — design 1ah's "Startdato" and "Slutdato".
+ *
+ * `type="date"` rather than a written-out day/month/year triple or a JavaScript date
+ * picker. Three reasons, in the order they matter here:
+ *
+ *   * it is the control the **phone** already has, and §15 (phase 12) calls the phone
+ *     the primary admin device — a native wheel beats three text fields at 375 px;
+ *   * its value is `YYYY-MM-DD`, which is exactly what the column stores and exactly
+ *     what `lib/time/calendar.ts` calls a civil date, so nothing converts anything;
+ *   * it needs no JavaScript at all. Where the browser has no date control the element
+ *     degrades to a text field, and the server parses the value either way — a date
+ *     that is not a real calendar date is refused with a sentence, not a stack trace.
+ *
+ * The field is not given a `min` or a `max`. A window in the past is a legitimate thing
+ * to type — §7d asks the administration to *warn* about one at publish, which is a very
+ * different thing from making it unenterable — and a browser-enforced bound would be a
+ * rule the server did not state.
+ */
+export function DateField({
+  id,
+  name,
+  label,
+  defaultValue,
+  hint,
+  error,
+}: Omit<FieldProps, 'inputMode' | 'autoComplete' | 'maxLength' | 'labelledBy' | 'required'>) {
+  return (
+    <FieldShell id={id} label={label} hint={hint} error={error}>
+      <input
+        aria-describedby={describedBy(id, hint, error)}
+        aria-invalid={error === undefined ? undefined : true}
+        className={controlClass(error !== undefined, 'min-h-12 px-3 tabular-nums')}
+        defaultValue={defaultValue}
+        id={id}
+        name={name}
+        type="date"
+      />
+    </FieldShell>
+  )
+}
+
 export function TextAreaField({
   id,
   name,

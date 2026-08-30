@@ -64,11 +64,20 @@ export function BarLink({ href, children }: { href: string; children: React.Reac
   )
 }
 
-/** "Offentliggør ændringer" — the one filled control on the bar (1r). 44 px, per 1aa. */
-export function BarSubmit({ children }: { children: React.ReactNode }) {
+/**
+ * "Offentliggør ændringer" — the one filled control on the bar (1r). 44 px, per 1aa.
+ *
+ * `id` is optional and exists for one reason: a screen whose publish opens a
+ * confirmation has to be able to send focus **back to this button** when the
+ * confirmation is dismissed, and it does that through the address (`#…`) rather than
+ * through a script — see `ModalDialog`. A bar without such a dialog passes nothing and
+ * renders exactly as before.
+ */
+export function BarSubmit({ children, id }: { children: React.ReactNode; id?: string }) {
   return (
     <button
       className="rounded-field text-brand-700 min-h-tap inline-flex items-center bg-white px-4 text-meta font-semibold hover:bg-brand-50"
+      id={id}
       type="submit"
     >
       {children}

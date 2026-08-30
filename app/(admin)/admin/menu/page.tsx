@@ -10,9 +10,11 @@ import { DishList } from '@/components/admin/menu/DishList'
 import { TapasEditor } from '@/components/admin/menu/TapasEditor'
 import { MenuPendingNotice } from '@/components/admin/menu/MenuPendingNotice'
 import { MenuStatusNotice } from '@/components/admin/menu/MenuStatusNotice'
+import { MonthlyBurgerNotice } from '@/components/admin/menu/MonthlyBurgerNotice'
 import { WeeklySpecialNotice } from '@/components/admin/menu/WeeklySpecialNotice'
 import { requireStaff } from '@/lib/auth/guards'
 import { readOpeningHours } from '@/lib/content/hours'
+import { readAdminMonthlyBurger } from '@/lib/content/monthly-admin'
 import {
   readAdminMenuContent,
   readDeletedDish,
@@ -25,6 +27,10 @@ import {
   mayHoldDishes,
 } from '@/lib/menu/admin'
 import { describeDishDeleted, describeDishDeletion } from '@/lib/menu/delete'
+import {
+  describeMonthlyState,
+  MONTHLY_BURGER_MENU_SECTION_SLUG,
+} from '@/lib/menu/monthly'
 import { isMenuPublishable } from '@/lib/menu/pending'
 import { describeAvailabilityChange } from '@/lib/menu/sold-out'
 import { readPendingChanges } from '@/lib/publishing/pending'
@@ -60,6 +66,7 @@ import {
 import { saveDishDraft } from './save-actions'
 import { editTapasList } from './tapas-actions'
 import { readTapasEcho, TAPAS_ACTION, TAPAS_FORM, tapasEditorGroups } from './tapas-form'
+import { MONTHLY_PATH } from './maanedens-burger/routes'
 import { WEEKLY_PATH } from './ugens-ret/routes'
 
 /**
@@ -192,11 +199,15 @@ export default async function MenuAdminPage({
 }) {
   await requireStaff()
 
-  const [params, menu, hours, pending] = await Promise.all([
+  const [params, menu, hours, pending, monthly] = await Promise.all([
     searchParams,
     readAdminMenuContent(),
     readOpeningHours(),
     readPendingChanges(),
+    // Only for the shortcut card under Burgere: the editor is elsewhere, and this screen
+    // never writes the row. It is read here rather than guessed at so the card can say
+    // what is actually on the hjemmeside (§7d) instead of a generic "rediger den her".
+    readAdminMonthlyBurger(),
   ])
 
   const sections = groupDishesBySection(menu.categories, menu.dishes)
@@ -383,6 +394,21 @@ export default async function MenuAdminPage({
                 href={WEEKLY_PATH}
               />
             )}
+
+            {/*
+              Månedens burger is not a section and has no chip (§4): it is the
+              `monthly_burger` singleton with its own editor (1ah). A guest meets it at
+              the end of Burgere (1h), so the way to it sits at the end of the same
+              section here — the place on this screen that corresponds to the place on
+              the menu.
+            */}
+            {activeSection.category.slug === MONTHLY_BURGER_MENU_SECTION_SLUG &&
+            monthly !== null ? (
+              <MonthlyBurgerNotice
+                href={MONTHLY_PATH}
+                state={describeMonthlyState(monthly.live, now).sentence}
+              />
+            ) : null}
           </div>
 
           {editorOpen ? (

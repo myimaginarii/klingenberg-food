@@ -60,6 +60,7 @@ export default defineConfig({
         'e2e/menu-reorder.spec.ts',
         'e2e/menu-tapas.spec.ts',
         'e2e/weekly-special.spec.ts',
+        'e2e/monthly-burger.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -74,6 +75,7 @@ export default defineConfig({
         'e2e/menu-reorder.spec.ts',
         'e2e/menu-tapas.spec.ts',
         'e2e/weekly-special.spec.ts',
+        'e2e/monthly-burger.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -220,6 +222,30 @@ export default defineConfig({
       name: 'weekly-special-mobile',
       testMatch: 'e2e/weekly-special.spec.ts',
       dependencies: ['weekly-special'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    /*
+     * Månedens burger (phase 6B), at both widths, and chained after the weekly runs for
+     * the reason every write suite is chained: it publishes, publishing expires the
+     * `monthly` cache tag, and the guest assertions read the Forside — the one page whose
+     * content several of these suites can move at once. Running it beside another writer
+     * would make "the forside section is absent" a coin toss.
+     *
+     * Two widths rather than one, because 1ah's promise on a phone is specific: a long
+     * form that stays legible, two date fields that stay 44 px and tappable, and no
+     * sideways scrolling. Each run leaves the singleton empty and published, which is
+     * where the seed leaves it — 1ab lists Månedens burger as still outstanding.
+     */
+    {
+      name: 'monthly-burger',
+      testMatch: 'e2e/monthly-burger.spec.ts',
+      dependencies: ['weekly-special-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: 'monthly-burger-mobile',
+      testMatch: 'e2e/monthly-burger.spec.ts',
+      dependencies: ['monthly-burger'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
   ],

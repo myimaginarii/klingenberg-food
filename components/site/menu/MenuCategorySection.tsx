@@ -1,3 +1,4 @@
+import { MONTHLY_BURGER_MENU_SECTION_SLUG } from '@/lib/menu/monthly'
 import type { MenuCategoryView, MonthlyBurgerView, WeeklySpecialView } from '@/lib/menu/view'
 
 import { DishCard } from './DishCard'
@@ -22,7 +23,7 @@ import { WeeklySpecial } from './WeeklySpecial'
  * The one placement that is genuinely fixed by the design rather than by data is
  * Månedens burger, which sits at the end of Burgere (1h).
  */
-const MONTHLY_BURGER_CATEGORY_SLUG = 'burgere'
+const MONTHLY_BURGER_CATEGORY_SLUG = MONTHLY_BURGER_MENU_SECTION_SLUG
 
 export function MenuCategorySection({
   category,

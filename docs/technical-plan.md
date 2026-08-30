@@ -127,9 +127,11 @@ nobody approved. It should be designed first and built in the phase that gets a 
 
 Phase 6 (§15) has two halves that share a table row and nothing else. **6A — Ugens ret
 and Lørdagsmenu (frame 1ag, every public state in 1af) — is built and green.** 6B —
-Månedens burger (frame 1ah) — is not started. This section records what 6A *is*, so a
-later reader does not have to reconstruct it, and so the boundary between the two is a
-written rule rather than an assumption.
+Månedens burger (frame 1ah) — is now built and green too, and is recorded separately in
+§0d. This section records what 6A *is*, so a later reader does not have to reconstruct
+it, and so the boundary between the two is a written rule rather than an assumption.
+**Phase 6 as a whole is not yet locked**: a completion pass over both halves, of the kind
+§0b records for phase 5, still has to be run.
 
 **What phase 6A contains:**
 
@@ -173,7 +175,63 @@ seven at once *is* the information.
 | Not in 6A | Owned by | Note |
 |---|---|---|
 | The image control ("Billede (valgfrit)", "Vælg billede") | phase 10 (1w) | The same phase boundary 1r's `FOTO` frame had in phase 5 (§0b). `image_id` is consequently owned by no editor yet — and is cleared by neither of 1ag's two, so a value phase 10 writes cannot be wiped by somebody saving a price. |
-| Månedens burger | **phase 6B** (1ah) | A different singleton, a different shape, a different notion of "the previous one" (§7d's date window rather than a week number). No generic "special content" framework was built for it, and none should be. |
+| Månedens burger | **phase 6B** (1ah) — now built, see §0d | A different singleton, a different shape, a different notion of "the previous one" (§7d's date window rather than a week number). No generic "special content" framework was built for it, and none was: 6B is a second concrete editor beside this one, not a generalisation of it. |
+
+---
+
+## 0d. Phase 6B — Månedens burger, complete (2026-08-30)
+
+**6B — Månedens burger (frame 1ah, §7d) — is built and green.** It is the second half of
+phase 6 and shares with 6A a table-shaped resemblance and nothing else. This section
+records what 6B *is*, and — more usefully — the three readings it had to settle.
+
+**What phase 6B contains:**
+
+| Capability | Path | Where it lives |
+|---|---|---|
+| The editor — name, description, price, and 1ah's "Ryd felterne" | Kladde → Forhåndsvis → Offentliggør (§6) | `app/(admin)/admin/menu/maanedens-burger/`, `components/admin/monthly/` |
+| The date window — `starts_on` / `ends_on`, Copenhagen-local, inclusive at both ends | draft | `lib/menu/monthly.ts` (`monthlyWindowPhase`) |
+| **"Vis på forsiden"** — an ordinary draft field governing the burger's **own** Forside section | draft | `monthlyBurgerDraft.show_on_homepage`, `selectHomepageMonthlyBurger` |
+| The computed state §7d asks for — *"Offentliggjort — vises fra 1. september"*, *"Vises nu — til og med 30. september"*, *"Udløbet den 30. september"* | — | `describeMonthlyState` |
+| §7d's publish-time warnings — an expired window asks first; a future start publishes and says when it will appear | — | `monthlyPublishOutlook`, `publish-actions.ts` |
+| Tilgængelig / Udsolgt with the §7b reset sentence and its ~10 s Fortryd | **immediate** (§6) | `lib/menu/monthly-availability.ts`, `set_monthly_burger_sold_out()` |
+| Publishing this screen's scope through phase 4, unchanged | — | `publish_monthly_burger()` (phase 4) |
+
+**One migration, two functions, no new entity.** `monthly_burger` was already a
+publishable entity with a draft column and a publish function (phase 4);
+`20260830140000_monthly_burger_admin.sql` adds only what the *non*-publish operation
+needs — `monthly_burger_availability()` and `set_monthly_burger_sold_out()`. No table, no
+view, no trigger, no scheduled anything. There is deliberately **no second monthly-burger
+publishing path**, and the third immediate-path function is a third written-out function
+rather than a parameterised one: `dishes` carries attribution columns, `weekly_special`
+carries two sold-out columns and needs a target, and `monthly_burger` is a singleton with
+one column and neither — a function taking a table, a column and an attribution policy as
+arguments is a function that can be pointed at a table nobody reviewed.
+
+**Three readings this phase had to settle, recorded so they are decisions rather than
+accidents:**
+
+| # | Question | The reading, and why |
+|---|---|---|
+| A | **What "Vis på forsiden" governs, and what wording ships.** | It governs the Forside's **dedicated Månedens burger section** and nothing else. 1ah's drawn helper line — *"Optager en af de tre pladser under 'Tre fra menuen'"* — describes the rule the approved requirement change of 29 August 2026 withdrew, and §7e item 3 instructs phase 6 to ship different wording. What ships is `MONTHLY_HOMEPAGE_HELP`: **"Vises som sit eget afsnit på forsiden — den tager ikke en af de tre pladser under 'Tre fra menuen'."** The approved frame is left as drawn; the string is stated once, asserted by the unit suite, and the E2E suite asserts the withdrawn sentence appears nowhere on the screen. |
+| B | **What "Ryd felterne" clears.** | The three things somebody types about the food — `name`, `description`, `price_ore`. **Not** the period, which is when the slot runs rather than what is in it, and which a person filling in next month's burger would only have to type again; **not** "Vis på forsiden", which is a setting about where the slot appears and is the same answer month after month; **not** `image_id`, which no editor owns before phase 10; and **not** `sold_out_on`, which is not a draft field at all (§6) and which no code path here can reach. That is §0c reading A applied to the control 1ah draws instead of a week dropdown: "the form" means the words about the food. It is an ordinary draft change, so it needs no confirmation — the hjemmeside is untouched and the result is on screen. |
+| C | **Whether §7d's two window warnings are the same kind of thing.** | They are not, and the difference is the whole of §7d's intent. An **`ends_on` already in the past** is a *question*: the first press of Offentliggør publishes nothing and comes back with the approved confirmation, and only a form carrying the confirmation's own field goes through. A **future `starts_on`** is *the intended workflow*: it publishes, and the screen then states the date twice — in the success message and in the standing computed state. Neither warning writes a date; a warning that quietly corrected the window would be an administration deciding what somebody meant. |
+
+**Three things 1ah draws that phase 6B deliberately does not build, or builds
+differently:**
+
+| Not as drawn | Why |
+|---|---|
+| The image control ("Billede (valgfrit)", "Vælg billede") | phase 10 (1w), the same boundary 1r's `FOTO` frame and 1ag's image slot had. `image_id` is consequently owned by no editor yet — and is in neither this editor's field list nor "Ryd felterne"'s, so a value phase 10 writes cannot be wiped by somebody saving a price. |
+| One "Forhåndsvis" in the footer | **Two**, in the bar: "Forhåndsvis forsiden" and "Forhåndsvis menuen". Månedens burger is the only content in the system that lives on two public pages under two different rules — the menu card follows the window alone, the Forside section follows the window *and* the toggle — so one link could only ever show half of what a person just changed, and the half it hid would be the toggle's. Ugens ret needs one link because it appears in one place. |
+| "Forhåndsvis" and "Offentliggør" in the card's footer | In the burgundy bar, as 6A already does for the same reason: they are the screen's actions rather than the card's, and the bar is where every other section screen puts them. "Ryd felterne" stays in the card's footer, where the frame draws it. |
+
+**The three concepts §7d keeps apart are kept apart in the code**, because collapsing any
+two of them produces an administration that cannot answer *"why is my burger not on the
+forside?"*: whether the burger **exists** (a published `name`), whether today is **inside
+its window**, and whether it is **configured for the Forside section**
+(`show_on_homepage`). `monthlyAdminState` returns all three, and the screen prints the
+menu's consequence and the Forside's consequence as two separate sentences.
 
 ---
 
@@ -276,7 +334,7 @@ app/
     page.tsx                    # Oversigt (1q / 1x)
     menu/page.tsx               # Rediger menu (1r / 1y)
     menu/ugens-ret/            # (1ag) + "Kopiér sidste uge" — built in phase 6A
-    menu/maanedens-burger/page.tsx
+    menu/maanedens-burger/page.tsx  # (1ah) + the date window — built in phase 6B
     nyheder/page.tsx
     nyheder/[id]/page.tsx       # editor (1s / 1z)
     besked/page.tsx             # (1ad)
@@ -657,12 +715,15 @@ and the no-database-request constraint is what makes this component acceptable i
 - Publishing with `ends_on` already in the past warns first ("Denne periode er allerede forbi — den
   vises ikke på hjemmesiden"). Publishing with a future `starts_on` is allowed and the confirmation
   states exactly when it will appear — that is the intended workflow.
+- *Built in phase 6B; **§0d reading C** records why those two are not the same kind of thing — one is
+  a question that publishes nothing until it is answered, the other is a fact the screen states after
+  publishing — and that neither of them writes a date.*
 
 ### 7e. Remaining edge cases and their rules
 
 1. **Dashboard "Offentliggør ændringer" publishes another person's unfinished draft.** The confirmation lists each pending item with who last edited it; items can be unchecked.
 2. **Concurrent edits.** Optimistic concurrency on `updated_at`; on conflict show "Nogen andre har rettet dette" rather than silently overwriting.
-3. **Månedens burger + Udvalgte burgere.** *Superseded — approved requirement change, 29 August 2026.* The forside has a **dedicated Månedens burger section** in addition to its three featured dishes, not instead of one of them. "Vis på forsiden" (`show_on_homepage`) governs that section alone: publishing or displaying Månedens burger never displaces a featured dish, and there is no slot arithmetic and no "pushed out" note. The section renders only when the burger has content, today is inside its window and `show_on_homepage` is true; otherwise the forside omits it entirely, with **no public placeholder text**. Design 1ah's toggle helper still reads "Optager en af de tre pladser under ‘Tre fra menuen’"; the approved frame is left as drawn, and phase 6 must ship the toggle with wording that matches this rule instead — e.g. "Vises som sit eget afsnit på forsiden".
+3. **Månedens burger + Udvalgte burgere.** *Superseded — approved requirement change, 29 August 2026.* The forside has a **dedicated Månedens burger section** in addition to its three featured dishes, not instead of one of them. "Vis på forsiden" (`show_on_homepage`) governs that section alone: publishing or displaying Månedens burger never displaces a featured dish, and there is no slot arithmetic and no "pushed out" note. The section renders only when the burger has content, today is inside its window and `show_on_homepage` is true; otherwise the forside omits it entirely, with **no public placeholder text**. Design 1ah's toggle helper still reads "Optager en af de tre pladser under ‘Tre fra menuen’"; the approved frame is left as drawn, and phase 6 must ship the toggle with wording that matches this rule instead. **Built in phase 6B (§0d reading A).** The string that ships is stated once, as `MONTHLY_HOMEPAGE_HELP` in `lib/menu/monthly.ts`, and it is: **"Vises som sit eget afsnit på forsiden — den tager ikke en af de tre pladser under ‘Tre fra menuen’."** The unit suite asserts it says what it says; the E2E suite asserts the withdrawn sentence appears nowhere on the screen and that the Forside still renders exactly three featured dishes throughout.
 4. **Deleting a dish that is featured on the forside.** *Corrected — see §0a D1; the "warn and then null the reference" rule stated here in revisions 1 and 2 is withdrawn.* The binding rule, as built in phase 5D:
    - **Staff may delete dishes** (§5, first row of the matrix). Owner may too.
    - **`pages.home` stays Owner-only.** A deletion writes `deleted_at` and its attribution column on `dishes` and nothing else. No statement in the deletion path names `public.pages`, and the function is SECURITY INVOKER, so a Staff caller holds no privilege over the `home` row while it runs.
@@ -1051,7 +1112,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 3 | Public read-only site | All six pages rendered from seeded data, responsive per 1g–1o, header/footer/bottom-nav, **static map placeholder + directions link**, no announcement bar yet | Design review against 1g–1o; axe clean; Lighthouse ≥95; the page works with JS off |
 | 4 | Draft/publish core | `draft` overlay, publish transaction, Draft Mode preview, audit log, dashboard pending-changes view with per-item attribution | Change a `pages.home` value → invisible until publish |
 | 5 | Menu administration | Category tabs, dish CRUD, reorder, side panel, Kladde badges, **immediate Udsolgt with 10 s Fortryd and the computed reset label**, **tapas list editor**, soft delete | E2E 2, 3 and 10 pass |
-| 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (pending):** Månedens burger with its date window and computed admin state | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes |
+| 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (done):** Månedens burger with its date window, its computed admin state, "Vis på forsiden" as a normal draft field and its own immediate Udsolgt path | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes — see §0d. **Not locked**: the completion pass over both halves is still outstanding |
 | 7 | Announcements | Bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, live preview, immediate remove | E2E 4 passes, including the no-network assertion |
 | 8 | Opening hours administration | Weekly editor (owner), one-off overrides, generated announcement, **conflict sheet 1ae with both branches** | E2E 5 passes, including "hours always save" |
 | 9 | News | List, editor with structured body, autosave, publish/unpublish, **`/nyheder/[slug]` with the slug policy and `NewsArticle` JSON-LD**, forside teaser | E2E 6 passes, incl. unpublish → 404 |
@@ -1063,8 +1124,13 @@ Each phase ends in something deployable and testable. No phase begins until the 
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-08-30: phases 0–5 are complete, and so is phase 6A.** Phase 5 was closed by a completion pass and is
-recorded in full in §0b, including the five capabilities it delivered and the five things that are
-deliberately outside it. Phase 6 was then split into two increments that share nothing but a
-table row: **6A — Ugens ret and Lørdagsmenu — is complete and recorded in §0c**. The next
-work is **6B, Månedens burger** (frame 1ah, §7d), which is not started.
+**Status, 2026-08-30: phases 0–5 are complete, and so are both halves of phase 6.** Phase 5 was closed by a
+completion pass and is recorded in full in §0b, including the five capabilities it delivered and the
+five things that are deliberately outside it. Phase 6 was then split into two increments that share
+nothing but a table row: **6A — Ugens ret and Lørdagsmenu — is complete and recorded in §0c**, and
+**6B — Månedens burger (frame 1ah, §7d) — is complete and recorded in §0d**.
+
+**Phase 6 is not yet locked.** Both increments are built and green, but the completion pass that
+closed phase 5 — reading the two halves together, checking the frames once more against what
+shipped, and recording the result — has not been run over phase 6. Until it has, §0c and §0d are the
+record of what exists and phase 6 has no §0b of its own.

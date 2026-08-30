@@ -5,6 +5,7 @@ import {
   addDays,
   formatIsoDate,
   formatIsoTime,
+  isIsoDate,
   minutesOfDay,
   parseIsoDate,
   parseIsoTime,
@@ -140,5 +141,41 @@ describe('minutesOfDay', () => {
     expect(minutesOfDay({ hour: 15, minute: 0 })).toBeLessThan(minutesOfDay({ hour: 20, minute: 0 }))
     expect(minutesOfDay({ hour: 0, minute: 0 })).toBe(0)
     expect(minutesOfDay({ hour: 23, minute: 59 })).toBe(1439)
+  })
+})
+
+describe('isIsoDate', () => {
+  it('accepts a date that exists in the calendar', () => {
+    expect(isIsoDate('2026-09-01')).toBe(true)
+    expect(isIsoDate('2028-02-29')).toBe(true)
+  })
+
+  it('refuses a date that is shaped right but is not in the calendar', () => {
+    expect(isIsoDate('2026-02-30')).toBe(false)
+    expect(isIsoDate('2027-02-29')).toBe(false)
+    expect(isIsoDate('2026-13-01')).toBe(false)
+  })
+
+  it('refuses anything that is not a YYYY-MM-DD string', () => {
+    expect(isIsoDate('01.09.2026')).toBe(false)
+    expect(isIsoDate('2026-9-1')).toBe(false)
+    expect(isIsoDate('')).toBe(false)
+    expect(isIsoDate(null)).toBe(false)
+    expect(isIsoDate(20260901)).toBe(false)
+  })
+
+  it('agrees with parseIsoDate, which is the rule it wraps', () => {
+    for (const value of ['2026-09-01', '2026-02-30', 'nonsense']) {
+      const parses = (() => {
+        try {
+          parseIsoDate(value)
+          return true
+        } catch {
+          return false
+        }
+      })()
+
+      expect(isIsoDate(value)).toBe(parses)
+    }
   })
 })

@@ -123,12 +123,20 @@ app/
       page.tsx        the screen; every piece of its state is in the URL (routes.ts)
       *-actions.ts    save · create · publish · availability · delete · reorder · tapas
       *-form.ts       the field names each action parses, strictly, one file each
+      ugens-ret/          Ugens ret & Lørdagsmenu (phase 6A) — its own screen, its own
+                          four vocabularies, the same shape as the folder above it
+      maanedens-burger/   Månedens burger (phase 6B) — the date window, "Vis på
+                          forsiden" and the §7d computed state
     indhold/ login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
   api/preview/        start and stop Draft Mode — staff session required
 proxy.ts              session refresh + unauthenticated redirect. Authorizes nothing.
 components/
   site/               the public site's components
   admin/menu/         the menu administration's components. No business rules here.
+  admin/weekly/       Ugens ret & Lørdagsmenu (phase 6A)
+  admin/monthly/      Månedens burger (phase 6B). Both reuse the menu's presentation
+                      primitives — the switch, the green Fortryd strip, the dialog —
+                      and share no business rules with it or with each other.
 lib/
   config/site.ts      the only place an absolute site URL is produced
   env/server.ts       the only place a server secret is read
@@ -140,7 +148,9 @@ lib/
   auth/               session, and requireStaff() / requireOwner()
   content/            the read layer. `source.ts` is its single door to the database.
   publishing/         drafts, publish, pending changes — the phase-4 machinery
-  menu/               the menu's rules: pricing, labels, sold-out, delete, reorder, tapas
+  menu/               the menu's rules: pricing, labels, sold-out, delete, reorder,
+                      tapas, the weekly special (6A) and the monthly burger (6B). The
+                      last two are two concrete modules, not one generic one.
   hours/ time/        the pure time engines
   schemas/            the Zod shapes every write is re-parsed against
 scripts/
@@ -149,11 +159,12 @@ scripts/
   clear-data-cache.mjs   development only — see "Getting started"
 supabase/
   config.toml       local stack: public signup off, no realtime, mail catcher on
-  migrations/       schema, RLS, the draft/publish core, immediate sold-out, soft delete
+  migrations/       schema, RLS, the draft/publish core, immediate sold-out, soft
+                    delete, the weekly-special admin, the monthly-burger admin
   seed.sql          the confirmed contact, opening-hours and menu facts
   templates/        Danish auth emails, versioned and applied through config.toml
   tests/            pgTAP — the §5 permission matrix, the owner invariant, and every
-                    write path phases 4–5 added
+                    write path phases 4–6 added
 tests/
   unit/             the pure rules, under Vitest
   e2e/ a11y/        Playwright, against a production build; axe at 375 and 1440
@@ -209,16 +220,21 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 6 onward, plus: the weekly off-platform backup workflow
+Everything in §15 from phase 7 onward, plus: the weekly off-platform backup workflow
 (phase 13, §10f) and Sentry (phase 13). `docs/dependencies.md` records which package
-arrives in which phase.
+arrives in which phase. Phase 6 is **built** — 6A (Ugens ret and Lørdagsmenu, §0c) and 6B
+(Månedens burger, §0d) — but **not yet locked**: the completion pass over both halves is
+still outstanding.
 
-Four things the **menu administration** deliberately does not do, and the phase that owns
-each, are listed in technical plan §0b: the Ugens ret and Lørdagsmenu editors and the
-Månedens burger editor (phase 6), and the image library and upload (phase 10). Every dish
-therefore still renders the reserved photo frame rather than a photo.
+The things the **menu administration** deliberately does not do, and the phase that owns
+each, are listed in technical plan §0b. The Ugens ret / Lørdagsmenu editor
+(`/admin/menu/ugens-ret`) and the Månedens burger editor
+(`/admin/menu/maanedens-burger`) have since been built by phase 6. What remains is the
+image library and upload (phase 10): every dish, the weekly card and the monthly burger
+therefore still render the reserved photo frame rather than a photo, and `image_id` is
+owned by no editor yet — deliberately, so that no editor can clear it.
 
-A fifth is deferred with **no phase**: there is no editor for a menu *category's own*
+One thing is deferred with **no phase** at all: there is no editor for a menu *category's own*
 content — its name, intro, note or order. The chips navigate between sections and a dish
 can be assigned to one; changing what a section says is a screen the approved design file
 does not draw, and it should be designed before it is built. The data path for it already

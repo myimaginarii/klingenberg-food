@@ -2,9 +2,9 @@ import type { Dish, MenuCategory, MonthlyBurger, WeeklySpecial } from '@/lib/con
 import { formatWeekdayName } from '@/lib/hours/format'
 import type { OpeningHoursOverride, WeeklySchedule } from '@/lib/hours/types'
 import { WEEKDAY_KEYS, type WeekdayKey } from '@/lib/time/calendar'
-import { copenhagenDateOf } from '@/lib/time/copenhagen'
 
 import { resolveSoldOut } from './availability'
+import { isMonthlyWindowOpen, monthlyWindowPhase } from './monthly'
 
 /**
  * The menu as the public page renders it — technical plan §7b, §7d.
@@ -81,14 +81,14 @@ export function formatServingDays(days: readonly string[]): string | null {
 /**
  * Is a published Månedens burger shown today? Inclusive at both ends, in Copenhagen
  * local dates (§7d). An open end means "no boundary on that side".
+ *
+ * The comparison itself is `monthlyWindowPhase` in `lib/menu/monthly.ts`, which is also
+ * what the administration's computed state is built from (§7d). One rule, two callers:
+ * a boundary date the guest's page and the editor disagreed about would be the single
+ * most confusing bug this feature could have.
  */
 export function isMonthlyBurgerInWindow(burger: MonthlyBurger, now: Date): boolean {
-  const today = copenhagenDateOf(now)
-
-  if (burger.startsOn !== null && today < burger.startsOn) return false
-  if (burger.endsOn !== null && today > burger.endsOn) return false
-
-  return true
+  return isMonthlyWindowOpen(monthlyWindowPhase(burger.startsOn, burger.endsOn, now))
 }
 
 export function buildMenuView(

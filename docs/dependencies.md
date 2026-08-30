@@ -3,6 +3,58 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 6B — no dependencies added (2026-08-30)
+
+Månedens burger (`lib/menu/monthly.ts`, `lib/menu/monthly-availability.ts`,
+`lib/content/monthly-admin.ts`, the four Server Actions in
+`app/(admin)/admin/menu/maanedens-burger/` and the editor components) added **nothing**
+to `package.json` — no runtime dependency and no development dependency. It added **one
+migration**, `20260830140000_monthly_burger_admin.sql`, containing one audited-shape
+function and one operation.
+
+### Why no date library, again
+
+Phase 6A recorded the same conclusion for ISO weeks. §7d's date window is a smaller
+problem than that one: it is a comparison of two `YYYY-MM-DD` strings against today's
+Copenhagen date, and lexicographic order on that format *is* calendar order. The whole
+rule is four lines in `monthlyWindowPhase`, and the Copenhagen date it compares against
+comes from `lib/time/copenhagen.ts`, which phase 2 built and tested across both DST
+transitions.
+
+Two smaller pieces were needed and are also not a library:
+
+* **`isIsoDate`** (`lib/time/calendar.ts`) — the predicate form of the existing
+  `parseIsoDate`, for the one place a malformed value is *expected* rather than a
+  programmer error: a date field somebody typed into. Nine lines.
+* **Danish month names** (`lib/format/danish.ts`) — §7d's state sentences read
+  *"vises fra 1. september"*, which needs the month written out. `Intl.DateTimeFormat`
+  would do it, and its output depends on the host's ICU build — the same reason
+  `formatPrice` and `formatDanishDate` were hand-rolled in phase 3. Twelve strings and
+  two functions, deterministic and unit-tested.
+
+### No new UI dependency for the date fields
+
+1ah draws "Startdato" and "Slutdato" as dropdown-looking date controls. They are
+`<input type="date">`: the control the phone already has (§15 calls the phone the primary
+admin device), a value that is `YYYY-MM-DD` — exactly what the column stores and what
+`lib/time/calendar.ts` calls a civil date, so nothing converts anything — and no
+JavaScript at all. A date-picker component would have added a client bundle to a screen
+that otherwise ships none, in order to reimplement a control the platform provides.
+
+### One migration, and what it does not contain
+
+`20260830140000_monthly_burger_admin.sql` adds `monthly_burger_availability()` and
+`set_monthly_burger_sold_out()`. It adds **no** table, view, trigger, index, scheduled
+job or second publishing path: `publish_monthly_burger()` has existed since phase 4 and
+is untouched, and the date window remains a read-time filter (§7d, clarification C4).
+The function is SECURITY INVOKER, takes no target and no row id — the singleton locates
+itself — and names one column in one UPDATE.
+
+### `npm audit --audit-level=high` — clean
+
+Re-run from a clean `npm ci` on 2026-08-30 as part of the phase 6B regression. No
+advisory affects the pinned set below, which is unchanged.
+
 ## Phase 6A — no dependencies added (2026-08-30)
 
 Ugens ret and Lørdagsmenu (`lib/time/iso-week.ts`, `lib/menu/weekly*.ts`, the four Server
