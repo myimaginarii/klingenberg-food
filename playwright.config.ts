@@ -63,6 +63,7 @@ export default defineConfig({
         'e2e/monthly-burger.spec.ts',
         'e2e/announcement.spec.ts',
         'e2e/announcement-remove.spec.ts',
+        'e2e/opening-hours.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -80,6 +81,7 @@ export default defineConfig({
         'e2e/monthly-burger.spec.ts',
         'e2e/announcement.spec.ts',
         'e2e/announcement-remove.spec.ts',
+        'e2e/opening-hours.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -302,6 +304,36 @@ export default defineConfig({
       name: 'announcement-remove-mobile',
       testMatch: 'e2e/announcement-remove.spec.ts',
       dependencies: ['announcement-remove'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    /*
+     * The normal weekly opening hours (phase 8A), at both widths, and chained last for the
+     * reason every write suite is chained: it publishes, publishing the hours expires the
+     * `hours` tag, and that tag is on **every** public page — the schedule is in the footer,
+     * in the header's open/closed badge, on the Forside's Besøg os panel and on Find os. So
+     * a guest assertion made by any other suite would be a coin toss if this one could act
+     * between its own write and its own read. It also drives one dish's Udsolgt control, to
+     * prove §7b's reset resolves against the *published* schedule, which is a second reason
+     * not to let it run beside the menu suites.
+     *
+     * Two widths rather than one, because 1t's row is two different arrangements rather than
+     * one at two sizes: at 1440 the weekday, the switch and the two dropdowns share a line,
+     * and at 375 the times drop to a line of their own at half width each. The 44 px targets,
+     * the focus ring and the absence of sideways scrolling are asserted inside the suite, so
+     * the phone run is a different assertion rather than the same one at a smaller size.
+     *
+     * Each run restores the seeded week and leaves Thor available.
+     */
+    {
+      name: 'opening-hours',
+      testMatch: 'e2e/opening-hours.spec.ts',
+      dependencies: ['announcement-remove-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: 'opening-hours-mobile',
+      testMatch: 'e2e/opening-hours.spec.ts',
+      dependencies: ['opening-hours'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
   ],

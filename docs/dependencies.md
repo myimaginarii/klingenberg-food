@@ -3,6 +3,71 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 8A — no dependencies added (2026-08-30)
+
+The normal weekly opening-hours editor (§0i) adds **no package, no migration and no
+database function**. `package.json` is byte-identical to the phase-7 lock.
+
+### The thing that would have justified a package, and why it is not here
+
+A weekly-schedule editor is the classic reason to reach for a time-picker component, and
+there is a well-known one for every framework. Frame 1t does not draw one: it draws two
+dropdowns and says *"Tider vælges i kvarter-spring"*. A `<select>` over the quarter-hour
+grid is that, exactly, in about twenty lines — and it is the better control here for three
+reasons a library would have taken away:
+
+- **It is what the phone already has.** §15 calls the phone the primary admin device, and a
+  native `<select>` opens the platform's own wheel. A JavaScript picker would be a
+  custom-drawn overlay competing with it.
+- **It needs no JavaScript at all.** Every editor in this administration works with
+  scripting off, and a picker is by definition script.
+- **It cannot invent a value the schema would refuse.** The options are generated from one
+  arithmetic loop and the stored value; there is no parsing step between what a person
+  chooses and what is submitted.
+
+The one thing the grid must not become is a *rule*. `timeChoicesFor` adds a stored off-grid
+time to the list rather than dropping it, so the control stays a convenience and the column,
+the CHECK, the Zod schema and the phase-2 engine remain the only authorities on what a time
+may be.
+
+### No date library, again
+
+For the fifth phase running. Phase 8A does arithmetic on nothing at all: it maps a form to a
+document and back, and every question about *when* — is the restaurant open, when does it
+open next, when does a sold-out dish return — is answered by the phase-2 engine, which was
+built without one and stays that way. `lib/hours/weekly-form.ts` contains no timezone, no
+`Intl` call and no `Date`.
+
+### No new component, token or utility either
+
+The switch is the one 1ah already draws, rebuilt from the same tokens with its track and knob
+as the label's `::before` and `::after` — moved from a sibling `<span>` to pseudo-elements
+only because this row needs the *checkbox itself* to be the peer, so that the word "Lukket"
+and the two dropdowns can react to it as well. `AdminSectionBar`, `Notice`, `SubmitButton`,
+the Kladde badge and the pending band are used exactly as phases 5–7 left them.
+
+### The one CSS mechanism worth naming
+
+The row draws both of 1t's appearances with `peer-checked:`, which compiles to a plain `~`
+sibling combinator. That was chosen over `:has()` deliberately: `~` has been supported
+everywhere for two decades, and the alternative — always rendering the two dropdowns on a
+closed row — would have deviated from the approved frame for no gain. Controls hidden with
+`display:none` are still submitted (only `disabled` prevents that), which is what keeps
+"reopen a day and set its times" a single save.
+
+### No new database object, and no widened privilege
+
+`opening_hours` already had exactly what this phase needed, and phase 8A verified rather than
+added: `supabase/tests/013_opening_hours.test.sql` asserts that `publish_opening_hours` is
+still SECURITY INVOKER, that **no** SECURITY DEFINER function writes the table, that the
+table still has exactly one UPDATE policy and that its condition is still `is_owner()`.
+
+### `npm audit --audit-level=high` — clean
+
+Run against the unchanged lockfile: **0 vulnerabilities**.
+
+---
+
 ## Phase 7 completion pass — no dependencies added (2026-08-30)
 
 The pass that closed phase 7 (see technical plan §0h) added **nothing**: no runtime

@@ -7,7 +7,7 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–7 complete and locked.** The public site renders from the database;
+**Status: phases 0–7 complete and locked; phase 8A complete and green.** The public site renders from the database;
 the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
@@ -33,11 +33,24 @@ about ten seconds of Fortryd. Technical plan §0f and §0g record the two increm
 whether the already-published message is shown.** Switching the bar back on never publishes
 a pending draft.
 
-The next phase is **8** — opening-hours administration, and with it the parts of the
-announcement that belong to a *generated* message: replacing an active announcement, the
-`previous` / `replaced_at` stash and 1ae's conflict sheet. **None of it is started.**
-`/admin` itself is still the **foundation-level** dashboard from phase 4 plus the menu and
-announcement entries — the remaining section screens arrive in their own phases.
+**Phase 8A** is finished: **Åbningstider** (`/admin/aabningstider`) is the Owner-only
+editor for the restaurant's **normal weekly schedule** — frame 1t's upper card, seven
+weekday rows, each open or closed, each open day with an opening and a closing time chosen
+in quarter-hour steps, per-day Danish validation, and the ordinary Kladde → Forhåndsvis →
+Offentliggør path. It added **no migration and no database function**: the `opening_hours`
+singleton, its shape CHECK, its Owner-only RLS policy and `publish_opening_hours()` have
+existed since phases 1 and 4. Technical plan §0i records what it contains and what it
+deliberately does not. Staff do not see the tile and are refused at the address —
+`requireOwner()`, `mayChangeEntity` and RLS, three independent times, with no SECURITY
+DEFINER anywhere in the path.
+
+**The rest of phase 8 is not started**: one-off date overrides ("Ret kun i dag", 1t's lower
+half) are **8B**, and the *generated* opening-hours message — `source='opening_hours'`,
+"Vis også som besked øverst på hjemmesiden", replacing an active announcement, the
+`previous` / `replaced_at` stash and 1ae's conflict sheet — is a later phase 8 increment.
+`/admin` itself is still the **foundation-level** dashboard from phase 4 plus the menu,
+announcement and opening-hours entries — the remaining section screens arrive in their own
+phases.
 
 ## Requirements
 
@@ -150,6 +163,9 @@ app/
                           forsiden" and the §7d computed state
     besked/           Besked på hjemmesiden (phase 7) — the message, its optional
                       link, its required future expiry and 1ad's suggestion chips
+    aabningstider/    Åbningstider (phase 8A) — the normal weekly schedule, Owner only.
+                      Seven weekday rows, one form, one vocabulary. No date field:
+                      one-off overrides are 8B and cannot be expressed here.
     indhold/ login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
   api/preview/        start and stop Draft Mode — staff session required
 proxy.ts              session refresh + unauthenticated redirect. Authorizes nothing.
@@ -162,6 +178,9 @@ components/
                       and share no business rules with it or with each other.
   admin/announcement/ Besked på hjemmesiden (phase 7). Its "sådan ser den ud" panel
                       renders the public bar itself, so the two cannot drift.
+  admin/hours/        Åbningstider (phase 8A). The seven weekday rows and this screen's
+                      notices. Zero client components: a closed row hides its two
+                      dropdowns with a sibling selector, not with a script.
   site/announcement/  the public bar, its labelled aria-live region, and the expiry
                       guard — the only client component phase 7 adds (§7c)
 lib/
@@ -195,7 +214,7 @@ supabase/
   seed.sql          the confirmed contact, opening-hours and menu facts
   templates/        Danish auth emails, versioned and applied through config.toml
   tests/            pgTAP — the §5 permission matrix, the owner invariant, and every
-                    write path phases 4–7 added
+                    write path phases 4–8A added
 tests/
   unit/             the pure rules, under Vitest
   e2e/ a11y/        Playwright, against a production build; axe at 375 and 1440
@@ -251,7 +270,7 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 8 onward, plus: the weekly off-platform backup workflow
+Everything in §15 from phase 8B onward, plus: the weekly off-platform backup workflow
 (phase 13, §10f) and Sentry (phase 13). `docs/dependencies.md` records which package
 arrives in which phase. Phase 6 is **complete and locked** — 6A (Ugens ret and
 Lørdagsmenu, §0c), 6B (Månedens burger, §0d), and the completion pass over both halves
@@ -261,9 +280,10 @@ over both halves (§0h).
 What the **announcement** deliberately does not do, and who owns it, is listed in §0h:
 **replacing** an active announcement, the `previous` / `replaced_at` stash and the restore
 that reads them, a message generated from a one-off opening-hours change
-(`source='opening_hours'`), "Erstat med den nye besked" and 1ae's conflict sheet — all
-**phase 8**. Nothing in phase 7 reads or writes `previous` or `replaced_at`, and `source`
-stays `'manual'`; "restore" in phase 7 means visibility of the same published message and
+(`source='opening_hours'`), "Erstat med den nye besked" and 1ae's conflict sheet — all a
+**later phase 8 increment**, and none of them touched by phase 8A, which writes the weekly
+schedule and nothing else. Nothing in phase 7 or 8A reads or writes `previous` or
+`replaced_at`, and `source` stays `'manual'`; "restore" in phase 7 means visibility of the same published message and
 never content. There is no archive and no history at all, by design, and a guest cannot
 dismiss the bar — so nothing per-visitor is stored and the public site still sets **no
 cookies**.

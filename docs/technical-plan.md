@@ -683,7 +683,88 @@ bidirectional.
 | **`AnnouncementExpiryGuard` is unchanged by the whole of phase 7B and this pass.** No request, no polling, no cookie, no storage, no stolen focus. | `tests/unit/announcements/expiry-guard-source.test.ts`, and the empty request log in `tests/e2e/announcement.spec.ts`. |
 | **Guests cannot dismiss the bar, and no public tracking state exists.** No dismiss control, nothing per-visitor to remember, and a guest still receives **zero cookies** (§12). | 1ac; `AnnouncementBar` has no control but the optional link; the E2E suite counts the guest's cookies. |
 
-**Phase 7 is locked.** Phase 8 is not started.
+**Phase 7 is locked.** Phase 8A is built on top of it without touching it — see §0i.
+
+---
+
+## 0i. Phase 8A — the normal weekly opening hours (2026-08-30)
+
+The Owner-only editor for the restaurant's **recurring weekly schedule** is built: frame
+1t's upper card at `/admin/aabningstider`, seven weekday rows, each open or closed, each
+open day carrying an opening and a closing time, saved as a Kladde and reaching the
+hjemmeside only through Forhåndsvis → Offentliggør.
+
+**It added no migration and no database function.** Everything it needed already existed:
+the `opening_hours` singleton, `is_valid_opening_schedule()`, the three RLS policies, the
+`publish_opening_hours()` transaction, the `pending_changes` view and the `hours` cache tag
+have all been in place since phases 1 and 4, and the draft overlay, the strict draft parser,
+the concurrency token and the audit row since phase 4. Phase 8A is an editor over machinery
+that was already there, which is why the whole of it is five files in
+`app/(admin)/admin/aabningstider/`, two components, one domain module and one admin read.
+
+### What it contains
+
+| | |
+|---|---|
+| **The route §3 prescribes** | `app/(admin)/admin/aabningstider/page.tsx`. No new admin hierarchy: the Owner's dashboard links to it, its bar links back to Oversigt. |
+| **Seven weekday rows** | From `WEEKDAY_KEYS`, Monday first. The values come from the stored document — the confirmed week (Mon/Tue closed, Wed–Fri 15:00–20:00, Sat–Sun 17:00–20:00) is seeded **data**, and no time from it appears in any source file. |
+| **Open/closed, and two times** | 1t's switch as a real `<input type="checkbox">` with a drawn track, and 1t's "kvarter-spring" dropdowns as `<select>`s over the whole day in quarter-hour steps. |
+| **Validation, per day** | `lib/hours/weekly-form.ts`. Five refusals per weekday, each a Danish sentence naming the day, each bound to the field a person moves to fix it. |
+| **Owner only** | `requireOwner()` in the page and in both Server Actions; `mayChangeEntity` inside `saveEntityDraft` and `publishPendingChange`; `opening_hours_update_owner` in the database. Three independent refusals, and **no SECURITY DEFINER anywhere in the path**. |
+| **Kladde → Forhåndsvis → Offentliggør** | Phase 4's machinery, unchanged. Two preview links, because the schedule appears on Find os as seven rows and in the footer of every page as three grouped lines. |
+| **The `hours` tag, after the fact** | Expired only for a publish whose result says `published`, by the Server Action rather than by the publish module. |
+
+### The four readings this phase had to settle
+
+| Question | Answer, and where it comes from |
+|---|---|
+| **Are a closed day's times kept, so reopening it is one press?** | **No, because the document has nowhere to keep them.** `is_valid_opening_schedule()` accepts a closed day only as the *exact* document `{"closed": true}` — the check is an equality test, not a subset one. So a closed day's dropdowns are empty, reopening one starts from "Vælg tidspunkt", and saving without choosing is refused by name. Retention was not invented to make the screen feel smoother than the model is. |
+| **Are quarter-hour times a rule or a control?** | **A control.** 1t says *"Tider vælges i kvarter-spring"* about the dropdowns; the column, the CHECK, the Zod schema and the phase-2 engine all accept any `HH:MM`. A server that refused `15:20` would invent a restriction the rest of the system does not have — and would make an existing off-grid value unsaveable. So a stored time that is not on the grid is **added** to the choices, and nothing is ever silently moved to the nearest quarter. |
+| **How does a closed row hide its two dropdowns without JavaScript?** | **A sibling selector.** The checkbox precedes everything that reacts to it, so `peer-checked:` — a plain `~` combinator, not `:has()` — draws both of 1t's appearances. The controls stay in the DOM and are still submitted when hidden (only `disabled` prevents that), which is what makes "turn a closed day on and choose its two times" **one save** rather than two. |
+| **Does the bar get a Forhåndsvis, when 1t draws none?** | **Yes.** 1t's own preview button belongs to the one-off override card in its lower half, which is phase 8B. §6 makes Forhåndsvis the middle step of the only path by which the weekly hours reach the hjemmeside, and the bar is where 1r, 1ah and 1aj all put it. The control is the established one in its established place, not a new one invented for this screen. |
+
+### What phase 8A deliberately does not contain
+
+| | Owner |
+|---|---|
+| One-off date overrides, "Lukket en bestemt dato", "Andre tider en enkelt dag", "Ret kun i dag" | **phase 8B.** `opening_hours_overrides` is named by no query in this phase, and no form here has a date field. |
+| The generated opening-hours announcement, `source='opening_hours'`, "Vis også som besked øverst på hjemmesiden" | **a later phase 8 increment.** `public.announcement` is named by nothing phase 8A added. |
+| Replacing an active announcement, `previous`, `replaced_at`, and 1ae's conflict sheet | **a later phase 8 increment**, unchanged from §0h. The pgTAP suite asserts both columns are still `null`, `source` is still `'manual'`, and no `replace_announcement` or `restore_announcement` function exists. |
+| Holiday automation of any kind | **not planned.** Nothing in this system decides a closing for the restaurant. |
+| An immediate path for the weekly schedule | **none, by design.** §6 names exactly four immediate operations and this is not one of them, so there is no Fortryd strip on this screen and nothing to undo. |
+
+### One consequence of two correct rules, recorded so it is not rediscovered as a bug
+
+The published weekly schedule is what §7b's sold-out reset resolves against, and the reset
+is **derived on read** with nothing stored. So publishing a new week silently changes when
+every currently sold-out item comes back — and that is the intended behaviour rather than a
+side effect to guard against: it is exactly why §4 refused to store a
+`sold_out_expires_at`. Phase 8A therefore contains no sold-out code at all.
+`tests/e2e/opening-hours.spec.ts` asserts the wiring once, from both ends: a **draft**
+schedule does not move the reset sentence, and a **publish** does.
+
+### Recorded explicitly, because each of these is a rule somebody could later assume away
+
+- **Staff never see a locked form.** §5 says Owner-only tiles are absent for Staff rather
+  than shown-and-disabled, so the dashboard tile is not rendered for them and the address
+  redirects to `/admin/ingen-adgang` — the administration's existing refusal, which already
+  names "normale åbningstider" among the Owner's areas. Absence is not the enforcement;
+  `requireOwner()` is.
+- **The browser names nothing.** The form carries twenty-one weekday fields and a version
+  token, and no entity name, table name, row id, date or schedule document. The singleton is
+  located through the publishing registry, and the publish action takes **no input at all**.
+- **A week edited back to what is published stops being pending.** The save clears the draft
+  rather than storing one that changes nothing, so the Kladde badge, the dashboard count and
+  Offentliggør cannot claim a change the database does not hold (§4).
+- **A draft schedule changes nothing a guest can see** — not the hours table, not the
+  footer's grouping, not the open/closed badge, not the sold-out reset. Preview is the only
+  way to look at one, and it needs a staff session and Draft Mode.
+- **The day-specific messages do not replace the schema.** `weeklyScheduleSchema` remains the
+  single statement of what a schedule may be, and `toWeeklySchedule` runs it as the last
+  gate. The per-day checks exist to say *which day*, not to decide *whether*.
+
+**Phase 8A is complete and green. Phase 8 is not locked**: 8B — the one-off overrides — and
+the generated opening-hours message with its conflict sheet are not started.
 
 ---
 
@@ -1599,7 +1680,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 5 | Menu administration | Category tabs, dish CRUD, reorder, side panel, Kladde badges, **immediate Udsolgt with 10 s Fortryd and the computed reset label**, **tapas list editor**, soft delete | E2E 2, 3 and 10 pass |
 | 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (done):** Månedens burger with its date window, its computed admin state, "Vis på forsiden" as a normal draft field and its own immediate Udsolgt path | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes — see §0d. **Complete and locked** by the completion pass of 2026-08-30 — see §0e |
 | 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (done):** the immediate path — "Vis besked" off and back on, "Fjern beskeden nu", immediate public removal and its ~10 s Fortryd. *Replacing an active announcement, `previous`/`replaced_at` and 1ae's conflict sheet moved to **phase 8**, where the generated message they belong to lives* | 7A: E2E 4 passes, including the no-network assertion — see §0f. 7B: `tests/e2e/announcement-remove.spec.ts` passes at 1440 and 375 — see §0g. **Complete and locked** by the completion pass of 2026-08-30 — see §0h |
-| 8 | Opening hours administration | Weekly editor (owner), one-off overrides, generated announcement, **conflict sheet 1ae with both branches** | E2E 5 passes, including "hours always save" |
+| 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **Remaining:** 8B's one-off overrides, the generated announcement, and **conflict sheet 1ae with both branches** | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. The rest of E2E 5, including "hours always save", belongs to 8B |
 | 9 | News | List, editor with structured body, autosave, publish/unpublish, **`/nyheder/[slug]` with the slug policy and `NewsArticle` JSON-LD**, forside teaser | E2E 6 passes, incl. unpublish → 404 |
 | 10 | Images | Signed upload, client downscale, sharp derivatives, library with usage labels, replace/delete warnings | E2E 7 passes |
 | 11 | Remaining editors | Forsiden, Mad ud af huset (incl. the visibility toggle hiding the nav item), Kontaktoplysninger, **`/admin/brugere`** | E2E 8 passes; the owner can invite and deactivate a staff user |
@@ -1609,7 +1690,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-08-30: phases 0–7 are complete and locked.** Phase 5 was closed by a completion
+**Status, 2026-08-30: phases 0–7 are complete and locked, and phase 8A is complete and green.** Phase 5 was closed by a completion
 pass and is recorded in full in §0b, including the five capabilities it delivered and the five
 things that are deliberately outside it. Phase 6 was then built in two increments that share
 nothing but a table row: **6A — Ugens ret and Lørdagsmenu — is recorded in §0c**, and **6B —
@@ -1649,5 +1730,19 @@ correction (the linked public bar was 61 px against 1ac's 41; it is now 45) and 
 correctness fix (a publish that could never succeed is no longer offered, and no longer
 worded "prøv igen").
 
-**Phase 7 is locked. Phase 8 is not started**, and nothing in phase 7 reads or writes
-`previous` or `replaced_at`; `source` stays `'manual'`.
+**Phase 7 is locked**, and nothing in phase 7 reads or writes `previous` or
+`replaced_at`; `source` stays `'manual'`.
+
+**Phase 8A is complete and green, and is recorded in §0i.** The Owner-only editor for the
+**normal weekly opening hours** is built at `/admin/aabningstider` — 1t's upper card, seven
+weekday rows, per-day Danish validation, and the ordinary Kladde → Forhåndsvis →
+Offentliggør path over phase 4's machinery. It added **no migration and no database
+function**: the singleton, its shape CHECK, its Owner-only RLS policy, `publish_opening_hours()`
+and the `hours` cache tag have existed since phases 1 and 4.
+
+**Phase 8 is not locked.** One-off date overrides ("Ret kun i dag", 1t's lower half) are
+**8B** and are not started; the generated opening-hours announcement, `source='opening_hours'`,
+"Vis også som besked øverst på hjemmesiden", the `previous` / `replaced_at` stash, "Erstat med
+den nye besked" and 1ae's conflict sheet are a **later phase 8 increment** and are not
+started either. Nothing phase 8A added names `opening_hours_overrides` or
+`public.announcement`.

@@ -7,6 +7,7 @@ import { PendingChanges } from '@/components/admin/PendingChanges'
 import { PublishSummary } from '@/components/admin/PublishSummary'
 
 import { signOut } from './actions'
+import { OPENING_HOURS_PATH } from './aabningstider/routes'
 import { ANNOUNCEMENT_PATH } from './besked/routes'
 import { publishSelectedChanges } from './publish-actions'
 import { AdminShell, Card, Notice, SubmitButton } from './ui'
@@ -116,11 +117,41 @@ export default async function AdminDashboard({
         </p>
       </Card>
 
+      {/*
+        Åbningstider — design 1t, phase 8A.
+
+        Owner-only (§5), so the tile is **absent** for a staff member rather than shown and
+        disabled: §5 says so in as many words ("Owner-only tiles are simply absent for Staff
+        rather than shown-and-disabled"), and a link that can only lead to a refusal is a
+        link worth not drawing. It is not a permission — `requireOwner()` on the screen and
+        in both of its actions is — which is why the address still refuses a staff member
+        who types it.
+
+        The tile's own wording is 8A's rather than 1q's "Ret tider for en dag": that
+        sentence describes the one-off override in 1t's lower half, which is phase 8B. It
+        will be true of this tile again when 8B ships; until then it would promise a screen
+        that does not yet exist.
+      */}
+      {profile.role === 'owner' ? (
+        <Card>
+          <h2 className="text-heading font-semibold">Åbningstider</h2>
+          <p className="text-ink-2 text-meta mt-2">
+            De normale åbningstider for ugens syv dage. De står i bunden af alle sider, på
+            Find os og bag “Åbent nu”, så kun ejeren kan rette dem.
+          </p>
+          <p className="mt-1">
+            <Link className={STANDALONE_LINK} href={OPENING_HOURS_PATH}>
+              Åbn åbningstiderne
+            </Link>
+          </p>
+        </Card>
+      ) : null}
+
       <Card>
         <h2 className="text-heading font-semibold">Rediger indhold</h2>
         <p className="text-ink-2 text-meta mt-2">
-          Sidetekster og kontaktoplysninger. De øvrige redigeringsskærme — nyheder og
-          åbningstider — kommer i de næste faser.
+          Sidetekster og kontaktoplysninger. Den sidste redigeringsskærm — nyheder — kommer
+          i en senere fase.
         </p>
         <p className="mt-1">
           <Link className={STANDALONE_LINK} href="/admin/indhold">
