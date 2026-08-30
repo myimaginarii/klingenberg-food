@@ -1,3 +1,4 @@
+import { NO_SATURDAY_MENU } from '@/lib/menu/weekly'
 import type { WeeklySpecialView } from '@/lib/menu/view'
 
 import { MediaPlaceholder } from '../MediaPlaceholder'
@@ -13,9 +14,13 @@ import { DishPrice } from './DishPrice'
  * "Ingen lørdagsmenu denne uge" rather than a hole (1af).
  *
  * Nothing here is written by us. The week, the days, the dish and both prices come from
- * `weekly_special`, which the kitchen fills in each week; the editor is phase 6.
+ * `weekly_special`, which the kitchen fills in each week; phase 6A built the editor.
+ *
+ * The empty state's wording is imported rather than written here, because the
+ * administration promises it word for word — 1ag's toggle reads *"Slå fra, og der står
+ * 'Ingen lørdagsmenu denne uge'"*. Two copies of an approved sentence is one copy too
+ * many, so it is stated once in `lib/menu/weekly.ts` and read by both sides.
  */
-const NO_SATURDAY_MENU = 'Ingen lørdagsmenu denne uge'
 
 export function WeeklySpecial({ weekly }: { weekly: WeeklySpecialView }) {
   return (

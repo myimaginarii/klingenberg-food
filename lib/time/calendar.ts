@@ -138,6 +138,21 @@ export function addDays(date: IsoDate, days: number): IsoDate {
   return formatIsoDate(fromUtcMidnight(toUtcMidnight(parseIsoDate(date)) + days * MS_PER_DAY))
 }
 
+/**
+ * Whole days from `from` to `to`, positive when `to` is the later date.
+ *
+ * The counterpart to {@link addDays}, and calendar arithmetic for the same reason: the
+ * two dates are read into the UTC number line, which has no daylight saving, so the
+ * difference is a whole number of calendar days rather than a number of elapsed hours
+ * divided by 24. Copenhagen's 23- and 25-hour days do not enter the calculation.
+ *
+ * Added in phase 6A for the ISO-week helper, which numbers a week by counting whole
+ * weeks from the Monday that starts week 1 (`lib/time/iso-week.ts`).
+ */
+export function differenceInDays(from: IsoDate, to: IsoDate): number {
+  return (toUtcMidnight(parseIsoDate(to)) - toUtcMidnight(parseIsoDate(from))) / MS_PER_DAY
+}
+
 /** The schedule key for a civil date. */
 export function weekdayOf(date: IsoDate): WeekdayKey {
   const utcDay = new Date(toUtcMidnight(parseIsoDate(date))).getUTCDay()

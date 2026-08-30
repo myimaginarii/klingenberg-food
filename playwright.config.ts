@@ -59,6 +59,7 @@ export default defineConfig({
         'e2e/menu-delete.spec.ts',
         'e2e/menu-reorder.spec.ts',
         'e2e/menu-tapas.spec.ts',
+        'e2e/weekly-special.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -72,6 +73,7 @@ export default defineConfig({
         'e2e/menu-delete.spec.ts',
         'e2e/menu-reorder.spec.ts',
         'e2e/menu-tapas.spec.ts',
+        'e2e/weekly-special.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -194,6 +196,30 @@ export default defineConfig({
       name: 'menu-tapas-mobile',
       testMatch: 'e2e/menu-tapas.spec.ts',
       dependencies: ['menu-tapas'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    /*
+     * Ugens ret and Lørdagsmenu (phase 6A), at both widths, and chained after the Tapas
+     * runs for the reason every write suite is chained: it publishes, publishing expires
+     * the `weekly` cache tag, and a guest assertion about the week would be a coin toss
+     * if another run could act between the write and the read.
+     *
+     * Two widths rather than one, because 1ag's promise on a phone is specific: two long
+     * forms that stay legible, seven serving-day boxes that stay 44 px and tappable, and
+     * no sideways scrolling. Those are asserted inside the suite, so the phone run is a
+     * different assertion rather than the same one at a smaller size. Each run leaves the
+     * seeded week published, with nothing pending.
+     */
+    {
+      name: 'weekly-special',
+      testMatch: 'e2e/weekly-special.spec.ts',
+      dependencies: ['menu-tapas-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: 'weekly-special-mobile',
+      testMatch: 'e2e/weekly-special.spec.ts',
+      dependencies: ['weekly-special'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
   ],

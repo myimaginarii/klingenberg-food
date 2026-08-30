@@ -60,6 +60,7 @@ import {
 import { saveDishDraft } from './save-actions'
 import { editTapasList } from './tapas-actions'
 import { readTapasEcho, TAPAS_ACTION, TAPAS_FORM, tapasEditorGroups } from './tapas-form'
+import { WEEKLY_PATH } from './ugens-ret/routes'
 
 /**
  * Rediger menu — design 1r (desktop) and 1y (mobile); technical plan §6, §15 (phase 5).
@@ -377,7 +378,10 @@ export default async function MenuAdminPage({
                 section={activeSection}
               />
             ) : (
-              <WeeklySpecialNotice categoryName={activeSection.category.name} />
+              <WeeklySpecialNotice
+                categoryName={activeSection.category.name}
+                href={WEEKLY_PATH}
+              />
             )}
           </div>
 

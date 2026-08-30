@@ -3,6 +3,75 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 6A — no dependencies added (2026-08-30)
+
+Ugens ret and Lørdagsmenu (`lib/time/iso-week.ts`, `lib/menu/weekly*.ts`, the four Server
+Actions, the editor components) added **nothing** to `package.json` — no runtime
+dependency and no development dependency. It did add **one migration**, which is the
+difference from phases 5E and 5F; see below.
+
+### Why no date library, for the one phase that would have justified one
+
+§1 (adjustment 4) says dates are handled with `Intl` plus a tested helper, "no date
+library unless the helper proves fragile in review". Phase 6A is the first phase that
+needs something `Intl` genuinely does not provide: **ISO-8601 week numbering**. There is
+no ISO-week accessor on `Date`; `Intl.DateTimeFormat`'s `week` field is not
+interoperable; US week numbering starts on Sunday and counts differently; and
+`Temporal.PlainDate#weekOfYear` is not available in this runtime. So the case for
+`date-fns` or `luxon` was real and was weighed rather than waved away.
+
+It was not taken, for three reasons:
+
+* **The rule is three sentences long.** Weeks start Monday; week 1 contains 4 January;
+  a date's ISO year is the calendar year of its own Thursday. `lib/time/iso-week.ts`
+  implements exactly that in civil `YYYY-MM-DD` values on top of the phase-2 calendar
+  helpers, and `tests/unit/time/iso-week.test.ts` pins all thirty-one cases that matter —
+  both year boundaries, the 53-week years, and the Copenhagen-versus-UTC midnight.
+* **A library would have to be kept out of the timezone boundary anyway.**
+  `lib/time/copenhagen.ts` is the only module allowed to name a timezone (§7). A date
+  library's own zone handling would be a second answer to a question this repository
+  already answers in one place — which is how two functions come to disagree about what
+  day it is.
+* **`date-fns` is ~40 packages and `luxon` carries its own zone database.** §1's closing
+  note applies: every library not added is an advisory never triaged.
+
+One helper was added to the phase-2 module rather than duplicated beside it:
+`differenceInDays` in `lib/time/calendar.ts`, the counterpart to the `addDays` that was
+already there. Nothing else in `lib/time` changed.
+
+### One migration, and what it does not contain
+
+`supabase/migrations/20260830120000_weekly_special_admin.sql` adds three functions and
+nothing else — no table, no view, no trigger, no column:
+
+* `weekly_special_availability()` — the audited shape of the two sold-out columns;
+* `set_weekly_special_sold_out()` — the immediate Udsolgt transaction (§6, §7b);
+* `copy_weekly_special_to_draft()` — "Kopiér sidste uge" (§6, decision 4).
+
+`publish_weekly_special()` from phase 4 is untouched, and there is deliberately no second
+weekly-special publishing path. `set_dish_sold_out()` is **not** reused and could not be:
+it names `public.dishes` in every statement, and `dishes` carries the two
+`sold_out_changed_*` attribution columns that `weekly_special` does not have (§4).
+`supabase/tests/010_weekly_special.test.sql` asserts the properties both new functions
+promise, including that the copy writes no live column and produces nothing published.
+
+### One correctness fix that is worth recording
+
+Every field on the new screen is an uncontrolled `<input defaultValue>`, which is what
+keeps the editor a Server Component with nothing in the browser to keep in step. After a
+client-side navigation React reuses the DOM nodes and updates `defaultValue` **without**
+touching a value a person has typed — usually the kind thing to do, and wrong for the two
+operations that deliberately replace what somebody typed: a confirmed "Kopiér sidste uge"
+overwrite, and the week rollover. Each card is therefore keyed on the values it was
+rendered from (`cardKey` in the screen's `page.tsx`), so exactly the card whose server
+values moved is remounted, and a colleague's half-typed Saturday menu still survives a
+save on the other card. It is four lines and no dependency.
+
+### `npm audit --audit-level=high` — clean
+
+Re-run from a clean `npm ci` on 2026-08-30 as part of the phase 6A regression. No
+advisory affects the pinned set below, which is unchanged.
+
 ## Phase 5 completion pass — no dependencies added (2026-08-30)
 
 The pass that closed phase 5 (see technical plan §0b) added **nothing**: no runtime

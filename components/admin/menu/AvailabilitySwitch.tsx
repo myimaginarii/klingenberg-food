@@ -40,8 +40,16 @@ import type { DishAvailability } from '@/lib/menu/admin'
  * the same `resolveSoldOut` the public menu uses; this component receives an answer.
  */
 
-/** The mark before the word. Shape, so the state is never colour alone (1aa). */
-function StateDot({ soldOut }: { soldOut: boolean }) {
+/**
+ * The mark before the word. Shape, so the state is never colour alone (1aa).
+ *
+ * Exported since phase 6A: 1ag draws the same switch on Ugens ret and on Lørdagsmenuen,
+ * and those act on `weekly_special` rather than on a dish (`components/admin/weekly/`).
+ * The *presentation* is genuinely one control and is therefore shared; the operations
+ * stay two, each with its own action, its own field names and its own database function
+ * — the same line `UndoStrip` draws between a green bar and what put it there.
+ */
+export function StateDot({ soldOut }: { soldOut: boolean }) {
   return (
     <span
       aria-hidden="true"
@@ -50,8 +58,12 @@ function StateDot({ soldOut }: { soldOut: boolean }) {
   )
 }
 
-/** 1r's switch: a 52 × 28 track with the knob at the end the state puts it. */
-function SwitchTrack({ soldOut }: { soldOut: boolean }) {
+/**
+ * 1r's switch: a 52 × 28 track with the knob at the end the state puts it.
+ *
+ * Exported since phase 6A, for the reason {@link StateDot} is.
+ */
+export function SwitchTrack({ soldOut }: { soldOut: boolean }) {
   return (
     <span
       aria-hidden="true"

@@ -123,6 +123,60 @@ nobody approved. It should be designed first and built in the phase that gets a 
 
 ---
 
+## 0c. Phase 6A — Ugens ret and Lørdagsmenu, complete (2026-08-30)
+
+Phase 6 (§15) has two halves that share a table row and nothing else. **6A — Ugens ret
+and Lørdagsmenu (frame 1ag, every public state in 1af) — is built and green.** 6B —
+Månedens burger (frame 1ah) — is not started. This section records what 6A *is*, so a
+later reader does not have to reconstruct it, and so the boundary between the two is a
+written rule rather than an assumption.
+
+**What phase 6A contains:**
+
+| Capability | Path | Where it lives |
+|---|---|---|
+| The Ugens ret editor — week number, serving days, dish, both portion prices | Kladde → Forhåndsvis → Offentliggør (§6) | `app/(admin)/admin/menu/ugens-ret/`, `components/admin/weekly/` |
+| The week rollover — changing the week number starts a blank form, reversibly | draft | `lib/menu/weekly.ts` (`planWeekEdit`) |
+| The Lørdagsmenu editor, and the explicit **"Ingen lørdagsmenu denne uge"** state | draft | `SaturdayMenuEditor`, `weekly_special.sat_enabled` |
+| Tilgængelig / Udsolgt on **both** cards, with the §7b reset sentence and ~10 s Fortryd | **immediate** (§6) | `lib/menu/weekly-availability.ts`, `set_weekly_special_sold_out()` |
+| "Kopiér sidste uge", with its overwrite confirmation and its disabled state | draft-seeding | `lib/menu/weekly-copy.ts`, `copy_weekly_special_to_draft()` |
+| ISO week/year arithmetic, including week 53 and both year boundaries | — | `lib/time/iso-week.ts` |
+| Publishing this screen's scope through phase 4, unchanged | — | `publish_weekly_special()` (phase 4) |
+
+**One migration, three functions, no new entity.** `weekly_special` was already a
+publishable entity with a draft column and a publish function (phase 4);
+`20260830120000_weekly_special_admin.sql` adds only what the two *non*-publish operations
+need — `weekly_special_availability()`, `set_weekly_special_sold_out()` and
+`copy_weekly_special_to_draft()`. No table, no view, no trigger, no scheduled anything.
+There is deliberately **no second weekly-special publishing path**.
+
+**Three readings this phase had to settle, recorded so they are decisions rather than
+accidents:**
+
+| # | Question | The reading, and why |
+|---|---|---|
+| A | **What "changing the week number blanks the form" (§7e item 5) blanks.** | The four things somebody types about the food — `name`, `description` and both portion prices. **Not** the serving days, which are the pattern the dish is served on rather than the dish, and **not** the Lørdagsmenu, which has its own on/off control and the frame's own promise beside it: *"Teksten bevares til næste gang."* Blanking the Saturday card from the Ugens ret card would also be one editor clearing another's pending work, which is the single failure mode this screen is arranged to prevent. `image_id` is blanked by neither, because no editor owns it before phase 10. The rollover is **reversible**: choosing the published week again clears the card from the draft entirely, so an accidental change costs one press. |
+| B | **Which week "Kopiér sidste uge" lands in.** | The week **after the live row's own week**, not "whatever week it is today". §6 says the fields are copied *"with `iso_year`/`iso_week` advanced to the next ISO week"*, and advancing the source is the only reading that does not silently skip a week when the kitchen is running behind. A live row with content but no week at all falls back to this week in Copenhagen, which is the only answer that is not invented. |
+| C | **What "both sold-out fields cleared" means for a copy.** | Structurally, rather than by a statement: the destination draft is built from `weekly_special_content()`, which names the thirteen content columns and neither sold-out column, so a copy has nowhere to carry operational state from. The copy also does not *clear the live* columns — it writes `draft` and nothing else (§6: "it never touches a live column"), and §7b clears a marking on read anyway. |
+
+**One deliberate departure from frame 1ag, and why.** The frame draws the seven serving-day
+boxes as a single row, at a desktop width. Seven 44 px boxes do not fit inside the card at
+375 px — the arithmetic gives 39 — and 1aa's minimum target size states no exception for
+the phone, which §15 (phase 12) calls the primary admin device. The row therefore **wraps
+to four-plus-three below `md`** and is the frame's single row of seven at and above it.
+The alternatives were both worse: shrinking the boxes breaks a stated rule, and a
+horizontal scroller hides three days behind a gesture on the one control where seeing all
+seven at once *is* the information.
+
+**Two things the frame draws that phase 6A deliberately does not build:**
+
+| Not in 6A | Owned by | Note |
+|---|---|---|
+| The image control ("Billede (valgfrit)", "Vælg billede") | phase 10 (1w) | The same phase boundary 1r's `FOTO` frame had in phase 5 (§0b). `image_id` is consequently owned by no editor yet — and is cleared by neither of 1ag's two, so a value phase 10 writes cannot be wiped by somebody saving a price. |
+| Månedens burger | **phase 6B** (1ah) | A different singleton, a different shape, a different notion of "the previous one" (§7d's date window rather than a week number). No generic "special content" framework was built for it, and none should be. |
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -221,7 +275,7 @@ app/
     login/page.tsx
     page.tsx                    # Oversigt (1q / 1x)
     menu/page.tsx               # Rediger menu (1r / 1y)
-    menu/ugens-ret/page.tsx     # (1ag) + "Kopiér sidste uge"
+    menu/ugens-ret/            # (1ag) + "Kopiér sidste uge" — built in phase 6A
     menu/maanedens-burger/page.tsx
     nyheder/page.tsx
     nyheder/[id]/page.tsx       # editor (1s / 1z)
@@ -618,7 +672,7 @@ and the no-database-request constraint is what makes this component acceptable i
    - **The Owner may clean a genuinely stale reference later**, in the Forsiden editor (phase 11), as an ordinary Owner draft change.
 
    **An image that is in use is a different question and keeps the original rule**: warn, and then null the reference — never a dangling id (design 1w already shows the image warning). Images are Staff-editable in full (§5), so nulling an image reference is a write Staff already hold; that is exactly the privilege a Forside reference does not have, which is why the two cases part company here.
-5. **Ugens ret week rollover.** Changing the week number blanks the form as a draft; the live site keeps the current card, including its week number, until publish. The editor shows the live week number next to the draft one so the difference is obvious. "Kopiér sidste uge" is the shortcut past the blank form.
+5. **Ugens ret week rollover.** Changing the week number blanks the form as a draft; the live site keeps the current card, including its week number, until publish. The editor shows the live week number next to the draft one so the difference is obvious. "Kopiér sidste uge" is the shortcut past the blank form. *Built in phase 6A; **§0c reading A** records exactly which fields "the form" means and why, and that choosing the published week again undoes the rollover.*
 6. **Override deleted after it generated an announcement.** Ask, and default to removing the announcement too when `source='opening_hours'` and it points at that date.
 7. **Override in the past, or on an already-closed day.** The date must be today or later; an override on a Monday is allowed (they may open specially) — and it correctly becomes a sold-out reset day (§7b).
 8. **Announcement conflict resolution must never lose the hours.** Server-authoritative: the hours override is written first and always; the announcement is only attempted afterwards; a conflict returns `{status:'conflict'}` and requires an explicit `confirmReplace: true` on the follow-up call. There is no code path where a "Behold eksisterende" choice can roll back the hours.
@@ -997,7 +1051,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 3 | Public read-only site | All six pages rendered from seeded data, responsive per 1g–1o, header/footer/bottom-nav, **static map placeholder + directions link**, no announcement bar yet | Design review against 1g–1o; axe clean; Lighthouse ≥95; the page works with JS off |
 | 4 | Draft/publish core | `draft` overlay, publish transaction, Draft Mode preview, audit log, dashboard pending-changes view with per-item attribution | Change a `pages.home` value → invisible until publish |
 | 5 | Menu administration | Category tabs, dish CRUD, reorder, side panel, Kladde badges, **immediate Udsolgt with 10 s Fortryd and the computed reset label**, **tapas list editor**, soft delete | E2E 2, 3 and 10 pass |
-| 6 | Weekly + monthly | Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**; Månedens burger with its date window and computed admin state | E2E 9 and 11 pass; "Ingen lørdagsmenu denne uge" renders |
+| 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (pending):** Månedens burger with its date window and computed admin state | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes |
 | 7 | Announcements | Bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, live preview, immediate remove | E2E 4 passes, including the no-network assertion |
 | 8 | Opening hours administration | Weekly editor (owner), one-off overrides, generated announcement, **conflict sheet 1ae with both branches** | E2E 5 passes, including "hours always save" |
 | 9 | News | List, editor with structured body, autosave, publish/unpublish, **`/nyheder/[slug]` with the slug policy and `NewsArticle` JSON-LD**, forside teaser | E2E 6 passes, incl. unpublish → 404 |
@@ -1009,6 +1063,8 @@ Each phase ends in something deployable and testable. No phase begins until the 
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-08-30: phases 0–5 are complete.** Phase 5 was closed by a completion pass and is
+**Status, 2026-08-30: phases 0–5 are complete, and so is phase 6A.** Phase 5 was closed by a completion pass and is
 recorded in full in §0b, including the five capabilities it delivered and the five things that are
-deliberately outside it. The next phase is 6 (Weekly + monthly).
+deliberately outside it. Phase 6 was then split into two increments that share nothing but a
+table row: **6A — Ugens ret and Lørdagsmenu — is complete and recorded in §0c**. The next
+work is **6B, Månedens burger** (frame 1ah, §7d), which is not started.
