@@ -11,6 +11,28 @@ import { publishSelectedChanges } from './publish-actions'
 import { AdminShell, Card, Notice, SubmitButton } from './ui'
 
 /**
+ * A link that stands on its own, rather than inside a sentence — design 1aa.
+ *
+ * 1aa's accessibility list says "Tryk-mål mindst 44 × 44 px" and states no exception
+ * for a link, and these two were 16 px tall: the height of one line of `text-meta`.
+ * That was open item H in the technical plan's §13, recorded by phase 6's completion
+ * pass and left for whichever phase reached `/admin` first.
+ *
+ * The treatment is the one the section screens already use (`AdminSectionBar`'s
+ * `BarLink`): `min-h-tap` on an `inline-flex` box, so the words keep their size, their
+ * colour and their underline and only the *target* grows around them. The paragraph's
+ * top margin drops from `mt-3` to `mt-1` because the box now contributes its own
+ * vertical space above the text, which keeps the visible gap where the eye already
+ * expects it.
+ *
+ * "Ejer-området" in the account card is deliberately left as it is. It sits inside a
+ * sentence, so WCAG 2.2's target-size criterion exempts it — and giving it a 44 px box
+ * would break the line it belongs to.
+ */
+const STANDALONE_LINK =
+  'text-brand-700 text-meta min-h-tap inline-flex items-center underline'
+
+/**
  * Oversigt — technical plan §6, design 1q / 1x.
  *
  * PHASE 4 SCOPE. This is the dashboard's *publishing* half, built so the whole
@@ -73,8 +95,8 @@ export default async function AdminDashboard({
         <p className="text-ink-2 text-meta mt-2">
           Retter, priser, beskrivelser og mærkater i menuens sektioner.
         </p>
-        <p className="mt-3">
-          <Link className="text-brand-700 text-meta underline" href="/admin/menu">
+        <p className="mt-1">
+          <Link className={STANDALONE_LINK} href="/admin/menu">
             Åbn menuen
           </Link>
         </p>
@@ -86,8 +108,8 @@ export default async function AdminDashboard({
           Sidetekster og kontaktoplysninger. De øvrige redigeringsskærme — ugens ret,
           nyheder, beskeder og åbningstider — kommer i de næste faser.
         </p>
-        <p className="mt-3">
-          <Link className="text-brand-700 text-meta underline" href="/admin/indhold">
+        <p className="mt-1">
+          <Link className={STANDALONE_LINK} href="/admin/indhold">
             Åbn indhold
           </Link>
         </p>

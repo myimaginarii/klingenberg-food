@@ -29,11 +29,37 @@ async function violations(page: Page) {
   }))
 }
 
+/** The dashboard's links that stand on their own, rather than inside a sentence. */
+const STANDALONE_DASHBOARD_LINKS = ['Åbn menuen', 'Åbn indhold'] as const
+
 test.describe('the administration', () => {
   test('the dashboard has no accessibility violations', async ({ page }) => {
     await signIn(page, STAFF)
 
     expect(await violations(page)).toEqual([])
+  })
+
+  /**
+   * The dashboard's standalone links, held to 1aa's 44 px minimum target.
+   *
+   * Named one by one rather than swept up by a selector, because the dashboard also
+   * carries a link that is genuinely *inside a sentence* — "Ejer-området" — and WCAG
+   * 2.2's target-size criterion exempts a control whose position is determined by the
+   * flow of the text around it. A blanket "every link on the page" assertion would
+   * either fail on that link or have to guess which links are prose, and guessing is
+   * how the exemption quietly grows. This list is the set of links that stand on their
+   * own, and it grows only when a screen adds one.
+   */
+  test('every standalone link on the dashboard is a 44 px target', async ({ page }) => {
+    await signIn(page, STAFF)
+
+    for (const name of STANDALONE_DASHBOARD_LINKS) {
+      const link = page.getByRole('link', { name })
+      await expect(link).toHaveCount(1)
+
+      const box = await link.boundingBox()
+      expect(box?.height ?? 0, `"${name}" is at least 44 px tall`).toBeGreaterThanOrEqual(44)
+    }
   })
 
   test('the content editor has no accessibility violations', async ({ page }) => {
