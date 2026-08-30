@@ -13,6 +13,7 @@ import {
   describeAnnouncementState,
   describePublishObstacle,
   isAnnouncementPubliclyVisible,
+  isAnnouncementRestorable,
   type AnnouncementValues,
 } from '@/lib/announcements/lifecycle'
 import { announcementDraft } from '@/lib/schemas/announcement'
@@ -168,30 +169,92 @@ describe('public eligibility', () => {
   })
 })
 
+describe('whether the published message may be shown again (§0h)', () => {
+  /*
+   * The rule the "Vis besked" switch's **on** direction is offered under, and the same
+   * two rules `set_announcement_visible()` refuses that direction with. It is written as
+   * public eligibility with `is_visible` set aside, so the screen's offer and the
+   * database's refusal cannot become two rules that merely agree today.
+   */
+  const before = new Date(Date.parse(MOMENT) - 1)
+
+  it('may be shown again while it is switched off but still current', () => {
+    expect(isAnnouncementRestorable(values(), before)).toBe(true)
+  })
+
+  it('does not ask whether it is switched on — that is the question being answered', () => {
+    // The same values give the same answer whatever `is_visible` happens to be, because
+    // the function takes the published *content* and never the flag.
+    expect(isAnnouncementRestorable(values(), before)).toBe(
+      isAnnouncementPubliclyVisible({ ...values(), is_visible: true }, before),
+    )
+  })
+
+  it('refuses at exactly the expiry instant, and after it', () => {
+    expect(isAnnouncementRestorable(values(), new Date(Date.parse(MOMENT)))).toBe(false)
+    expect(isAnnouncementRestorable(values(), new Date(Date.parse(MOMENT) + 1))).toBe(false)
+  })
+
+  it('refuses when there is no expiry at all — 1ac: udløb er påkrævet', () => {
+    expect(isAnnouncementRestorable(values({ expires_at: null }), before)).toBe(false)
+  })
+
+  it.each([null, '', '   '])('refuses when the message is %s', (message) => {
+    expect(isAnnouncementRestorable(values({ message }), before)).toBe(false)
+  })
+
+  it('is exactly the pair of guards the database applies to the on direction', () => {
+    // `set_announcement_visible(true, …)` returns not_showable with reason 'message' when
+    // the message is blank and 'expires_at' when the expiry is null or past. Nothing else
+    // makes it refuse, and nothing else makes this false.
+    for (const candidate of [
+      values(),
+      values({ message: null }),
+      values({ message: '  ' }),
+      values({ expires_at: null }),
+      values({ expires_at: '2020-01-01T00:00:00Z' }),
+    ]) {
+      for (const now of [before, new Date(Date.parse(MOMENT)), new Date(Date.parse(MOMENT) + 1)]) {
+        const databaseWouldRefuse =
+          candidate.message === null ||
+          candidate.message.trim().length === 0 ||
+          candidate.expires_at === null ||
+          isAnnouncementExpired(candidate.expires_at, now)
+
+        expect(isAnnouncementRestorable(candidate, now)).toBe(!databaseWouldRefuse)
+      }
+    }
+  })
+})
+
 describe('whether a draft can be published', () => {
   const before = new Date(Date.parse(MOMENT) - 60_000)
 
   it('is ready with a message and a future expiry', () => {
-    expect(announcementPublishOutlook(values(), before)).toBe('ready')
+    expect(announcementPublishOutlook(values(), before, false)).toBe('ready')
     expect(describePublishObstacle('ready')).toBeNull()
   })
 
   it.each([null, '', '  '])('refuses a blank message (%s)', (message) => {
-    expect(announcementPublishOutlook(values({ message }), before)).toBe('blank')
+    expect(announcementPublishOutlook(values({ message }), before, false)).toBe('blank')
   })
 
   it('refuses a missing expiry', () => {
-    expect(announcementPublishOutlook(values({ expires_at: null }), before)).toBe('no_expiry')
+    expect(announcementPublishOutlook(values({ expires_at: null }), before, false)).toBe(
+      'no_expiry',
+    )
   })
 
   it('refuses an expiry that has already passed', () => {
     expect(
-      announcementPublishOutlook(values(), new Date(Date.parse(MOMENT) + 1)),
+      announcementPublishOutlook(values(), new Date(Date.parse(MOMENT) + 1), false),
     ).toBe('expired')
   })
 
   it('refuses an expiry at exactly now', () => {
-    expect(announcementPublishOutlook(values(), new Date(Date.parse(MOMENT)))).toBe('expired')
+    expect(announcementPublishOutlook(values(), new Date(Date.parse(MOMENT)), false)).toBe(
+      'expired',
+    )
   })
 
   it('names 1ad’s own sentence for both expiry refusals', () => {
@@ -204,6 +267,32 @@ describe('whether a draft can be published', () => {
 
   it('says something different, and actionable, for a blank message', () => {
     expect(describePublishObstacle('blank')).toBe('Skriv en besked, før du offentliggør den.')
+  })
+
+  it('refuses an unreadable stored draft, before it looks at the values at all', () => {
+    /*
+     * `overlayDraft` does not apply a draft that fails its schema (§6, rule 4), so the
+     * values here are the *published* ones — perfectly publishable, and not what the
+     * press would publish. `publishPendingChanges` re-reads the stored draft and answers
+     * `invalid_draft` before it calls any database function; this is the screen refusing
+     * in advance rather than a second rule.
+     */
+    expect(announcementPublishOutlook(values(), before, true)).toBe('unreadable_draft')
+
+    // Even values that are themselves publishable, and even values that are not: the
+    // draft is the thing that cannot be read, so it is the thing that is reported.
+    expect(announcementPublishOutlook(values({ message: null }), before, true)).toBe(
+      'unreadable_draft',
+    )
+    expect(
+      announcementPublishOutlook(values(), new Date(Date.parse(MOMENT) + 1), true),
+    ).toBe('unreadable_draft')
+  })
+
+  it('names the one thing that helps, rather than inviting a retry', () => {
+    expect(describePublishObstacle('unreadable_draft')).toBe(
+      'Den gemte kladde kan ikke læses. Gem felterne igen for at erstatte den.',
+    )
   })
 })
 

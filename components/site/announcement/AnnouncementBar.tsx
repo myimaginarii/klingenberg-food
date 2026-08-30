@@ -29,11 +29,17 @@ import { PageContainer } from '../PageContainer'
  * ONE MEASURED DEPARTURE FROM THE FRAME, AND WHY
  *
  * 1ac labels the desktop bar "41 PX HØJ". 1aa's own accessibility list says "Tryk-mål
- * mindst 44 × 44 px" and states no exception, so the **link** carries `min-h-tap`, which
- * makes a *linked* bar about 46 px tall on desktop. An **unlinked** bar has no target in
- * it and keeps the frame's height exactly. This is the same reading `AdminSectionBar`
- * records for the admin bar's 40 px controls: where the two frames disagree, the
- * accessibility promise is the one that ships.
+ * mindst 44 × 44 px" and states no exception, so the **link** carries `min-h-tap`. This
+ * is the same reading `AdminSectionBar` records for the admin bar's 40 px controls: where
+ * the two frames disagree, the accessibility promise is the one that ships.
+ *
+ * The cost of that promise is **four pixels, and only four**. From `md` a linked row
+ * carries no vertical padding of its own, so the 44 px target *is* the bar's height —
+ * 45 px with the hairline, against the frame's 41. An **unlinked** bar has no target in
+ * it, keeps `md:py-2.5` and measures the frame's height exactly. The phase-7 lock pass
+ * measured the linked bar at 61 px, because the row was padding a control that was
+ * already 44 px tall: the promise was being kept twice over, and the frame's proportion —
+ * *"bjælken skal læses efter logoet og udmærkelsen, ikke før"* — was paying for it.
  */
 export function AnnouncementBar({
   message,
@@ -48,7 +54,9 @@ export function AnnouncementBar({
       <PageContainer>
         <div
           className={`relative flex items-center gap-2.5 py-2 md:justify-center md:gap-3.5 ${
-            link === null ? 'md:py-2.5' : ''
+            // The phone keeps its padding: there the whole row is the target and the
+            // message wraps above the link, so the row is never only as tall as a control.
+            link === null ? 'md:py-2.5' : 'md:py-0'
           }`}
         >
           {/* 1ac's 8 px burgundy dot. Decoration: the sentence carries the meaning. */}

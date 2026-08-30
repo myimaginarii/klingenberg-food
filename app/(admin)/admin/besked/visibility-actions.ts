@@ -108,13 +108,17 @@ function visibilityStatusCode(
   status: 'conflict' | 'not_found' | 'forbidden' | 'expired' | 'blank' | 'failed',
 ): string {
   switch (status) {
-    // The one refusal a person can actually meet: the message expired inside the ten
-    // seconds the Fortryd was on offer. It is said plainly rather than reported as a
-    // success, because nothing came back to the hjemmeside.
+    // The two refusals of the **on** direction, and they are named for the direction
+    // rather than for the control that met them (§0h). A person can reach either from a
+    // Fortryd whose message expired inside the ten seconds it was offered, or from
+    // pressing "Vis besked" on a message that has since expired in another tab — and it
+    // is the same fact either way: the published announcement is not one a guest could be
+    // given, so nothing came back to the hjemmeside. Saying it once means the screen
+    // cannot word the same refusal two different ways.
     case 'expired':
-      return 'fortryd_udloebet'
+      return 'vis_udloebet'
     case 'blank':
-      return 'fortryd_tom'
+      return 'vis_tom'
     default:
       return status
   }

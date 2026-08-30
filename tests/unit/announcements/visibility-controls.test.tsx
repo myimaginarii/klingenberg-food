@@ -20,13 +20,14 @@ import { describeAnnouncementVisibilityChange } from '@/lib/announcements/visibi
  *   * **both controls submit the same operation** — the same two field names, the same
  *     action, the same requested state — so there is one business operation behind two
  *     drawings of it;
- *   * **neither control carries content.** No message, no link, no expiry, no `source`,
+ *   * **no control carries content.** No message, no link, no expiry, no `source`,
  *     no `previous`, no `replaced_at`, no `draft` and no row id reaches the server from
- *     either of them, which is what makes "hiding cannot publish a draft" a property of
- *     the form rather than of a check;
- *   * **the on direction is not offered.** §6's immediate table names the *off* direction
- *     only, so a message that is already off gets a statement rather than a switch that
- *     would have to be refused (§0f);
+ *     any of them, which is what makes "moving the switch cannot publish a draft" a
+ *     property of the form rather than of a check — **in both directions** (§0h);
+ *   * **the on direction is offered exactly while it can succeed.** A published message
+ *     that is switched off but still current gets the same switch, asking for `vis=1`; an
+ *     expired one gets a statement rather than a press `set_announcement_visible()` would
+ *     refuse with `not_showable`;
  *   * **Fortryd asks for visibility and nothing else**, with the version token the write
  *     returned.
  *
@@ -77,7 +78,7 @@ const CONTENT_FIELDS = [
 
 describe('the "Vis besked" card while the message is showing', () => {
   const markup = renderToStaticMarkup(
-    <AnnouncementVisibilityCard form={form} version={VERSION} visible />,
+    <AnnouncementVisibilityCard form={form} restorable version={VERSION} visible />,
   )
 
   it('draws 1ad’s control and its own words', () => {
@@ -107,20 +108,57 @@ describe('the "Vis besked" card while the message is showing', () => {
   })
 })
 
-describe('the same place while the message is not showing', () => {
+describe('the same card while the message is switched off but still showable', () => {
   const markup = renderToStaticMarkup(
-    <AnnouncementVisibilityCard form={form} version={VERSION} visible={false} />,
+    <AnnouncementVisibilityCard form={form} restorable version={VERSION} visible={false} />,
   )
 
-  it('offers no control at all — the on direction is Offentliggør (§6, §0f)', () => {
+  it('is the same one control, in its off position (§0h)', () => {
+    expect(markup).toContain('aria-label="Vis besked"')
+    expect(markup).toContain('<form')
+  })
+
+  it('asks for the on direction — pressing it shows the published message again', () => {
+    expect(hiddenValue(markup, 'vis')).toBe('1')
+    expect(hiddenValue(markup, 'version')).toBe(VERSION)
+  })
+
+  it('still posts exactly two fields, and neither is content', () => {
+    expect(fieldNames(markup)).toEqual(['version', 'vis'])
+
+    for (const field of CONTENT_FIELDS) {
+      expect(fieldNames(markup), `no field is called ${field}`).not.toContain(field)
+    }
+  })
+
+  it('says the state in words, and that it publishes nothing', () => {
+    expect(markup).toContain('Slå til, og den vises igen straks')
+    expect(markup).toContain('Det offentliggør')
+    expect(markup).toContain(
+      'Beskeden vises ikke på hjemmesiden. Slå til, så den samme besked vises igen straks.',
+    )
+  })
+})
+
+describe('the same place once the published message has expired', () => {
+  const markup = renderToStaticMarkup(
+    <AnnouncementVisibilityCard
+      form={form}
+      restorable={false}
+      version={VERSION}
+      visible={false}
+    />,
+  )
+
+  it('offers no press at all — the database would refuse it (not_showable)', () => {
     expect(markup).not.toContain('<button')
     expect(markup).not.toContain('<form')
     expect(markup).not.toContain('name="vis"')
   })
 
-  it('says what is true, and what to do about it', () => {
+  it('names the expiry as the reason, and Offentliggør as the way past it', () => {
     expect(markup).toContain('Vis besked — slået fra')
-    expect(markup).toContain('Beskeden står ikke på hjemmesiden lige nu')
+    expect(markup).toContain('Beskeden er udløbet')
     expect(markup).toContain('Offentliggør')
   })
 })

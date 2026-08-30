@@ -361,7 +361,8 @@ test('the linked bar is a 44 px target and has no accessibility violations', asy
   const page = await context.newPage()
   await page.goto(ALWAYS_FRESH_PATH)
 
-  const link = page.getByRole('region', { name: 'Besked fra restauranten' }).getByRole('link')
+  const region = page.getByRole('region', { name: 'Besked fra restauranten' })
+  const link = region.getByRole('link')
   const box = await link.boundingBox()
 
   // 1aa: "Tryk-mål mindst 44 × 44 px", which 1ac's 41 px desktop bar does not reach on
@@ -369,6 +370,25 @@ test('the linked bar is a 44 px target and has no accessibility violations', asy
   expect(box?.height ?? 0, 'the announcement link is at least 44 px tall').toBeGreaterThanOrEqual(
     44,
   )
+
+  /*
+   * And the bar is that target plus a hairline, rather than that target plus padding.
+   *
+   * 1ac draws the desktop bar at 41 px and says why — *"bjælken skal læses efter logoet og
+   * udmærkelsen, ikke før"* — so the four pixels 1aa's 44 px minimum costs are the whole
+   * of the departure. Phase 7's lock pass measured 61 px here, because the row was padding
+   * a control that already carried the height. Asserted only from `md`, where 1ac draws
+   * the link as a phrase beside the message; on the phone the message wraps above it and
+   * the row is legitimately taller.
+   */
+  const viewport = page.viewportSize()
+  if (viewport !== null && viewport.width >= 768) {
+    const barBox = await region.boundingBox()
+    expect(
+      Math.round(barBox?.height ?? 0),
+      'the desktop bar is its 44 px target plus a hairline, not target plus padding (1ac)',
+    ).toBeLessThanOrEqual(48)
+  }
 
   const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()
   expect(results.violations.map((violation) => violation.id)).toEqual([])

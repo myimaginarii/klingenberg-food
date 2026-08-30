@@ -159,16 +159,34 @@ export async function saveAnnouncement(
 /**
  * 1ad's "Vis besked" card, by its own accessible name.
  *
- * It is a `<form>` while the message is showing, so `getByRole('form')` finds it exactly
- * when the switch exists — which is what makes "the on direction is not offered" a thing
- * a test can assert rather than infer.
+ * It is a `<form>` in **both** directions since phase 7's completion pass (§0h): on while
+ * the message is showing, off while it is switched off but still showable. It is replaced
+ * by {@link visibilityUnavailableCard} — a region, not a form — only when the published
+ * message could not be shown again at all, which is what makes "the press is offered
+ * exactly while it can succeed" something a test can assert rather than infer.
  */
 export function visibilityCard(page: Page) {
   return page.getByRole('form', { name: 'Vis besked', exact: true })
 }
 
-/** The statement that replaces it once the message is off. */
-export function visibilityOffCard(page: Page) {
+/**
+ * Which direction the switch would move, read from the field it posts.
+ *
+ * `'off'` — the bar is showing and the press would hide it; `'on'` — the bar is hidden
+ * and the press would show the same published message again; `'unavailable'` — there is
+ * no press, because the published message has expired.
+ */
+export async function visibilitySwitchDirection(
+  page: Page,
+): Promise<'on' | 'off' | 'unavailable'> {
+  if ((await visibilityCard(page).count()) === 0) return 'unavailable'
+
+  const fields = await formFields(visibilityCard(page))
+  return fields.vis === '1' ? 'on' : 'off'
+}
+
+/** The statement that replaces the switch once the published message has expired. */
+export function visibilityUnavailableCard(page: Page) {
   return page.getByRole('region', { name: 'Vis besked — slået fra' })
 }
 
@@ -187,7 +205,12 @@ export function undoButton(page: Page) {
   return undoStrip(page).getByRole('button', { name: /^Fortryd/ })
 }
 
-/** Turn 1ad's switch off — the "Vis besked" entrance to the immediate path. */
+/**
+ * Press 1ad's switch — the "Vis besked" entrance to the immediate path.
+ *
+ * One helper for both directions, because it is one control: what the press asks for is
+ * whatever the switch is currently *not*.
+ */
 export async function pressVisibilitySwitch(page: Page): Promise<void> {
   await pressAndSettle(page, () => visibilityCard(page).getByRole('button').click())
 }

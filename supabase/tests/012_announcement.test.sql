@@ -28,8 +28,11 @@
 --   11. the singleton stays a singleton, and no new public write path exists;
 --   12. a draft carrying `is_visible` or `source` cannot smuggle either through a publish,
 --       because the merge names six columns and neither is one of them (§6);
---   13. **the immediate path (phase 7B)**: Staff and Owner may take the bar down at once
---       and Fortryd puts it back; `anon` may execute neither function; the write moves
+--   13. **the immediate path (phase 7B, completed by the phase-7 lock pass)**: Staff and
+--       Owner may take the bar down at once and put it back — by Fortryd inside the ten
+--       seconds and, since §0h, by pressing "Vis besked" again afterwards, which is the
+--       *same call with the same argument* and is therefore asserted once rather than
+--       twice; `anon` may execute neither function; the write moves
 --       `is_visible` and leaves every other column — `draft`, `source`, `previous`,
 --       `replaced_at`, the message, the links and the expiry — **byte-identical**; a
 --       stale token writes nothing and logs nothing; a repeat press is `unchanged` and
@@ -719,14 +722,21 @@ select is(pg_temp.audit_total(), 1::bigint,
   'and the conflict logged nothing');
 
 
--- --- 10d. Fortryd is a second authorized write, and restores visibility only -------
+-- --- 10d. The on direction is a second authorized write, and restores visibility only
+--
+-- This one call is **both** ways back: Fortryd inside the ten seconds, and "Vis besked"
+-- pressed again after the offer has gone (§0h). They differ only in which control the
+-- browser rendered — the request is the same boolean and the same version token, so the
+-- properties below hold for both and there is nothing separate to assert for the manual
+-- press. What matters is what it does *not* do: the pending draft the fixture carries is
+-- still byte-identical afterwards, and a guest reads the published message rather than it.
 
 select pg_temp.become_staff();
 
 select is(
   (select public.set_announcement_visible(true, pg_temp.version()) ->> 'status'),
   'updated',
-  'Fortryd restores the announcement');
+  'the on direction restores the announcement (Fortryd, and a manual "Vis besked")');
 
 reset role;
 
@@ -785,6 +795,12 @@ reset role;
 -- an expiry can pass inside them. Writing `is_visible = true` on an expired row would
 -- put `true` into a column the anonymous policy goes on filtering out, and the screen
 -- would report a message put back that no guest can read.
+--
+-- Since §0h the same refusal answers a **manual** "Vis besked" pressed on a message that
+-- expired while a screen from before it was still open. The administration asks the same
+-- two rules first (`isAnnouncementRestorable`) and draws no press it would have to be
+-- refused for — but this is the answer, and it is the reason that is a courtesy rather
+-- than the check. Nothing here extends `expires_at` to make either press succeed.
 
 select pg_temp.reset_fixture();
 delete from public.audit_log;

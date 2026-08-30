@@ -57,6 +57,15 @@ const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
     tone: 'warning',
     text: 'Beskeden blev ikke offentliggjort: udløbstidspunktet er allerede passeret. Vælg et tidspunkt ude i fremtiden.',
   },
+  // A stored draft that no longer satisfies its schema. Nothing was published, nothing
+  // was merged and the draft is still there — so the sentence names the one thing that
+  // helps rather than inviting a retry that would meet the same answer. It is the same
+  // recovery path {@link AnnouncementMalformedDraftNotice} gives, said again where the
+  // press was made.
+  kan_ikke_unreadable_draft: {
+    tone: 'warning',
+    text: 'Beskeden blev ikke offentliggjort: den gemte kladde kan ikke læses. Gem felterne igen for at erstatte den.',
+  },
   publish_failed: {
     tone: 'error',
     text: 'Beskeden kunne ikke offentliggøres. Intet blev ændret — prøv igen.',
@@ -71,16 +80,19 @@ const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
     tone: 'success',
     text: 'Det stod allerede sådan på hjemmesiden. Intet blev ændret.',
   },
-  // The one refusal a person can actually meet on this path: the udløbstidspunkt passed
-  // while the Fortryd was on offer. Nothing came back to the hjemmeside, and the sentence
-  // says so rather than reporting a restore that did not happen.
-  fortryd_udloebet: {
+  // The refusals of the **on** direction (§0h) — met by a Fortryd whose message expired
+  // inside the ten seconds it was offered, and by a "Vis besked" pressed on a message
+  // that has since expired. One fact, one sentence: the published message is not one a
+  // guest could be given, nothing came back to the hjemmeside, and the way forward is a
+  // new expiry through the three steps. Nothing here moved the deadline to make the
+  // press succeed.
+  vis_udloebet: {
     tone: 'warning',
-    text: 'Beskeden nåede at udløbe, så den kunne ikke sættes tilbage. Ret udløbstidspunktet, og offentliggør beskeden igen, hvis den skal frem.',
+    text: 'Beskeden er udløbet, så den kunne ikke vises igen. Vælg et nyt udløbstidspunkt, og offentliggør beskeden igen, hvis den skal frem.',
   },
-  fortryd_tom: {
+  vis_tom: {
     tone: 'warning',
-    text: 'Der er ingen besked at sætte tilbage. Skriv teksten, og offentliggør den.',
+    text: 'Der er ingen besked at vise. Skriv teksten, og offentliggør den.',
   },
   ugyldig: { tone: 'error', text: 'Ret det, der er markeret herunder, og gem igen.' },
   invalid: { tone: 'error', text: 'Ret det, der er markeret herunder, og gem igen.' },

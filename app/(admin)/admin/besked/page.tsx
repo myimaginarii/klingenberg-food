@@ -27,6 +27,7 @@ import {
   describeAnnouncementPending,
   describeAnnouncementState,
   describePublishObstacle,
+  isAnnouncementRestorable,
 } from '@/lib/announcements/lifecycle'
 import { resolveAnnouncementLink } from '@/lib/announcements/link'
 import { describeAnnouncementVisibilityChange } from '@/lib/announcements/visibility'
@@ -77,10 +78,14 @@ import { setAnnouncementVisibility } from './visibility-actions'
  * (`source='opening_hours'`) and 1ae's conflict sheet are **phase 8**. There is no RPC, no
  * action and no form on this screen by which any of them could happen.
  *
- * **Turning a bar back on is Offentliggør**, not the switch (§6's table names the *off*
- * direction only; §0f names the on direction). The one exception is Fortryd, which
- * restores the visibility of the **same, unchanged, already published** announcement for
- * about ten seconds after the press that removed it.
+ * **THE TWO DIRECTIONS THIS SCREEN KEEPS APART** (§0h). "Vis besked" moves the visibility
+ * of the **already published** announcement, both ways, immediately — off, and back on.
+ * Offentliggør is what makes *content* public. So switching the bar back on re-shows the
+ * message, link and expiry that were already published and leaves a pending draft exactly
+ * where it was: the database function writes one column, and `draft` is not it. The on
+ * direction is offered only while 1ac's two standing rules still hold for the published
+ * row (`isAnnouncementRestorable`); an expired message comes back through Ret →
+ * Offentliggør, because it needs a new expiry, and an expiry is content.
  *
  * `requireStaff()` is called here, in the page. `proxy.ts` also redirects an
  * unauthenticated visitor, but that is convenience — this call is the enforcement (§5),
@@ -220,7 +225,11 @@ export default async function AnnouncementAdminPage({
 
   // What publishing *would* produce — the live row with the draft over it, which is
   // exactly what `publish_announcement()` merges, and exactly what the action re-checks.
-  const outlook = announcementPublishOutlook(announcement.current, now)
+  const outlook = announcementPublishOutlook(
+    announcement.current,
+    now,
+    announcement.draftMalformed,
+  )
   const obstacle = describePublishObstacle(outlook)
 
   // 1ad's "SÅDAN SER DEN UD" panel shows the *draft* — the point of the panel is to see
@@ -249,6 +258,14 @@ export default async function AnnouncementAdminPage({
   const hasPublishedMessage =
     announcement.live.message !== null && announcement.live.message.trim().length > 0
   const canRemoveNow = hasPublishedMessage && announcement.isVisible
+
+  /*
+   * Whether the switch may be pressed in the **on** direction (§0h) — asked of the
+   * published values and this render's clock, which is the same question
+   * `set_announcement_visible()` answers with `not_showable`. It decides only whether the
+   * press is drawn; the database refuses it either way.
+   */
+  const canShowAgain = isAnnouncementRestorable(announcement.live, now)
 
   // The Fortryd offer, entirely from the URL the action redirected to. A missing version
   // or a missing state is no offer at all; neither value is authority, and pressing the
@@ -321,7 +338,11 @@ export default async function AnnouncementAdminPage({
           sentence={pending}
         />
 
-        <AnnouncementStateBanner showRemoval={canRemoveNow} state={state} />
+        <AnnouncementStateBanner
+          showRemoval={canRemoveNow}
+          showRestore={hasPublishedMessage && !announcement.isVisible && canShowAgain}
+          state={state}
+        />
 
         {/*
           1ad draws "Vis besked" in its own white card **above** the editor, and that is
@@ -333,6 +354,7 @@ export default async function AnnouncementAdminPage({
         {hasPublishedMessage ? (
           <AnnouncementVisibilityCard
             form={visibilityForm}
+            restorable={canShowAgain}
             version={announcement.updatedAt}
             visible={announcement.isVisible}
           />

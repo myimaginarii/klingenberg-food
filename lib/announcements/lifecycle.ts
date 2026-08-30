@@ -173,9 +173,10 @@ export type AnnouncementEligibilityInput = AnnouncementValues & {
    * `announcement.is_visible`.
    *
    * Written by exactly two things, and never by a draft: `publish_announcement()` sets it
-   * (1ad — Offentliggør is how a message reaches the hjemmeside), and §6's immediate path
-   * moves it — phase 7B's "Vis besked" off and "Fjern beskeden nu", and the Fortryd that
-   * puts the same published message back. See §0f and §0g.
+   * (1ad — Offentliggør is how *content* reaches the hjemmeside), and §6's immediate path
+   * moves it either way — "Vis besked" off, "Fjern beskeden nu", the Fortryd after
+   * either, and "Vis besked" back on, which re-shows the same published message without
+   * publishing anything. See §0f, §0g and §0h.
    */
   readonly is_visible: boolean
 }
@@ -209,6 +210,31 @@ export function isAnnouncementPubliclyVisible(
   return !isAnnouncementExpired(announcement.expires_at, now)
 }
 
+/**
+ * May the **already published** announcement be shown again exactly as it stands?
+ *
+ * The eligibility question with `is_visible` set aside — *"if this were switched on,
+ * would a guest be given it?"* — which is precisely the two rules
+ * `set_announcement_visible()` checks for the direction that turns a bar on: a message
+ * that exists, and an expiry that exists and is still ahead (1ac: "Kort besked",
+ * "**Udløb er påkrævet**").
+ *
+ * It is written as {@link isAnnouncementPubliclyVisible} with one field substituted
+ * rather than as a second list of conditions, so the screen's offer and the database's
+ * refusal cannot drift apart into two rules that agree today.
+ *
+ * **It decides only whether the control is offered.** The database refuses the write
+ * regardless (`not_showable`), so this is the courtesy of not drawing a press that would
+ * have to be turned down — never the check that stops it.
+ *
+ * It is deliberately asked of the **published** values. A pending draft is not part of
+ * the question: showing the bar again re-shows what was published, and publishing draft
+ * content is Offentliggør (§0f, §0h).
+ */
+export function isAnnouncementRestorable(live: AnnouncementValues, now: Date): boolean {
+  return isAnnouncementPubliclyVisible({ ...live, is_visible: true }, now)
+}
+
 // ---------------------------------------------------------------------------
 // Publishing — technical plan §6; design 1ad
 // ---------------------------------------------------------------------------
@@ -216,13 +242,25 @@ export function isAnnouncementPubliclyVisible(
 /**
  * Why an announcement can or cannot go live.
  *
- *   * `ready`      — a message, and an expiry still in the future.
- *   * `blank`      — no message. 1ac: the bar is a message; there is nothing to show.
- *   * `no_expiry`  — 1ac: "Udløb er påkrævet".
- *   * `expired`    — an expiry that has already passed. Publishing it would put a
- *                    message live that nothing would ever show.
+ *   * `ready`            — a message, and an expiry still in the future.
+ *   * `blank`            — no message. 1ac: the bar is a message; there is nothing to
+ *                          show.
+ *   * `no_expiry`        — 1ac: "Udløb er påkrævet".
+ *   * `expired`          — an expiry that has already passed. Publishing it would put a
+ *                          message live that nothing would ever show.
+ *   * `unreadable_draft` — a stored draft that no longer satisfies its schema, and was
+ *                          therefore not applied to anything on the screen. It is first
+ *                          in the order below because it is a statement about the
+ *                          *draft*, and the other three are statements about the values
+ *                          the draft would have produced — values that, in this state,
+ *                          nobody wrote.
  */
-export type AnnouncementPublishOutlook = 'ready' | 'blank' | 'no_expiry' | 'expired'
+export type AnnouncementPublishOutlook =
+  | 'ready'
+  | 'blank'
+  | 'no_expiry'
+  | 'expired'
+  | 'unreadable_draft'
 
 /**
  * What publishing these values would produce, at `now`.
@@ -237,7 +275,26 @@ export type AnnouncementPublishOutlook = 'ready' | 'blank' | 'no_expiry' | 'expi
 export function announcementPublishOutlook(
   values: AnnouncementValues,
   now: Date,
+  draftMalformed: boolean,
 ): AnnouncementPublishOutlook {
+  /*
+   * Asked first, and a required argument rather than an optional one, so no call site
+   * can forget it.
+   *
+   * `overlayDraft` refuses to apply a draft that does not parse (§6, rule 4), so
+   * `values` here are the **published** ones — and judging a publish by them would be
+   * judging the wrong thing: the button would look available while the operation it
+   * offers cannot happen. `publishPendingChanges` re-reads the stored draft and answers
+   * `invalid_draft` before it calls any database function, so this is the screen saying
+   * the same thing in advance rather than a second rule.
+   *
+   * It is deliberately **not** a repair. Nothing here drops the unreadable draft,
+   * rewrites it, or publishes the published values instead: a person replaces it by
+   * saving the fields again, which is the sentence the malformed-draft notice already
+   * gives them.
+   */
+  if (draftMalformed) return 'unreadable_draft'
+
   if (values.message === null || values.message.trim().length === 0) return 'blank'
   if (values.expires_at === null) return 'no_expiry'
   if (isAnnouncementExpired(values.expires_at, now)) return 'expired'
@@ -254,6 +311,8 @@ export function describePublishObstacle(outlook: AnnouncementPublishOutlook): st
       return 'Vælg et tidspunkt ude i fremtiden — beskeden kan ikke offentliggøres uden.'
     case 'expired':
       return 'Vælg et tidspunkt ude i fremtiden — beskeden kan ikke offentliggøres uden.'
+    case 'unreadable_draft':
+      return 'Den gemte kladde kan ikke læses. Gem felterne igen for at erstatte den.'
     case 'ready':
       return null
   }

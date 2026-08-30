@@ -74,10 +74,17 @@ export function AnnouncementStateBadge({
 export function AnnouncementStateBanner({
   state,
   showRemoval,
+  showRestore,
 }: {
   state: AnnouncementStateReport
   /** True when there is a bar on the hjemmeside that 1ad's one press could remove. */
   showRemoval: boolean
+  /**
+   * True when the published message is switched off and could be shown again as it
+   * stands (§0h). Never true at the same time as {@link showRemoval}: a bar is either on
+   * the hjemmeside or it is not.
+   */
+  showRestore: boolean
 }) {
   const tone = TONE_STYLES[state.tone]
 
@@ -99,15 +106,20 @@ export function AnnouncementStateBanner({
         The two ways a message leaves the hjemmeside, said in the order they happen: the
         mandatory expiry takes it down on its own, and 1ad's one press takes it down now.
         Phase 7B built the second, so this sentence says it rather than apologising for
-        its absence.
+        its absence — and phase 7's completion pass added the way back (§0h).
 
-        `showRemoval` is false when there is no bar to remove, so the screen never points
-        at a control that is not on it.
+        Each half points at a control only while that control is on the screen: a bar that
+        is showing can be removed, one that is switched off and still current can be shown
+        again, and one that has expired can do neither — the "Vis besked" card says why.
+        The two flags are mutually exclusive, so at most one sentence is ever added.
       */}
       <p className="text-ink-2 text-meta">
         Beskeden forsvinder af sig selv, når udløbstidspunktet passerer.
         {showRemoval
           ? ' Skal den væk med det samme, så slå “Vis besked” fra eller tryk “Fjern beskeden nu” — det virker straks, og du kan fortryde i ca. 10 sekunder.'
+          : ''}
+        {showRestore
+          ? ' Skal den samme besked frem igen, så slå “Vis besked” til — det virker straks og offentliggør ikke en kladde.'
           : ''}
       </p>
     </section>

@@ -68,7 +68,11 @@ export async function publishAnnouncement(): Promise<void> {
 
   // What a guest would read afterwards — the live row with the draft over it, which is
   // exactly what `publish_announcement()` merges. One clock for the whole decision.
-  const outlook = announcementPublishOutlook(announcement.current, new Date())
+  const outlook = announcementPublishOutlook(
+    announcement.current,
+    new Date(),
+    announcement.draftMalformed,
+  )
 
   if (outlook !== 'ready') {
     // Nothing has happened. The screen already says what is wrong, beneath the field it
@@ -90,7 +94,28 @@ export async function publishAnnouncement(): Promise<void> {
 
   const published = results.some((result) => result.status === 'published')
 
-  if (!published) redirect(announcementHref({ status: 'publish_failed' }))
+  if (!published) {
+    /*
+     * `invalid_draft` is not "try again" and must not be worded as one.
+     * `publishPendingChanges` re-reads the stored draft and refuses before it calls any
+     * database function, so the draft is still there, the published row is untouched, and
+     * pressing Offentliggør again will meet exactly the same answer. It is separated from
+     * the generic failure so the sentence names the one thing that does help — saving the
+     * fields again to replace the unreadable draft.
+     *
+     * The screen normally greys the button out for this state (`unreadable_draft` above),
+     * so reaching it here means the draft became unreadable between the render and the
+     * press. It is the same answer either way.
+     */
+    const unreadable = results.some((result) => result.status === 'invalid_draft')
+
+    redirect(
+      announcementHref({
+        focus: unreadable,
+        status: unreadable ? 'kan_ikke_unreadable_draft' : 'publish_failed',
+      }),
+    )
+  }
 
   redirect(announcementHref({ focus: true, status: 'offentliggjort' }))
 }

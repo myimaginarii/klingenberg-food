@@ -17,6 +17,21 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
  * stoppes med det samme."* So it writes no draft, waits for no Offentliggør, and offers
  * about ten seconds of Fortryd.
  *
+ * BOTH DIRECTIONS, ONE OPERATION (§0h)
+ *
+ * `visible` is a boolean because a switch has two positions, and this function is what
+ * moves it either way: off for 1ad's two removal controls, on for Fortryd and for the
+ * same switch pressed again. There is **no branch** between the two here and none in the
+ * database function beyond the pair of guards the on direction needs — the request is one
+ * boolean and one version token in both directions, mapped through one schema, audited
+ * through one shape.
+ *
+ * **The on direction restores visibility, never content.** It re-shows the message, link
+ * and expiry that were already published; it cannot publish a pending draft, because the
+ * UPDATE names one column and `draft` is not it. That is the line 1aa draws for this bar
+ * — *"fjernes med ét tryk, men skrives via forhåndsvis → offentliggør"* — and it is what
+ * keeps "Vis besked" a visibility control rather than a second publish button.
+ *
  * A **wrapper, not a mechanism**, exactly as `lib/menu/sold-out.ts`,
  * `lib/menu/weekly-availability.ts` and `lib/menu/monthly-availability.ts` are for §7b.
  * The transaction is `public.set_announcement_visible()`; what happens here is the three
@@ -87,7 +102,9 @@ export type AnnouncementVisibilityStatus =
   /**
    * Asked to switch **on** a bar a guest could not be given — the message is blank, or
    * the expiry has passed. 1ac's two standing rules, applied to the one direction they
-   * can apply to. This is the answer when an expiry passes inside the Fortryd window.
+   * can apply to. It is the answer both when an expiry passes inside the Fortryd window
+   * and when "Vis besked" is pressed on a message that expired while another tab held a
+   * screen from before it did (§0h). Nothing extends the expiry to make either succeed.
    */
   | 'expired'
   /** The same refusal, for the unreachable half: there is no message to show. */

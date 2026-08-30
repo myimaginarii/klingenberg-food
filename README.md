@@ -7,7 +7,7 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–6 complete and locked; phase 7A complete.** The public site renders from the database;
+**Status: phases 0–7 complete and locked.** The public site renders from the database;
 the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
@@ -20,17 +20,22 @@ computed state, its scheduled publication, its expired-window confirmation and i
 immediate Udsolgt path. Technical plan §0b records what phase 5 contains, and §0e records
 what phase 6 contains — each with what is deliberately outside it.
 
-**Phase 7A** is finished too: **Besked på hjemmesiden** (`/admin/besked`) writes one
+**Phase 7** is finished too: **Besked på hjemmesiden** (`/admin/besked`) writes one
 short message with an optional link and a **required future expiry**, through the same
 Kladde → Forhåndsvis → Offentliggør flow; the bar renders above the navigation on every
 public page; and a ~40-line client component removes it the moment its expiry passes,
-with no request, no cookie and no polling. Technical plan §0f records what 7A contains,
-what it deliberately does not, and the one change it had to make to phase 4's publish
-function.
+with no request, no cookie and no polling. Beside that three-step path sits **one press**:
+1ad's "Vis besked" switch and "Fjern beskeden nu" take the bar off the hjemmeside at once,
+the switch puts the *same published message* back just as fast, and either way there are
+about ten seconds of Fortryd. Technical plan §0f and §0g record the two increments, and
+**§0h is what "phase 7" means as a whole** — including the line the screen exists to keep:
+**Ret / Gem / Forhåndsvis / Offentliggør change what the message says; "Vis besked" changes
+whether the already-published message is shown.** Switching the bar back on never publishes
+a pending draft.
 
-The next phase is **7B** — the immediate path: "Vis besked" off, "Fjern beskeden nu",
-replacing an active announcement, and the ~10-second Fortryd that belongs to each. **None
-of it is started**, so in 7A a message is taken down by its expiry and by nothing else.
+The next phase is **8** — opening-hours administration, and with it the parts of the
+announcement that belong to a *generated* message: replacing an active announcement, the
+`previous` / `replaced_at` stash and 1ae's conflict sheet. **None of it is started.**
 `/admin` itself is still the **foundation-level** dashboard from phase 4 plus the menu and
 announcement entries — the remaining section screens arrive in their own phases.
 
@@ -143,7 +148,7 @@ app/
                           four vocabularies, the same shape as the folder above it
       maanedens-burger/   Månedens burger (phase 6B) — the date window, "Vis på
                           forsiden" and the §7d computed state
-    besked/           Besked på hjemmesiden (phase 7A) — the message, its optional
+    besked/           Besked på hjemmesiden (phase 7) — the message, its optional
                       link, its required future expiry and 1ad's suggestion chips
     indhold/ login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
   api/preview/        start and stop Draft Mode — staff session required
@@ -155,7 +160,7 @@ components/
   admin/monthly/      Månedens burger (phase 6B). Both reuse the menu's presentation
                       primitives — the switch, the green Fortryd strip, the dialog —
                       and share no business rules with it or with each other.
-  admin/announcement/ Besked på hjemmesiden (phase 7A). Its "sådan ser den ud" panel
+  admin/announcement/ Besked på hjemmesiden (phase 7). Its "sådan ser den ud" panel
                       renders the public bar itself, so the two cannot drift.
   site/announcement/  the public bar, its labelled aria-live region, and the expiry
                       guard — the only client component phase 7 adds (§7c)
@@ -173,7 +178,7 @@ lib/
   menu/               the menu's rules: pricing, labels, sold-out, delete, reorder,
                       tapas, the weekly special (6A) and the monthly burger (6B). The
                       last two are two concrete modules, not one generic one.
-  announcements/      the announcement's rules (phase 7A). `expiry.ts` imports nothing
+  announcements/      the announcement's rules (phase 7). `expiry.ts` imports nothing
                       at all, so the browser guard and the server share one comparison;
                       `expiry-editor.ts` holds the Copenhagen half the browser never sees.
   hours/ time/        the pure time engines
@@ -190,7 +195,7 @@ supabase/
   seed.sql          the confirmed contact, opening-hours and menu facts
   templates/        Danish auth emails, versioned and applied through config.toml
   tests/            pgTAP — the §5 permission matrix, the owner invariant, and every
-                    write path phases 4–7A added
+                    write path phases 4–7 added
 tests/
   unit/             the pure rules, under Vitest
   e2e/ a11y/        Playwright, against a production build; axe at 375 and 1440
@@ -246,17 +251,22 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 7B onward, plus: the weekly off-platform backup workflow
+Everything in §15 from phase 8 onward, plus: the weekly off-platform backup workflow
 (phase 13, §10f) and Sentry (phase 13). `docs/dependencies.md` records which package
 arrives in which phase. Phase 6 is **complete and locked** — 6A (Ugens ret and
 Lørdagsmenu, §0c), 6B (Månedens burger, §0d), and the completion pass over both halves
-(§0e). Phase 7A is **complete but not locked**, because phase 7 has a second half.
+(§0e). Phase 7 is **complete and locked** — 7A (§0f), 7B (§0g), and the completion pass
+over both halves (§0h).
 
-What the **announcement** deliberately does not do yet, and who owns each, is listed in
-§0f: "Vis besked" off and "Fjern beskeden nu" (7B), replacing an active announcement with
-its `previous`-backed Fortryd (7B), and a message generated from a one-off opening-hours
-change with 1ae's conflict sheet (phase 8). There is no archive and no history at all, by
-design.
+What the **announcement** deliberately does not do, and who owns it, is listed in §0h:
+**replacing** an active announcement, the `previous` / `replaced_at` stash and the restore
+that reads them, a message generated from a one-off opening-hours change
+(`source='opening_hours'`), "Erstat med den nye besked" and 1ae's conflict sheet — all
+**phase 8**. Nothing in phase 7 reads or writes `previous` or `replaced_at`, and `source`
+stays `'manual'`; "restore" in phase 7 means visibility of the same published message and
+never content. There is no archive and no history at all, by design, and a guest cannot
+dismiss the bar — so nothing per-visitor is stored and the public site still sets **no
+cookies**.
 
 The things the **menu administration** deliberately does not do, and the phase that owns
 each, are listed in technical plan §0b. The Ugens ret / Lørdagsmenu editor

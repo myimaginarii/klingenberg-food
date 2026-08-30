@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright'
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Browser, type Page } from '@playwright/test'
 
 import { OWNER, signIn, STAFF } from './support/admin'
 import {
@@ -14,6 +14,7 @@ import {
   pressRemoveNow,
   pressUndo,
   pressVisibilitySwitch,
+  previewHomepage,
   publishAnnouncement,
   removeNowButton,
   publishButton,
@@ -22,7 +23,8 @@ import {
   undoButton,
   undoStrip,
   visibilityCard,
-  visibilityOffCard,
+  visibilitySwitchDirection,
+  visibilityUnavailableCard,
 } from './support/announcement-admin'
 
 /**
@@ -77,6 +79,34 @@ const ALWAYS_FRESH_PATH = '/en-side-der-ikke-findes'
 const AXE_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']
 
 let staffPage: Page
+
+/**
+ * Wait for a guest to be given the bar again.
+ *
+ * **The two directions of this operation are asserted differently, on purpose.**
+ *
+ * A bar *going* is the safety-critical direction — 1ad: *"En forkert besked skal kunne
+ * stoppes med det samme"* — so every removal in this file is read **single-shot**: the
+ * guest's very next request must already have no bar, and a poll there would hide
+ * precisely the defect that matters.
+ *
+ * A bar *coming back* is the convenience direction, and reading it single-shot measures
+ * the cache rather than the phase. `updateTag` expires the entry when the transaction
+ * commits, but the refreshed entry is written by the request that finds it stale, and a
+ * request arriving inside that window is served the entry as it stood. That is the same
+ * reason the setup scenario at the top of this file polls, and it says so there in its
+ * own words. What is asserted is that the **same published message** comes back without
+ * a publish — not how many milliseconds the local cache handler takes.
+ */
+async function expectGuestShows(browser: Browser, message: string): Promise<void> {
+  await expect
+    .poll(async () => (await guestAnnouncement(browser, ALWAYS_FRESH_PATH)).message ?? '', {
+      intervals: [100, 250, 500, 1_000],
+      message: 'the published announcement is on the hjemmeside again',
+      timeout: 15_000,
+    })
+    .toContain(message)
+}
 
 async function violations(page: Page) {
   const results = await new AxeBuilder({ page }).withTags(AXE_TAGS).analyze()
@@ -322,11 +352,19 @@ test('it created no draft, and the screen says what is true', async () => {
 
   await expect(stateBanner(staffPage)).toContainText('slået fra')
 
-  // The on direction is not offered — that is Offentliggør (§6, §0f). The switch is gone
-  // and a statement stands in its place.
-  await expect(visibilityCard(staffPage)).toHaveCount(0)
+  // There is no longer a bar to remove, so the footer control is gone — 1ac's rule for
+  // the bar applied to the control that takes it down.
   await expect(removeNowButton(staffPage)).toHaveCount(0)
-  await expect(visibilityOffCard(staffPage)).toBeVisible()
+
+  // The switch stays, in its off position, because the published message is still
+  // current and may be shown again as it stands (§0h). It asks for the on direction now.
+  await expect(visibilityCard(staffPage)).toBeVisible()
+  expect(await visibilitySwitchDirection(staffPage)).toBe('on')
+  await expect(visibilityCard(staffPage)).toContainText('Slå til, og den vises igen straks')
+
+  // And the banner names the way back without claiming a publish is needed for it.
+  await expect(stateBanner(staffPage)).toContainText('Skal den samme besked frem igen')
+  await expect(stateBanner(staffPage)).toContainText('offentliggør ikke en kladde')
 })
 
 test('a green undo strip reports it, politely and without taking focus', async () => {
@@ -396,15 +434,13 @@ test('the screen showing the undo strip has no accessibility violations', async 
 test('Fortryd puts the same bar back', async ({ browser }) => {
   await pressUndo(staffPage)
 
-  const guest = await guestAnnouncement(browser, ALWAYS_FRESH_PATH)
-
-  expect(guest.present).toBe(true)
-  expect(guest.message).toContain(MESSAGE)
+  await expectGuestShows(browser, MESSAGE)
 
   // The same published announcement, not a new one: still nothing pending, and the
-  // switch is back because the message is showing again.
+  // switch reads as showing again — so a press would now take it *down* (§0h).
   await expect(pendingBand(staffPage)).toHaveCount(0)
-  await expect(visibilityCard(staffPage)).toBeVisible()
+  expect(await visibilitySwitchDirection(staffPage)).toBe('off')
+  await expect(removeNowButton(staffPage)).toBeVisible()
 })
 
 // ---------------------------------------------------------------------------
@@ -421,7 +457,92 @@ test('turning "Vis besked" off does exactly the same thing', async ({ browser })
   await expect(pendingBand(staffPage)).toHaveCount(0)
 
   await pressUndo(staffPage)
-  expect((await guestAnnouncement(browser, ALWAYS_FRESH_PATH)).message).toContain(MESSAGE)
+  await expectGuestShows(browser, MESSAGE)
+})
+
+// ---------------------------------------------------------------------------
+// 9b. The way back once the Fortryd is gone — "Vis besked" on (§0h)
+// ---------------------------------------------------------------------------
+
+test('the same published message comes back once the Fortryd has gone', async ({
+  browser,
+}) => {
+  /*
+   * The behaviour phase 7's completion pass added, and the one §0g reading A recorded as
+   * a limitation: after the ten seconds, putting the same message back used to mean
+   * editing it and pressing Offentliggør. It no longer does — the switch itself moves the
+   * visibility of the **already published** announcement in both directions.
+   *
+   * The Fortryd is allowed to disappear on its own here rather than being navigated away
+   * from, because "the offer has gone" is the precondition this scenario is about.
+   */
+  await openAnnouncementAdmin(staffPage)
+  await pressVisibilitySwitch(staffPage)
+
+  await expect(undoStrip(staffPage)).toBeVisible()
+  // 1aa: ten seconds, because the message carries Fortryd. It is not the boundary of
+  // anything — it is simply gone, and the announcement is still hidden.
+  await expect(undoStrip(staffPage)).toHaveCount(0, { timeout: 20_000 })
+
+  expect((await guestAnnouncement(browser, ALWAYS_FRESH_PATH)).present).toBe(false)
+
+  // The switch is still there, now asking for the on direction.
+  expect(await visibilitySwitchDirection(staffPage)).toBe('on')
+  await expect(removeNowButton(staffPage)).toHaveCount(0)
+
+  await pressVisibilitySwitch(staffPage)
+
+  // And it is the same published announcement — not a republished one.
+  await expectGuestShows(browser, MESSAGE)
+
+  // No publish happened: nothing was pending before and nothing is pending after, and
+  // the strip reports a restore rather than an Offentliggør.
+  await expect(pendingBand(staffPage)).toHaveCount(0)
+  await expect(undoStrip(staffPage)).toContainText('Beskeden vises igen på hjemmesiden.')
+
+  // And the screen is back in its showing state, with both removal controls on it.
+  expect(await visibilitySwitchDirection(staffPage)).toBe('off')
+  await expect(removeNowButton(staffPage)).toBeVisible()
+})
+
+test('the re-show is the same two fields, and it is axe-clean', async () => {
+  await openAnnouncementAdmin(staffPage)
+  await pressVisibilitySwitch(staffPage)
+  await openAnnouncementAdmin(staffPage)
+
+  const fields = await formFields(visibilityCard(staffPage))
+  expect(Object.keys(fields).sort()).toEqual(['version', 'vis'])
+  expect(fields.vis, 'the off switch asks for the bar back').toBe('1')
+
+  // No content of any kind travels with a re-show: that is what makes "showing the bar
+  // again cannot publish a draft" a property of the form rather than of a check.
+  for (const forbidden of [
+    'besked',
+    'message',
+    'link',
+    'adresse',
+    'linktekst',
+    'udloeb',
+    'udloeb_dato',
+    'expires_at',
+    'source',
+    'previous',
+    'replaced_at',
+    'draft',
+    'entity',
+    'id',
+  ]) {
+    expect(Object.keys(fields), `no field is called ${forbidden}`).not.toContain(forbidden)
+  }
+
+  const box = await visibilityCard(staffPage).getByRole('button').boundingBox()
+  expect(box?.height ?? 0, '1aa: tryk-mål mindst 44 × 44 px').toBeGreaterThanOrEqual(44)
+
+  expect(await violations(staffPage)).toEqual([])
+
+  // Put the bar back for the scenarios after this one.
+  await pressVisibilitySwitch(staffPage)
+  expect(await visibilitySwitchDirection(staffPage)).toBe('off')
 })
 
 test('the whole removal and undo is operable from the keyboard alone', async ({ browser }) => {
@@ -436,8 +557,20 @@ test('the whole removal and undo is operable from the keyboard alone', async ({ 
   await undoButton(staffPage).focus()
   await staffPage.keyboard.press('Enter')
 
-  await expect(visibilityCard(staffPage)).toBeVisible()
-  expect((await guestAnnouncement(browser, ALWAYS_FRESH_PATH)).present).toBe(true)
+  /*
+   * Polled on the switch's *direction* rather than on its presence. Since §0h the card is
+   * on the screen in both states, so "the card is visible" no longer distinguishes a
+   * restored bar from a removed one — and asserting it would resolve before the undo's
+   * redirect had landed. `'off'` is the direction a press would move a bar that is
+   * currently showing, which is the state this scenario is waiting for.
+   */
+  await expect
+    .poll(() => visibilitySwitchDirection(staffPage), {
+      message: 'the keyboard undo restores the bar',
+    })
+    .toBe('off')
+
+  await expectGuestShows(browser, MESSAGE)
 })
 
 // ---------------------------------------------------------------------------
@@ -467,9 +600,8 @@ test('a pending draft survives a removal and its undo, byte for byte', async ({ 
   await pressUndo(staffPage)
 
   // The **published** message is back — never the draft, which is still waiting.
-  const guest = await guestAnnouncement(browser, ALWAYS_FRESH_PATH)
-  expect(guest.message).toContain(MESSAGE)
-  expect(guest.message).not.toContain(DRAFTED)
+  await expectGuestShows(browser, MESSAGE)
+  expect((await guestAnnouncement(browser, ALWAYS_FRESH_PATH)).message).not.toContain(DRAFTED)
 
   await expect(pendingBand(staffPage)).toBeVisible()
   await expect(announcementForm(staffPage).getByLabel('Besked')).toHaveValue(DRAFTED)
@@ -478,6 +610,58 @@ test('a pending draft survives a removal and its undo, byte for byte', async ({ 
   // again makes the delta empty, which is what clears a draft (§4).
   await saveAnnouncement(staffPage, { message: MESSAGE })
   await expect(pendingBand(staffPage)).toHaveCount(0)
+})
+
+test('a manual re-show restores the published message and leaves the draft pending', async ({
+  browser,
+}) => {
+  /*
+   * The scenario the whole distinction turns on (§0h): **A is published, B is a pending
+   * draft, the bar is switched off and then switched back on.** What must come back is A.
+   * B must still be waiting, still previewable, and still reachable only by Offentliggør.
+   *
+   * If the switch could publish, this is where it would show.
+   */
+  await openAnnouncementAdmin(staffPage)
+
+  // B, as a draft, on top of the published A.
+  await saveAnnouncement(staffPage, { message: DRAFTED })
+  await expect(pendingBand(staffPage)).toBeVisible()
+  expect((await guestAnnouncement(browser, ALWAYS_FRESH_PATH)).message).toContain(MESSAGE)
+
+  await pressVisibilitySwitch(staffPage)
+  expect((await guestAnnouncement(browser, ALWAYS_FRESH_PATH)).present).toBe(false)
+
+  // The offer is dropped the way a reload drops it (§6), so the press below is the
+  // ordinary manual one rather than the Fortryd.
+  await openAnnouncementAdmin(staffPage)
+  await expect(undoStrip(staffPage)).toHaveCount(0)
+  expect(await visibilitySwitchDirection(staffPage)).toBe('on')
+
+  await pressVisibilitySwitch(staffPage)
+
+  // A is back. B is not public and never was.
+  await expectGuestShows(browser, MESSAGE)
+  expect((await guestAnnouncement(browser, ALWAYS_FRESH_PATH)).message).not.toContain(DRAFTED)
+
+  // B is still pending, still in the fields, still the thing Forhåndsvis shows.
+  await expect(pendingBand(staffPage)).toBeVisible()
+  await expect(announcementForm(staffPage).getByLabel('Besked')).toHaveValue(DRAFTED)
+
+  const previewed = await previewHomepage(staffPage)
+  expect(previewed.message, 'Forhåndsvis still shows the pending draft').toContain(DRAFTED)
+
+  // And Offentliggør is the only thing that makes B public — which it then does.
+  await openAnnouncementAdmin(staffPage)
+  await publishAnnouncement(staffPage)
+  await expectGuestShows(browser, DRAFTED)
+
+  // Restore the state the scenarios after this one start from: A published and showing,
+  // with nothing pending.
+  await saveAnnouncement(staffPage, { message: MESSAGE })
+  await publishAnnouncement(staffPage)
+  await expect(pendingBand(staffPage)).toHaveCount(0)
+  await expectGuestShows(browser, MESSAGE)
 })
 
 // ---------------------------------------------------------------------------
@@ -495,7 +679,7 @@ test('an Owner may remove and restore the announcement too', async ({ browser })
   expect((await guestAnnouncement(browser, ALWAYS_FRESH_PATH)).present).toBe(false)
 
   await pressUndo(page)
-  expect((await guestAnnouncement(browser, ALWAYS_FRESH_PATH)).message).toContain(MESSAGE)
+  await expectGuestShows(browser, MESSAGE)
 
   await context.close()
 })
@@ -630,21 +814,36 @@ test('an expiry that passes before Fortryd is refused, not reported as a restore
     .toBe(true)
 
   /*
+   * The switch offers no press at all now: `isAnnouncementRestorable` is false, so the
+   * screen states the reason instead of drawing a press `set_announcement_visible()`
+   * would refuse with `not_showable` (§0h). An expired message needs a **new expiry**,
+   * and an expiry is content, so the way past it is the three steps.
+   */
+  await expect(visibilityCard(staffPage)).toHaveCount(0)
+  await expect(visibilityUnavailableCard(staffPage)).toBeVisible()
+  await expect(visibilityUnavailableCard(staffPage)).toContainText('Beskeden er udløbet')
+  await expect(visibilityUnavailableCard(staffPage)).toContainText('Offentliggør')
+  expect(await violations(staffPage)).toEqual([])
+
+  /*
    * The strip is gone from this reload, which is exactly §6's rule — "if the browser
    * navigates away inside the 10 seconds the undo is lost". So the refusal is provoked
-   * the way a stale tab would provoke it: by pressing an undo the server no longer has a
-   * reason to honour. The timeout is not the boundary; the rule is.
+   * the way a stale tab would provoke it: by pressing an on-direction write the server no
+   * longer has a reason to honour. The timeout is not the boundary; the rule is, and the
+   * same refusal answers a forged "Vis besked" press from a stale screen.
    */
+  const expiredVersion = await staffPage.locator('input[name="version"]').first().inputValue()
+
   await staffPage.goto(
     `${ANNOUNCEMENT_ADMIN_PATH}?fortryd_version=${encodeURIComponent(
-      await staffPage.locator('input[name="version"]').first().inputValue(),
+      expiredVersion,
     )}&fortryd_vis=1`,
   )
 
   await expect(undoStrip(staffPage)).toBeVisible()
   await pressUndo(staffPage)
 
-  await expect(staffPage.getByText('Beskeden nåede at udløbe')).toBeVisible()
+  await expect(staffPage.getByText('Beskeden er udløbet, så den kunne ikke vises igen')).toBeVisible()
 
   // Nothing came back. An expired message is not made publicly eligible by asking for it.
   const guest = await guestAnnouncement(browser, ALWAYS_FRESH_PATH)

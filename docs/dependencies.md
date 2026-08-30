@@ -3,6 +3,44 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 7 completion pass — no dependencies added (2026-08-30)
+
+The pass that closed phase 7 (see technical plan §0h) added **nothing**: no runtime
+dependency, no development dependency, **no migration and no database object**. It made
+one behaviour change, one visual correction and one correctness fix, all inside files that
+already existed, and it added assertions to suites that already existed.
+
+### The bidirectional "Vis besked" needed no new database object, and that is the point
+
+The owner's decision — that the switch moves the visibility of the already-published
+announcement **both ways** — is served by the function phase 7B already shipped.
+`public.set_announcement_visible(p_visible boolean, p_expected_updated_at timestamptz)`
+takes a boolean because a switch has two positions, and it already carried the two guards
+the on direction needs (`not_showable` for a blank message or a passed expiry), because
+Fortryd is the same write. So the migration list for phase 7 is unchanged at two files,
+and `supabase/tests/012_announcement.test.sql` covers the manual re-show in §10d without a
+new assertion: at the database it is the same call with the same argument.
+
+The one thing added on the application side is nine lines of arithmetic,
+`isAnnouncementRestorable` in `lib/announcements/lifecycle.ts`, and it is deliberately
+written as `isAnnouncementPubliclyVisible` with `is_visible` substituted rather than as a
+second list of conditions — so the screen's offer and the database's refusal cannot drift
+into two rules that merely agree today.
+
+### The visual correction needed no token and no utility that did not exist
+
+The linked public bar measured 61 px at 768 and 1440 against 1ac's drawn 41, because the
+row's `py-2` was padding a link that already carried `min-h-tap`. The fix is `md:py-0` on
+a linked row — a Tailwind utility this repository already uses — so the 44 px target *is*
+the bar's height. No new `@theme` entry, no media query, no measurement written into a
+class name.
+
+### `npm audit --audit-level=high` — clean
+
+Re-run from a clean `npm ci` on 2026-08-30 as part of the phase 7 completion regression:
+**0 vulnerabilities** over the full resolved tree. The pinned set below is unchanged since
+phase 4.
+
 ## Phase 7B — no dependencies added (2026-08-30)
 
 Phase 7B (the immediate announcement path — "Vis besked" off, "Fjern beskeden nu" and the
