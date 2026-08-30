@@ -3,6 +3,38 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 6 completion pass — no dependencies added (2026-08-30)
+
+The pass that closed phase 6 (see technical plan §0e) added **nothing**: no runtime
+dependency, no development dependency, no migration and no database object. It made two
+visual corrections and one wording correction inside files that already existed, and
+added three test files — two unit suites and one assertion — that import nothing new.
+
+### The two visual corrections needed no token and no utility that did not exist
+
+Both were the same defect with the same cause: a `md:w-auto` button sitting beside a
+longer sentence in a `md:flex-row` row, shrinking below its own label because
+`flex-shrink` defaults to 1. The fix is `shrink-0`, a Tailwind utility this repository
+already uses in ten other places, on `components/admin/weekly/CopyPreviousWeek.tsx` and
+`components/admin/monthly/MonthlyBurgerEditor.tsx`. No new token, no `@theme` entry, no
+media query and no measurement written into a class name.
+
+### The two new unit suites use the mock that was already there
+
+`tests/unit/menu/weekly-sold-out-mapping.test.ts` and
+`tests/unit/menu/monthly-sold-out-mapping.test.ts` are modelled on phase 5C's
+`sold-out-mapping.test.ts` and use the same two things it uses: `vi.mock` on
+`@/lib/supabase/server`, and `node:fs` to read the module's own source for the
+architectural assertions. No mocking library, no fixture framework and no HTTP recorder
+was added — the point of the pattern is that a recorder function and a resolved value are
+enough to assert a mapping.
+
+### `npm audit --audit-level=high` — clean
+
+Re-run from a clean `npm ci` on 2026-08-30 as part of the phase 6 completion regression:
+**0 vulnerabilities** over the full resolved tree. No advisory affects the pinned set
+below, which is unchanged since phase 4.
+
 ## Phase 6B — no dependencies added (2026-08-30)
 
 Månedens burger (`lib/menu/monthly.ts`, `lib/menu/monthly-availability.ts`,

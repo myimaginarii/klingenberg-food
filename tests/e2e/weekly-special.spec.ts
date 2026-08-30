@@ -361,6 +361,20 @@ test('Udsolgt on Ugens ret is immediate, and Fortryd puts it back', async ({ bro
   // No draft was created: this is not a pending change.
   await expect(pendingBand(staffPage)).toHaveCount(0)
 
+  /*
+   * 1aa: *"De stjæler aldrig tastaturfokus."* The strip is `role="status"`, so it is
+   * announced politely and nothing in it is focused — the Fortryd button has to be
+   * tabbed to like any other control. The assertion is "focus is not *inside* the
+   * strip" rather than "focus is still on the switch": the action answers with a
+   * redirect, and a full navigation resets focus to the document by the platform's own
+   * rules. That is the browser, not this strip. The monthly screen asserts the same
+   * property of the same component, so the two halves of phase 6 are held to one bar.
+   */
+  const focusInsideStrip = await undoStrip(staffPage).evaluate((node) =>
+    node.contains(document.activeElement),
+  )
+  expect(focusInsideStrip).toBe(false)
+
   const guest = await guestWeek(browser)
   expect(guest.soldOut).toBe(true)
   expect(guest.heading).toBe('Stegt flæsk')

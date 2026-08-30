@@ -28,13 +28,18 @@ import {
  * was overwritten and nothing was lost (§6, §7e item 2).
  */
 const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
+  // "Hjemmesiden er uændret" rather than "den er ikke på hjemmesiden endnu": these two
+  // sentences name a *card*, and the card normally is on the hjemmeside already — in the
+  // version that is published. What is not there yet is the change. It is the same
+  // sentence the Månedens burger screen uses for the same state, and the same promise the
+  // card's own footer makes two lines below it.
   gemt: {
     tone: 'success',
-    text: 'Ugens ret er gemt som kladde. Den er ikke på hjemmesiden endnu.',
+    text: 'Ugens ret er gemt som kladde. Hjemmesiden er uændret, indtil du trykker Offentliggør.',
   },
   loerdag_gemt: {
     tone: 'success',
-    text: 'Lørdagsmenuen er gemt som kladde. Den er ikke på hjemmesiden endnu.',
+    text: 'Lørdagsmenuen er gemt som kladde. Hjemmesiden er uændret, indtil du trykker Offentliggør.',
   },
   // The week rollover (§7e item 5). The sentence says what happened *and* what did not,
   // because "the form went blank" is alarming until you know the hjemmeside did not.

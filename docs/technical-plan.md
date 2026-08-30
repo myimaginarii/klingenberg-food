@@ -130,8 +130,10 @@ and Lørdagsmenu (frame 1ag, every public state in 1af) — is built and green.*
 Månedens burger (frame 1ah) — is now built and green too, and is recorded separately in
 §0d. This section records what 6A *is*, so a later reader does not have to reconstruct
 it, and so the boundary between the two is a written rule rather than an assumption.
-**Phase 6 as a whole is not yet locked**: a completion pass over both halves, of the kind
-§0b records for phase 5, still has to be run.
+**Phase 6 as a whole is now complete and locked** — the completion pass over both halves,
+of the kind §0b records for phase 5, was run on 2026-08-30 and is recorded in §0e. This
+section is left exactly as it was written: it is the account of 6A's own decisions, and
+§0e adds to it rather than replacing it.
 
 **What phase 6A contains:**
 
@@ -232,6 +234,102 @@ forside?"*: whether the burger **exists** (a published `name`), whether today is
 its window**, and whether it is **configured for the Forside section**
 (`show_on_homepage`). `monthlyAdminState` returns all three, and the screen prints the
 menu's consequence and the Forside's consequence as two separate sentences.
+
+---
+
+## 0e. Phase 6 — complete and locked (2026-08-30)
+
+Phase 6 (Weekly + monthly, §15) was built in two increments — **6A** Ugens ret and
+Lørdagsmenu (frame 1ag, every public state in 1af) and **6B** Månedens burger (frame
+1ah, §7d) — and closed by a completion pass on 2026-08-30. §0c and §0d stay exactly as
+they were written: they are the record of *what each half decided and why*, and erasing
+a decision note to make room for a summary would throw away the only account of why the
+readings went the way they did. This section is what §0b is for phase 5 — the statement
+of what "phase 6" **is**, so a later reader does not have to reconstruct it from two
+commit messages and two increment notes.
+
+**What phase 6 delivers, and what is therefore finished:**
+
+| Capability | Path | Where it lives |
+|---|---|---|
+| **Ugens ret** — the weekly editor: week number, serving days, dish, both portion prices | Kladde → Forhåndsvis → Offentliggør (§6) | `app/(admin)/admin/menu/ugens-ret/`, `components/admin/weekly/` |
+| ISO week/year arithmetic, including week 53 and both year boundaries | — | `lib/time/iso-week.ts` |
+| The week rollover — changing the week starts a blank form, reversibly (§7e item 5) | draft | `lib/menu/weekly.ts` (`planWeekEdit`) |
+| **Lørdagsmenu**, and the explicit **"Ingen lørdagsmenu denne uge"** state (1af) | draft | `SaturdayMenuEditor`, `weekly_special.sat_enabled` |
+| **"Kopiér sidste uge"** — server-determined source and destination, its overwrite confirmation, its disabled state | draft-seeding | `lib/menu/weekly-copy.ts`, `copy_weekly_special_to_draft()` |
+| Tilgængelig / Udsolgt on **both** weekly cards, with the §7b reset sentence and ~10 s Fortryd | **immediate** (§6) | `lib/menu/weekly-availability.ts`, `set_weekly_special_sold_out()` |
+| **Månedens burger** — the singleton editor: name, description, price, and 1ah's "Ryd felterne" | Kladde → Forhåndsvis → Offentliggør (§6) | `app/(admin)/admin/menu/maanedens-burger/`, `components/admin/monthly/` |
+| The **date window** — `starts_on` / `ends_on`, Copenhagen-local, inclusive at both ends | draft | `lib/menu/monthly.ts` (`monthlyWindowPhase`) |
+| The **dedicated Forside toggle** — "Vis på forsiden", an ordinary draft field governing the burger's **own** section | draft | `monthlyBurgerDraft.show_on_homepage`, `selectHomepageMonthlyBurger` |
+| The **computed public/admin state** §7d asks for, said as two separate consequences | — | `monthlyAdminState`, `describeMonthlyState` |
+| **Scheduled future publication** — a future `starts_on` publishes and the screen states the date | — | `monthlyPublishOutlook`, `describeScheduledPublish` |
+| The **expired-window confirmation** — an `ends_on` in the past asks before it publishes | — | `monthlyPublishOutlook`, `MonthlyExpiredPublishDialog` |
+| Tilgængelig / Udsolgt on the burger, with the §7b reset sentence and ~10 s Fortryd | **immediate** (§6) | `lib/menu/monthly-availability.ts`, `set_monthly_burger_sold_out()` |
+| Publishing both screens' scope through phase 4, unchanged | — | `publish_weekly_special()`, `publish_monthly_burger()` (phase 4) |
+| Responsive at 375 / 768 / 1440, keyboard-operable throughout, axe-clean at 375 and 1440 | — | `components/admin/{weekly,monthly}/*` |
+
+**Two migrations, five functions, no new entity and no new table.** Both singletons were
+already publishable entities with a draft column and a publish function (phase 4).
+`20260830120000_weekly_special_admin.sql` adds `weekly_special_availability()`,
+`set_weekly_special_sold_out()` and `copy_weekly_special_to_draft()`;
+`20260830140000_monthly_burger_admin.sql` adds `monthly_burger_availability()` and
+`set_monthly_burger_sold_out()`. No view, no trigger, no index, no scheduled anything,
+and **no second publishing path** for either screen.
+
+### What the completion pass settled
+
+Six questions were open in the sense that they had been decided inside one increment and
+never checked across both. They are recorded here as answers, so they are not re-opened
+by somebody reading only §0c or only §0d.
+
+| # | Question | The answer |
+|---|---|---|
+| A | **Should the three immediate-path database functions become one?** | **No.** `set_dish_sold_out`, `set_weekly_special_sold_out` and `set_monthly_burger_sold_out` deliberately share every convention — the same jsonb status vocabulary, the same order of checks, the same Copenhagen-date guard stated before anything is read, the same repeated version check inside the UPDATE, the same forbidden-versus-conflict probe, the same `log_audit('availability', …)` shape, `security invoker` with `set search_path = ''`, and the same `revoke … from public, anon` / `grant … to authenticated` pair — and they remain three because they name three different tables, three different sets of columns and three different attribution policies. `dishes` carries `sold_out_changed_at`/`_by`; `weekly_special` carries two sold-out columns on one row and needs a target; `monthly_burger` is a singleton with one column and no attribution. A generic function taking a table, a column, a row locator and an attribution policy as arguments is a function that can be pointed at a table nobody reviewed — and it would have to build an identifier from an argument, which none of these three does. |
+| B | **Had they drifted?** | **In behaviour, no.** Authorization (`mayChangeEntity` first, RLS second), concurrency (`p_expected_updated_at`, re-checked inside the statement), audit shape, result vocabulary and Copenhagen-date enforcement are identical across all three, and the one extra status the weekly function can return (`invalid_target`) is unreachable from the application and mapped to the generic failure. **In assertions, yes**, and that was corrected: only the dish module had its *mapping* asserted at unit level, so `tests/unit/menu/weekly-sold-out-mapping.test.ts` and `tests/unit/menu/monthly-sold-out-mapping.test.ts` now hold the other two to the same bar — the arguments sent, the state read back from the row rather than echoed, no cache tag on a refusal or on `unchanged`, the Copenhagen date, the role check before any query, and the source-level promise that the immediate path never reaches phase 4's draft machinery. |
+| C | **Should `lib/menu/weekly.ts` and `lib/menu/monthly.ts` become one module?** | **No, and the separation causes no duplication.** They are siblings in shape only: a week whose *change* blanks the form against two dates that decide, at read time, whether an already-published row is shown; two cards and two sold-out columns on one row against one of each; "Kopiér sidste uge" against a singleton that has no notion of "the previous one". What they genuinely share is shared underneath them and not between them — the draft column and its overlay (`lib/drafts/`, `lib/publishing/`), §7b's one sold-out rule (`lib/menu/availability.ts`, `describeAvailability`), the Copenhagen boundary (`lib/time/copenhagen.ts`), the Kladde vocabulary and the design tokens. **No generic `SpecialContent` abstraction exists, and none should be built.** The two delta functions look alike and are not the same function: the weekly one takes a field list because two editors share its row, and compares arrays because `days` is one. |
+| D | **What "Ryd felterne" clears, and whether its context could mislead.** | It clears the three fields somebody types about the food — `name`, `description`, `price_ore` — and leaves the period, "Vis på forsiden", `image_id` and `sold_out_on` exactly as they stand (§0d reading B). The control **keeps its approved wording**; what the pass verified is that its context cannot be read as "erase the page": the button sits in its own form under a rule, and the sentence beside it — bound to the button with `aria-describedby` — names what is cleared *and* what is kept, in that order. |
+| E | **Whether the two preview links should collapse into 1ah's single button.** | **No.** Månedens burger is the only content in the system that lives on two public surfaces under two different rules — the menu card follows the window alone, the Forside section follows the window *and* the toggle — so one link could only ever show half of what somebody just changed, and the half it hid would be the toggle's. Both links are drawn in the bar in the approved admin language, at the approved target size, beside the same Offentliggør (§0d). |
+| F | **Whether a future start should ask before publishing.** | **No, and it must not.** A future `starts_on` is the ordinary scheduling workflow: it publishes, and the screen states the date twice — in the success message (`describeScheduledPublish`) and in the standing computed state. The **expired** window is the one exceptional blocking warning, and it is a question that publishes nothing until it is answered. Neither warning writes a date (§0d reading C). |
+
+### Visual corrections made by the completion pass
+
+Two, both real, both fixed with the tokens and patterns already in the file.
+
+| Where | What was wrong | The fix |
+|---|---|---|
+| `components/admin/weekly/CopyPreviousWeek.tsx` | Between 768 px and roughly 1024 px the label **"Kopiér sidste uge" broke across two lines**, making the control 58 px tall and reading as "Kopiér sidste / uge". From `md` the button sits beside a sentence longer than itself, and as a shrinkable flex item it gave the room to the sentence. | `shrink-0` on the button. The paragraph already carries `min-w-0`, so the sentence is the one that wraps. |
+| `components/admin/monthly/MonthlyBurgerEditor.tsx` | The same defect, same cause, on **"Ryd felterne"**. | The same fix. |
+
+Nothing else moved. Measured across nine screen states — the weekly editor seeded, with
+a Kladde, sold out with its Fortryd strip, and with the copy confirmation open; the
+monthly editor empty, with a Kladde, sold out, in its scheduled state and with the
+expired confirmation open — at 375, 768 and 1440 px, there is no horizontal overflow, no
+control below 44 px, and no wrapped control label anywhere.
+
+### One consequence of two correct rules, recorded so it is not rediscovered as a bug
+
+"Kopiér sidste uge" writes the whole of `weekly_special_content()` into the draft, which
+§6 requires and which includes `image_id`. The week rollover's *restore* path clears
+`WEEK_EDITOR_FIELDS`, which deliberately does **not** include `image_id`, because no
+editor owns that field before phase 10. So a copy followed by choosing the published week
+again leaves one key in the draft — `image_id`, holding the value that is already live —
+and the Ugens ret card therefore keeps its Kladde badge until the next publish, which
+writes the same value back and changes nothing a guest can see. Both rules are right and
+neither should be bent: letting the weekly editor clear `image_id` would give an editor
+authority over a field phase 10 owns, and dropping `image_id` from the copy would
+contradict §6. It costs one harmless publish, and phase 10 is where it stops being
+possible at all.
+
+### Recorded explicitly, because each of these is a rule somebody could later assume away
+
+| Statement | Where it is enforced |
+|---|---|
+| **The old slot-3 homepage rule remains withdrawn.** "Vis på forsiden" governs the Forside's **dedicated** Månedens burger section and nothing else; it never displaces one of the three featured dishes, and there is no slot arithmetic anywhere in this system. 1ah's drawn helper line is left as drawn and `MONTHLY_HOMEPAGE_HELP` is what ships. | §7e item 3, §0d reading A. `lib/menu/monthly.ts`; the unit suite asserts the string, the E2E suite asserts the withdrawn sentence appears nowhere on the screen and that the Forside renders exactly three featured dishes throughout. |
+| **A future `starts_on` is normal scheduling, not an error.** It publishes without a blocking question, and the screen states the date it will appear on twice over. The **expired** window is the one exceptional blocking warning. | §7d, §0d reading C, §0e answer F. `monthlyPublishOutlook`, `publish-actions.ts`. |
+| **The menu-category content editor is still deferred, with no phase.** A section's own name, intro, note and order have no approved admin design; the data path exists and is tested. | §0b. `lib/schemas/menu.ts` (`menuCategoryDraft`), the `menu_category` publishable entity. |
+| **Images remain phase 10.** No editor owns `image_id` on any of the four content types, and none clears it. | §0b, §0c, §0d. `dishDraftDelta`, `DISH_EDITOR_FIELDS`, `WEEK_EDITOR_FIELDS`, `SATURDAY_EDITOR_FIELDS`, `MONTHLY_EDITOR_FIELDS` — `image_id` is in none of them, and every save is `mode: 'merge'` with an explicit `clear` drawn from the editor's own list. |
+| **Weekly and monthly remain separate domain modules.** No generic "special content" abstraction exists. | §0e answer C. `lib/menu/weekly.ts`, `lib/menu/monthly.ts`. |
+| **The three sold-out RPCs remain explicit, intentionally.** | §0e answers A and B. `set_dish_sold_out()`, `set_weekly_special_sold_out()`, `set_monthly_burger_sold_out()`, and the three mapping suites in `tests/unit/menu/`. |
 
 ---
 
@@ -1067,6 +1165,7 @@ policy · Månedens burger scheduling.
 | E | **Structured-data gaps** — `priceRange`, coordinates, a public email | before launch | Left out rather than invented |
 | F | **Who owns the Vercel, Supabase and GitHub accounts**, and who pays | phase 0 (administrative) | Developer-owned during build, transferred at handover per `owner-handover.md` |
 | G | **Retention for soft-deleted dishes** — whether a deleted row is ever removed, after how long, and who decides (§0a D2) | not before launch | **Keep indefinitely.** Nothing purges today, and nothing should start purging as a side effect of another phase. A retention feature is its own design, with its own audit and its own consequences for `audit_log` attribution |
+| H | **The phase-4 dashboard's two standalone links** — "Åbn menuen" and "Åbn indhold" on `/admin` are 16 px tall, below 1aa's 44 px minimum target. Found by phase 6's completion pass, and left alone by it: the dashboard is phase 4 scaffolding that phase 11 replaces with the remaining section screens and phase 12 reworks for the phone, and changing it inside a phase-6 lock commit would put a phase-4 correction in the wrong record. ("Ejer-området" is inline in a sentence and is exempt under WCAG 2.2 target-size.) | phase 11 or 12, whichever reaches `/admin` first | Give both links the same `min-h-tap` block treatment the section screens use |
 
 ---
 
@@ -1112,7 +1211,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 3 | Public read-only site | All six pages rendered from seeded data, responsive per 1g–1o, header/footer/bottom-nav, **static map placeholder + directions link**, no announcement bar yet | Design review against 1g–1o; axe clean; Lighthouse ≥95; the page works with JS off |
 | 4 | Draft/publish core | `draft` overlay, publish transaction, Draft Mode preview, audit log, dashboard pending-changes view with per-item attribution | Change a `pages.home` value → invisible until publish |
 | 5 | Menu administration | Category tabs, dish CRUD, reorder, side panel, Kladde badges, **immediate Udsolgt with 10 s Fortryd and the computed reset label**, **tapas list editor**, soft delete | E2E 2, 3 and 10 pass |
-| 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (done):** Månedens burger with its date window, its computed admin state, "Vis på forsiden" as a normal draft field and its own immediate Udsolgt path | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes — see §0d. **Not locked**: the completion pass over both halves is still outstanding |
+| 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (done):** Månedens burger with its date window, its computed admin state, "Vis på forsiden" as a normal draft field and its own immediate Udsolgt path | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes — see §0d. **Complete and locked** by the completion pass of 2026-08-30 — see §0e |
 | 7 | Announcements | Bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, live preview, immediate remove | E2E 4 passes, including the no-network assertion |
 | 8 | Opening hours administration | Weekly editor (owner), one-off overrides, generated announcement, **conflict sheet 1ae with both branches** | E2E 5 passes, including "hours always save" |
 | 9 | News | List, editor with structured body, autosave, publish/unpublish, **`/nyheder/[slug]` with the slug policy and `NewsArticle` JSON-LD**, forside teaser | E2E 6 passes, incl. unpublish → 404 |
@@ -1124,13 +1223,17 @@ Each phase ends in something deployable and testable. No phase begins until the 
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-08-30: phases 0–5 are complete, and so are both halves of phase 6.** Phase 5 was closed by a
-completion pass and is recorded in full in §0b, including the five capabilities it delivered and the
-five things that are deliberately outside it. Phase 6 was then split into two increments that share
-nothing but a table row: **6A — Ugens ret and Lørdagsmenu — is complete and recorded in §0c**, and
-**6B — Månedens burger (frame 1ah, §7d) — is complete and recorded in §0d**.
+**Status, 2026-08-30: phases 0–6 are complete and locked.** Phase 5 was closed by a completion
+pass and is recorded in full in §0b, including the five capabilities it delivered and the five
+things that are deliberately outside it. Phase 6 was then built in two increments that share
+nothing but a table row: **6A — Ugens ret and Lørdagsmenu — is recorded in §0c**, and **6B —
+Månedens burger (frame 1ah, §7d) — is recorded in §0d**.
 
-**Phase 6 is not yet locked.** Both increments are built and green, but the completion pass that
-closed phase 5 — reading the two halves together, checking the frames once more against what
-shipped, and recording the result — has not been run over phase 6. Until it has, §0c and §0d are the
-record of what exists and phase 6 has no §0b of its own.
+**Phase 6 was closed by its own completion pass on 2026-08-30, recorded in §0e.** That pass read
+the two halves together, walked both screens against a production build as Staff and as Owner,
+checked frames 1ag, 1ah, 1af and 1aa once more against what shipped at 375 / 768 / 1440 px,
+reviewed the three immediate-path database functions and the two domain modules as sets rather
+than singly, and recorded the result. §0c and §0d are left as written — they are each increment's
+own account of its decisions — and §0e is what "phase 6" means as a whole.
+
+**Phase 7 (Announcements) is the next phase, and none of it is started.**

@@ -280,9 +280,15 @@ export function MonthlyBurgerEditor({
           offentliggør.
         </p>
 
+        {/*
+          `shrink-0`: from `md` the control sits beside a sentence longer than itself, and
+          a shrinkable flex item hands the room to the sentence — which broke "Ryd
+          felterne" across two lines between 768 px and roughly 1024 px. The paragraph
+          carries `min-w-0`, so the sentence is the one that wraps.
+        */}
         <button
           aria-describedby={`${anchorId}-ryd-note`}
-          className="rounded-field border-neutral-ink text-neutral-ink hover:bg-section min-h-tap bg-surface inline-flex w-full items-center justify-center border-[1.5px] px-5 font-semibold md:w-auto"
+          className="rounded-field border-neutral-ink text-neutral-ink hover:bg-section min-h-tap bg-surface inline-flex w-full shrink-0 items-center justify-center border-[1.5px] px-5 font-semibold md:w-auto"
           type="submit"
         >
           Ryd felterne

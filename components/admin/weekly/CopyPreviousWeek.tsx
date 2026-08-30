@@ -64,9 +64,15 @@ export function CopyPreviousWeek({
         </span>
       </p>
 
+      {/*
+        `shrink-0`: from `md` the button sits beside a sentence longer than itself, and a
+        shrinkable flex item hands the room to the sentence — which broke "Kopiér sidste
+        uge" across two lines between 768 px and roughly 1024 px. The paragraph carries
+        `min-w-0`, so the sentence is the one that wraps.
+      */}
       <button
         aria-describedby={noteId}
-        className="rounded-field border-neutral-ink text-neutral-ink hover:bg-section disabled:border-disabled-surface disabled:text-disabled-ink min-h-tap inline-flex w-full items-center justify-center border-[1.5px] px-5 font-semibold disabled:cursor-not-allowed disabled:hover:bg-transparent md:w-auto"
+        className="rounded-field border-neutral-ink text-neutral-ink hover:bg-section disabled:border-disabled-surface disabled:text-disabled-ink min-h-tap inline-flex w-full shrink-0 items-center justify-center border-[1.5px] px-5 font-semibold disabled:cursor-not-allowed disabled:hover:bg-transparent md:w-auto"
         disabled={!available}
         id={anchorId}
         type="submit"

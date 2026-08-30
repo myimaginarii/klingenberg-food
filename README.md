@@ -7,16 +7,23 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–5 complete.** The public site renders from the database; the
-Kladde → Forhåndsvis → Offentliggør flow works end to end; and **Rediger menu**
+**Status: phases 0–6 complete and locked.** The public site renders from the database;
+the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
-Fortryd, reordering inside a section, and the Tapas list editor. Technical plan §0b
-records exactly what phase 5 contains and what is deliberately outside it.
+Fortryd, reordering inside a section, and the Tapas list editor; and the two **special
+menu** screens are finished too — **Ugens ret & Lørdagsmenu** (`/admin/menu/ugens-ret`)
+with its ISO week, its serving days, its "Ingen lørdagsmenu denne uge" state, "Kopiér
+sidste uge" and both immediate Udsolgt paths, and **Månedens burger**
+(`/admin/menu/maanedens-burger`) with its date window, its dedicated Forside toggle, its
+computed state, its scheduled publication, its expired-window confirmation and its own
+immediate Udsolgt path. Technical plan §0b records what phase 5 contains, and §0e records
+what phase 6 contains — each with what is deliberately outside it.
 
-The next phase is 6 (Ugens ret / Lørdagsmenu / Månedens burger editors). `/admin` itself
-is still the **foundation-level** dashboard from phase 4 plus the phase-5 menu entry — the
-remaining section screens arrive in their own phases.
+The next phase is 7 (announcements — the bar in the public layout, its client expiry
+guard and the admin editor). **None of it is started.** `/admin` itself is still the
+**foundation-level** dashboard from phase 4 plus the menu entries — the remaining section
+screens arrive in their own phases.
 
 ## Requirements
 
@@ -222,9 +229,9 @@ no plan-specific API is used.
 
 Everything in §15 from phase 7 onward, plus: the weekly off-platform backup workflow
 (phase 13, §10f) and Sentry (phase 13). `docs/dependencies.md` records which package
-arrives in which phase. Phase 6 is **built** — 6A (Ugens ret and Lørdagsmenu, §0c) and 6B
-(Månedens burger, §0d) — but **not yet locked**: the completion pass over both halves is
-still outstanding.
+arrives in which phase. Phase 6 is **complete and locked** — 6A (Ugens ret and
+Lørdagsmenu, §0c), 6B (Månedens burger, §0d), and the completion pass over both halves
+(§0e).
 
 The things the **menu administration** deliberately does not do, and the phase that owns
 each, are listed in technical plan §0b. The Ugens ret / Lørdagsmenu editor
