@@ -7,7 +7,7 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–7 complete and locked; phases 8A and 8B complete and green.** The public site renders from the database;
+**Status: phases 0–7 complete and locked; phases 8A, 8B and 8C-1 complete and green.** The public site renders from the database;
 the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
@@ -62,10 +62,24 @@ A **published** override feeds the phase-2 engine in both directions, with no av
 logic of its own: a closed day is skipped by the "Udsolgt i dag" reset, and a normally
 closed day that an override opens becomes the day a sold-out dish comes back.
 
-**Phase 8C is not started**: the *generated* opening-hours message —
-`source='opening_hours'`, "Vis også som besked øverst på hjemmesiden", replacing an active
-announcement, the `previous` / `replaced_at` stash and 1ae's conflict sheet. Nothing in 8A
-or 8B names `public.announcement`.
+**Phase 8C-1** is finished, and it is **mechanism only**: replacing the published
+announcement, stashing the one it displaced in `previous jsonb`, stamping `replaced_at`, and
+a restore that reads that snapshot back from the database and clears both columns — one
+transaction each, one audit row each, and **exactly one level** of undo. Those two columns
+have an active purpose for the first time since phase 1. `source='opening_hours'` is now a
+value a **server-side** caller may pass, from a closed vocabulary.
+
+**It adds no control anywhere in the administration.** `/admin/besked` is phase 7's editor,
+unchanged — no "Erstat", no source selector, no conflict sheet — and the opening-hours
+screen is phase 8B's, unchanged. The one address outside those is an unlinked,
+environment-gated integration harness (`/admin/intern/besked-erstatning`) that exists only
+because `updateTag()` can be called from a Server Action and nowhere else; **8C-3 deletes
+it**.
+
+**Phases 8C-2 and 8C-3 are not started**: the *generated* opening-hours message itself with
+"Vis også som besked øverst på hjemmesiden" and `announcement_created` (8C-2), and 1ae's
+conflict sheet with "Erstat med den nye besked" and its ten-second Fortryd (8C-3). Nothing in
+8A or 8B names `public.announcement`, and nothing anywhere composes a generated message.
 `/admin` itself is still the **foundation-level** dashboard from phase 4 plus the menu,
 announcement and opening-hours entries — the remaining section screens arrive in their own
 phases.
@@ -185,6 +199,10 @@ app/
                       and the Staff-and-Owner one-off change for a single date.
                       Seven weekday rows, one form, one vocabulary. No date field:
                       one-off overrides are 8B and cannot be expressed here.
+    intern/           NOT part of the administration. One environment-gated, unlinked
+                      address (`besked-erstatning`) that exists only so the phase-8C-1
+                      replacement mechanism can be driven through a real Server Action
+                      and prove the cache path. 8C-3 deletes it.
     indhold/ login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
   api/preview/        start and stop Draft Mode — staff session required
 proxy.ts              session refresh + unauthenticated redirect. Authorizes nothing.
@@ -217,9 +235,11 @@ lib/
   menu/               the menu's rules: pricing, labels, sold-out, delete, reorder,
                       tapas, the weekly special (6A) and the monthly burger (6B). The
                       last two are two concrete modules, not one generic one.
-  announcements/      the announcement's rules (phase 7). `expiry.ts` imports nothing
-                      at all, so the browser guard and the server share one comparison;
-                      `expiry-editor.ts` holds the Copenhagen half the browser never sees.
+  announcements/      the announcement's rules (phases 7 and 8C-1). `expiry.ts` imports
+                      nothing at all, so the browser guard and the server share one
+                      comparison; `expiry-editor.ts` holds the Copenhagen half the browser
+                      never sees; `snapshot.ts` is the closed eight-key shape `previous`
+                      holds, and `replacement.ts` the replace/restore wrapper (8C-1).
   hours/ time/        the pure time engines
   schemas/            the Zod shapes every write is re-parsed against
 scripts/
@@ -230,11 +250,12 @@ supabase/
   config.toml       local stack: public signup off, no realtime, mail catcher on
   migrations/       schema, RLS, the draft/publish core, immediate sold-out, soft
                     delete, the weekly-special admin, the monthly-burger admin, the
-                    announcement admin
+                    announcement admin, the one-off override admin, and the
+                    announcement replacement mechanism
   seed.sql          the confirmed contact, opening-hours and menu facts
   templates/        Danish auth emails, versioned and applied through config.toml
   tests/            pgTAP — the §5 permission matrix, the owner invariant, and every
-                    write path phases 4–8A added
+                    write path phases 4–8C-1 added
 tests/
   unit/             the pure rules, under Vitest
   e2e/ a11y/        Playwright, against a production build; axe at 375 and 1440
@@ -296,17 +317,16 @@ arrives in which phase. Phase 6 is **complete and locked** — 6A (Ugens ret and
 Lørdagsmenu, §0c), 6B (Månedens burger, §0d), and the completion pass over both halves
 (§0e). Phase 7 is **complete and locked** — 7A (§0f), 7B (§0g), and the completion pass
 over both halves (§0h). Phase 8 is **not locked**: 8A (§0i) and 8B (§0j) are complete and
-green, and 8C is not started.
+green, **8C-1** (§0k) is complete and green, and 8C-2 and 8C-3 are not started.
 
-What the **announcement** deliberately does not do, and who owns it, is listed in §0h:
-**replacing** an active announcement, the `previous` / `replaced_at` stash and the restore
-that reads them, a message generated from a one-off opening-hours change
-(`source='opening_hours'`), "Erstat med den nye besked" and 1ae's conflict sheet — all
-**phase 8C**, and none of them touched by 8A, which writes the weekly schedule and nothing
-else, or by 8B, which writes one date's own row and nothing else. Nothing in phase 7, 8A or
-8B reads or writes `previous` or `replaced_at`, `source` stays `'manual'`, and
-`opening_hours_overrides.announcement_created` stays `false`; "restore" in phase 7 means visibility of the same published message and
-never content. There is no archive and no history at all, by design, and a guest cannot
+What the **announcement** deliberately does not do is now split across two records. §0h
+lists what phase 7 does not do, and "restore" there means visibility of the same published
+message and never content — nothing in phase 7, 8A or 8B reads or writes `previous` or
+`replaced_at`. §0k lists what **8C-1** does not do: it replaces and restores, and it does
+**not** compose a message from a one-off opening-hours change (8C-2, which also owns "Vis
+også som besked øverst på hjemmesiden" and `announcement_created`, still `false`), does not
+draw "Erstat med den nye besked" or 1ae's conflict sheet (8C-3), and adds no replacement
+control to `/admin/besked`. There is no archive and no history at all, by design, and a guest cannot
 dismiss the bar — so nothing per-visitor is stored and the public site still sets **no
 cookies**.
 

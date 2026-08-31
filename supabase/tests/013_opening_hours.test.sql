@@ -560,13 +560,18 @@ select is((select previous from public.announcement), null,
 select is((select replaced_at from public.announcement), null,
   'and `replaced_at` is still null');
 
+/*
+ * The replacement mechanism exists as of phase 8C-1, and **nothing on the weekly card
+ * uses it**. The five assertions above are the proof — an untouched message, an
+ * untouched `source`, a null `previous`, a null `replaced_at` — and this is the one
+ * that says the same thing about the log: no announcement was replaced or restored on
+ * the way through this suite.
+ */
 select is(
-  (select count(*) from pg_proc p
-     join pg_namespace n on n.oid = p.pronamespace
-    where n.nspname = 'public'
-      and p.proname in ('replace_announcement', 'restore_announcement')),
+  (select count(*) from public.audit_log
+    where entity = 'announcement' and action in ('replace', 'restore')),
   0::bigint,
-  'and no replacement or restore function has appeared — that is a later phase 8 increment');
+  'and nothing here replaced or restored an announcement — 8C-1 built the mechanism, 8A does not call it');
 
 select is(
   (select count(*) from public.audit_log where entity = 'announcement'),

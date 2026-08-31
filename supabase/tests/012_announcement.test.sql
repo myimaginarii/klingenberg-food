@@ -547,10 +547,18 @@ select is((select count(*) from public.announcement), 1::bigint,
   'there is exactly one announcement, as §4 requires');
 
 /*
- * Phase 7B's one immediate operation exists, and is the only one. Replacing an active
- * announcement — `previous`, `replaced_at` and the restore that reads them — is §6's
- * third immediate row and belongs to phase 8 with 1ae's conflict sheet, so a premature
- * function for it would be noticed here.
+ * Phase 7B's one immediate operation exists.
+ *
+ * **This assertion moved once, on purpose.** As written for phase 7 it also said that
+ * no `replace_announcement` and no `restore_announcement` existed, because §6's third
+ * immediate row — the `previous` stash and the restore that reads it — belonged to
+ * phase 8. **Phase 8C-1 is that phase**, and it built them
+ * (`20260831140000_announcement_replacement.sql`), so the guard is updated rather than
+ * deleted: the two functions are now asserted to *exist*, and the boundary that has
+ * not moved is asserted beside them — nothing generates an opening-hours message yet
+ * (8C-2), and no conflict sheet exists (8C-3). Section 10 below, which is phase 7's own
+ * behaviour, is untouched by any of it: `set_announcement_visible` writes one column
+ * and still leaves `previous` and `replaced_at` null.
  */
 select is(
   (select count(*) from pg_proc p
@@ -563,17 +571,16 @@ select is(
   (select count(*) from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
-      and p.proname in ('remove_announcement', 'replace_announcement',
-                        'restore_announcement', 'set_announcement_source')),
+      and p.proname in ('remove_announcement', 'set_announcement_source')),
   0::bigint,
-  'and no replacement or restore RPC exists — that is phase 8');
+  'and no ad-hoc removal or source-setting RPC exists — the column set is closed');
 
 select is(
   (select count(*) from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname like '%announcement%'),
-  4::bigint,
-  'the announcement has exactly four functions: two content readers, its publish and its visibility write');
+  8::bigint,
+  'the announcement has exactly eight functions: two content readers, its publish, its visibility write, the snapshot pair, and replace/restore (phase 8C-1)');
 
 /*
  * SECURITY INVOKER, like every other write function here. A definer-rights function

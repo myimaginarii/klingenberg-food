@@ -726,12 +726,19 @@ select is(
   0::bigint,
   'nothing in this suite wrote an announcement audit row');
 
+/*
+ * Phase 8C-1 built `replace_announcement` and `restore_announcement`. The assertions
+ * above are what still holds: **no override path calls either of them**, the message,
+ * `source`, `previous`, `replaced_at` and `is_visible` are all as this suite found
+ * them, and the announcement wrote no audit row at all. The one thing asserted here is
+ * that the mechanism 8C-3 will eventually reach from this screen is present and idle.
+ */
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
       and p.proname in ('replace_announcement', 'restore_announcement')),
-  0::bigint,
-  'and no replacement or restore function has appeared — that is phase 8C');
+  2::bigint,
+  'the 8C-1 replacement mechanism exists — and nothing in phase 8B reaches it');
 
 /*
  * `announcement_created` is §4's column for the generated opening-hours message, and phase

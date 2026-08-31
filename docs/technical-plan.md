@@ -899,7 +899,124 @@ and simply stops being anybody's business.
 
 **Phase 8B is complete and green. Phase 8 is not locked**: 8C — the generated opening-hours
 announcement, `source='opening_hours'`, the `previous` / `replaced_at` stash, "Erstat med den
-nye besked" and conflict sheet 1ae — is not started.
+nye besked" and conflict sheet 1ae — is not started. *(Its first increment, **8C-1**, is now
+built and is recorded in §0k: the `previous` / `replaced_at` mechanism, with no generated
+message and no conflict sheet.)*
+
+---
+
+## 0k. Phase 8C-1 — the announcement replacement and restore mechanism (2026-08-31)
+
+§6's immediate-path table has three announcement rows. Phase 7B built two of them. This
+section records the third, which every phase since has named and none has built:
+
+> **Replace an existing announcement** — writes new values, stashes the old in
+> `previous jsonb` — 10 s Fortryd restores from `previous`.
+
+**8C-1 is the mechanism and nothing else.** It is infrastructure for **8C-3**, which is
+where 1ae's conflict sheet will call it. There is **no new control anywhere in the
+administration**: `/admin/besked` is phase 7's editor, unchanged, and the opening-hours
+screen is phase 8B's, unchanged.
+
+### What it contains
+
+| | |
+|---|---|
+| **The snapshot shape** — what `previous` holds | `public.announcement_snapshot()`, and `lib/announcements/snapshot.ts` |
+| **The snapshot validator**, asked before a snapshot is stored *and* before one is restored | `public.is_valid_announcement_snapshot()` |
+| **The replacement transaction** — snapshot, write, `replaced_at`, visible, audit, one transaction | `public.replace_announcement()` |
+| **The restore transaction** — read the snapshot from the row, restore it, clear `previous` and `replaced_at`, audit | `public.restore_announcement()` |
+| **The domain wrapper** — the role matrix, a closed payload, the status mapping, the cache tags it does *not* expire | `lib/announcements/replacement.ts` |
+| **The proof, end to end** — A → replace with B → **first** guest request sees B → restore → **first** guest request sees A, with and without a pending draft C | `tests/e2e/announcement-replacement.spec.ts` |
+
+**One migration, four functions, no new table, no new column, no new policy and no new
+grant on any table.** `previous jsonb` and `replaced_at timestamptz` have been on
+`public.announcement` since `20260829120000_initial_schema.sql`, written by nothing
+through the whole of phases 1–8B. `20260831140000_announcement_replacement.sql` is the
+first statement anywhere in this repository that names either column.
+
+### The snapshot — eight keys, and the five that are deliberately absent
+
+`previous` holds the **published content and state** of the announcement that was
+displaced, and only that:
+
+    message, link_type, link_page, link_url, link_label, expires_at, is_visible, source
+
+A `to_jsonb(announcement)` would have been shorter and wrong. Each exclusion is a rule:
+
+| Absent | Why |
+|---|---|
+| `draft` | A draft is not published content. Stashing one would give a restore a way to make public something nobody pressed Offentliggør for — the single failure §6 exists to prevent. |
+| `previous` | A snapshot inside a snapshot is a history stack with extra steps. **One level only** (§4; 1ad: *"intet arkiv, ingen kladdeliste, ingen historik"*). |
+| `replaced_at` | A fact about the *replacement*, not about what it replaced. |
+| `updated_at` | The optimistic-concurrency token (§6). Writing an old one back would corrupt the model every screen depends on. |
+| `updated_by` | An actor id. Attribution comes from the JWT of whoever acts (§8), never from a stored value a caller could have chosen. |
+
+`is_visible` and `source` **are** in it, and must be: without the first, a message
+somebody had switched off would come back switched on; without the second, a generated
+opening-hours message would come back calling itself manual. The shape is validated in
+both directions, so a `previous` written by anything other than `replace_announcement`
+is refused with `invalid_snapshot` — and the malformed value is left in place rather
+than tidied away.
+
+### The six readings this increment had to settle
+
+| # | Question | The answer |
+|---|---|---|
+| A | **May the browser choose which fields a replacement writes?** | **No, and the shape is what says so.** `replace_announcement` takes **eight typed scalar parameters**, not a jsonb document — so there is no key a caller could add, no column name it could name and no shape it could smuggle. `is_visible` is not among them, because 1ae says *"Den nye besked går live"* and a replacement that did not go live is not one of the two outcomes the frame draws. `restore_announcement` takes **one** argument, the version token: the previous announcement is read from the database, and there is no parameter through which the browser could send content back. |
+| B | **Where does `source` come from?** | **A closed vocabulary, from a server-side caller.** The two values are the table's own `announcement_source_check`, restated in the function and again in `ANNOUNCEMENT_SOURCES`. Phase 7 left `'opening_hours'` deliberately unused; 8C-1 is the first path *capable* of writing it. **Nothing generates the content yet** — composing *"Ændrede åbningstider søndag · 17:00–19:00"* is 8C-2, and the unit suite asserts that phrase appears in no source file. |
+| C | **What happens when the previous announcement's expiry passes inside the ten seconds?** | **It is restored exactly as it stood, and nothing extends the expiry.** The result may be an announcement that is immediately ineligible for public display, and that is accepted: the previous state is a *fact*, not a request to show something, and refusing the restore would leave the replacement live with no way back. The reply carries `showable`, so the administration reports what actually happened rather than a success a visitor would contradict. **This is the one place restore and `set_announcement_visible` deliberately part company** — the visibility function *refuses* the on direction for an expired bar (`not_showable`, §0g reading C), because there the request genuinely is "show this now". |
+| D | **What counts as "the current announcement" to stash?** | **Whatever the row holds — and the result says which of four it was.** `active` (a guest can read it) is the only case 1ae exists for. A **valid message that was switched off** is still the thing being replaced, so it is stashed *with its own `is_visible = false`* and comes back switched off. An **expired** message is not a public conflict, and is stashed faithfully all the same. **No message at all** is not dressed up as a conflict: the empty state is a valid snapshot, so Fortryd can put the emptiness back. 8C-1 reports; **8C-3 decides** whether a sheet is shown. |
+| E | **Does a replacement touch a pending manual draft?** | **No, and it is structural.** Nothing in the technical plan says a replacement supersedes a draft, so the default safety rule holds: neither UPDATE names `draft`, and `lib/announcements/replacement.ts` imports nothing from `lib/drafts` and nothing from `lib/publishing` beyond the role matrix and the cache tags. Asserted over the module's whole import list, from real JWTs in pgTAP, and end to end — published A + pending draft C, replaced by B, restored to A, with C byte-identical at every step and never public. |
+| F | **How is the first-guest-request promise proved with no screen to press?** | **With an internal harness that 8C-3 deletes.** `updateTag()` may only be called from inside a Server Action, and a Server Action is only reachable when something renders a form that dispatches to it. Since 8C-1 must add no replacement control, the form lives at an unlinked address behind an environment flag (`app/(admin)/admin/intern/besked-erstatning/`), set by `playwright.config.ts` for the test server and by nothing else — a deployed build has no such variable, so the address is a 404 and both actions refuse. It is guarded by `requireStaff()` first and the flag second, and **the browser still chooses no content**: the submission is a closed variant key and a version token, and the payload is composed on the server. That is exactly the shape 8C-3's real form will have. |
+
+### What phase 8C-1 deliberately does not contain
+
+| | Owner |
+|---|---|
+| **The generated opening-hours message**, "Vis også som besked øverst på hjemmesiden", and the suggestion beneath it | **8C-2.** Nothing here reads `public.opening_hours` or `public.opening_hours_overrides`, composes a weekday or a clock face, or writes `opening_hours_overrides.announcement_created` — which is still written by nothing and stays `false`. |
+| **Conflict sheet 1ae**, "Erstat med den nye besked", "Behold eksisterende besked", the focus trap and the green Fortryd strip | **8C-3.** The domain result carries what a sheet would need to decide; no sheet exists. |
+| **Any replacement control in `/admin/besked`** | **never.** 1ad's editor is content-editing plus visibility, and stays that. |
+| **A history, an archive, or a second level of undo** | **never** (§4, 1ad). A second replacement overwrites the snapshot; the audit log is the historical record. |
+| **A generic content-replacement framework** | **never.** These functions take no table name, no column name and no row locator — the singleton locates itself, for the reason §0e answer A records for the three sold-out functions. |
+
+### Recorded explicitly, because each of these is a rule somebody could later assume away
+
+- **One transaction, or none of it.** Verifying the version, reading the current
+  announcement, storing the snapshot, writing the replacement, stamping `replaced_at`,
+  making it visible and writing the audit row commit together. There is no state in
+  which the old message is gone but the replacement failed, in which the replacement is
+  live but `previous` was not stored, or in which the log says "replaced" and the row
+  does not.
+- **The cache is expired only after a write that reached the row.** Not on a conflict,
+  not on `invalid_payload`, not on `nothing_to_restore`, not on `invalid_snapshot`, not
+  on a refusal. The domain module returns the tags and expires none — asserted over its
+  source, as phase 7B's does — and the Server Action expires them after the commit. The
+  five-minute `revalidate` / `expire` pair from the public-cache fix is unchanged, and
+  the browser suite asserts the **first** guest request carries the change.
+- **Both real writes are audited; nothing else is.** `log_audit('replace', …)` and
+  `log_audit('restore', …)`, each carrying the before/after snapshot pair, with the
+  actor from the JWT. Every refusal writes no audit row. Staff gains no audit-log read
+  access — `audit_log` stays Owner-readable (§5).
+- **All four functions are SECURITY INVOKER with `set search_path = ''`.** RLS
+  re-decides `is_staff()` against the caller's own JWT; `anon` is revoked explicitly and
+  meets `42501` at the function, before RLS is consulted.
+- **`previous`, `replaced_at` and `draft` remain invisible to guests.** None is in
+  `anon`'s column grant, and the pgTAP suite reads all three from a real anonymous JWT
+  and gets `42501` for each.
+- **Phase 7's own behaviour is untouched.** `set_announcement_visible` still names one
+  column and still leaves `previous` and `replaced_at` null; §10 of
+  `supabase/tests/012_announcement.test.sql` is unchanged. What did change in that file
+  is its two **forward-looking boundary guards** — "no replacement or restore RPC
+  exists — that is phase 8", and the count of announcement functions. They were written
+  to fail exactly when this phase arrived, and they now assert the new boundary instead:
+  the two functions exist, no ad-hoc removal or source-setting RPC does, and nothing
+  generates a message. The same is true of one assertion each in `013` and `014`.
+
+**Phase 8C-1 is complete and green. Phase 8 is not locked**: **8C-2** — the generated
+opening-hours message, `announcement_created`, and 1t's "Vis også som besked øverst på
+hjemmesiden" — and **8C-3** — conflict sheet 1ae with both its branches, and the ~10 s
+Fortryd strip over `restore_announcement` — are not started.
 
 ---
 
@@ -1231,8 +1348,12 @@ currently *shown*, which is a read-time filter on dates the staff themselves ent
 `is_visible` and its audit row in one transaction, the Server Action expires the
 `announcement` tag only after it commits, and Fortryd is a second call to the same
 function. **Replacing an existing announcement — the `previous jsonb` stash and the restore
-that reads it — is phase 8**, with 1ae's conflict sheet and the generated opening-hours
-message; nothing in phase 7 reads or writes `previous` or `replaced_at`. Note also that
+that reads it — is phase 8C-1 (§0k), and is built**: `replace_announcement()` snapshots the
+current published state into `previous`, writes the replacement, stamps `replaced_at` and
+audits it in one transaction, and `restore_announcement()` reads that snapshot back and
+clears both columns. **The mechanism has no control in the administration** — 1ae's conflict
+sheet is 8C-3 and the generated opening-hours message it exists for is 8C-2 — and nothing in
+phase 7, 8A or 8B reads or writes `previous` or `replaced_at`. Note also that
 this table describes the **immediate** operations, and the announcement's is a **switch**,
 so it has two directions: off, and back on. *Content* still reaches the hjemmeside only
 through Offentliggør, and `publish_announcement()` sets `is_visible` as part of that (§0f).
@@ -1815,7 +1936,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 5 | Menu administration | Category tabs, dish CRUD, reorder, side panel, Kladde badges, **immediate Udsolgt with 10 s Fortryd and the computed reset label**, **tapas list editor**, soft delete | E2E 2, 3 and 10 pass |
 | 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (done):** Månedens burger with its date window, its computed admin state, "Vis på forsiden" as a normal draft field and its own immediate Udsolgt path | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes — see §0d. **Complete and locked** by the completion pass of 2026-08-30 — see §0e |
 | 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (done):** the immediate path — "Vis besked" off and back on, "Fjern beskeden nu", immediate public removal and its ~10 s Fortryd. *Replacing an active announcement, `previous`/`replaced_at` and 1ae's conflict sheet moved to **phase 8**, where the generated message they belong to lives* | 7A: E2E 4 passes, including the no-network assertion — see §0f. 7B: `tests/e2e/announcement-remove.spec.ts` passes at 1440 and 375 — see §0g. **Complete and locked** by the completion pass of 2026-08-30 — see §0h |
-| 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C (remaining):** the generated opening-hours announcement, `source='opening_hours'`, the `previous`/`replaced_at` stash and **conflict sheet 1ae with both branches** | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. E2E 5's announcement half belongs to 8C |
+| 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (remaining):** the generated opening-hours message itself and `announcement_created`. **8C-3 (remaining):** **conflict sheet 1ae with both branches** | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. E2E 5's announcement half belongs to 8C-3 |
 | 9 | News | List, editor with structured body, autosave, publish/unpublish, **`/nyheder/[slug]` with the slug policy and `NewsArticle` JSON-LD**, forside teaser | E2E 6 passes, incl. unpublish → 404 |
 | 10 | Images | Signed upload, client downscale, sharp derivatives, library with usage labels, replace/delete warnings | E2E 7 passes |
 | 11 | Remaining editors | Forsiden, Mad ud af huset (incl. the visibility toggle hiding the nav item), Kontaktoplysninger, **`/admin/brugere`** | E2E 8 passes; the owner can invite and deactivate a staff user |
@@ -1825,7 +1946,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-08-31: phases 0–7 are complete and locked, and phases 8A and 8B are complete and green.** Phase 5 was closed by a completion
+**Status, 2026-08-31: phases 0–7 are complete and locked; phases 8A and 8B are complete and green; and 8C-1 — the announcement replacement and restore mechanism — is complete and green (§0k). 8C-2 and 8C-3 are not started, and phase 8 is not locked.** Phase 5 was closed by a completion
 pass and is recorded in full in §0b, including the five capabilities it delivered and the five
 things that are deliberately outside it. Phase 6 was then built in two increments that share
 nothing but a table row: **6A — Ugens ret and Lørdagsmenu — is recorded in §0c**, and **6B —
@@ -1888,8 +2009,24 @@ state §4's `status`-only model could not express, and the one §6 exists to pro
 reasoning is written out in §0j and in the migration itself, and §4's table is corrected in
 place. No policy and no grant changed.
 
-**Phase 8 is not locked.** The generated opening-hours announcement,
-`source='opening_hours'`, "Vis også som besked øverst på hjemmesiden", the `previous` /
-`replaced_at` stash, "Erstat med den nye besked" and 1ae's conflict sheet are **8C** and are
-not started. Nothing phase 8A or 8B added names `public.announcement`, and
-`opening_hours_overrides.announcement_created` is written by nothing and stays `false`.
+**Phase 8C-1 is complete and green, and is recorded in §0k.** §6's third immediate
+announcement row — *replace an existing announcement, stashing the old one in `previous`,
+with a ten-second Fortryd that restores it* — is built: one migration, four SECURITY INVOKER
+functions, no new table, no new column, no new policy and no new grant. `previous` and
+`replaced_at` have an active purpose for the first time since phase 1, the snapshot is a
+closed eight-key shape validated on the way in **and** on the way out, the restore reads it
+from the database rather than from the browser, and **exactly one level** is kept — there is
+no history, no stack and no array.
+
+**It adds no control anywhere in the administration.** `/admin/besked` is phase 7's editor,
+unchanged — no "Erstat", no "Behold eksisterende", no source selector, no conflict sheet —
+and the opening-hours screen is phase 8B's, unchanged. The one address outside those is an
+unlinked, environment-gated integration harness that **8C-3 deletes**; §0k reading F records
+why it exists and what keeps it safe.
+
+**Phase 8 is not locked.** The **generated** opening-hours announcement, "Vis også som besked
+øverst på hjemmesiden" and `opening_hours_overrides.announcement_created` are **8C-2**;
+"Erstat med den nye besked", "Behold eksisterende besked" and 1ae's conflict sheet are
+**8C-3**. Neither is started. Nothing phase 8A or 8B added names `public.announcement`,
+nothing anywhere composes a generated message, and `announcement_created` is written by
+nothing and stays `false`.

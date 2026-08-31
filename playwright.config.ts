@@ -66,6 +66,7 @@ export default defineConfig({
         'e2e/opening-hours.spec.ts',
         'e2e/opening-hours-override.spec.ts',
         'e2e/public-cache.spec.ts',
+        'e2e/announcement-replacement.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -86,6 +87,7 @@ export default defineConfig({
         'e2e/opening-hours.spec.ts',
         'e2e/opening-hours-override.spec.ts',
         'e2e/public-cache.spec.ts',
+        'e2e/announcement-replacement.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -388,6 +390,30 @@ export default defineConfig({
       dependencies: ['opening-hours-override-mobile'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
+    /*
+     * Replacing the published announcement and putting the previous one back (phase
+     * 8C-1), and the **last** project of the run.
+     *
+     * Chained last for two reasons. It writes the announcement, whose bar is in the shared
+     * public layout, so a guest assertion made by any other suite would be a coin toss if
+     * this one could act between its own write and its own read — the reason every write
+     * suite is chained. And it is the only suite that drives the internal replacement
+     * harness, which nothing else in the run knows about; putting it at the end keeps that
+     * temporary address away from every other project's state.
+     *
+     * One width, because nothing here is about layout: the assertions are on the bytes a
+     * guest is served and on the state of a form, which are the same at every size. 8C-3
+     * brings 1ae, and 1ae brings the two widths with it.
+     *
+     * It starts from the state the announcement suites leave and leaves that same state
+     * behind: published and expired, switched off, nothing pending.
+     */
+    {
+      name: 'announcement-replacement',
+      testMatch: 'e2e/announcement-replacement.spec.ts',
+      dependencies: ['public-cache'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
   ],
 
   webServer: process.env.PLAYWRIGHT_BASE_URL
@@ -397,5 +423,19 @@ export default defineConfig({
         url: baseURL,
         reuseExistingServer: !process.env.CI,
         timeout: 240_000,
+        /*
+         * The phase-8C-1 integration harness (§6, §7e item 8) — see
+         * `app/(admin)/admin/intern/besked-erstatning/harness.ts`.
+         *
+         * Proving that a replacement and its restore each land on the **first** guest
+         * request means going through `updateTag()`, and `updateTag()` may only be called
+         * from inside a Server Action — which is only reachable when something renders a
+         * form that dispatches to it. 8C-1 adds no replacement control to the
+         * administration, so the form lives at an unlinked address that does not exist
+         * unless this flag is set. It is set here, for the test server, and nowhere else:
+         * a deployed build has no such variable, so the address is a 404 and both actions
+         * refuse. 8C-3 deletes the harness and this line with it.
+         */
+        env: { ...process.env, ANNOUNCEMENT_REPLACEMENT_HARNESS: '1' },
       },
 })

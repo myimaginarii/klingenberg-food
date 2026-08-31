@@ -113,6 +113,36 @@ export function isAllowedExternalUrl(value: unknown): boolean {
 }
 
 /**
+ * Do the three link columns agree — `none` with neither, `page` with a page, `url` with
+ * an address?
+ *
+ * This is a rule *between* fields, which is why no per-field schema can state it: a draft
+ * that changes only `link_label` cannot be judged against it, and
+ * `lib/schemas/announcement.ts` says so in its own words. It is the same rule
+ * `announcement_link_shape_check` carries in SQL, and it is stated **here** — beside the
+ * six routes and the https rule it belongs with — rather than restated by each caller.
+ *
+ * Two callers ask it, for two different jobs: `lib/announcements/replacement.ts` before it
+ * sends a replacement, and `lib/announcements/snapshot.ts` before it accepts a stored
+ * `previous`. Both are the application's half of a rule the database restates and enforces;
+ * neither is trusted to be the only one (§5, §8).
+ *
+ * It is deliberately about the **shape** and not about the values: whether a page is one of
+ * the six and whether an address is `https:` are {@link isAnnouncementPageRoute} and
+ * {@link isAllowedExternalUrl}, and a caller that needs all three asks all three.
+ */
+export function isConsistentAnnouncementLink(values: AnnouncementLinkValues): boolean {
+  switch (values.link_type) {
+    case 'none':
+      return values.link_page === null && values.link_url === null
+    case 'page':
+      return values.link_page !== null && values.link_url === null
+    case 'url':
+      return values.link_url !== null && values.link_page === null
+  }
+}
+
+/**
  * The link a stored row means, or `null`.
  *
  * Every branch that is not fully consistent answers `null`, and deliberately: a

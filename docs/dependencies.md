@@ -3,6 +3,87 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 8C-1 — no dependencies added (2026-08-31)
+
+The announcement **replacement and restore mechanism** (§0k) adds **no package**.
+`package.json` and the lockfile are byte-identical to the phase-8B state. It adds **one
+migration**, which is recorded below.
+
+### The three things that would have justified a package, and why none is here
+
+**A snapshot / diff library.** `previous` is a jsonb document, which is the shape people
+reach for `immer`, `deep-diff` or a patch format for. It needs none of them, because it is
+not a general document: it is **eight named fields**, built by one `jsonb_build_object` and
+read back by eight `->>`. A library would have made it a *general* document, which is
+exactly the property this phase must not have — a snapshot that can hold anything is a
+snapshot that can hold a draft.
+
+**An undo / command-stack library.** Every undo abstraction models a *stack*, and §4 and
+1ad both forbid one: *"intet arkiv, ingen kladdeliste, ingen historik"*. One level, one
+column, and a second replacement overwrites it. §6 already states the model this system
+uses — *"Undo is not server-held state. The change is already live; undo is simply a second
+authorized write"* — and the only thing that *is* server-held here is the previous
+announcement itself, which is what the column is for.
+
+**A validation library for the stored snapshot.** Zod is already the one, and it is used:
+`announcementSnapshotSchema` is a `strictObject`, which is what makes "an unknown key is a
+refusal" a property of the type rather than of a reviewer's memory. What is *not* delegated
+to it is the authority: `public.is_valid_announcement_snapshot()` states the same eight keys
+and the same rules in SQL and runs **inside the transaction**, before a snapshot is stored
+and again before one is restored. Neither layer is trusted to be the only one (§5).
+
+### No date library, for the seventh phase running
+
+8C-1 compares two instants — `expires_at <= now()` — in SQL, and asks
+`isAnnouncementExpired` in TypeScript, which is phase 7A's function and imports nothing.
+`lib/announcements/snapshot.ts` reads **no clock of its own**: `now` is always an argument,
+which the unit suite asserts over its source.
+
+### No new component, token or utility either
+
+There is no new user-facing UI in this increment, so there is nothing to style. `UndoStrip`,
+`AutoDismiss` and the Fortryd vocabulary are untouched and unread by this phase; 8C-3 is
+where they get their third caller.
+
+### One migration, and what it does not contain
+
+`20260831140000_announcement_replacement.sql`:
+
+- adds `announcement_snapshot()` — the eight published keys, and never `draft`, `previous`,
+  `replaced_at`, `updated_at`, `updated_by` or the row identity;
+- adds `is_valid_announcement_snapshot()` — the same eight keys read the other way, with
+  the message length, the three link types, the six approved routes, the https-only
+  address, the link shape and the two allowed sources, all restated from the columns'
+  own CHECKs;
+- adds `replace_announcement()` — **eight typed scalar parameters, not a jsonb document**;
+  snapshot, write, `replaced_at`, `is_visible = true`, one audit row, one transaction;
+- adds `restore_announcement()` — **one parameter**, the version token; the snapshot comes
+  from the row.
+
+What it does **not** contain: no table, no column, no view, no trigger, no index, no policy,
+no grant on any table, no scheduled anything, and **no SECURITY DEFINER function** — all four
+are SECURITY INVOKER with `set search_path = ''`, so RLS decides for every caller against
+their own JWT. It names `public.opening_hours` and `public.opening_hours_overrides` nowhere,
+composes no message, and writes `announcement_created` nowhere.
+
+### One temporary directory, recorded so it is not forgotten
+
+`app/(admin)/admin/intern/besked-erstatning/` is an integration harness, not a screen. It
+exists because `updateTag()` — the real cache path the brief requires proof of — may only be
+called from inside a Server Action, and a Server Action is only reachable from a rendered
+form. It is behind `ANNOUNCEMENT_REPLACEMENT_HARNESS=1`, which `playwright.config.ts` sets
+for the test server and nothing else sets anywhere; it is guarded by `requireStaff()` first
+and the flag second; nothing links to it; and the browser still chooses no content — the
+submission is a closed variant key and a version token. **8C-3 deletes it**, because the real
+caller is 1ae's conflict sheet. `tests/unit/announcements/replacement-boundary.test.ts` holds
+all four of those properties.
+
+### `npm audit --audit-level=high` — clean
+
+Run against the unchanged lockfile after `npm ci`: **0 vulnerabilities**.
+
+---
+
 ## Phase 8B — no dependencies added (2026-08-31)
 
 The one-off opening-hours override (§0j) adds **no package**. `package.json` and the
