@@ -7,10 +7,31 @@ import {
   HoursStateBadge,
   HoursStatusNotice,
 } from '@/components/admin/hours/HoursNotices'
+import { OverrideEditor } from '@/components/admin/hours/OverrideEditor'
+import {
+  OverrideList,
+  OverrideMalformedDraftNotice,
+  OverridePendingNotice,
+  OverrideRemovalControl,
+  OverrideStatusNotice,
+  WeeklyHoursOwnerOnlyNotice,
+} from '@/components/admin/hours/OverrideNotices'
 import { WeeklyHoursEditor } from '@/components/admin/hours/WeeklyHoursEditor'
 import { AdminSectionBar, BarLink, BarSubmit } from '@/components/admin/menu/AdminSectionBar'
-import { requireOwner } from '@/lib/auth/guards'
+import { requireStaff } from '@/lib/auth/guards'
+import { isActiveOwner } from '@/lib/auth/session'
 import { readAdminOpeningHours } from '@/lib/content/hours-admin'
+import { readAdminOverrides } from '@/lib/content/hours-overrides-admin'
+import {
+  describeOverridePending,
+  describeOverrideRemoval,
+  describeOverrideState,
+  emptyOverrideForm,
+  overrideErrorFor,
+  overrideFormValues,
+  overrideIsPending,
+  overrideStateBadge,
+} from '@/lib/hours/override-form'
 import {
   describeWeeklyHoursPending,
   weeklyFormValues,
@@ -20,7 +41,8 @@ import {
   WEEKLY_HOURS_ERROR_MESSAGES,
   type WeekdayErrorField,
 } from '@/lib/hours/weekly-form'
-import type { WeekdayKey } from '@/lib/time/calendar'
+import { isIsoDate, type WeekdayKey } from '@/lib/time/calendar'
+import { copenhagenDateOf } from '@/lib/time/copenhagen'
 
 import {
   decodeWeeklyHoursErrors,
@@ -29,57 +51,72 @@ import {
   readOpeningHoursForm,
   weekdayFieldNames,
 } from './forms'
+import { saveOverride } from './override-actions'
+import {
+  decodeOverrideProblems,
+  OVERRIDE_ERROR_FIELD,
+  OVERRIDE_FORM,
+  OVERRIDE_ROW_FORM,
+  readOverrideForm,
+} from './override-forms'
+import { publishPendingOverride, saveAndPublishOverride } from './override-publish-actions'
+import { removeOverrideAction } from './override-remove-actions'
 import { publishOpeningHours } from './publish-actions'
-import { EDITOR_ANCHOR, OPENING_HOURS_PARAM } from './routes'
+import { EDITOR_ANCHOR, openingHoursHref, OPENING_HOURS_PARAM, OVERRIDE_ANCHOR } from './routes'
 import { saveOpeningHoursDraft } from './save-actions'
 
 /**
- * Åbningstider — design 1t (upper card); technical plan §3, §5, §15 (phase 8A).
+ * Åbningstider — design 1t, both cards; technical plan §3, §5, §6, §7b, §7e, §15 (phase 8).
  *
- * SCOPE. The restaurant's **normal weekly opening hours**: seven weekday rows, each open or
- * closed, each open day with an opening and a closing time; validation with a Danish
- * sentence per day; and Kladde → Forhåndsvis → Offentliggør through phase 4's machinery.
+ * SCOPE. The restaurant's **normal weekly opening hours** (phase 8A, the upper card) and
+ * its **one-off changes to a single date** (phase 8B, the lower card): 1t's "ENKELT
+ * ÆNDRING", with its date, its two kinds, its two times, Kladde → Forhåndsvis →
+ * Offentliggør, and a way to take a change away again.
  *
- * **Nothing else.** 1t's lower half — "ENKELT ÆNDRING", "Lukket en bestemt dato", "Andre
- * tider en enkelt dag", the suggested message, "Vis også som besked øverst på hjemmesiden"
- * — is phase 8B and a later phase-8 increment, and none of it is reachable from here: no
- * form on this screen has a date field, `opening_hours_overrides` is named by no query in
- * this folder, and `public.announcement` is named by nothing at all. Phase 7 is locked and
- * is not read or written by a line of this phase.
+ * **Not** the generated announcement. "Vis også som besked øverst på hjemmesiden", the
+ * suggested message beneath it, `source='opening_hours'`, `previous`, `replaced_at`,
+ * "Erstat med den nye besked" and conflict sheet **1ae** are **phase 8C**, and none of it
+ * is reachable from here: no form on this screen has a field for a message, a link or an
+ * expiry, and `public.announcement` is named by nothing in this folder. Phase 7 is locked
+ * and is neither read nor written by a line of this phase.
  *
- * OWNER ONLY, AND SAID THREE TIMES
+ * ================= TWO CARDS, TWO PERMISSION DOMAINS, ONE SCREEN =================
  *
- * §5's matrix puts *"Normal weekly opening hours"* in the Owner column and nowhere else,
- * and this screen is the one place they can be edited. `requireOwner()` is called here, in
- * the page, before anything is read — a signed-in staff member is sent to
- * `/admin/ingen-adgang`, which is the administration's existing refusal and already names
- * "normale åbningstider" among the areas reserved for the owner. They are not shown a
- * locked form: a screen full of fields nobody may submit is a worse answer than a page that
- * says who can.
+ * §5's matrix puts *"Normal weekly opening hours"* in the **Owner** column alone and
+ * *"One-off opening-hour overrides ('Ret kun i dag')"* in **both**. So this screen is the
+ * one place in the administration where a page is not a single permission — and the split
+ * is drawn where the matrix draws it, per card, rather than per page:
  *
- * That is the first of three independent refusals. Both Server Actions call
- * `requireOwner()` again for themselves, `lib/publishing/drafts.ts` and
- * `lib/publishing/publish.ts` re-check the same matrix row through `mayChangeEntity`, and
- * RLS re-checks it once more in the database — `opening_hours_update_owner` is the table's
- * only UPDATE policy and `public.is_owner()` is its condition. **No SECURITY DEFINER
- * function is involved anywhere in this path**: every write goes through the caller's own
- * JWT, exactly as every other draft write in this administration does, so the RLS boundary
- * is not worked around, it is relied on.
+ *   * **`requireStaff()` here**, because the lower card is Staff's. Phase 8A called
+ *     `requireOwner()` on the page; that would now keep a staff member away from work §5
+ *     says is theirs.
+ *   * **The weekly card is rendered only for an owner.** For a staff member it is *absent*
+ *     — §5's own treatment for an Owner-only area — and a statement stands where it was,
+ *     naming who can change the week and pointing at the card that is theirs. There is no
+ *     locked form, no disabled field and nothing to re-enable from the browser.
+ *   * **Absence is not the enforcement.** `saveOpeningHoursDraft` and `publishOpeningHours`
+ *     each call `requireOwner()` for themselves, `mayChangeEntity` re-checks the same
+ *     matrix row inside `saveEntityDraft` and `publishPendingChange`, and
+ *     `opening_hours_update_owner` — the table's only UPDATE policy — re-checks it in the
+ *     database against the caller's own JWT. A staff member who posts to the weekly action
+ *     is refused three times over, and `supabase/tests/013_opening_hours.test.sql` asserts
+ *     the last of those from a real JWT.
+ *   * **The bar's Offentliggør belongs to the week**, so it is rendered only for an owner
+ *     too. The one-off card publishes from its own footer and its own pending band, which
+ *     is where 1t draws its actions.
  *
  * WHAT IS READ, AND FROM WHERE
  *
- * The `opening_hours` row, from `lib/content/hours-admin.ts` — uncached, through this
- * person's own JWT, the draft merged in, with the published schedule beside it. Never the
- * public cached read (§6), which would hand a stale version token to the next save.
- *
- * The public read is **not** called here at all, and that is the point of the whole screen:
- * a draft schedule changes nothing a guest can see, and the way to look at one is
- * Forhåndsvis, which opens the real public page in Draft Mode.
+ * Both cards read through the *administration's* own loaders — uncached, through this
+ * person's JWT, drafts merged — never the public cached read (§6), which would hand a
+ * stale version token to the next save. The public read is not called here at all, and
+ * that is the point of the whole screen: a pending change moves nothing a guest can see,
+ * and the way to look at one is Forhåndsvis.
  *
  * All the state this screen has is in the URL (`./routes.ts`), so there is nothing in the
  * browser to keep in step with the server, and it has **no client components at all** —
- * the seven rows redraw themselves from the checkbox with a sibling selector rather than
- * with a script (see `WeeklyHoursEditor`).
+ * the weekday rows and the two time fields redraw themselves from a checkbox and a radio
+ * with a sibling selector rather than with a script.
  */
 
 /** A repeated parameter is a malformed request, not two answers: take the first. */
@@ -104,18 +141,18 @@ function searchParamsOf(params: Record<string, string | string[] | undefined>): 
 }
 
 /**
- * A key that changes when the **server's** values for the card change.
+ * A key that changes when the **server's** values for a card change.
  *
- * Every control on this screen is an uncontrolled `<input defaultChecked>` or
- * `<select defaultValue>`, which is what keeps the whole editor a Server Component with
- * nothing in the browser to keep in step. It has one consequence that has to be handled
- * explicitly: after a client-side navigation React reuses the existing DOM nodes and
- * updates their defaults **without** touching a value a person has changed. A publish
- * replaces the seven rows with what is now live, and a card that kept the person's
- * checkboxes would show a week the server no longer holds.
+ * Every control on this screen is an uncontrolled `<input defaultChecked>`,
+ * `<input defaultValue>` or `<select defaultValue>`, which is what keeps the whole editor a
+ * Server Component with nothing in the browser to keep in step. It has one consequence that
+ * has to be handled explicitly: after a client-side navigation React reuses the existing DOM
+ * nodes and updates their defaults **without** touching a value a person has changed. A
+ * publish replaces the card with what is now live, and a card that kept the person's
+ * choices would show a state the server no longer holds.
  *
- * Keying the card on the values it was rendered from remounts it exactly when the server's
- * answer moved — the same mechanism the weekly and monthly editors use.
+ * Keying a card on the values it was rendered from remounts it exactly when the server's
+ * answer moved — the same mechanism the weekly, monthly and announcement editors use.
  */
 function cardKey(values: object): string {
   return JSON.stringify(values)
@@ -126,25 +163,40 @@ export default async function OpeningHoursAdminPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  await requireOwner()
+  const profile = await requireStaff()
+  const isOwner = isActiveOwner(profile)
 
-  const [params, hours] = await Promise.all([searchParams, readAdminOpeningHours()])
+  const [params, hours, overrides] = await Promise.all([
+    searchParams,
+    // The weekly singleton is only read for the card that shows it. A staff member's page
+    // issues no query against `opening_hours` at all.
+    isOwner ? readAdminOpeningHours() : Promise.resolve(null),
+    readAdminOverrides(),
+  ])
 
   // The singleton is created by the initial migration and has no DELETE privilege, so this
   // is unreachable in a healthy database — and a screen that rendered empty rows against no
   // row would offer saves that could only fail.
-  if (hours === null) notFound()
+  if (isOwner && hours === null) notFound()
 
-  // Errors and the values that produced them come back from a refused save in the query
-  // string. Only codes the domain module defined survive `decodeWeeklyHoursErrors`, and the
-  // values are re-read with the same parser the form is submitted through.
-  const errors = decodeWeeklyHoursErrors(many(params[OPENING_HOURS_ERROR_FIELD]))
-  const echoed = errors.length > 0 ? searchParamsOf(params) : null
+  const status = one(params[OPENING_HOURS_PARAM.status])
 
-  const values = echoed === null ? weeklyFormValues(hours.current) : readOpeningHoursForm(echoed)
+  // ---------------------------------------------------------------------------
+  // The upper card — the recurring week (phase 8A, Owner only)
+  // ---------------------------------------------------------------------------
 
-  const errorFor = (weekday: WeekdayKey, field: WeekdayErrorField): string | undefined => {
-    const code = errors.find(
+  const weeklyErrors = decodeWeeklyHoursErrors(many(params[OPENING_HOURS_ERROR_FIELD]))
+  const weeklyEchoed = weeklyErrors.length > 0 ? searchParamsOf(params) : null
+
+  const weeklyValues =
+    hours === null
+      ? null
+      : weeklyEchoed === null
+        ? weeklyFormValues(hours.current)
+        : readOpeningHoursForm(weeklyEchoed)
+
+  const weeklyErrorFor = (weekday: WeekdayKey, field: WeekdayErrorField): string | undefined => {
+    const code = weeklyErrors.find(
       (candidate) =>
         weeklyHoursErrorDay(candidate) === weekday && weeklyHoursErrorField(candidate) === field,
     )
@@ -157,7 +209,7 @@ export default async function OpeningHoursAdminPage({
    * schema agree, and it is rendered rather than swallowed so that the day it stops being
    * unreachable is a day somebody is told about — see `SCHEDULE_ERROR_CODE`.
    */
-  const scheduleError = errors.includes(SCHEDULE_ERROR_CODE)
+  const scheduleError = weeklyErrors.includes(SCHEDULE_ERROR_CODE)
 
   /*
    * What is waiting, measured between the stored draft and the published week. A malformed
@@ -165,62 +217,179 @@ export default async function OpeningHoursAdminPage({
    * "nothing is different" — which is why the band is suppressed in that case and the
    * malformed notice says what is actually wrong instead.
    */
-  const pending =
-    hours.hasDraft && !hours.draftMalformed
+  const weeklyPending =
+    hours !== null && hours.hasDraft && !hours.draftMalformed
       ? describeWeeklyHoursPending(hours.current, hours.live)
       : null
+
+  // ---------------------------------------------------------------------------
+  // The lower card — one-off changes (phase 8B, Staff and Owner)
+  // ---------------------------------------------------------------------------
+
+  const overrideErrors = decodeOverrideProblems(many(params[OVERRIDE_ERROR_FIELD]))
+  const overrideEchoed = overrideErrors.length > 0 ? searchParamsOf(params) : null
+
+  /*
+   * Which date the card is showing. The address chooses it; today is the fallback, because
+   * 1q's own link into this area is "Ret kun i dag" and because a date is the one thing the
+   * card cannot sensibly invent. A `dato` that is not a real calendar date chooses nothing,
+   * so a hand-typed address can only ever select a date — never authority over one.
+   *
+   * A date that has **been** is allowed *here*, and refused by the save (§7e item 7). That
+   * is deliberate: a refused save comes back carrying the date it was refused for, and a
+   * card that silently swapped it for today would name a problem with a value it had just
+   * thrown away. There is nothing to protect — a past date has no row to find (the admin
+   * read lists today onwards), so the card simply says the normal week applies and refuses
+   * the save by name.
+   */
+  const today = copenhagenDateOf(new Date())
+  const requestedDate = one(params[OPENING_HOURS_PARAM.date])
+  const selectedDate =
+    requestedDate !== undefined && isIsoDate(requestedDate) ? requestedDate : today
+
+  const selected = overrides.find((override) => override.date === selectedDate) ?? null
+
+  /*
+   * A refused save shows back exactly what was submitted, **including a date the parser
+   * could not read at all** — which is why the echo is taken verbatim rather than merged
+   * with `selectedDate`. The person's own value stays in the field beside the sentence
+   * that says what is wrong with it.
+   */
+  const overrideValues =
+    overrideEchoed === null
+      ? selected === null
+        ? emptyOverrideForm(selectedDate)
+        : overrideFormValues(selected.date, selected.current)
+      : readOverrideForm(overrideEchoed)
+
+  // The lifecycle is decided once, by the admin read, from the two stored facts. The
+  // screen asks for it rather than re-deriving it, so the badge, the sentence, the band
+  // and the removal control cannot disagree about what state this date is in.
+  const lifecycle = selected?.lifecycle ?? 'ingen'
+
+  const overridePending = describeOverridePending(
+    selectedDate,
+    // A malformed draft was not applied, so there is nothing readable waiting: the
+    // malformed notice says what is wrong instead of a band claiming a change it cannot
+    // describe — the same choice the weekly card makes above.
+    selected?.draftMalformed === true ? 'live' : lifecycle,
+    selected?.current ?? null,
+  )
+
+  const removal = describeOverrideRemoval(lifecycle)
+  const confirming = one(params[OPENING_HOURS_PARAM.confirm]) === '1'
 
   return (
     <>
       <AdminSectionBar backHref="/admin" backLabel="Oversigt" title="Åbningstider">
-        <HoursStateBadge pending={pending !== null} />
+        {isOwner ? <HoursStateBadge pending={weeklyPending !== null} /> : null}
         {/*
-          Two preview links rather than 1t's none.
+          Two preview links rather than 1t's none on the bar.
 
-          1t draws no Forhåndsvis on the bar because the frame's own preview button belongs
-          to the one-off override card in its lower half — which is phase 8B. The normal
-          weekly hours still need one: §6 makes Forhåndsvis the middle step of the only path
-          by which they reach the hjemmeside, and the bar is where every other section screen
-          in this administration puts it (1r, 1ah, 1aj). So the control is the established
-          one in its established place, rather than a new one invented for this screen.
+          1t's own preview button belongs to the one-off card and is drawn there. The bar's
+          two are the weekly schedule's: §6 makes Forhåndsvis the middle step of the only
+          path by which the week reaches the hjemmeside, and the bar is where every other
+          section screen in this administration puts it (1r, 1ah, 1aj). Two, because the
+          schedule genuinely appears in two shapes — Find os prints all seven days, and the
+          footer on every page groups them into "Ons–fre 15:00–20:00".
 
-          Two, because the schedule genuinely appears in two different shapes: Find os prints
-          all seven days as a table, and the Forside's "Besøg os" panel prints them beside
-          the open/closed badge — and the footer, which is on every page, groups them into
-          "Ons–fre 15:00–20:00". A person who has just closed a Wednesday will want to see
-          the day disappear from the table *and* the grouping close up behind it. Both links
-          go through the same Draft Mode route as every other preview on the site.
+          They are drawn for a staff member too: a preview is a *read*, it needs a staff
+          session, and Draft Mode is how anybody on this screen looks at a pending change —
+          including the one-off change that is theirs.
         */}
         <BarLink href="/api/preview/start?maal=find-os">Forhåndsvis Find os</BarLink>
         <BarLink href="/api/preview/start?maal=forside">Forhåndsvis forsiden</BarLink>
-        <form action={publishOpeningHours}>
-          <BarSubmit>Offentliggør</BarSubmit>
-        </form>
+        {isOwner ? (
+          <form action={publishOpeningHours}>
+            <BarSubmit>Offentliggør</BarSubmit>
+          </form>
+        ) : null}
       </AdminSectionBar>
 
       <main className="mx-auto flex max-w-content flex-col gap-4 px-gutter py-6 md:px-8">
-        <HoursStatusNotice status={one(params[OPENING_HOURS_PARAM.status])} />
-        <HoursMalformedDraftNotice malformed={hours.draftMalformed} />
-        {scheduleError ? (
-          <Notice tone="error">{WEEKLY_HOURS_ERROR_MESSAGES[SCHEDULE_ERROR_CODE]}</Notice>
-        ) : null}
+        <HoursStatusNotice status={status} />
+        <OverrideStatusNotice status={status} />
 
-        <HoursPendingNotice
-          action={publishOpeningHours}
-          sentence={pending === null ? null : pending.sentence}
+        {isOwner && hours !== null && weeklyValues !== null ? (
+          <>
+            <HoursMalformedDraftNotice malformed={hours.draftMalformed} />
+            {scheduleError ? (
+              <Notice tone="error">{WEEKLY_HOURS_ERROR_MESSAGES[SCHEDULE_ERROR_CODE]}</Notice>
+            ) : null}
+
+            <HoursPendingNotice
+              action={publishOpeningHours}
+              sentence={weeklyPending === null ? null : weeklyPending.sentence}
+            />
+
+            <WeeklyHoursEditor
+              action={saveOpeningHoursDraft}
+              anchorId={EDITOR_ANCHOR}
+              errorFor={weeklyErrorFor}
+              fieldNames={OPENING_HOURS_FORM}
+              key={cardKey(weeklyValues)}
+              pending={weeklyPending === null ? null : weeklyPending.badge}
+              values={weeklyValues}
+              version={hours.updatedAt}
+              weekdayFieldNames={weekdayFieldNames}
+            />
+          </>
+        ) : (
+          <WeeklyHoursOwnerOnlyNotice />
+        )}
+
+        <OverrideMalformedDraftNotice malformed={selected?.draftMalformed ?? false} />
+
+        <OverridePendingNotice
+          action={publishPendingOverride}
+          date={selectedDate}
+          dateFieldName={OVERRIDE_FORM.date}
+          sentence={overridePending === null ? null : overridePending.sentence}
         />
 
-        <WeeklyHoursEditor
-          action={saveOpeningHoursDraft}
-          anchorId={EDITOR_ANCHOR}
-          errorFor={errorFor}
-          fieldNames={OPENING_HOURS_FORM}
-          key={cardKey(values)}
-          pending={pending === null ? null : pending.badge}
-          values={values}
-          version={hours.updatedAt}
-          weekdayFieldNames={weekdayFieldNames}
-        />
+        <OverrideEditor
+          action={saveOverride}
+          anchorId={OVERRIDE_ANCHOR}
+          errorFor={(field) => overrideErrorFor(overrideErrors, field)}
+          fieldNames={OVERRIDE_FORM}
+          key={cardKey({ ...overrideValues, lifecycle, confirming })}
+          previewHref="/api/preview/start?maal=forside"
+          publishAction={saveAndPublishOverride}
+          stateBadge={overrideStateBadge(lifecycle)}
+          statePending={overrideIsPending(lifecycle)}
+          stateSentence={describeOverrideState(
+            selectedDate,
+            lifecycle,
+            selected?.live ?? null,
+            selected?.current ?? null,
+          )}
+          values={overrideValues}
+          version={selected?.updatedAt ?? ''}
+          versionDate={selected === null ? '' : selected.date}
+        >
+          <OverrideRemovalControl
+            action={removeOverrideAction}
+            cancelHref={openingHoursHref({ date: selectedDate, overrideFocus: true })}
+            confirmHref={openingHoursHref({
+              date: selectedDate,
+              confirm: true,
+              overrideFocus: true,
+            })}
+            confirming={confirming}
+            fieldNames={OVERRIDE_ROW_FORM}
+            idPrefix={OVERRIDE_ANCHOR}
+            overrideId={selected?.id ?? ''}
+            removal={removal}
+            version={selected?.updatedAt ?? ''}
+          />
+
+          <OverrideList
+            headingId={`${OVERRIDE_ANCHOR}-liste`}
+            hrefFor={(date) => openingHoursHref({ date, overrideFocus: true })}
+            overrides={overrides}
+            selectedDate={selectedDate}
+          />
+        </OverrideEditor>
       </main>
     </>
   )

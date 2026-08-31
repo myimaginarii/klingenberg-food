@@ -118,34 +118,37 @@ export default async function AdminDashboard({
       </Card>
 
       {/*
-        Åbningstider — design 1t, phase 8A.
+        Åbningstider — design 1t, phases 8A and 8B.
 
-        Owner-only (§5), so the tile is **absent** for a staff member rather than shown and
-        disabled: §5 says so in as many words ("Owner-only tiles are simply absent for Staff
-        rather than shown-and-disabled"), and a link that can only lead to a refusal is a
-        link worth not drawing. It is not a permission — `requireOwner()` on the screen and
-        in both of its actions is — which is why the address still refuses a staff member
-        who types it.
+        **Not Owner-only any more, and that is §5 rather than a relaxation.** The matrix puts
+        *"Normal weekly opening hours"* in the Owner column alone and *"One-off opening-hour
+        overrides (‘Ret kun i dag’)"* in **both**, and since phase 8B the screen carries a
+        card for each. So the tile is drawn for everybody and *says which half is whose*: a
+        staff member who follows it reaches their own card and a statement where the week
+        would be, rather than the refusal page phase 8A sent them to.
 
-        The tile's own wording is 8A's rather than 1q's "Ret tider for en dag": that
-        sentence describes the one-off override in 1t's lower half, which is phase 8B. It
-        will be true of this tile again when 8B ships; until then it would promise a screen
-        that does not yet exist.
+        Neither the tile nor its wording is a permission. `requireStaff()` guards the screen,
+        the weekly card's two Server Actions call `requireOwner()` for themselves, and
+        `opening_hours_update_owner` re-checks the same rule in the database — so a staff
+        member who types the address, or posts to the weekly action, is refused by all three
+        whatever this tile says.
+
+        1q's own link into this area is *"Ret kun i dag"*, which is now true: that is exactly
+        what the lower card does.
       */}
-      {profile.role === 'owner' ? (
-        <Card>
-          <h2 className="text-heading font-semibold">Åbningstider</h2>
-          <p className="text-ink-2 text-meta mt-2">
-            De normale åbningstider for ugens syv dage. De står i bunden af alle sider, på
-            Find os og bag “Åbent nu”, så kun ejeren kan rette dem.
-          </p>
-          <p className="mt-1">
-            <Link className={STANDALONE_LINK} href={OPENING_HOURS_PATH}>
-              Åbn åbningstiderne
-            </Link>
-          </p>
-        </Card>
-      ) : null}
+      <Card>
+        <h2 className="text-heading font-semibold">Åbningstider</h2>
+        <p className="text-ink-2 text-meta mt-2">
+          {profile.role === 'owner'
+            ? 'De normale åbningstider for ugens syv dage, og ændringer for enkelte datoer — en lukkedag eller andre tider den ene dag.'
+            : 'Luk en enkelt dato, eller giv den andre tider, uden at ændre den normale uge. De faste ugetider kan kun ejeren rette.'}
+        </p>
+        <p className="mt-1">
+          <Link className={STANDALONE_LINK} href={OPENING_HOURS_PATH}>
+            {profile.role === 'owner' ? 'Åbn åbningstiderne' : 'Ret tider for en dag'}
+          </Link>
+        </p>
+      </Card>
 
       <Card>
         <h2 className="text-heading font-semibold">Rediger indhold</h2>

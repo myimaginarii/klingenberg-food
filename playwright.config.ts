@@ -64,6 +64,7 @@ export default defineConfig({
         'e2e/announcement.spec.ts',
         'e2e/announcement-remove.spec.ts',
         'e2e/opening-hours.spec.ts',
+        'e2e/opening-hours-override.spec.ts',
         'e2e/public-cache.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
@@ -83,6 +84,7 @@ export default defineConfig({
         'e2e/announcement.spec.ts',
         'e2e/announcement-remove.spec.ts',
         'e2e/opening-hours.spec.ts',
+        'e2e/opening-hours-override.spec.ts',
         'e2e/public-cache.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
@@ -339,6 +341,36 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
     /*
+     * The one-off overrides (phase 8B), at both widths, chained after the weekly editor.
+     *
+     * Same reason every write suite is chained, twice over: it publishes, publishing an
+     * override expires the `hours` tag, and that tag is on **every** public page — a
+     * published override moves the open/closed badge everywhere. It also drives one dish's
+     * Udsolgt control to prove §7b resolves against the *published* overrides, which is a
+     * second reason not to let it run beside the menu suites. It runs after
+     * `opening-hours-mobile` rather than beside it because both write the same two tables.
+     *
+     * Two widths, because 1t's lower card is two different arrangements rather than one at
+     * two sizes: at 1440 the date, the chips and the two times share the card's width, and
+     * at 375 they stack. The 44 px targets, the focus ring and the absence of sideways
+     * scrolling are asserted inside the suite, so the phone run is a different assertion
+     * rather than the same one at a smaller size.
+     *
+     * Each run removes every override it created and leaves Thor available.
+     */
+    {
+      name: 'opening-hours-override',
+      testMatch: 'e2e/opening-hours-override.spec.ts',
+      dependencies: ['opening-hours-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: 'opening-hours-override-mobile',
+      testMatch: 'e2e/opening-hours-override.spec.ts',
+      dependencies: ['opening-hours-override'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    /*
      * The public cache's own promise (§6, §7a), and the last thing to run.
      *
      * It publishes, so it is chained for the reason every write suite is chained. It is
@@ -353,7 +385,7 @@ export default defineConfig({
     {
       name: 'public-cache',
       testMatch: 'e2e/public-cache.spec.ts',
-      dependencies: ['opening-hours-mobile'],
+      dependencies: ['opening-hours-override-mobile'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],

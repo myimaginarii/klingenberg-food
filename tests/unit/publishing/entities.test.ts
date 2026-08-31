@@ -266,11 +266,22 @@ describe('every registered entity is completely described', () => {
     expect(['singleton', 'keyed', 'many']).toContain(entity.instance.kind)
   })
 
-  it('gives the two status-published entities no draft schema, and every other one a draft schema', () => {
+  /*
+   * `news` is the one entity left with no draft schema, and phase 8B is why the list is no
+   * longer two.
+   *
+   * An override used to be pending through its `status` alone, as §4 describes. Phase 8B
+   * gave it a `draft` column as well, because a *published* override and the edit waiting
+   * behind it have to be two values at once and `date` is UNIQUE — the reasoning is written
+   * out in `20260831120000_opening_hours_override_admin.sql`. It is therefore pending in
+   * **two** ways now, and it holds a draft schema like every other editable entity.
+   *
+   * `news` is not, and this assertion is what would notice if a later phase changed that
+   * without deciding to.
+   */
+  it('gives news no draft schema, and every other entity one', () => {
     for (const key of ENTITY_KEYS) {
-      const expectedDraft = key !== 'news' && key !== 'opening_hours_override'
-
-      expect(PUBLISHABLE_ENTITIES[key].draft !== null, key).toBe(expectedDraft)
+      expect(PUBLISHABLE_ENTITIES[key].draft !== null, key).toBe(key !== 'news')
     }
   })
 

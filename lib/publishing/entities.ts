@@ -6,7 +6,7 @@ import type { DraftSpec } from '@/lib/schemas/define'
 import { announcementDraft } from '@/lib/schemas/announcement'
 import { siteContactDraft } from '@/lib/schemas/contact'
 import { dishDraft, menuCategoryDraft } from '@/lib/schemas/menu'
-import { openingHoursDraft } from '@/lib/schemas/opening-hours'
+import { openingHoursDraft, openingHoursOverrideDraft } from '@/lib/schemas/opening-hours'
 import { aboutDraft, homeDraft, takeawayDraft } from '@/lib/schemas/page-documents'
 import { monthlyBurgerDraft, weeklySpecialDraft } from '@/lib/schemas/specials'
 
@@ -48,6 +48,7 @@ export type DraftTable =
   | 'dishes'
   | 'weekly_special'
   | 'monthly_burger'
+  | 'opening_hours_overrides'
 
 /**
  * How to find the one row an entity refers to.
@@ -197,7 +198,26 @@ export const PUBLISHABLE_ENTITIES = {
     label: 'Ændret åbningstid',
     requiredRole: 'staff',
     publishFunction: 'publish_opening_hours_override',
-    draft: null,
+    /*
+     * An override is pending in **two** ways, and phase 8B is where the second one
+     * appeared (see `20260831120000_opening_hours_override_admin.sql`). A row that has
+     * never been live is pending through `status`, exactly as §4 describes and as `news`
+     * still is; a row that is already live and carries an edit is pending through this
+     * `draft` column, because a published override and the change waiting behind it have
+     * to be two values at once and `date` is UNIQUE.
+     *
+     * Registering the draft here is what lets the ordinary machinery do the ordinary
+     * work: `saveEntityDraft` writes it with the strict parse, the allow-list and the
+     * version check; `readEditableEntity` merges it for the editor with the same
+     * `overlayDraft` the preview uses; and `publishPendingChange` re-validates the
+     * **stored** draft against `spec.stored` before `publish_opening_hours_override()`
+     * merges it. None of that is reimplemented for this screen.
+     */
+    draft: {
+      table: 'opening_hours_overrides',
+      spec: openingHoursOverrideDraft,
+      shape: 'columns',
+    },
     instance: { kind: 'many' },
     cacheTags: [CACHE_TAGS.hours],
   },

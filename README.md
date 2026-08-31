@@ -7,7 +7,7 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–7 complete and locked; phase 8A complete and green.** The public site renders from the database;
+**Status: phases 0–7 complete and locked; phases 8A and 8B complete and green.** The public site renders from the database;
 the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
@@ -33,21 +33,39 @@ about ten seconds of Fortryd. Technical plan §0f and §0g record the two increm
 whether the already-published message is shown.** Switching the bar back on never publishes
 a pending draft.
 
-**Phase 8A** is finished: **Åbningstider** (`/admin/aabningstider`) is the Owner-only
-editor for the restaurant's **normal weekly schedule** — frame 1t's upper card, seven
-weekday rows, each open or closed, each open day with an opening and a closing time chosen
-in quarter-hour steps, per-day Danish validation, and the ordinary Kladde → Forhåndsvis →
-Offentliggør path. It added **no migration and no database function**: the `opening_hours`
-singleton, its shape CHECK, its Owner-only RLS policy and `publish_opening_hours()` have
-existed since phases 1 and 4. Technical plan §0i records what it contains and what it
-deliberately does not. Staff do not see the tile and are refused at the address —
-`requireOwner()`, `mayChangeEntity` and RLS, three independent times, with no SECURITY
-DEFINER anywhere in the path.
+**Phase 8A** is finished: the upper half of **Åbningstider** (`/admin/aabningstider`) is
+the Owner-only editor for the restaurant's **normal weekly schedule** — frame 1t's upper
+card, seven weekday rows, each open or closed, each open day with an opening and a closing
+time chosen in quarter-hour steps, per-day Danish validation, and the ordinary
+Kladde → Forhåndsvis → Offentliggør path. It added **no migration and no database
+function**: the `opening_hours` singleton, its shape CHECK, its Owner-only RLS policy and
+`publish_opening_hours()` have existed since phases 1 and 4. Technical plan §0i records what
+it contains and what it deliberately does not.
 
-**The rest of phase 8 is not started**: one-off date overrides ("Ret kun i dag", 1t's lower
-half) are **8B**, and the *generated* opening-hours message — `source='opening_hours'`,
-"Vis også som besked øverst på hjemmesiden", replacing an active announcement, the
-`previous` / `replaced_at` stash and 1ae's conflict sheet — is a later phase 8 increment.
+**Phase 8B** is finished too, on the same screen and beneath it: 1t's **"ENKELT ÆNDRING"**
+card closes one calendar date, or gives it other hours, **without touching the normal
+week** — through the same Kladde → Forhåndsvis → Offentliggør path, with a way to take the
+change away again and give the date back to the weekly schedule. Technical plan §0j records
+what it contains, the three places it departs from the frame and why, and the one schema
+change it needed.
+
+**This is the one screen in the administration that is not a single permission.** §5's
+matrix puts *the normal weekly hours* in the Owner column alone and *one-off overrides* in
+both, so the split is drawn **per card**: an owner sees both, and a staff member sees the
+one-off card with a statement — not a locked form — where the week would be. Absence is not
+the enforcement. The weekly card's two Server Actions still call `requireOwner()`,
+`mayChangeEntity` re-checks the same matrix row, and `opening_hours_update_owner` is still
+the table's only UPDATE policy — three independent refusals, with no SECURITY DEFINER
+anywhere in either path.
+
+A **published** override feeds the phase-2 engine in both directions, with no availability
+logic of its own: a closed day is skipped by the "Udsolgt i dag" reset, and a normally
+closed day that an override opens becomes the day a sold-out dish comes back.
+
+**Phase 8C is not started**: the *generated* opening-hours message —
+`source='opening_hours'`, "Vis også som besked øverst på hjemmesiden", replacing an active
+announcement, the `previous` / `replaced_at` stash and 1ae's conflict sheet. Nothing in 8A
+or 8B names `public.announcement`.
 `/admin` itself is still the **foundation-level** dashboard from phase 4 plus the menu,
 announcement and opening-hours entries — the remaining section screens arrive in their own
 phases.
@@ -163,7 +181,8 @@ app/
                           forsiden" and the §7d computed state
     besked/           Besked på hjemmesiden (phase 7) — the message, its optional
                       link, its required future expiry and 1ad's suggestion chips
-    aabningstider/    Åbningstider (phase 8A) — the normal weekly schedule, Owner only.
+    aabningstider/    Åbningstider (phases 8A + 8B) — the Owner-only weekly schedule,
+                      and the Staff-and-Owner one-off change for a single date.
                       Seven weekday rows, one form, one vocabulary. No date field:
                       one-off overrides are 8B and cannot be expressed here.
     indhold/ login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
@@ -178,7 +197,8 @@ components/
                       and share no business rules with it or with each other.
   admin/announcement/ Besked på hjemmesiden (phase 7). Its "sådan ser den ud" panel
                       renders the public bar itself, so the two cannot drift.
-  admin/hours/        Åbningstider (phase 8A). The seven weekday rows and this screen's
+  admin/hours/        Åbningstider (phases 8A + 8B). The seven weekday rows, the one-off
+                      change card, and this screen's
                       notices. Zero client components: a closed row hides its two
                       dropdowns with a sibling selector, not with a script.
   site/announcement/  the public bar, its labelled aria-live region, and the expiry
@@ -270,20 +290,22 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 8B onward, plus: the weekly off-platform backup workflow
+Everything in §15 from phase 8C onward, plus: the weekly off-platform backup workflow
 (phase 13, §10f) and Sentry (phase 13). `docs/dependencies.md` records which package
 arrives in which phase. Phase 6 is **complete and locked** — 6A (Ugens ret and
 Lørdagsmenu, §0c), 6B (Månedens burger, §0d), and the completion pass over both halves
 (§0e). Phase 7 is **complete and locked** — 7A (§0f), 7B (§0g), and the completion pass
-over both halves (§0h).
+over both halves (§0h). Phase 8 is **not locked**: 8A (§0i) and 8B (§0j) are complete and
+green, and 8C is not started.
 
 What the **announcement** deliberately does not do, and who owns it, is listed in §0h:
 **replacing** an active announcement, the `previous` / `replaced_at` stash and the restore
 that reads them, a message generated from a one-off opening-hours change
-(`source='opening_hours'`), "Erstat med den nye besked" and 1ae's conflict sheet — all a
-**later phase 8 increment**, and none of them touched by phase 8A, which writes the weekly
-schedule and nothing else. Nothing in phase 7 or 8A reads or writes `previous` or
-`replaced_at`, and `source` stays `'manual'`; "restore" in phase 7 means visibility of the same published message and
+(`source='opening_hours'`), "Erstat med den nye besked" and 1ae's conflict sheet — all
+**phase 8C**, and none of them touched by 8A, which writes the weekly schedule and nothing
+else, or by 8B, which writes one date's own row and nothing else. Nothing in phase 7, 8A or
+8B reads or writes `previous` or `replaced_at`, `source` stays `'manual'`, and
+`opening_hours_overrides.announcement_created` stays `false`; "restore" in phase 7 means visibility of the same published message and
 never content. There is no archive and no history at all, by design, and a guest cannot
 dismiss the bar — so nothing per-visitor is stored and the public site still sets **no
 cookies**.

@@ -1,6 +1,7 @@
 import { weeklyScheduleSchema } from '@/lib/schemas/opening-hours'
-import { WEEKDAY_KEYS, type IsoTime, type WeekdayKey } from '@/lib/time/calendar'
+import { WEEKDAY_KEYS, type WeekdayKey } from '@/lib/time/calendar'
 
+import { isClockTime } from './clock-choices'
 import { formatWeekdayName } from './format'
 import type { WeeklySchedule } from './types'
 
@@ -213,49 +214,16 @@ export function weeklyHoursErrorField(code: WeeklyHoursErrorCode): WeekdayErrorF
 // What the two dropdowns offer
 // ---------------------------------------------------------------------------
 
-const MINUTES_PER_QUARTER = 15
-const QUARTERS_PER_DAY = (24 * 60) / MINUTES_PER_QUARTER
-
 /**
- * `00:00`, `00:15`, … `23:45` — 1t's "kvarter-spring", as the select's options.
- *
- * Built once, at module load, and handed out frozen: the editor renders fourteen of these
- * selects on every request, and ninety-six strings that never change are not worth
- * recomputing fourteen times a page. Callers that need the grid *plus* a stored off-grid
- * value get a fresh array from {@link timeChoicesFor}.
+ * The quarter-hour grid, the wall-clock test and the off-grid rule now live in
+ * `./clock-choices.ts`, because 1t's *"Tider vælges i kvarter-spring"* is one sentence
+ * about all four of the screen's time dropdowns — the seven weekday rows here, and the two
+ * fields of the one-off override card (phase 8B). They are re-exported under exactly the
+ * names this module has always used, so nothing that imports them had to change and the
+ * two editors share a *control* without sharing a *rule*: what a day's times must satisfy
+ * is decided below and, for an override, in `./override-form.ts`.
  */
-const QUARTER_HOURS: readonly IsoTime[] = Object.freeze(
-  Array.from({ length: QUARTERS_PER_DAY }, (_, index) => {
-    const minutes = index * MINUTES_PER_QUARTER
-
-    return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`
-  }),
-)
-
-export function quarterHourChoices(): readonly IsoTime[] {
-  return QUARTER_HOURS
-}
-
-const CLOCK_TIME = /^([01][0-9]|2[0-3]):[0-5][0-9]$/
-
-/** Is this a wall-clock time the schema would accept? */
-export function isClockTime(value: string): value is IsoTime {
-  return CLOCK_TIME.test(value)
-}
-
-/**
- * The quarter-hour grid, plus `current` when it is a valid time that is not on it.
- *
- * A select can only submit what it offers, so a select built from the grid alone would
- * turn an existing `15:20` into `00:00` the moment somebody saved an unrelated day. The
- * stored value is therefore always offered, in its place in the day, and the grid is a
- * convenience rather than a filter. A blank or malformed `current` adds nothing.
- */
-export function timeChoicesFor(current: string): readonly IsoTime[] {
-  if (!isClockTime(current) || QUARTER_HOURS.includes(current)) return QUARTER_HOURS
-
-  return [...QUARTER_HOURS, current].sort()
-}
+export { isClockTime, quarterHourChoices, timeChoicesFor } from './clock-choices'
 
 // ---------------------------------------------------------------------------
 // Turning seven rows into a schedule

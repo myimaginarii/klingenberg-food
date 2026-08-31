@@ -127,20 +127,25 @@ test('a closed day shows the word and no times; an open day shows two dropdowns'
   await expect(timeSelect(ownerPage, 'Onsdag', 'åbner').getByRole('option')).toHaveCount(97)
 })
 
-test('the screen contains none of phase 8B', async () => {
+test('the weekly card can express nothing but the week', async () => {
   await openHoursAdmin(ownerPage)
 
-  // 1t's lower half, and everything the later phase-8 increments own. Each is asserted by
-  // name rather than by a count, so a future phase that adds one has to change this line.
-  await expect(ownerPage.locator('input[type="date"]')).toHaveCount(0)
-  await expect(ownerPage.getByText('ENKELT ÆNDRING')).toBeHidden()
-  await expect(ownerPage.getByText(/kun denne dag|Ret kun i dag/i)).toHaveCount(0)
-  await expect(ownerPage.getByText(/Vis også som besked/i)).toHaveCount(0)
+  /*
+   * Phase 8A asserted here that 1t's *lower half* was absent from the screen. Phase 8B
+   * built it, on the same screen and beside this card, so the claim that is still true —
+   * and still worth holding — is the narrower one this card was always making: **the
+   * recurring week's own form cannot express a date, a message or anything else.**
+   *
+   * The one-off card's own boundary, including everything phase 8C owns, is asserted in
+   * `tests/e2e/opening-hours-override.spec.ts`.
+   */
   await expect(ownerPage.getByText(/Erstat med den nye besked/i)).toHaveCount(0)
+  await expect(ownerPage.getByText(/Vis også som besked/i)).toHaveCount(0)
 
-  // And no field the form could smuggle an override or an announcement through. `$ACTION_ID`
-  // is Next.js's own hidden field naming the Server Action; it carries no content and is
-  // dropped rather than allow-listed by name, because its value changes with every build.
+  // No field the *weekly* form could smuggle a date or an announcement through.
+  // `$ACTION_ID` is Next.js's own hidden field naming the Server Action; it carries no
+  // content and is dropped rather than allow-listed by name, because its value changes
+  // with every build.
   const names = await hoursForm(ownerPage)
     .locator('input, select')
     .evaluateAll((elements) =>
@@ -152,6 +157,9 @@ test('the screen contains none of phase 8B', async () => {
   expect(names.filter((name) => !/^(version|aaben-|fra-|til-)/.test(name))).toEqual([])
   // Twenty-one weekday fields plus the version token, and nothing else.
   expect(names).toHaveLength(22)
+
+  // And the weekly form holds no date field, whatever the card beneath it holds.
+  await expect(hoursForm(ownerPage).locator('input[type="date"]')).toHaveCount(0)
 })
 
 // ---------------------------------------------------------------------------
@@ -488,22 +496,37 @@ test.describe('as a staff member', () => {
     await staffPage.context().close()
   })
 
-  test('the dashboard does not offer the weekly hours at all', async () => {
+  /*
+   * Phase 8B changed **where** the refusal happens, and changed nothing about the rule.
+   *
+   * Phase 8A kept the whole screen away from a staff member, because the whole screen was
+   * the week. §5 puts the *one-off change* in both columns, so since 8B the screen carries
+   * a card that is theirs — and the refusal moved from the address to the card. What a
+   * staff member must still not be able to do is exactly what it was: draft the week,
+   * publish the week, or reach a control that would.
+   */
+  test('the dashboard offers the one-off change, in its own words', async () => {
     await staffPage.goto('/admin')
 
     await expect(staffPage.getByRole('link', { name: 'Åbn åbningstiderne' })).toHaveCount(0)
+    await expect(staffPage.getByRole('link', { name: 'Ret tider for en dag' })).toBeVisible()
   })
 
-  test('typing the address gives the existing Owner-only refusal, not a form', async () => {
+  test('the screen shows no weekly editor, and says who can change the week', async () => {
     await staffPage.goto(HOURS_ADMIN_PATH)
 
-    await expect(staffPage).toHaveURL(/\/admin\/ingen-adgang/)
-    await expect(staffPage.getByText('Denne side kræver ejer-rollen.')).toBeVisible()
-    await expect(staffPage.getByText('normale åbningstider')).toBeVisible()
+    // §5: an Owner-only area is absent rather than shown and disabled.
+    await expect(hoursForm(staffPage)).toHaveCount(0)
+    await expect(staffPage.getByRole('checkbox')).toHaveCount(0)
+    await expect(
+      staffPage.getByRole('banner').getByRole('button', { name: 'Offentliggør' }),
+    ).toHaveCount(0)
 
-    // No writable fields anywhere — the refusal replaces the screen rather than disabling it.
-    await expect(staffPage.locator('select')).toHaveCount(0)
-    await expect(staffPage.locator('input[type="checkbox"]')).toHaveCount(0)
+    for (const weekday of WEEKDAYS) {
+      await expect(staffPage.getByRole('group', { name: weekday, exact: true })).toHaveCount(0)
+    }
+
+    await expect(staffPage.getByText('kan kun ejeren rette')).toBeVisible()
   })
 
   test('a forged save is refused, and the public hours do not move', async ({ browser }) => {
@@ -536,13 +559,24 @@ test.describe('as a staff member', () => {
     expect(after.footer).toBe(before.footer)
   })
 
-  test('and the pending list still refuses the entity even when it is listed', async () => {
-    // Staff *may* see that the hours have a pending change — that is how the dashboard
-    // says who is waiting on the owner — but the checkbox is locked and the server refuses
-    // it again. Nothing is pending right now, so the assertion is that the tile and the
-    // link are simply not there for them.
-    await staffPage.goto('/admin')
-    await expect(staffPage.getByRole('heading', { name: 'Åbningstider' })).toHaveCount(0)
+  test('and a forged publish of the weekly schedule is refused too', async ({ browser }) => {
+    const before = await guestHours(browser)
+
+    // The bar's Offentliggør is not drawn for a staff member, and drawing it would not be
+    // the permission anyway: `publishOpeningHours` calls `requireOwner()` for itself, and
+    // `opening_hours_update_owner` refuses the merge a third time.
+    const response = await staffPage.request.post(HOURS_ADMIN_PATH, {
+      form: {},
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      maxRedirects: 0,
+      failOnStatusCode: false,
+    })
+
+    expect(response.status()).toBeLessThan(500)
+
+    const after = await guestHours(browser)
+    expect(after.table).toBe(before.table)
+    expect(after.footer).toBe(before.footer)
   })
 })
 

@@ -3,6 +3,100 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 8B — no dependencies added (2026-08-31)
+
+The one-off opening-hours override (§0j) adds **no package**. `package.json` and the
+lockfile are byte-identical to the phase-8A state. It does add **one migration**, which is
+the first schema change since phase 7B and is recorded below.
+
+### The two things that would have justified a package, and why neither is here
+
+**A date picker.** 1t draws one field labelled *Dato*, and `<input type="date">` is that
+field: it is the control the phone already has, its value is exactly the `YYYY-MM-DD` the
+column stores, and where a browser has none it degrades to a text field the server parses
+anyway. The three reasons `components/admin/Field.tsx` recorded for 1ah's period window
+apply unchanged, and a JavaScript picker would have been the first script on a screen that
+has none.
+
+Note what is *not* done with it: the field is given no `min`. §7e item 7's "today or later"
+is a rule the **server** states, with a Danish sentence naming what is wrong, and a
+browser-enforced bound would be a second rule in a second place — one a forged request would
+not meet and one that would leave the person guessing.
+
+**A conditional-fields helper.** The two time fields appear and disappear with the chosen
+kind, which is the classic reason to reach for a form library. It is one CSS mechanism
+instead — the same `peer-checked/…:` the weekday switch uses, with a *named* peer because
+this card has two radios rather than one checkbox. `peer-checked/andre:` compiles to a plain
+`~` sibling combinator, so the ordering of the controls is load-bearing and is stated in the
+component. Controls hidden with `display:none` are still submitted (only `disabled` prevents
+that), which is what keeps "choose Andre tider and both times" a single save.
+
+### No date library, for the sixth phase running
+
+Phase 8B compares two `YYYY-MM-DD` strings — `date < today` — and adds no arithmetic at all.
+Every question about *when* is still the phase-2 engine's: whether the restaurant is open,
+when it opens next, and when a sold-out dish returns. `lib/hours/override-form.ts` contains
+no timezone, no `Intl` call and no `Date`; the caller passes today's Copenhagen date in, so
+the rule cannot pick up the machine's clock by accident.
+
+### No new component, token or utility either
+
+`AdminSectionBar`, `Notice`, `SubmitButton`, the Kladde badge, the pending band and the
+error-and-`aria-describedby` treatment are used exactly as phases 5–8A left them. The two
+chips are the radio-drawn-as-a-pill that 1r's label chips and 1ad's suggestion chips already
+established, and the destructive control is 1r's Slet ret treatment — a **link** to a
+confirmation, so the removal cannot happen in one press.
+
+One small refactor rather than a new module: `lib/hours/clock-choices.ts` now holds the
+quarter-hour grid, the wall-clock test and the off-grid rule that `lib/hours/weekly-form.ts`
+used to own, and the weekly module re-exports them under the names it always used. Both
+cards on the screen offer 1t's one sentence — *"Tider vælges i kvarter-spring"* — so they
+share a **control** and no rule at all: what times are valid *together* stays in each
+editor, because the two word their refusals differently and bind them to different fields.
+
+### One migration, and what it does not contain
+
+`20260831120000_opening_hours_override_admin.sql`:
+
+- adds `draft jsonb` to `opening_hours_overrides`, with the same
+  `jsonb_typeof(draft) = 'object'` shape CHECK every other draft column has. §0j records why
+  the `status`-only model could not express a pending edit to a published override;
+- replaces `publish_opening_hours_override` so it merges that draft with `draft ? 'column'`,
+  the same presence test every other publish function uses, and clears it in the same
+  statement;
+- adds `remove_opening_hours_override`, SECURITY INVOKER, with the version token re-checked
+  inside its own DELETE and one audit row carrying what was removed;
+- replaces the `pending_changes` view so an override is listed as pending in either of its
+  two ways.
+
+What it does **not** contain: no policy, no grant, no trigger, no index, no view beyond the
+one it replaces, no scheduled anything, and **no SECURITY DEFINER function** — both functions
+are SECURITY INVOKER, so RLS decides for every caller against their own JWT.
+`supabase/tests/014_opening_hours_overrides.test.sql` asserts that, asserts the table still
+has exactly its five phase-1 policies, and asserts that the DELETE policy is still
+`is_staff()`.
+
+It also contains nothing that names `public.announcement`. `announcement_created` — §4's
+column for the generated opening-hours message — is written by no statement in the migration
+and by no line of the application; the pgTAP suite asserts no override was ever marked as
+having produced one.
+
+### One correctness fix in phase 4's machinery, and why it belongs here
+
+`storedDraftIsValid` in `lib/publishing/publish.ts` refused a `null` draft as
+`invalid_draft`. That branch was unreachable for every entity whose only pending state *is*
+a draft — `pending_changes` lists those by `draft is not null` — and an override is the one
+entity that can be pending **without** one: a row created with `status = 'draft'` carries its
+values in its own columns. Refusing it would have refused the ordinary first publish of every
+new override. The function now answers "no draft is not a malformed draft", which is what it
+was always trying to say.
+
+### `npm audit --audit-level=high` — clean
+
+Run against the unchanged lockfile after `npm ci`: **0 vulnerabilities**.
+
+---
+
 ## Phase 8A — no dependencies added (2026-08-30)
 
 The normal weekly opening-hours editor (§0i) adds **no package, no migration and no

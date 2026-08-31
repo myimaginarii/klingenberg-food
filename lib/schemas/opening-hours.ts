@@ -43,3 +43,40 @@ export const weeklyScheduleSchema = z.strictObject(
 export const openingHoursDraft = defineDraft({
   schedule: weeklyScheduleSchema.optional(),
 })
+
+/**
+ * A one-off override's pending edit — design 1t (lower card); technical plan §4, §7e.
+ *
+ * Three fields, and deliberately not a fourth. `date` is the row's **identity**, not its
+ * content: it is UNIQUE, it is what a person selects before there is anything to edit, and
+ * an override moved to another date is a different override. So a draft can change what
+ * happens on a date and can never change *which* date — which is also why no form on the
+ * screen submits a date together with a version token belonging to a different one.
+ *
+ * `status`, `announcement_created`, `updated_by` and the timestamps are absent for the
+ * ordinary reason every draft schema leaves such fields out: they are not content. The
+ * strict parse in `saveEntityDraft` therefore refuses a submission naming any of them
+ * rather than ignoring it, and `announcement_created` — §4's column for the generated
+ * message of **phase 8C** — is unreachable from this editor by construction.
+ *
+ * The consistency rule between the three (closed carries no times; custom carries both,
+ * opening before closing) is **not** stated here, because a Zod object shape cannot say
+ * it without becoming a `ZodEffects` that no longer satisfies `DraftSpec`. It is stated
+ * three times where it can be: `toOverrideDraft` in `lib/hours/override-form.ts` refuses
+ * it with a Danish sentence, `overrideDraftWrite` always writes all three fields or clears
+ * all three so a stored draft is complete or absent, and `overrides_shape_check` in the
+ * database refuses the merge outright. The last of those is the guarantee.
+ */
+export const openingHoursOverrideDraft = defineDraft({
+  kind: z.enum(['closed', 'custom'], { error: 'Vælg, hvad der sker den dag.' }).optional(),
+  opens_at: z
+    .string()
+    .regex(CLOCK_TIME, { error: 'Åbningstidspunktet skal skrives som TT:MM.' })
+    .nullable()
+    .optional(),
+  closes_at: z
+    .string()
+    .regex(CLOCK_TIME, { error: 'Lukketidspunktet skal skrives som TT:MM.' })
+    .nullable()
+    .optional(),
+})

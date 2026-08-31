@@ -24,8 +24,20 @@
 --       a staff caller's behalf — which is what makes assertion 2 a property of the system
 --       rather than of the application's good manners;
 --    9. **the one-off override table is untouched** by everything above, and so is the
---       **announcement**. Phase 8B and the generated opening-hours message are later
---       increments, and this suite asserts that phase 8A cannot reach either of them.
+--       **announcement**.
+--
+-- Assertion 9 has been read two ways, and only one of them is still true. When this suite
+-- was written, phase 8B did not exist and nothing in the application wrote
+-- `opening_hours_overrides` at all. **Phase 8B now owns that table**, and its own suite —
+-- `014_opening_hours_overrides.test.sql` — is where it is exercised, including the §5 split
+-- that lets a *staff* member write an override while still refusing them the recurring
+-- week. What §7 below asserts is the narrower and still-correct claim it was always making:
+-- **the weekly schedule's own editor cannot reach an override**, which is why the row it
+-- plants is byte-identical after every draft, publish and refusal above it.
+--
+-- The **announcement** half of assertion 9 is unchanged and still whole: the generated
+-- opening-hours message, `source='opening_hours'`, `previous`, `replaced_at` and 1ae's
+-- conflict sheet are **phase 8C**, and neither 8A nor 8B goes near any of them.
 --
 -- The guest's view is checked through `anon`'s own view of the table throughout, because
 -- "a guest never reads a draft" is the promise the draft model exists to keep, and an
@@ -37,7 +49,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(64);
+select plan(65);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures
@@ -524,7 +536,17 @@ select is(
   (select kind || ' ' || coalesce(opens_at::text, '-') || ' ' || status
      from public.opening_hours_overrides),
   'custom 12:00:00 published',
-  'and that row is byte-for-byte what it was — 8A writes no override');
+  'and that row is byte-for-byte what it was — the weekly editor writes no override');
+
+/*
+ * Phase 8B gave the table a `draft` column. The weekly editor cannot write it either: this
+ * suite's every draft, publish and refusal above went to `public.opening_hours`, and the
+ * override planted in the fixtures still carries nothing pending.
+ */
+select is(
+  (select draft is null from public.opening_hours_overrides),
+  true,
+  'and it carries no pending edit — nothing on the weekly card can write one');
 
 select is(
   (select message from public.announcement),

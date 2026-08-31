@@ -108,7 +108,7 @@ function outcome(
  */
 async function storedDraftIsValid(entity: EntityKey, entityId: string): Promise<boolean> {
   const draft = publishableEntity(entity).draft
-  // News and one-off overrides are pending through `status`, not a draft column (§4).
+  // News is pending through `status` alone and has no draft column at all (§4).
   if (draft === null) return true
 
   const supabase = await createSupabaseServerClient()
@@ -119,6 +119,22 @@ async function storedDraftIsValid(entity: EntityKey, entityId: string): Promise<
     .maybeSingle<{ draft: unknown }>()
 
   if (error || data === null) return false
+
+  /*
+   * **No draft is not a malformed draft.**
+   *
+   * For every entity whose only pending state *is* a draft, this branch is unreachable:
+   * `pending_changes` lists them by `draft is not null`, so a row without one is never
+   * published in the first place. A one-off opening-hours override is the one entity that
+   * can be pending **without** a draft — a row created by `createOverrideDraft` carries its
+   * values in its own columns and `status = 'draft'`, which is what keeps it out of the
+   * public site (phase 8B) — and refusing that as `invalid_draft` would refuse the ordinary
+   * first publish of every new override.
+   *
+   * What this function exists to catch is a draft that no longer satisfies its schema, and
+   * a row with none has nothing to catch.
+   */
+  if (data.draft === null || data.draft === undefined) return true
 
   return draft.spec.stored.safeParse(data.draft).success
 }

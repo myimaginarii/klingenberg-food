@@ -18,11 +18,22 @@
  *
  * WHAT THIS SCREEN HAS NO ADDRESS FOR
  *
- * There is no undo parameter, because the recurring schedule has no immediate path: §6
- * names exactly four immediate operations and the weekly hours are not one of them. There
- * is no confirmation parameter, because publishing a schedule asks nothing. And there is
- * no date, no "kun denne dag" and no conflict address — 1t's lower half and 1ae belong to
- * phase 8B, and nothing in this folder can reach them.
+ * There is no undo parameter, because neither card has an immediate path with a Fortryd:
+ * §6 names exactly four immediate operations and neither the weekly schedule nor a
+ * one-off override is one of them. There is no **conflict address** — 1ae's sheet belongs
+ * to the generated announcement of **phase 8C**, and nothing in this folder can reach an
+ * announcement at all.
+ *
+ * WHAT PHASE 8B ADDED
+ *
+ * `dato` — which calendar date the one-off card is showing. It is a *selector*, not
+ * authority: the server re-reads that date's row for itself and decides everything from
+ * what it found, so a hand-typed date can only ever choose which of this staff member's
+ * own dates is on screen. A value that is not a real date falls back to today.
+ *
+ * `bekraeft` — the one destructive press on the screen has to be answered before it acts
+ * (see `./override-remove-actions.ts`). It is the same address-carried confirmation 1ah's
+ * expired-window publish uses, rather than a dialog that needs JavaScript to exist.
  */
 
 export const OPENING_HOURS_PATH = '/admin/aabningstider'
@@ -31,6 +42,10 @@ export const OPENING_HOURS_PATH = '/admin/aabningstider'
 export const OPENING_HOURS_PARAM = {
   /** The outcome of the last action, as a closed set of codes. */
   status: 'status',
+  /** Which calendar date the one-off card is showing. A selector, never authority. */
+  date: 'dato',
+  /** The removal confirmation, when the press would change what a guest reads. */
+  confirm: 'bekraeft',
 } as const
 
 /**
@@ -42,11 +57,20 @@ export const OPENING_HOURS_PARAM = {
  */
 export const EDITOR_ANCHOR = 'aabningstider'
 
+/** The one-off card's own anchor, so its actions come back to it and not to the week. */
+export const OVERRIDE_ANCHOR = 'enkelt-aendring'
+
 export type OpeningHoursLocation = {
   /** A save or publish outcome, from the closed set each action defines. */
   readonly status?: string | null
   /** Come back to the editor card. */
   readonly focus?: boolean
+  /** Come back to the one-off card instead. */
+  readonly overrideFocus?: boolean
+  /** Which date the one-off card should show. */
+  readonly date?: string | null
+  /** Ask the removal confirmation. */
+  readonly confirm?: boolean
 }
 
 /**
@@ -63,13 +87,20 @@ export function openingHoursHref(
   const parameters = new URLSearchParams()
 
   if (location.status) parameters.set(OPENING_HOURS_PARAM.status, location.status)
+  if (location.date) parameters.set(OPENING_HOURS_PARAM.date, location.date)
+  if (location.confirm === true) parameters.set(OPENING_HOURS_PARAM.confirm, '1')
 
   if (extra !== undefined) {
     for (const [key, value] of extra) parameters.append(key, value)
   }
 
   const query = parameters.toString()
-  const anchor = location.focus === true ? `#${EDITOR_ANCHOR}` : ''
+  const anchor =
+    location.overrideFocus === true
+      ? `#${OVERRIDE_ANCHOR}`
+      : location.focus === true
+        ? `#${EDITOR_ANCHOR}`
+        : ''
 
   return `${OPENING_HOURS_PATH}${query.length > 0 ? `?${query}` : ''}${anchor}`
 }

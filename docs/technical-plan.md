@@ -763,8 +763,143 @@ schedule does not move the reset sentence, and a **publish** does.
   single statement of what a schedule may be, and `toWeeklySchedule` runs it as the last
   gate. The per-day checks exist to say *which day*, not to decide *whether*.
 
-**Phase 8A is complete and green. Phase 8 is not locked**: 8B — the one-off overrides — and
-the generated opening-hours message with its conflict sheet are not started.
+**Phase 8A is complete and green.** 8B — the one-off overrides — is now built on the same
+screen and is recorded in §0j; the generated opening-hours message with its conflict sheet
+is **8C** and is not started. **Phase 8 is not locked.**
+
+---
+
+## 0j. Phase 8B — one-off opening-hours overrides (2026-08-31)
+
+1t's lower card — **"ENKELT ÆNDRING"**: *Lukket en bestemt dato* and *Andre tider en enkelt
+dag* — is built, on the same screen as the recurring week and beneath it. One calendar date,
+one of the model's two kinds, two times when the kind asks for them, Kladde → Forhåndsvis →
+Offentliggør through phase 4's machinery, and a way to take the change away again.
+
+### What it contains
+
+| | |
+|---|---|
+| **The card 1t draws**, in the frame's own words | `components/admin/hours/OverrideEditor.tsx`. The two chips as a real radio group, a `type="date"` field, and 1t's *"Forhåndsvis"* and *"Gem og offentliggør"* in the card's own footer. |
+| **The date rule §7e item 7 states** | Today or later, decided against `copenhagenDateOf(new Date())` on the server. A browser in another timezone cannot move an override to another day. |
+| **Validation, per control** | `lib/hours/override-form.ts`. Nine refusals, each a Danish sentence, each bound to the control a person moves to fix it. |
+| **Staff *and* Owner** (§5) | `requireStaff()` on the screen and in all four Server Actions; `mayChangeEntity('opening_hours_override', …)`; `overrides_{insert,update,delete}_staff` in the database. |
+| **The recurring week, still Owner-only** | The weekly card is rendered only for an owner; its two actions still call `requireOwner()`; `opening_hours_update_owner` is still the table's only UPDATE policy. |
+| **Kladde → Forhåndsvis → Offentliggør** | `saveEntityDraft`, `publishPendingChange` and `publish_opening_hours_override()` — phase 4's machinery, with the merge added. |
+| **Removal** (§7e item 6) | `remove_opening_hours_override()`. Three meanings, one control, decided from the row the server read. |
+| **The `hours` tag, after the fact** | Expired only by a publish that says `published`, and by a removal whose result says the row was live. |
+
+### One migration, one new function, one replaced one, one column
+
+`20260831120000_opening_hours_override_admin.sql`. It adds `draft jsonb` to
+`opening_hours_overrides`, replaces `publish_opening_hours_override` so it merges that draft,
+adds `remove_opening_hours_override`, and replaces the `pending_changes` view so an override
+is listed as pending in either of its two ways. **It changes no policy and no grant.**
+
+### Why a `draft` column, when §4 says an override is pending through its `status`
+
+This is the one place phase 8B departs from what §4's table describes, and it is a real
+departure rather than a convenience, so it is written out here as well as in the migration.
+
+§4 describes an override the way `news` is described: `status` moves from `'draft'` to
+`'published'` and there is no draft column. That model expresses three of the four states
+this phase needs, and cannot express the fourth:
+
+| State | Where it lives |
+|---|---|
+| **no row** | the date follows the normal weekly schedule |
+| **`status = 'draft'`** | pending, and never yet live. `overrides_select_public` requires `status = 'published'`, so the row's own columns are safe to hold the pending values — there is nothing live on that date to protect |
+| **`status = 'published'`** | live, and honoured by the phase-2 engine |
+| **published, with a pending edit** | **nowhere, before this migration** |
+
+The fourth is the ordinary case §6 exists for: the hjemmeside says *closed on Sunday*, and
+somebody is preparing *13:00–18:00* instead. `date` is UNIQUE, so the pending edit cannot be
+a second row. `status` is one value, so moving it back to `'draft'` would take the published
+override **off the hjemmeside without anybody publishing anything** — a live change made by
+pressing Gem, which is the single failure §6 exists to prevent. Overwriting the three content
+columns publishes the edit immediately, which is the same failure by the other route.
+
+So the column is added, and it is **§4's own draft mechanism** rather than a new idea: one
+nullable `draft jsonb` holding only the changed fields, merged into the columns by the
+publish function and set to null in the same statement — what `pages`, `site_contact`,
+`opening_hours`, `announcement`, `menu_categories`, `dishes`, `weekly_special` and
+`monthly_burger` all do. No second publishing path, no new status vocabulary, no history
+table. `anon` holds a column-level grant that does not name it, so a guest cannot read it,
+which `supabase/tests/014_opening_hours_overrides.test.sql` asserts from a real anonymous JWT.
+
+**§4's table is corrected in place** to say `draft` as well as `status` for this row, and
+this section is the record of why. `news` remains the one entity with no draft column at all.
+
+### The five readings this phase had to settle
+
+| # | Question | The reading, and why |
+|---|---|---|
+| A | **How can one screen hold two permissions?** | Per **card**, where §5 draws the line, rather than per page. `requireStaff()` guards the screen because the lower card is Staff's; the weekly card is *rendered only for an owner* and a statement stands in its place, which is §5's own treatment for an Owner-only area ("absent for Staff rather than shown-and-disabled") applied to a card instead of a whole screen. Absence is not the enforcement: `requireOwner()` in the weekly card's two actions, `mayChangeEntity`, and `opening_hours_update_owner` are, and a staff member who posts to the weekly action is refused three times over. Phase 8A's redirect to `/admin/ingen-adgang` from this address is therefore **withdrawn** — it would now keep a staff member away from work the matrix gives them. |
+| B | **Where does the pending state live for a row that has never been live?** | **In its own columns**, with `status = 'draft'`. That is the shape `createDishDraft` already has for a new dish, for the same reason: creation is not a draft write, and the invisibility is carried by a column (`status` here, `is_new_draft` there) rather than by ordering two writes carefully. Every *later* edit goes through `saveEntityDraft` like any other entity's, and the publish merges whichever of the two is newer. The delta is measured against the row's **columns** either way, so an edit taken back to what the row already holds leaves no draft behind (§4). |
+| C | **What does "Fjern" mean?** | **Three things, told apart by the row the server read** (`describeOverrideRemoval`), and the screen says which one it is offering before it is pressed. A *pending* override is deleted and no guest sees anything change. A *published* override with an edit behind it loses only the edit — a `saveEntityDraft` clearing three fields, so the published row is byte-identical. A *published* override is deleted, the date follows the weekly schedule again, and **that one asks first**: the control is a link to a confirmation rather than a submit, exactly as phase 5D's Slet ret is, so the destructive step cannot happen in one press even with a script error on the page. |
+| D | **Why a real DELETE, when a dish is soft-deleted?** | Because the row is not the recovery story here. A soft-deleted dish is kept because its row carries a name, a description, a price, labels and a position that nobody could retype (§8, §0a D2). An override carries a date and at most two times, and re-creating one is the same three presses that created it. §7e item 6 states a rule about an override that is *deleted*, and phase 1 gave staff a DELETE policy on this table — the only content table besides `images` with one — so this is the lifecycle the model already intended. **No Fortryd strip**, and that is a decision rather than an omission: §6 names four immediate operations with a ten-second undo and each of them undoes something a person could not simply retype. What this press gets instead is the confirmation none of those four has. |
+| E | **What can a guest actually see?** | The **open/closed badge**, on every page, and §7b's **sold-out reset** — both resolved by the phase-2 engine from the weekly schedule *and* the published overrides, and both since phase 2. Find os's seven-day table is the recurring week and does not change; the message that would say *"Ændrede åbningstider søndag"* in words is the generated announcement of **phase 8C**. So the E2E suite's observable is the badge, read from the bytes a guest is served, and the card supplements it with an admin-local sentence for a date further ahead than today — it does not replace the real Draft Mode preview, which is 1t's own "Forhåndsvis" and opens the real public page. |
+
+### Three departures from 1t, and why
+
+| Where | What ships |
+|---|---|
+| 1t draws **"Forhåndsvis"** and **"Gem og offentliggør"**, and no plain Gem | **"Gem" is added, beside them.** §6 makes Forhåndsvis the middle step of the path by which content reaches the hjemmeside, and a preview needs something to preview. Without a way to reach a pending state, the frame's own Forhåndsvis could only show what had already gone live, and this screen's promise — *the hjemmeside does not move until you publish* — would have no state in which it was observable. "Gem og offentliggør" keeps the frame's label and does exactly what it says, by calling the same save the button beside it calls and then publishing what it left pending. |
+| 1t draws **Dato, Fra and Til in one row**, under the chips | **Dato is its own row, above the chips; the two times follow the chips.** The two time fields appear and disappear with the chosen kind, and they do it without JavaScript — the radio is a *sibling* of the fields and `peer-checked/andre:` is a plain `~` combinator. That requires the fields to follow the radios in the same container, and the date does not belong inside the group named *"Hvad sker der den dag?"*. The alternative was a script, on a screen that has none. |
+| 1t draws **no list of existing changes** | **"Kommende ændringer" is added**, beneath the form. §7e requires that somebody choosing a date which already has a change is shown *that* change rather than allowed to create a second; a card with no way to see what exists would leave "which dates already have one?" answerable only by typing dates until one is taken. It shows today onwards, in the administration's established list vocabulary, each row naming its own state in words. |
+
+### What phase 8B deliberately does not contain
+
+| | Owner |
+|---|---|
+| **"Vis også som besked øverst på hjemmesiden"**, the suggested message beneath it, and `announcement.source = 'opening_hours'` | **phase 8C.** No form on this screen has a field for a message, a link or an expiry; `public.announcement` is named by nothing in `app/(admin)/admin/aabningstider/`; and `opening_hours_overrides.announcement_created` — §4's column for exactly that — is written by nothing and stays `false`. |
+| **Replacing an active announcement**, `previous`, `replaced_at`, "Erstat med den nye besked" and **conflict sheet 1ae** | **phase 8C**, unchanged from §0h. The pgTAP suite asserts both columns are still `null`, `source` is still `'manual'`, and no `replace_announcement` or `restore_announcement` function exists. |
+| **§7e item 6's other half** — *"default to removing the announcement too when `source='opening_hours'`"* | **phase 8C.** There is no announcement to remove in 8B, because 8B never creates one. |
+| **A ten-second Fortryd** for the removal | **none, by design** — reading D. |
+| **Holiday automation of any kind** | **not planned.** Nothing in this system decides a closing for the restaurant. |
+| **Any sold-out code** | **none.** §7b's behaviour in both directions arrives because `resolveSoldOut` resolves against the published overrides, and has since phase 2. Phase 8B adds an integration test and not one line of availability logic. |
+
+### One consequence of two correct rules, recorded so it is not rediscovered as a bug
+
+A **past** override is not listed, not editable and not served. Three separate rules say so
+and they agree: §7e item 7 refuses the date on the way in, `readAdminOverrides` lists only
+today onwards, and `overrides_select_public` hands a guest only rows dated today or later.
+The rows themselves are **left in place** rather than tidied away, because nothing in this
+system deletes data on a timer (§0a D2) — so a date that has passed keeps its audit trail
+and simply stops being anybody's business.
+
+### Recorded explicitly, because each of these is a rule somebody could later assume away
+
+- **A staff member gains no authority over the recurring week by having a card on its
+  screen.** Nothing in `override-*.ts`, `lib/hours/override-admin.ts` or
+  `lib/content/hours-overrides-admin.ts` names `public.opening_hours` or the `opening_hours`
+  entity. `supabase/tests/014_opening_hours_overrides.test.sql` asserts, from a real Staff
+  JWT and in the same file that grants the override, that the weekly schedule is
+  byte-identical after two refused writes.
+- **The browser names nothing that decides anything.** The editor submits a date, a kind,
+  two times and a version token; the pending band submits one date; the removal submits an
+  id, a version and a confirmation. No entity name, no table name, no status, no column.
+- **A version token belongs to a row, not to the screen.** The card carries the date its
+  token was read for. Typing a *different* date writes nothing: the card re-opens on that
+  date showing what is already there. That is §7e's "show the current state and edit the
+  correct record" and the two-tabs answer at once.
+- **An edit taken back to what the row holds stops being pending.** The save clears the
+  draft rather than storing one that changes nothing, so the Kladde badge, the dashboard
+  count and Offentliggør cannot claim a change the database does not hold (§4).
+- **A stored draft on this table is complete or absent.** `overrideDraftWrite` writes all
+  three content fields or clears all three, because `overrides_shape_check` is a rule
+  *between* the columns — a draft naming only `kind` is one that could never be published,
+  and the pgTAP suite proves the CHECK refuses exactly that merge.
+- **The cache is expired only after a write a guest can notice.** Not on a refusal, not on a
+  conflict, not on an `uændret` save, and not when the removed override was only pending.
+- **Preview is the real page.** 1t's "Forhåndsvis" opens the public Forside through the same
+  Draft Mode route every other preview uses, and `lib/content/hours.ts` resolves each
+  override on that path *as publishing it would leave it* — a pending row, and the pending
+  edit on a live one. A guest sees neither: three independent filters say so.
+
+**Phase 8B is complete and green. Phase 8 is not locked**: 8C — the generated opening-hours
+announcement, `source='opening_hours'`, the `previous` / `replaced_at` stash, "Erstat med den
+nye besked" and conflict sheet 1ae — is not started.
 
 ---
 
@@ -940,7 +1075,7 @@ and the reset is derived, not stored. See §7b.
 | `news` | Nyheder | `title`, `slug` (unique, frozen at first publish), `body jsonb`, `category`, `display_date`, `image_id`, `status` ('draft'/'published'), `published_at`, `author_id` | public where published | staff | per-item publish |
 | `announcement` | The site announcement bar, one singleton row | `message` (≤90), `link_type`, `link_page`, `link_url`, `link_label`, `expires_at`, `is_visible`, `source` ('manual'/'opening_hours'), `previous jsonb`, `replaced_at`, `draft` | public where visible **and** `expires_at > now()` | staff | yes for edits, **no** for hide/remove |
 | `opening_hours` | The normal weekly schedule, one singleton row | `schedule jsonb` (7 × `{closed}` or `{from,to}`), `draft` | public | **owner** | yes |
-| `opening_hours_overrides` | One-off changes | `date` (unique), `kind` ('closed'/'custom'), `opens_at`, `closes_at`, `announcement_created`, `status` ('draft'/'published') | public, future dates | staff | per-row publish |
+| `opening_hours_overrides` | One-off changes | `date` (unique), `kind` ('closed'/'custom'), `opens_at`, `closes_at`, `announcement_created`, `status` ('draft'/'published'), **`draft`** | public, future dates | staff | per-row publish, **plus a draft for an edit to an already-published row** — see §0j |
 | `pages` | Editable page documents | `key` ('home'/'takeaway'/'about'), `published jsonb`, `draft jsonb`, `is_visible` | public (`published`) | staff (`home`: **owner**) | yes |
 | `site_contact` | Contact facts used everywhere, one singleton row | `primary_phone`, `secondary_phone`, `address_line1`, `postal_code`, `city`, `venue_name`, `email`, `facebook_url`, `map_attribution`, `draft` | public | **owner** | yes |
 | `images` | Media library | `storage_path`, `alt_text`, `width`, `height`, `bytes`, `mime`, `derivatives jsonb`, `original_filename`, `uploaded_by` | public (published bucket) | staff | no |
@@ -953,7 +1088,7 @@ Deliberately **not** created:
 - No announcement history table. The design states there is no archive, one at a time.
 - **No weekly-special history table**, even with "Kopiér sidste uge". The button copies the row that
   is currently live, which is last week's content until the moment the new week is published. See §6.
-- No `publish_queue` table. Pending changes are derived from `draft is not null`, `news.status`, and `overrides.status` via a `pending_changes` view.
+- No `publish_queue` table. Pending changes are derived from `draft is not null`, `news.status`, and `overrides.status` **or `overrides.draft is not null`** (§0j) via a `pending_changes` view.
 - **No `scheduled_publishes` table and no job runner.** Every future-dated behaviour is a read-time filter.
 - **No sold-out reset job and no `sold_out_expires_at` column.** Storing a computed instant would go
   stale the moment the opening hours or an override changed. The reset is derived on read from
@@ -1680,7 +1815,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 5 | Menu administration | Category tabs, dish CRUD, reorder, side panel, Kladde badges, **immediate Udsolgt with 10 s Fortryd and the computed reset label**, **tapas list editor**, soft delete | E2E 2, 3 and 10 pass |
 | 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (done):** Månedens burger with its date window, its computed admin state, "Vis på forsiden" as a normal draft field and its own immediate Udsolgt path | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes — see §0d. **Complete and locked** by the completion pass of 2026-08-30 — see §0e |
 | 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (done):** the immediate path — "Vis besked" off and back on, "Fjern beskeden nu", immediate public removal and its ~10 s Fortryd. *Replacing an active announcement, `previous`/`replaced_at` and 1ae's conflict sheet moved to **phase 8**, where the generated message they belong to lives* | 7A: E2E 4 passes, including the no-network assertion — see §0f. 7B: `tests/e2e/announcement-remove.spec.ts` passes at 1440 and 375 — see §0g. **Complete and locked** by the completion pass of 2026-08-30 — see §0h |
-| 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **Remaining:** 8B's one-off overrides, the generated announcement, and **conflict sheet 1ae with both branches** | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. The rest of E2E 5, including "hours always save", belongs to 8B |
+| 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C (remaining):** the generated opening-hours announcement, `source='opening_hours'`, the `previous`/`replaced_at` stash and **conflict sheet 1ae with both branches** | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. E2E 5's announcement half belongs to 8C |
 | 9 | News | List, editor with structured body, autosave, publish/unpublish, **`/nyheder/[slug]` with the slug policy and `NewsArticle` JSON-LD**, forside teaser | E2E 6 passes, incl. unpublish → 404 |
 | 10 | Images | Signed upload, client downscale, sharp derivatives, library with usage labels, replace/delete warnings | E2E 7 passes |
 | 11 | Remaining editors | Forsiden, Mad ud af huset (incl. the visibility toggle hiding the nav item), Kontaktoplysninger, **`/admin/brugere`** | E2E 8 passes; the owner can invite and deactivate a staff user |
@@ -1690,7 +1825,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-08-30: phases 0–7 are complete and locked, and phase 8A is complete and green.** Phase 5 was closed by a completion
+**Status, 2026-08-31: phases 0–7 are complete and locked, and phases 8A and 8B are complete and green.** Phase 5 was closed by a completion
 pass and is recorded in full in §0b, including the five capabilities it delivered and the five
 things that are deliberately outside it. Phase 6 was then built in two increments that share
 nothing but a table row: **6A — Ugens ret and Lørdagsmenu — is recorded in §0c**, and **6B —
@@ -1740,9 +1875,21 @@ Offentliggør path over phase 4's machinery. It added **no migration and no data
 function**: the singleton, its shape CHECK, its Owner-only RLS policy, `publish_opening_hours()`
 and the `hours` cache tag have existed since phases 1 and 4.
 
-**Phase 8 is not locked.** One-off date overrides ("Ret kun i dag", 1t's lower half) are
-**8B** and are not started; the generated opening-hours announcement, `source='opening_hours'`,
-"Vis også som besked øverst på hjemmesiden", the `previous` / `replaced_at` stash, "Erstat med
-den nye besked" and 1ae's conflict sheet are a **later phase 8 increment** and are not
-started either. Nothing phase 8A added names `opening_hours_overrides` or
-`public.announcement`.
+**Phase 8B is complete and green, and is recorded in §0j.** 1t's lower card — "ENKELT
+ÆNDRING", the one-off change to a single calendar date — is built at the same address,
+beneath the weekly card and under a different half of the §5 matrix: **Staff and Owner** may
+close one date or give it other hours, while the recurring week stays the Owner's. It has
+its own Kladde → Forhåndsvis → Offentliggør, its own removal (§7e item 6), and it feeds
+§7b's sold-out reset in **both** directions without a line of availability logic of its own.
+
+It added **one migration**: a `draft jsonb` column on `opening_hours_overrides`, so that a
+*published* override and the edit waiting behind it can be two values at once — the one
+state §4's `status`-only model could not express, and the one §6 exists to protect. The
+reasoning is written out in §0j and in the migration itself, and §4's table is corrected in
+place. No policy and no grant changed.
+
+**Phase 8 is not locked.** The generated opening-hours announcement,
+`source='opening_hours'`, "Vis også som besked øverst på hjemmesiden", the `previous` /
+`replaced_at` stash, "Erstat med den nye besked" and 1ae's conflict sheet are **8C** and are
+not started. Nothing phase 8A or 8B added names `public.announcement`, and
+`opening_hours_overrides.announcement_created` is written by nothing and stays `false`.
