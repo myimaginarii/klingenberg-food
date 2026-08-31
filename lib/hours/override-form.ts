@@ -66,8 +66,10 @@ export type OverrideFormValues = {
  *
  * Not `date`: that is the row's identity rather than its content (`date` is UNIQUE, and an
  * override moved to another date is a different override). Not `status`: that is where it
- * is in its lifecycle. Not `announcement_created`: §4 reserves it for the generated
- * message of **phase 8C**, and nothing in this phase reads or writes it.
+ * is in its lifecycle. And not whether this date owns the generated announcement, which
+ * is a column on the *announcement* row since 8C-3A
+ * (`announcement.source_override_id`) and is therefore not something an override's
+ * content could carry even by accident.
  */
 export type OverrideContent = {
   readonly kind: OverrideKind

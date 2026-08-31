@@ -53,11 +53,12 @@ export const openingHoursDraft = defineDraft({
  * happens on a date and can never change *which* date — which is also why no form on the
  * screen submits a date together with a version token belonging to a different one.
  *
- * `status`, `announcement_created`, `updated_by` and the timestamps are absent for the
- * ordinary reason every draft schema leaves such fields out: they are not content. The
- * strict parse in `saveEntityDraft` therefore refuses a submission naming any of them
- * rather than ignoring it, and `announcement_created` — §4's column for the generated
- * message of **phase 8C** — is unreachable from this editor by construction.
+ * `status`, `updated_by` and the timestamps are absent for the ordinary reason every
+ * draft schema leaves such fields out: they are not content. The strict parse in
+ * `saveEntityDraft` therefore refuses a submission naming any of them rather than
+ * ignoring it. Generated-announcement ownership is not in this list either, and cannot
+ * be: since 8C-3A it lives on the *announcement* row as `source_override_id`, so there
+ * is no override column for a draft to reach.
  *
  * The consistency rule between the three (closed carries no times; custom carries both,
  * opening before closing) is **not** stated here, because a Zod object shape cannot say

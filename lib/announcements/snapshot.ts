@@ -5,6 +5,11 @@ import { ANNOUNCEMENT_LINK_PAGES } from '@/lib/schemas/announcement'
 import { isAnnouncementExpired } from './expiry'
 import { isConsistentAnnouncementLink } from './link'
 import type { AnnouncementValues } from './lifecycle'
+import {
+  ANNOUNCEMENT_SOURCES,
+  isConsistentAnnouncementOwnership,
+  type AnnouncementOwnership,
+} from './ownership'
 
 /**
  * The previous announcement, as `announcement.previous` holds it — technical plan
@@ -35,15 +40,22 @@ import type { AnnouncementValues } from './lifecycle'
  *   * `updated_by`  — an actor id. Attribution comes from the JWT of whoever acts
  *                     (§8), never from a stored value a caller could have chosen.
  *
- * So the snapshot is **eight keys**: the six the editor owns, plus the two that are
+ * So the snapshot is **nine keys**: the six the editor owns, plus the three that are
  * part of the published *state* rather than its content — whether the message was
- * being shown, and where it came from. A restore that lost either would not be a
- * restore: a message that was switched off would come back switched on, and a
- * generated opening-hours message would come back calling itself manual.
+ * being shown, where it came from, and which one-off opening-hours override owns it.
+ * A restore that lost any of them would not be a restore: a message that was switched
+ * off would come back switched on, a generated opening-hours message would come back
+ * calling itself manual, and a generated one would come back owned by nobody — which
+ * `announcement_source_owner_check` refuses outright.
+ *
+ * `source_override_id` is the ninth key, added by **8C-3A**. It is here for exactly
+ * the reason `source` is, one level down: without it, override A's announcement could
+ * be displaced by override B's and put back by Fortryd with nothing left to say that
+ * A owns it again. `lib/announcements/ownership.ts` is what the pair means.
  *
  * WHERE THIS SCHEMA IS THE AUTHORITY, AND WHERE IT IS THE SECOND ANSWER
  *
- * `public.is_valid_announcement_snapshot()` states the same eight keys and the same
+ * `public.is_valid_announcement_snapshot()` states the same nine keys and the same
  * rules in SQL, and it is the one that runs inside the transaction — before a
  * snapshot is stored, and again before one is restored. This schema is the
  * application's own reading of the same shape, used to parse a snapshot the
@@ -53,20 +65,6 @@ import type { AnnouncementValues } from './lifecycle'
  * Everything here is pure and imports no server module, so the unit suite can hold
  * it to its rules without a database.
  */
-
-/** The closed source vocabulary — the table's `announcement_source_check`, restated. */
-export const ANNOUNCEMENT_SOURCES = ['manual', 'opening_hours'] as const
-
-/**
- * Where a published announcement came from.
- *
- * `'manual'` — somebody wrote it at `/admin/besked` (1ad). Everything phases 7 and
- * 8A–8B can produce.
- * `'opening_hours'` — generated from a one-off opening-hours change. **Nothing
- * generates one yet**: composing that message is 8C-2. What 8C-1 provides is a
- * replacement path capable of *carrying* the value, from a server-side caller.
- */
-export type AnnouncementSource = (typeof ANNOUNCEMENT_SOURCES)[number]
 
 /**
  * The stored snapshot, strictly.
@@ -86,6 +84,14 @@ export const announcementSnapshotSchema = z.strictObject({
   expires_at: z.union([z.iso.datetime({ offset: true }), z.null()]),
   is_visible: z.boolean(),
   source: z.enum(ANNOUNCEMENT_SOURCES),
+  /**
+   * The override that owns a generated announcement, or `null` for a manual one.
+   *
+   * Paired with `source` in both directions by {@link parseAnnouncementSnapshot} — a
+   * rule no per-field schema can state, and the one
+   * `is_valid_announcement_snapshot()` restates in SQL.
+   */
+  source_override_id: z.union([z.uuid(), z.null()]),
 })
 
 export type AnnouncementSnapshot = z.infer<typeof announcementSnapshotSchema>
@@ -102,11 +108,16 @@ export function parseAnnouncementSnapshot(value: unknown): AnnouncementSnapshot 
   const parsed = announcementSnapshotSchema.safeParse(value)
   if (!parsed.success) return null
 
-  // The one rule no per-field schema can state — the three link columns must agree —
-  // asked of `./link.ts`, where §8's link rule lives, rather than restated here.
-  // `is_valid_announcement_snapshot()` restates it in SQL, so a snapshot this refuses is
-  // one the database would refuse to write back into the columns.
-  return isConsistentAnnouncementLink(parsed.data) ? parsed.data : null
+  // The two rules no per-field schema can state, each asked of the module that owns it
+  // rather than restated here: the three link columns must agree (§8's link rule, in
+  // `./link.ts`), and `source` must be paired with `source_override_id` in both
+  // directions (`./ownership.ts`, and `announcement_source_owner_check` in SQL).
+  // `is_valid_announcement_snapshot()` restates both, so a snapshot this refuses is one
+  // the database would refuse to write back into the columns.
+  if (!isConsistentAnnouncementLink(parsed.data)) return null
+  if (!isConsistentAnnouncementOwnership(parsed.data)) return null
+
+  return parsed.data
 }
 
 /** True when `value` is exactly a snapshot this system would restore. */
@@ -117,15 +128,19 @@ export function isAnnouncementSnapshot(value: unknown): value is AnnouncementSna
 /**
  * The published state of an announcement, as the snapshot that would stash it.
  *
- * Takes the **published** values and the two state columns, never a merged row: a
+ * Takes the **published** values and the three state columns, never a merged row: a
  * draft is not part of what a replacement displaces, so it is not part of what a
  * restore puts back. The parameter shape is what makes that structural — there is no
  * argument here through which a draft could arrive.
+ *
+ * `ownership` is taken as one value rather than as a loose `source` plus a loose id,
+ * so the pair cannot be assembled inconsistently on the way in: there is no argument
+ * here that spells "generated, owned by nobody".
  */
 export function announcementSnapshotFrom(published: {
   readonly values: AnnouncementValues
   readonly isVisible: boolean
-  readonly source: AnnouncementSource
+  readonly ownership: AnnouncementOwnership
 }): AnnouncementSnapshot {
   return {
     message: published.values.message,
@@ -135,7 +150,9 @@ export function announcementSnapshotFrom(published: {
     link_label: published.values.link_label,
     expires_at: published.values.expires_at,
     is_visible: published.isVisible,
-    source: published.source,
+    source: published.ownership.kind === 'generated' ? 'opening_hours' : 'manual',
+    source_override_id:
+      published.ownership.kind === 'generated' ? published.ownership.overrideId : null,
   }
 }
 

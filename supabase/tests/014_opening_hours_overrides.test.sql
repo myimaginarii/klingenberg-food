@@ -32,7 +32,7 @@
 --    9. **removal** returns the date to the weekly schedule, is audited, and says whether
 --       the row it removed was live;
 --   10. **nothing else moved**: the recurring schedule and the announcement row are
---       byte-identical after all of it, `announcement_created` is still false, `source` is
+--       byte-identical after all of it, no override owns it (8C-3A), `source` is
 --       still 'manual', and no announcement function has appeared. Phase 8C is untouched.
 --
 -- The guest's view is checked through `anon`'s own view of the table throughout, because
@@ -45,7 +45,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(86);
+select plan(88);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures
@@ -741,22 +741,50 @@ select is(
   'the 8C-1 replacement mechanism exists — and nothing in phase 8B reaches it');
 
 /*
- * `announcement_created` is §4's column for the generated opening-hours message, and phase
- * 8B writes it nowhere. The default is what every row this suite created carried, and no
- * statement in the migration or the application names the column at all.
+ * `announcement_created` was §4's column for the generated opening-hours message, and
+ * phase 8B wrote it nowhere. **Phase 8C-3A dropped it**: ownership is now one pointer,
+ * `announcement.source_override_id`, on the announcement row rather than a boolean per
+ * override — see `20260831180000_generated_announcement_ownership.sql` for why.
+ *
+ * So the assertion is stronger than it was. The column is gone, and no override in this
+ * suite owns the announcement: every one of them was created, published, edited and
+ * removed by the phase-8B path, which writes no announcement at all.
  */
 select is(
-  (select count(*) from public.opening_hours_overrides where announcement_created),
+  (select count(*) from information_schema.columns
+    where table_schema = 'public' and table_name = 'opening_hours_overrides'
+      and column_name = 'announcement_created'),
   0::bigint,
-  'no override was ever marked as having generated an announcement');
+  'announcement_created no longer exists — 8C-3A replaced it with announcement.source_override_id');
+
+select is(
+  (select count(*) from public.announcement where source_override_id is not null),
+  0::bigint,
+  'and no override owns the announcement: nothing in phase 8B''s path can make one');
+
+/*
+ * Exactly one opening-hours function names the announcement table, and 8C-3A is why:
+ * `remove_opening_hours_override()` asks whether the date still owns the generated
+ * message before it deletes anything, and refuses with `owns_announcement` if it does
+ * (§7e item 6). That is a **read**, and the two assertions below are what say so —
+ * the name, and the absence of any write statement against the table in any of them.
+ * Deciding what to offer instead of the refusal is 8C-3B's.
+ */
+select set_eq(
+  $$ select p.proname::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and pg_get_functiondef(p.oid) ilike '%public.announcement%'
+        and p.proname like '%opening_hours%' $$,
+  array['remove_opening_hours_override'],
+  'exactly one opening-hours function names the announcement table — the removal, to refuse itself');
 
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
-      and pg_get_functiondef(p.oid) ilike '%public.announcement%'
-      and p.proname like '%opening_hours%'),
+      and p.proname like '%opening_hours%'
+      and pg_get_functiondef(p.oid) ~* '(update|insert\s+into|delete\s+from)\s+public\.announcement'),
   0::bigint,
-  'and no opening-hours function names the announcement table');
+  'and no opening-hours function writes to it — the announcement is read, never moved, from this side');
 
 
 select * from finish();

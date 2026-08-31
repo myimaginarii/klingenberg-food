@@ -58,7 +58,11 @@ const SNAPSHOT_A: AnnouncementSnapshot = {
   expires_at: '2026-09-14T18:00:00.000Z',
   is_visible: true,
   source: 'manual',
+  source_override_id: null,
 }
+
+/** The override a generated replacement belongs to (8C-3A). */
+const OVERRIDE_ID = '11111111-2222-4333-8444-555555555555'
 
 /** A replacement payload that satisfies every rule, so a test can break exactly one. */
 const REPLACEMENT = {
@@ -69,6 +73,7 @@ const REPLACEMENT = {
   link_label: null,
   expires_at: '2026-09-14T18:00:00.000Z',
   source: 'opening_hours',
+  source_override_id: OVERRIDE_ID,
 } as const
 
 function replies(data: unknown) {
@@ -105,7 +110,7 @@ afterEach(() => {
 // ---------------------------------------------------------------------------
 
 describe('what is sent to the database', () => {
-  it('sends the eight typed scalars and nothing else', async () => {
+  it('sends the nine typed scalars and nothing else', async () => {
     replies({ status: 'replaced', updated_at: NEXT_VERSION, replaced: 'active', before: SNAPSHOT_A })
 
     await replace(STAFF)
@@ -119,6 +124,9 @@ describe('what is sent to the database', () => {
       p_expires_at: REPLACEMENT.expires_at,
       p_source: 'opening_hours',
       p_expected_updated_at: VERSION,
+      // 8C-3A. Named explicitly rather than left to the SQL default: a trusted
+      // lifecycle field should be stated by every caller that means it.
+      p_source_override_id: OVERRIDE_ID,
     })
   })
 
@@ -138,6 +146,7 @@ describe('what is sent to the database', () => {
       'p_link_url',
       'p_message',
       'p_source',
+      'p_source_override_id',
     ])
   })
 
@@ -420,6 +429,7 @@ describe('the replacement module does not leak into publishing, or into the draf
       '@/lib/supabase/server',
       './lifecycle',
       './link',
+      './ownership',
       './snapshot',
       'zod',
     ].sort())

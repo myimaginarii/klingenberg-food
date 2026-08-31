@@ -2,6 +2,7 @@
 
 import { notFound, redirect } from 'next/navigation'
 
+import { applyGeneratedAnnouncement } from '@/lib/announcements/generated-operation'
 import {
   replaceAnnouncement,
   restoreAnnouncement,
@@ -18,7 +19,7 @@ import {
 } from './harness'
 
 /**
- * The two Server Actions phase 8C-1's integration proof needs — see `./harness.ts` for
+ * The three Server Actions the 8C-1 and 8C-3A integration proofs need — see `./harness.ts` for
  * why they exist here and not in the administration, and for when they are deleted.
  *
  * They are written the way 8C-3's real actions will be written, because the ordering is
@@ -89,4 +90,50 @@ export async function harnessRestore(formData: FormData): Promise<void> {
   redirect(
     `${HARNESS_PATH}?status=restored&showable=${result.showable === true ? '1' : '0'}`,
   )
+}
+
+/**
+ * 8C-3A: the coordinated generated-announcement operation, through the real cache path.
+ *
+ * The same six steps as the two above, and the fifth is again the point: the tag is
+ * expired only for `applied`. A **conflict is not a failure and not a write** — §7e
+ * item 8's first attempt, which must leave the announcement exactly as it was — so it
+ * expires nothing and reports itself, which is what 8C-3B will render 1ae for.
+ *
+ * The browser sends an override id, that override's version token, the announcement's
+ * version token and one confirmation bit. The message, the link, the expiry, the
+ * source and the ownership are all reconstructed on the server, inside
+ * `applyGeneratedAnnouncement()`, from the published rows.
+ */
+export async function harnessGenerate(formData: FormData): Promise<void> {
+  const profile = await requireStaff()
+  refuseUnlessEnabled()
+
+  const overrideId = formData.get(HARNESS_FORM.override)
+  const overrideVersion = formData.get(HARNESS_FORM.overrideVersion)
+  const version = formData.get(HARNESS_FORM.version)
+
+  if (
+    typeof overrideId !== 'string' ||
+    typeof overrideVersion !== 'string' ||
+    typeof version !== 'string'
+  ) {
+    redirect(`${HARNESS_PATH}?status=ugyldig`)
+  }
+
+  const result = await applyGeneratedAnnouncement(profile, {
+    overrideId,
+    overrideExpectedUpdatedAt: overrideVersion,
+    expectedUpdatedAt: version,
+    confirmReplace: formData.get(HARNESS_FORM.confirm) === '1',
+  })
+
+  if (result.status !== 'applied') {
+    redirect(`${HARNESS_PATH}?status=${result.status}&conflict=${result.conflict ?? 'ingen'}`)
+  }
+
+  // Committed. Only now may the public site be told.
+  expirePublicCacheTags(result.cacheTags)
+
+  redirect(`${HARNESS_PATH}?status=applied&conflict=${result.conflict ?? 'ukendt'}`)
 }

@@ -7,7 +7,7 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–7 complete and locked; phases 8A, 8B and 8C-1 complete and green.** The public site renders from the database;
+**Status: phases 0–7 complete and locked; phases 8A, 8B, 8C-1, 8C-2 and 8C-3A complete and green.** The public site renders from the database;
 the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
@@ -73,13 +73,32 @@ value a **server-side** caller may pass, from a closed vocabulary.
 unchanged — no "Erstat", no source selector, no conflict sheet — and the opening-hours
 screen is phase 8B's, unchanged. The one address outside those is an unlinked,
 environment-gated integration harness (`/admin/intern/besked-erstatning`) that exists only
-because `updateTag()` can be called from a Server Action and nowhere else; **8C-3 deletes
+because `updateTag()` can be called from a Server Action and nowhere else; **8C-3B deletes
 it**.
 
-**Phases 8C-2 and 8C-3 are not started**: the *generated* opening-hours message itself with
-"Vis også som besked øverst på hjemmesiden" and `announcement_created` (8C-2), and 1ae's
-conflict sheet with "Erstat med den nye besked" and its ten-second Fortryd (8C-3). Nothing in
-8A or 8B names `public.announcement`, and nothing anywhere composes a generated message.
+**Phase 8C-2** is finished, and it is one pure function: `generateOpeningHoursAnnouncement()`
+turns a one-off opening-hours change into 1t's suggested message, its link and its expiry —
+where the expiry is the **later** of the normal closing and the special one, which is what
+the approved frames' own number says. No database, no clock, no write.
+
+**Phase 8C-3A** is finished, and it is the backend half of the conflict flow. It settles
+**who owns a generated announcement**: `announcement.source_override_id` names the one-off
+override that composed the message on the hjemmeside, paired with `source` in both
+directions by a CHECK, restored with the message by Fortryd, and carried in the `previous`
+snapshot as its ninth key. §4's `opening_hours_overrides.announcement_created` is **dropped**
+— one pointer that can be joined beats a boolean two statements have to keep in step, and
+§0n records the full argument. `apply_generated_announcement()` is the coordinator §7e item 8
+describes: it re-reads the singleton server-side, returns `conflict` when a message a guest
+can read would be displaced and replacement was not explicitly confirmed, and otherwise
+delegates the write to `replace_announcement()` so the content, the snapshot and the
+ownership move in one transaction. It writes nothing about the opening hours in any branch,
+so no refusal here can roll a published override back.
+
+**Phase 8C-3B is not started**: 1t's "Vis også som besked øverst på hjemmesiden" checkbox and
+its editable suggestion, 1ae's conflict sheet with "Erstat med den nye besked" and "Behold
+eksisterende besked", the ten-second Fortryd strip, §7e item 6's removal consequence, and the
+deletion of the harness. Nothing in 8A or 8B names `public.announcement`, no screen composes a
+generated message, and no screen imports the generator.
 `/admin` itself is still the **foundation-level** dashboard from phase 4 plus the menu,
 announcement and opening-hours entries — the remaining section screens arrive in their own
 phases.
@@ -201,8 +220,9 @@ app/
                       one-off overrides are 8B and cannot be expressed here.
     intern/           NOT part of the administration. One environment-gated, unlinked
                       address (`besked-erstatning`) that exists only so the phase-8C-1
-                      replacement mechanism can be driven through a real Server Action
-                      and prove the cache path. 8C-3 deletes it.
+                      replacement mechanism and the phase-8C-3A coordinator can be driven
+                      through a real Server Action and prove the cache path. It chooses no
+                      content: ids, version tokens and one confirmation bit. 8C-3B deletes it.
     indhold/ login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
   api/preview/        start and stop Draft Mode — staff session required
 proxy.ts              session refresh + unauthenticated redirect. Authorizes nothing.
@@ -235,11 +255,14 @@ lib/
   menu/               the menu's rules: pricing, labels, sold-out, delete, reorder,
                       tapas, the weekly special (6A) and the monthly burger (6B). The
                       last two are two concrete modules, not one generic one.
-  announcements/      the announcement's rules (phases 7 and 8C-1). `expiry.ts` imports
-                      nothing at all, so the browser guard and the server share one
+  announcements/      the announcement's rules (phases 7, 8C-1, 8C-2, 8C-3A). `expiry.ts`
+                      imports nothing at all, so the browser guard and the server share one
                       comparison; `expiry-editor.ts` holds the Copenhagen half the browser
-                      never sees; `snapshot.ts` is the closed eight-key shape `previous`
-                      holds, and `replacement.ts` the replace/restore wrapper (8C-1).
+                      never sees; `snapshot.ts` is the closed nine-key shape `previous`
+                      holds; `replacement.ts` the replace/restore wrapper (8C-1);
+                      `generated.ts` the pure message generator (8C-2); `ownership.ts` what
+                      "this override owns the announcement" means, decided by ids and never
+                      by text; and `generated-operation.ts` the coordinator (8C-3A).
   hours/ time/        the pure time engines
   schemas/            the Zod shapes every write is re-parsed against
 scripts/
@@ -250,12 +273,13 @@ supabase/
   config.toml       local stack: public signup off, no realtime, mail catcher on
   migrations/       schema, RLS, the draft/publish core, immediate sold-out, soft
                     delete, the weekly-special admin, the monthly-burger admin, the
-                    announcement admin, the one-off override admin, and the
-                    announcement replacement mechanism
+                    announcement admin, the one-off override admin, the announcement
+                    replacement mechanism, its column-level write guard, and generated-
+                    announcement ownership
   seed.sql          the confirmed contact, opening-hours and menu facts
   templates/        Danish auth emails, versioned and applied through config.toml
   tests/            pgTAP — the §5 permission matrix, the owner invariant, and every
-                    write path phases 4–8C-1 added
+                    write path phases 4–8C-3A added
 tests/
   unit/             the pure rules, under Vitest
   e2e/ a11y/        Playwright, against a production build; axe at 375 and 1440
@@ -317,16 +341,19 @@ arrives in which phase. Phase 6 is **complete and locked** — 6A (Ugens ret and
 Lørdagsmenu, §0c), 6B (Månedens burger, §0d), and the completion pass over both halves
 (§0e). Phase 7 is **complete and locked** — 7A (§0f), 7B (§0g), and the completion pass
 over both halves (§0h). Phase 8 is **not locked**: 8A (§0i) and 8B (§0j) are complete and
-green, **8C-1** (§0k) is complete and green, and 8C-2 and 8C-3 are not started.
+green, **8C-1** (§0k) and its hardening pass (§0l) are complete and green, **8C-2** (§0m)
+and **8C-3A** (§0n) are complete and green, and **8C-3B** is not started.
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published
 message and never content — nothing in phase 7, 8A or 8B reads or writes `previous` or
 `replaced_at`. §0k lists what **8C-1** does not do: it replaces and restores, and it does
-**not** compose a message from a one-off opening-hours change (8C-2, which also owns "Vis
-også som besked øverst på hjemmesiden" and `announcement_created`, still `false`), does not
-draw "Erstat med den nye besked" or 1ae's conflict sheet (8C-3), and adds no replacement
-control to `/admin/besked`. There is no archive and no history at all, by design, and a guest cannot
+**not** compose a message from a one-off opening-hours change. §0m lists what **8C-2** does
+not do: it composes the message and has no caller. §0n lists what **8C-3A** does not do: it
+settles ownership and coordinates the operation, and it draws nothing — 1t's "Vis også som
+besked øverst på hjemmesiden", 1ae's conflict sheet, the Fortryd strip, §7e item 6's removal
+consequence and the deletion of the harness are all **8C-3B**. None of the four adds a
+replacement control to `/admin/besked`. There is no archive and no history at all, by design, and a guest cannot
 dismiss the bar — so nothing per-visitor is stored and the public site still sets **no
 cookies**.
 

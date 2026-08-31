@@ -331,11 +331,21 @@ describe('what the suggestion carries', () => {
     expect(closed.link_label).toBeNull()
   })
 
-  it('is a payload `replaceAnnouncement()` would accept', () => {
-    // The 8C-3 caller passes this straight through, so the shape is asserted against
-    // the parser that guards it rather than against a copy of its rules.
+  it('is a payload `replaceAnnouncement()` would accept, once an owner is added', () => {
+    // The 8C-3A coordinator adds exactly one field on its way past — the override that
+    // owns the message — and passes the rest straight through, so the shape is
+    // asserted against the parser that guards it rather than against a copy of its
+    // rules.
+    //
+    // `source_override_id` is **not** produced here, and that is the boundary: this
+    // module is given an `OverrideContent`, which may be a draft's content and may
+    // therefore belong to no row at all. Ownership is a fact about the published row,
+    // and the coordinator is what has read it.
     for (const announcement of [changed, closed]) {
-      const replacement: AnnouncementReplacement = announcement
+      const replacement: AnnouncementReplacement = {
+        ...announcement,
+        source_override_id: '11111111-2222-4333-8444-555555555555',
+      }
       expect(parseAnnouncementReplacement(replacement)).not.toBeNull()
     }
   })

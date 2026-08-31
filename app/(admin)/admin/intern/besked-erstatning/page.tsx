@@ -2,12 +2,14 @@ import { notFound } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
 import { readAdminAnnouncement } from '@/lib/content/announcement-admin'
+import { readAdminOverrides } from '@/lib/content/hours-overrides-admin'
 
-import { harnessReplace, harnessRestore } from './actions'
+import { harnessGenerate, harnessReplace, harnessRestore } from './actions'
 import { HARNESS_FORM, HARNESS_VARIANTS, harnessEnabled } from './harness'
 
 /**
- * The 8C-1 integration harness — **not part of the administration**, and temporary.
+ * The 8C-1 / 8C-3A integration harness — **not part of the administration**, and
+ * temporary.
  *
  * Read `./harness.ts` first: it records why this address exists, what keeps it safe, and
  * that 8C-3 deletes this directory once the real caller — 1ae's conflict sheet, with a
@@ -33,6 +35,12 @@ export default async function AnnouncementReplacementHarnessPage() {
   const announcement = await readAdminAnnouncement()
   if (announcement === null) notFound()
 
+  // Only published overrides: §7e item 8's ordering says the hours are live before the
+  // announcement is attempted, so a pending row has nothing to generate a message
+  // about. The list is the server's; the browser picks an id from it and sends no date,
+  // no times and no wording.
+  const overrides = (await readAdminOverrides()).filter((override) => override.live !== null)
+
   return (
     <main className="flex flex-col gap-4 p-4">
       <h1 className="text-lg font-semibold">Intern erstatningstest</h1>
@@ -57,6 +65,36 @@ export default async function AnnouncementReplacementHarnessPage() {
         </form>
       ))}
 
+      {/*
+        8C-3A. One row per published one-off change, and two buttons on each: the first
+        attempt, and the confirmed one 1ae's "Erstat med den nye besked" will become.
+        There is no message field — the wording is composed on the server by the 8C-2
+        generator from the published override and the published weekly schedule.
+      */}
+      {overrides.map((override) => (
+        <div className="flex gap-2" key={override.id}>
+          {[false, true].map((confirm) => (
+            <form
+              action={harnessGenerate}
+              aria-label={`${confirm ? 'Bekræft besked' : 'Besked'} for ${override.date}`}
+              key={confirm ? 'bekraeft' : 'foerste'}
+            >
+              <input name={HARNESS_FORM.version} type="hidden" value={announcement.updatedAt} />
+              <input name={HARNESS_FORM.override} type="hidden" value={override.id} />
+              <input
+                name={HARNESS_FORM.overrideVersion}
+                type="hidden"
+                value={override.updatedAt}
+              />
+              {confirm ? <input name={HARNESS_FORM.confirm} type="hidden" value="1" /> : null}
+              <button className="min-h-tap border px-4" type="submit">
+                {confirm ? 'Bekræft' : 'Besked'} {override.date}
+              </button>
+            </form>
+          ))}
+        </div>
+      ))}
+
       <form action={harnessRestore} aria-label="Sæt den forrige besked tilbage">
         <input name={HARNESS_FORM.version} type="hidden" value={announcement.updatedAt} />
         <button className="min-h-tap border px-4" type="submit">
@@ -65,7 +103,11 @@ export default async function AnnouncementReplacementHarnessPage() {
       </form>
 
       {/* Read back by the browser suite, so it can assert on what the server answered. */}
-      <output data-harness-source={announcement.source} data-harness-version={announcement.updatedAt}>
+      <output
+        data-harness-owner={announcement.sourceOverrideId ?? 'ingen'}
+        data-harness-source={announcement.source}
+        data-harness-version={announcement.updatedAt}
+      >
         {announcement.live.message ?? '(ingen besked)'}
       </output>
     </main>

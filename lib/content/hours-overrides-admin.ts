@@ -45,9 +45,15 @@ import { copenhagenDateOf } from '@/lib/time/copenhagen'
  *
  * WHAT IS DELIBERATELY NOT READ HERE
  *
- * `announcement_created`. §4 reserves that column for the generated opening-hours message
- * of **phase 8C**, and this phase neither reads nor writes it — it is absent from the
- * column list below, so no value from it can reach the screen even by accident.
+ * **Whether this date owns the generated announcement.** That is
+ * `announcement.source_override_id`, on the *announcement* row, and it is read by
+ * `lib/announcements/generated-operation.ts` — never here. §4's original column for the
+ * job, `opening_hours_overrides.announcement_created`, was dropped by 8C-3A because one
+ * pointer that can be joined beats a boolean that has to be kept in step; the migration
+ * `20260831180000_generated_announcement_ownership.sql` records why in full.
+ *
+ * So this loader reads the six columns below and no others, and the screen it feeds says
+ * nothing about announcements at all — 1t's checkbox and 1ae's sheet are **8C-3B**.
  */
 
 type OverrideRow = {

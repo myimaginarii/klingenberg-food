@@ -10,10 +10,18 @@ import {
   removeNowButton,
   saveAnnouncement,
 } from './support/announcement-admin'
+import {
+  fillOverride,
+  firstNormallyClosedDay,
+  openOverrideCard,
+  removeOverride,
+  saveAndPublishOverride,
+} from './support/hours-override'
 
 /**
- * Replacing the published announcement, and putting the previous one back — phase 8C-1;
- * technical plan §4, §6, §7e item 8; design 1ae.
+ * Replacing the published announcement, putting the previous one back, and coordinating
+ * the generated opening-hours announcement — phases 8C-1 and **8C-3A**; technical plan
+ * §4, §6, §7e items 6 and 8; design 1ae.
  *
  * The promise this suite exists for, in §6's own words: **the old announcement is stashed,
  * the new one is live, and Fortryd puts the old one back — and each of those lands on the
@@ -41,9 +49,24 @@ import {
  * inside a Server Action. That directory is deleted by 8C-3. See its `harness.ts` for the
  * full reasoning and for what keeps it safe.
  *
- * The last two scenarios are therefore boundary assertions rather than replacement ones:
- * the ordinary editor offers no replacement, and a signed-out visitor cannot reach the
+ * Two scenarios are therefore boundary assertions rather than replacement ones: the
+ * ordinary editor offers no replacement, and a signed-out visitor cannot reach the
  * harness.
+ *
+ * WHAT 8C-3A ADDED HERE
+ *
+ * One scenario, and it walks §7e item 8 end to end through the *real* Server Action and
+ * the *real* cache path: a one-off opening-hours change is published first (through 1t's
+ * own card, the ordinary way), and only then is the announcement attempted. The first
+ * attempt meets an active message and returns `conflict` **without writing anything**;
+ * the confirmed attempt replaces it, and the generated message reaches the guest on the
+ * first request, owned by the override that composed it. Fortryd puts the manual message
+ * back and the ownership with it.
+ *
+ * The harness gained a third action for it rather than a sibling directory — see
+ * `harness.ts`. The browser still chooses no content: it submits an override id, two
+ * version tokens and one confirmation bit, and the wording is composed on the server by
+ * the 8C-2 generator.
  *
  * ONE WIDTH, because nothing here is about layout: the assertions are on the bytes a
  * guest is served and on the state of a form, which are the same at every size. 8C-3
@@ -126,7 +149,7 @@ async function pressHarness(name: string): Promise<void> {
         } catch {
           return false
         }
-        return /[?&]status=(?!replaced|restored)/.test(staffPage.url())
+        return /[?&]status=(?!replaced|restored|applied)/.test(staffPage.url())
       },
       { message: 'the press never reached the server' },
     )
@@ -195,12 +218,17 @@ test('a replacement lands on the first guest request, and so does the restore', 
   expect(afterReplace.html).toContain(MESSAGE_B)
   expect(afterReplace.html).not.toContain(MESSAGE_A)
 
-  // The replacement carried the source a server-side caller passed, from the closed
-  // vocabulary phase 7 deliberately left unused.
-  await expect(staffPage.locator('output')).toHaveAttribute(
-    'data-harness-source',
-    'opening_hours',
-  )
+  /*
+   * The replacement's source is `'manual'`, and 8C-3A is why it changed.
+   *
+   * A `'opening_hours'` announcement now names the override that owns it —
+   * `announcement_source_owner_check` refuses one that does not — so this fixture, which
+   * has no override behind it, could not honestly claim the value. The generated source
+   * is exercised in scenario 4 instead, through the coordinator, from an override
+   * published on 1t's own card.
+   */
+  await expect(staffPage.locator('output')).toHaveAttribute('data-harness-source', 'manual')
+  await expect(staffPage.locator('output')).toHaveAttribute('data-harness-owner', 'ingen')
 
   await pressHarness('Sæt tilbage')
 
@@ -267,7 +295,102 @@ test('a pending draft is untouched by a replacement and by the restore', async (
 })
 
 // ---------------------------------------------------------------------------
-// 4. The boundary: no replacement control anywhere in the administration
+// 4. The coordinated generated announcement — phase 8C-3A, §7e item 8
+// ---------------------------------------------------------------------------
+
+/**
+ * The ordering §7e item 8 makes binding, walked in the order it states:
+ *
+ *     1. the hours override is published — through 1t's own card, the ordinary way;
+ *     2. the announcement is attempted, meets an active message, and returns
+ *        `conflict` — **with nothing written and the hours still published**;
+ *     3. the confirmed attempt replaces it, and the generated message is live, owned by
+ *        the override that composed it, on the guest's *first* request;
+ *     4. Fortryd puts the manual message back, and the ownership with it.
+ *
+ * The wording is never typed here and never asserted as a literal: it is read back from
+ * what the server composed, and the guest's bytes are checked against that. A scenario
+ * that hard-coded it would be testing its own copy of the generator.
+ */
+test('a generated announcement is coordinated after its hours are published', async () => {
+  const date = firstNormallyClosedDay(copenhagenDate(2))
+
+  // 1. The hours, first and always. A normally-closed day opened is a change in every
+  //    week this schedule could hold, so the generator can never answer `no_effect`.
+  await openOverrideCard(staffPage)
+  await fillOverride(staffPage, { date, kind: 'custom', from: '13:00', to: '18:00' })
+  await saveAndPublishOverride(staffPage)
+
+  // The manual message is still what a guest reads: publishing hours publishes no
+  // announcement.
+  expect((await guestGet()).html).toContain(MESSAGE_A)
+
+  // 2. The first attempt. An active announcement is a conflict, and a conflict writes
+  //    nothing at all.
+  await openHarness()
+  await pressHarness(`Besked ${date}`)
+
+  expect(staffPage.url()).toContain('status=conflict')
+  expect(staffPage.url()).toContain('conflict=active')
+
+  const afterConflict = await guestGet()
+  expect(afterConflict.html, 'a conflict changed nothing a guest can read').toContain(MESSAGE_A)
+
+  await openHarness()
+  await expect(staffPage.locator('output')).toHaveAttribute('data-harness-source', 'manual')
+  await expect(staffPage.locator('output')).toHaveAttribute('data-harness-owner', 'ingen')
+
+  // And the hours it was about are still published — there is no code path by which an
+  // announcement refusal could roll them back.
+  await openOverrideCard(staffPage, date)
+  await expect(staffPage.getByText('På hjemmesiden', { exact: true })).toBeVisible()
+
+  // 3. The confirmed attempt.
+  await openHarness()
+  await pressHarness(`Bekræft ${date}`)
+
+  expect(staffPage.url()).toContain('status=applied')
+
+  const generated = (await staffPage.locator('output').textContent())?.trim() ?? ''
+  expect(generated, 'the server composed the wording, not this test').toContain(
+    'Ændrede åbningstider',
+  )
+
+  await expect(staffPage.locator('output')).toHaveAttribute(
+    'data-harness-source',
+    'opening_hours',
+  )
+  const owner = await staffPage.locator('output').getAttribute('data-harness-owner')
+  expect(owner, 'the override that composed it owns it').not.toBe('ingen')
+
+  const afterApply = await guestGet()
+  expect(afterApply.cacheState, 'the first request after a generated write is not stale').not.toBe(
+    'STALE',
+  )
+  expect(afterApply.html).toContain(generated)
+  expect(afterApply.html).not.toContain(MESSAGE_A)
+
+  // 4. Fortryd. The manual message comes back, and no override owns the singleton.
+  await pressHarness('Sæt tilbage')
+  expect(staffPage.url()).toContain('status=restored')
+
+  const afterRestore = await guestGet()
+  expect(afterRestore.cacheState).not.toBe('STALE')
+  expect(afterRestore.html).toContain(MESSAGE_A)
+  expect(afterRestore.html).not.toContain(generated)
+
+  await openHarness()
+  await expect(staffPage.locator('output')).toHaveAttribute('data-harness-source', 'manual')
+  await expect(staffPage.locator('output')).toHaveAttribute('data-harness-owner', 'ingen')
+
+  // The override owns nothing now, so 8B's removal works exactly as it always did — and
+  // the next run starts from a schedule with no one-off change on it.
+  await openOverrideCard(staffPage, date)
+  await removeOverride(staffPage)
+})
+
+// ---------------------------------------------------------------------------
+// 5. The boundary: no replacement control anywhere in the administration
 // ---------------------------------------------------------------------------
 
 test('the ordinary editor offers no replacement, and no source selector', async () => {
@@ -310,7 +433,7 @@ test('the harness is not reachable without a staff session', async () => {
 })
 
 // ---------------------------------------------------------------------------
-// 5. An expiry that passes while the previous announcement is stashed
+// 6. An expiry that passes while the previous announcement is stashed
 // ---------------------------------------------------------------------------
 
 /**

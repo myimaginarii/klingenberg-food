@@ -852,7 +852,7 @@ this section is the record of why. `news` remains the one entity with no draft c
 
 | | Owner |
 |---|---|
-| **"Vis også som besked øverst på hjemmesiden"**, the suggested message beneath it, and `announcement.source = 'opening_hours'` | **phase 8C.** No form on this screen has a field for a message, a link or an expiry; `public.announcement` is named by nothing in `app/(admin)/admin/aabningstider/`; and `opening_hours_overrides.announcement_created` — §4's column for exactly that — is written by nothing and stays `false`. |
+| **"Vis også som besked øverst på hjemmesiden"**, the suggested message beneath it, and `announcement.source = 'opening_hours'` | **phase 8C.** No form on this screen has a field for a message, a link or an expiry; `public.announcement` is named by nothing in `app/(admin)/admin/aabningstider/`; and `opening_hours_overrides.announcement_created` — §4's column for exactly that — is written by nothing and stays `false`. *(Superseded by 8C-3A: the column was **dropped**, and ownership is `announcement.source_override_id`. See §0n.)* |
 | **Replacing an active announcement**, `previous`, `replaced_at`, "Erstat med den nye besked" and **conflict sheet 1ae** | **phase 8C**, unchanged from §0h. The pgTAP suite asserts both columns are still `null`, `source` is still `'manual'`, and no `replace_announcement` or `restore_announcement` function exists. |
 | **§7e item 6's other half** — *"default to removing the announcement too when `source='opening_hours'`"* | **phase 8C.** There is no announcement to remove in 8B, because 8B never creates one. |
 | **A ten-second Fortryd** for the removal | **none, by design** — reading D. |
@@ -974,7 +974,7 @@ than tidied away.
 
 | | Owner |
 |---|---|
-| **The generated opening-hours message**, "Vis også som besked øverst på hjemmesiden", and the suggestion beneath it | **8C-2.** Nothing here reads `public.opening_hours` or `public.opening_hours_overrides`, composes a weekday or a clock face, or writes `opening_hours_overrides.announcement_created` — which is still written by nothing and stays `false`. |
+| **The generated opening-hours message**, "Vis også som besked øverst på hjemmesiden", and the suggestion beneath it | **8C-2.** Nothing here reads `public.opening_hours` or `public.opening_hours_overrides`, composes a weekday or a clock face, or writes `opening_hours_overrides.announcement_created` — which is still written by nothing and stays `false`. *(Superseded by 8C-3A: the column was **dropped**, and ownership is `announcement.source_override_id`. See §0n.)* |
 | **Conflict sheet 1ae**, "Erstat med den nye besked", "Behold eksisterende besked", the focus trap and the green Fortryd strip | **8C-3.** The domain result carries what a sheet would need to decide; no sheet exists. |
 | **Any replacement control in `/admin/besked`** | **never.** 1ad's editor is content-editing plus visibility, and stays that. |
 | **A history, an archive, or a second level of undo** | **never** (§4, 1ad). A second replacement overwrites the snapshot; the audit log is the historical record. |
@@ -1247,7 +1247,11 @@ accepts every announcement it produces.
 - **One expiry rule.** `isAnnouncementExpired()` from `./expiry.ts`, so the boundary is
   the anonymous RLS policy's own `expires_at > now()` and not a second opinion. At exactly
   the expiry instant the answer is `expired`.
-- **`announcement_created` is still written by nothing** and stays `false`. Generating a
+- **`announcement_created` is still written by nothing** and stays `false`. *(Superseded
+  by 8C-3A, which dropped the column: ownership is `announcement.source_override_id`, and
+  §0n records why one pointer beats a boolean. The rule this bullet states — generating a
+  suggestion is not completing an operation — is unchanged and is now carried by the
+  coordinator.)* Generating a
   suggestion is not completing an announcement operation; **8C-3** owns that column, and
   sets it only after the operation succeeds.
 - **8C-1's boundaries are intact.** Nothing here calls `replaceAnnouncement()` or
@@ -1280,10 +1284,178 @@ was removed:
   and its description is narrowed to what it was always about: no **screen** composes the
   wording by hand.
 
-**Phase 8C-2 is complete and green. Phase 8 is not locked**: **8C-3** — 1t's checkbox and
-editable suggestion, conflict sheet 1ae with both branches, `announcement_created`, and
-the ~10 s Fortryd strip over `restore_announcement()` — is not started, and the 8C-1
-harness is still waiting to be deleted by it.
+**Phase 8C-2 is complete and green. Phase 8 is not locked.** Its successor, **8C-3A**,
+is recorded in §0n; the remaining user-facing half is **8C-3B**.
+
+---
+
+## 0n. Phase 8C-3A — generated-announcement ownership and atomic coordination (2026-08-31)
+
+8C-1 built the transaction that *carries* a replacement. 8C-2 built the pure generator
+that *composes* one from a one-off opening-hours change. This increment is the thing
+between them, and it is a **backend/domain** increment: no screen changed, 1t draws no
+checkbox, 1ae does not exist, and the 8C-1 harness is still there.
+
+It exists because of one question neither earlier increment could answer:
+
+> announcement A was generated by override A and is live.
+> announcement B, generated by override B, replaces it.
+> Fortryd puts A back.
+> **Which override owns the announcement now?**
+
+### The existing model could not answer it, and this is why
+
+`opening_hours_overrides.announcement_created` — §4's column for the job, written by
+nothing through phases 1–8C-2 — is a boolean *per override* with no counterpart on the
+announcement. Three things follow, and each one is fatal on its own:
+
+| | |
+|---|---|
+| **It cannot name what it owns.** | It says "this override generated something". Two overrides that have each generated something are indistinguishable from one that owns the current message and one that does not. |
+| **The `previous` snapshot had no owner at all.** | Restore could put A's words back and had nothing to put A's *provenance* back from. After a Fortryd the system would know a generated message was live and not which date it described. |
+| **§7e item 6 was answerable only by reading the message.** | *"…and it points at that date"* had no id to compare. The suggested wording is editable by design (§0m), so the text is evidence of nothing — and parsing a weekday out of it to decide whether to take a live message down is the kind of rule that is wrong the first time somebody edits a suggestion. |
+
+So the answer was **no**, and 8C-3B could not have been built on it.
+
+### The model: one pointer, and no second copy of the same fact
+
+    public.announcement.source_override_id uuid null
+      references public.opening_hours_overrides (id) on delete restrict
+
+    source = 'manual'         ->  source_override_id is null
+    source = 'opening_hours'  ->  source_override_id names exactly one override
+
+Both halves are `announcement_source_owner_check`, so neither can be true without the
+other, and `lib/announcements/ownership.ts` is the same rule in TypeScript — it returns
+`null` rather than "manual" for a pair the model cannot hold, so a broken row cannot be
+quietly read as an unowned one.
+
+**`announcement_created` is dropped**, and that is the decision this increment turns on.
+The brief's preferred design was the pointer *or* a cleaner existing representation, and
+keeping the boolean beside the pointer would have cost two things and bought none:
+
+- **It would be a second store of one fact.** With the pointer present, "does this
+  override own the current announcement?" is `announcement.source_override_id = o.id` —
+  derived, never stored twice, and therefore never able to disagree with itself. A
+  boolean beside it is a cache of a join, and a cache a failed statement can leave stale
+  is precisely the state the brief forbids: *announcement B is live but override A still
+  says it owns it.*
+- **It would need a second write guard.** `opening_hours_overrides` carries a
+  table-level `update` grant to `authenticated`, so a *trusted* `announcement_created`
+  would have needed the whole apparatus of §0l — a column grant and a BEFORE UPDATE
+  trigger — rebuilt on a second table, to protect a value already knowable without it.
+  The pointer lives on `public.announcement`, where that guard already stands, and joins
+  it with one line.
+
+**"At most one override owns the current announcement" is therefore structural rather
+than constrained.** There is one announcement row (`announcement_singleton`), it holds
+one `source_override_id`, and one column cannot hold two values. The partial unique index
+the brief offered is not created, and its absence is the stronger answer: an index can
+only make a duplicate unlikely to be written, and there is nowhere here for a duplicate
+to live.
+
+### The snapshot's ninth key
+
+`previous` now holds nine keys rather than eight:
+
+    message, link_type, link_page, link_url, link_label, expires_at,
+    is_visible, source, source_override_id
+
+§0k's five exclusions are unchanged and unchallenged — no `draft`, no nested `previous`,
+no `replaced_at`, no `updated_at`, no `updated_by`; one level, strict, no actor from the
+browser. `source_override_id` is not one of them: it is part of the published **state**
+in exactly the way `source` is, and §0k's own argument for `source` — *"without it, a
+generated opening-hours message would come back calling itself manual"* — applies
+unchanged one level down. Without the owner it would come back owned by nobody, which
+the CHECK refuses outright. **If the previous announcement was manual, the key is
+`null`.** SQL and Zod were changed together, and both restate the pairing rule.
+
+### What it contains
+
+| | |
+|---|---|
+| **The ownership column, its foreign key and its pairing CHECK**; `announcement_created` dropped | `20260831180000_generated_announcement_ownership.sql` §1 |
+| **The twelfth column grant**, and the write guard extended to own `source_override_id` beside `source` | the same migration, §2 and §5 |
+| **The four-way conflict answer, stated once** — lifted out of `replace_announcement()` so the coordinator asks the same question | `public.announcement_replacement_kind()` |
+| **`replace_announcement()` gains one appended, defaulted parameter** and the pairing rule; the override must exist **and be published** | the same migration, §7 |
+| **`restore_announcement()` restores ownership in the same statement as the content**, and names the one case a jsonb snapshot can outlive: `owner_missing` | §8 |
+| **The coordinator** — re-reads the singleton, returns `conflict` for an `active` announcement unless confirmed, and otherwise delegates | `public.apply_generated_announcement()` |
+| **The removal refuses while it owns** — the live message, or the one stashed for Fortryd | `public.remove_opening_hours_override()`, §10 |
+| **The domain operation** — the role matrix, the reconstruction, the status mapping, the cache tags it does *not* expire | `lib/announcements/generated-operation.ts` |
+| **The ownership vocabulary**, pure | `lib/announcements/ownership.ts` |
+| **The proof** — 105 pgTAP assertions from real Staff, Owner and anonymous JWTs | `supabase/tests/017_generated_announcement.test.sql` |
+| **The proof through the real cache path** — hours published, conflict, confirmation, first guest request, Fortryd | `tests/e2e/announcement-replacement.spec.ts`, scenario 4 |
+
+### The seven readings this increment had to settle
+
+| # | Question | The answer |
+|---|---|---|
+| A | **Keep `announcement_created` beside the pointer, or drop it?** | **Drop it.** Two stores of one fact, and the boolean is the one that needs a second write guard to be trustworthy. See above. |
+| B | **What does the foreign key do on delete?** | **`restrict`.** `set null` would leave `source = 'opening_hours'` with no owner, which the CHECK refuses anyway — so the DELETE would fail either way, with a constraint violation instead of a foreign-key one. `cascade` is not a candidate: removing the announcement row would break `announcement_singleton_unique`. The database's answer to "delete an override that owns the live message" is **no**, and `remove_opening_hours_override()` turns that into `owns_announcement`, a status a screen can word. |
+| C | **Does `replace_announcement()` change signature, or does the coordinator write ownership separately?** | **It changes signature**, by one appended parameter defaulted to `null`. A second UPDATE in the same transaction cannot work: `announcement_source_owner_check` is a CHECK, PostgreSQL has no deferrable CHECK, and the row would be invalid at the end of the first statement. Appending is also what keeps the composition honest — the function that writes `source` writes the owner, in the same `update`, so §8 of the brief's *"do not allow: announcement B is live but override A still says it owns it"* is unreachable rather than merely tested. The default is the **safe** half: a caller that says nothing is saying "manual", and with `'opening_hours'` the omission is `invalid_payload` rather than an unowned generated announcement. |
+| D | **Where does §7e item 8's ordering become structural?** | **In the absence of a statement.** `apply_generated_announcement()` issues nothing against `public.opening_hours` or `public.opening_hours_overrides`, and neither does `lib/announcements/generated-operation.ts` — asserted over the module's own source, as §0k asserts the draft boundary. So "there is no code path where Behold eksisterende rolls back the hours" is a property of the text. The coordinator also **refuses an override that is not published** (`invalid_payload`, reason `source_override`), which is the same rule read from the other end: an announcement describing hours that are not on the hjemmeside is the one outcome the item exists to prevent. |
+| E | **Two different things are called "conflict". Which keeps the word?** | **1ae's.** §7e item 8 states `{status:'conflict'}` for *an active announcement is in the way*, so that is what `conflict` means at every layer. Optimistic concurrency (§6) — the thing every other operation in this repository calls `conflict` — becomes `stale_announcement` and `stale_override` here, two words rather than one because there are two version tokens: the announcement's, and the override's. The second is not decoration: the Server Action read that override in order to generate the message, and if somebody has changed it since, the words no longer describe anything. |
+| F | **What may the browser send?** | **Four values and one string.** An override id, that override's version token, the announcement's version token, and the confirmation bit — plus the message, because 1t draws the suggestion as an editable field. Everything else is **reconstructed on every call**, including the confirmed second one, from the *published* override row and the *published* weekly schedule, through the 8C-2 generator. `withEditedMessage()` is the whole of what an edited message can reach, and it is a pure function so that "the message may be edited and nothing else may" is a property of the type. The source is not a parameter of the coordinator at all. |
+| G | **A jsonb snapshot can outlive the row it names. What then?** | **`owner_missing`, named rather than raised.** The foreign key does not reach inside `previous`, so an override that owned the *displaced* announcement — and therefore owns nothing the key protects — could be deleted, leaving a snapshot pointing at nothing; the restore would then raise `23503` and roll back with nothing for a person to read. `remove_opening_hours_override()` refuses that deletion too, so the status is reachable only through a direct PostgREST DELETE — and it is stated anyway, because a case that is only impossible while every caller behaves is not impossible. |
+
+### Recorded explicitly, because each of these is a rule somebody could later assume away
+
+- **`announcement_created` is not "ever generated" and never was.** It is **gone**. If a
+  later reader looks for it, §7e item 6's question is `announcement.source_override_id`,
+  and the audit log is the history — as it has been for every other operation here.
+- **Ownership never moves outside a lifecycle statement.** `replace_announcement()`
+  writes it in the same `update` as the content, the source, the snapshot and
+  `replaced_at`; `restore_announcement()` writes it back in the same `update` as the
+  eight keys beside it. There is no second UPDATE, no second transaction, and no
+  bookkeeping step that could fail after the content moved.
+- **A conflict writes nothing and logs nothing.** Not the announcement, not the audit
+  log, not a cache tag, and — the half §7e item 8 is about — not the hours. Asserted by
+  comparing the whole row before and after three refused attempts.
+- **The cache is expired only after a result that reached the row.** The domain module
+  returns the tags and expires none; the Server Action expires them after the commit.
+  `applied` expires; `conflict`, `no_effect`, `expired`, `not_published`, both stale
+  statuses and every refusal expire nothing.
+- **Everything stayed SECURITY INVOKER**, with `search_path` pinned to nothing. The
+  count of SECURITY DEFINER functions in this repository is unchanged, and `017` asserts
+  it. RLS still decides the row, `requireStaff()` still decides the request.
+- **`source_override_id` is a trusted lifecycle field**, in §0l's sense and for §0l's
+  reason: `restore_announcement()` believes it, and §7e item 6 will take a live message
+  down on the strength of it. Staff and Owner are both refused a direct write of it,
+  alone and paired with `source`, from real JWTs.
+- **A guest cannot read it.** It is not in `anon`'s column grant, and `017` asks for it
+  from a real anonymous JWT and gets `42501`.
+- **No workflow engine.** One function for one operation, taking no table name, no
+  column name, no step list and no callback — the same rule §0e answer A records for the
+  three sold-out functions.
+- **The pure generator stayed pure**, and stayed id-free. It is given an
+  `OverrideContent`, which may be a *draft's* content and may therefore belong to no row
+  at all, so it cannot be made to know an owner without losing its ability to answer
+  1t's *"what would this change say?"* while somebody is still typing. The coordinator
+  adds ownership on the way past; `GeneratedAnnouncement` is assignable to
+  `AnnouncementReplacement` minus that one field.
+- **Three boundary suites were narrowed rather than deleted**, as §0m's were:
+  `tests/unit/hours/override-source.test.ts` now says the generator has *exactly one*
+  caller and no screen is it, and that `announcement_created` appears in no application
+  file at all; `tests/unit/announcements/replacement-boundary.test.ts` swaps the dropped
+  column for the ownership pointer in its list of things the opening-hours screen may
+  not name; `supabase/tests/014` now says exactly one opening-hours function names the
+  announcement table — the removal, to refuse itself — and that none of them writes to
+  it.
+
+### What phase 8C-3A deliberately does not contain
+
+| | Owner |
+|---|---|
+| 1t's **"Vis også som besked øverst på hjemmesiden"**, the editable suggestion beneath it and the generated expiry field | **8C-3B** |
+| **Conflict sheet 1ae**, "Erstat med den nye besked", "Behold eksisterende besked", the focus trap and the green Fortryd strip | **8C-3B** |
+| **§7e item 6's consequence** — asking, and removing the announcement when its override is deleted | **8C-3B.** The model answers the question; nothing acts on the answer yet, and `remove_opening_hours_override()` refuses rather than deciding. |
+| **The deletion of the 8C-1 harness** | **8C-3B.** It gained a third action here rather than a sibling directory, because the brief forbids inventing a second harness and `updateTag()` is still only reachable from a Server Action. |
+| **A second undo level, an archive, or a history of ownership** | **never** (§4, 1ad). One snapshot, one level; `audit_log` carries the ownership in its before/after pair, and that is the history. |
+
+**Phase 8C-3A is complete and green. Phase 8 is not locked**: **8C-3B** — 1t's checkbox
+and editable suggestion, conflict sheet 1ae with both branches, the ~10 s Fortryd strip
+over `restore_announcement()`, §7e item 6's removal consequence, and the deletion of the
+8C-1 harness — is not started.
 
 ---
 
@@ -1457,9 +1629,9 @@ and the reset is derived, not stored. See §7b.
 | `weekly_special` | Ugens ret + Lørdagsmenu, one singleton row | `iso_year`, `iso_week`, `days text[]`, `name`, `description`, `price_small_ore`, `price_large_ore`, `image_id`, **`sold_out_on`**, `sat_enabled`, `sat_name`, `sat_description`, `sat_price_ore`, `sat_deadline`, **`sat_sold_out_on`**, `draft` | public | staff | yes — except both `*sold_out_on` |
 | `monthly_burger` | Månedens burger, one singleton row reused each month | `name`, `description`, `price_ore`, `image_id`, `starts_on`, `ends_on`, **`sold_out_on`**, `show_on_homepage`, `draft` | public when filled + in window | staff | yes — except `sold_out_on` |
 | `news` | Nyheder | `title`, `slug` (unique, frozen at first publish), `body jsonb`, `category`, `display_date`, `image_id`, `status` ('draft'/'published'), `published_at`, `author_id` | public where published | staff | per-item publish |
-| `announcement` | The site announcement bar, one singleton row | `message` (≤90), `link_type`, `link_page`, `link_url`, `link_label`, `expires_at`, `is_visible`, `source` ('manual'/'opening_hours'), `previous jsonb`, `replaced_at`, `draft` | public where visible **and** `expires_at > now()` | staff | yes for edits, **no** for hide/remove |
+| `announcement` | The site announcement bar, one singleton row | `message` (≤90), `link_type`, `link_page`, `link_url`, `link_label`, `expires_at`, `is_visible`, `source` ('manual'/'opening_hours'), **`source_override_id`** (§0n), `previous jsonb`, `replaced_at`, `draft` | public where visible **and** `expires_at > now()` | staff | yes for edits, **no** for hide/remove |
 | `opening_hours` | The normal weekly schedule, one singleton row | `schedule jsonb` (7 × `{closed}` or `{from,to}`), `draft` | public | **owner** | yes |
-| `opening_hours_overrides` | One-off changes | `date` (unique), `kind` ('closed'/'custom'), `opens_at`, `closes_at`, `announcement_created`, `status` ('draft'/'published'), **`draft`** | public, future dates | staff | per-row publish, **plus a draft for an edit to an already-published row** — see §0j |
+| `opening_hours_overrides` | One-off changes | `date` (unique), `kind` ('closed'/'custom'), `opens_at`, `closes_at`, `status` ('draft'/'published'), **`draft`** — *`announcement_created` was dropped by 8C-3A; see §0n* | public, future dates | staff | per-row publish, **plus a draft for an edit to an already-published row** — see §0j |
 | `pages` | Editable page documents | `key` ('home'/'takeaway'/'about'), `published jsonb`, `draft jsonb`, `is_visible` | public (`published`) | staff (`home`: **owner**) | yes |
 | `site_contact` | Contact facts used everywhere, one singleton row | `primary_phone`, `secondary_phone`, `address_line1`, `postal_code`, `city`, `venue_name`, `email`, `facebook_url`, `map_attribution`, `draft` | public | **owner** | yes |
 | `images` | Media library | `storage_path`, `alt_text`, `width`, `height`, `bytes`, `mime`, `derivatives jsonb`, `original_filename`, `uploaded_by` | public (published bucket) | staff | no |
@@ -1477,6 +1649,10 @@ Deliberately **not** created:
 - **No sold-out reset job and no `sold_out_expires_at` column.** Storing a computed instant would go
   stale the moment the opening hours or an override changed. The reset is derived on read from
   `sold_out_on` plus the same hours engine the rest of the site already uses.
+- **No per-override "this one generated an announcement" flag.** `announcement_created` was §4's
+  column for it and is **dropped** (§0n): ownership is one pointer on the announcement row,
+  `source_override_id`, and "does this override own the current message?" is a join rather than a
+  stored boolean two statements have to keep in step.
 
 ### Document shapes (validated by Zod, typed in TS)
 
@@ -1519,6 +1695,10 @@ and none is added for the detail page (decision 5).
   calendar date. A CHECK keeps it within ±1 day of `now()` in Copenhagen to catch timezone slips.
 - `news.slug` is unique and immutable once `published_at` is first set (trigger).
 - `monthly_burger` requires `starts_on <= ends_on` when both are set.
+- **`announcement.source` and `announcement.source_override_id` are paired in both directions**
+  (`announcement_source_owner_check`): a generated announcement names exactly one override, a manual
+  one names none. The foreign key is `on delete restrict`, so an override that owns the live message
+  cannot be deleted out from under it (§0n, §7e item 6).
 
 ---
 
@@ -1584,6 +1764,7 @@ asserts every row of it from real Staff and Owner JWTs.
 | `message`, `link_type`, `link_page`, `link_url`, `link_label`, `expires_at` | `publish_announcement()`, `replace_announcement()`, `restore_announcement()` | No. |
 | `is_visible` | those three, plus `set_announcement_visible()` — the only one that may move it alone | No. |
 | `source` | `replace_announcement()` (closed vocabulary), `restore_announcement()` (puts back what was stored) | No. |
+| `source_override_id` | the same two, in the same statement as `source` — they are one fact in two columns (§0n) | No — by anybody, ever. |
 | `previous`, `replaced_at` | `replace_announcement()` writes them; `restore_announcement()` clears them | No — by anybody, ever. |
 | `id`, `is_singleton`, `created_at` | nothing | No: not in the grant. |
 | `updated_at`, `updated_by` | the `announcement_touch` trigger, from `now()` and `auth.uid()` | No: not in the grant. A BEFORE trigger's assignment to `NEW` is not privilege-checked, so the stamp is unaffected — and the concurrency token and the actor stop being a caller's to choose. |
@@ -1591,8 +1772,9 @@ asserts every row of it from real Staff and Owner JWTs.
 **Two mechanisms, because one of them cannot reach.** `id`, `is_singleton`,
 `created_at`, `updated_at` and `updated_by` are simply out of the grant:
 `20260831160000_announcement_column_privileges.sql` replaces the table-level
-`grant update` with a column list of eleven. The other ten columns **must** stay in that
-list, and this is the constraint the pass had to work around rather than wish away:
+`grant update` with a column list of eleven, and `20260831180000` adds a twelfth,
+`source_override_id`. The other eleven **must** stay in that list, and this is the
+constraint the pass had to work around rather than wish away:
 
 > A SECURITY INVOKER function runs with the privileges of whoever called it. PostgreSQL
 > has no per-function table privilege and no way to run a body with the function's rights
@@ -1684,8 +1866,11 @@ that reads it — is phase 8C-1 (§0k), and is built**: `replace_announcement()`
 current published state into `previous`, writes the replacement, stamps `replaced_at` and
 audits it in one transaction, and `restore_announcement()` reads that snapshot back and
 clears both columns. **The mechanism has no control in the administration** — 1ae's conflict
-sheet is 8C-3 and the generated opening-hours message it exists for is 8C-2 — and nothing in
-phase 7, 8A or 8B reads or writes `previous` or `replaced_at`. Note also that
+sheet is 8C-3B and the generated opening-hours message it exists for is 8C-2 — and nothing in
+phase 7, 8A or 8B reads or writes `previous` or `replaced_at`. **8C-3A** adds the operation
+that calls it for a generated message, `apply_generated_announcement()`, which decides §7e
+item 8's conflict server-side and delegates the write; it is reachable from a Server Action
+and from no screen (§0n). Note also that
 this table describes the **immediate** operations, and the announcement's is a **switch**,
 so it has two directions: off, and back on. *Content* still reaches the hjemmeside only
 through Offentliggør, and `publish_announcement()` sets `is_visible` as part of that (§0f).
@@ -1887,9 +2072,9 @@ the request log asserted empty, in `tests/e2e/announcement.spec.ts`.
 
    **An image that is in use is a different question and keeps the original rule**: warn, and then null the reference — never a dangling id (design 1w already shows the image warning). Images are Staff-editable in full (§5), so nulling an image reference is a write Staff already hold; that is exactly the privilege a Forside reference does not have, which is why the two cases part company here.
 5. **Ugens ret week rollover.** Changing the week number blanks the form as a draft; the live site keeps the current card, including its week number, until publish. The editor shows the live week number next to the draft one so the difference is obvious. "Kopiér sidste uge" is the shortcut past the blank form. *Built in phase 6A; **§0c reading A** records exactly which fields "the form" means and why, and that choosing the published week again undoes the rollover.*
-6. **Override deleted after it generated an announcement.** Ask, and default to removing the announcement too when `source='opening_hours'` and it points at that date.
+6. **Override deleted after it generated an announcement.** Ask, and default to removing the announcement too when `source='opening_hours'` and it points at that date. *"Points at that date" is `announcement.source_override_id`, and nothing else — never the message, the weekday, the formatted date, the expiry or the link label, because the suggested wording is editable (§0m) and is therefore evidence of nothing.* **The model is built in 8C-3A (§0n); the asking is 8C-3B.** Until then `remove_opening_hours_override()` refuses with `owns_announcement` while the override owns the live message **or** the one still stashed for a Fortryd, and the foreign key refuses the first of those outright — so the state this item exists to prevent (an announcement about hours that are gone) is unreachable rather than merely undesirable.
 7. **Override in the past, or on an already-closed day.** The date must be today or later; an override on a Monday is allowed (they may open specially) — and it correctly becomes a sold-out reset day (§7b).
-8. **Announcement conflict resolution must never lose the hours.** Server-authoritative: the hours override is written first and always; the announcement is only attempted afterwards; a conflict returns `{status:'conflict'}` and requires an explicit `confirmReplace: true` on the follow-up call. There is no code path where a "Behold eksisterende" choice can roll back the hours.
+8. **Announcement conflict resolution must never lose the hours.** Server-authoritative: the hours override is written first and always; the announcement is only attempted afterwards; a conflict returns `{status:'conflict'}` and requires an explicit `confirmReplace: true` on the follow-up call. There is no code path where a "Behold eksisterende" choice can roll back the hours. **Built in 8C-3A (§0n)**: `apply_generated_announcement()` writes nothing about the opening hours in any branch — it issues no statement against `public.opening_hours` or `public.opening_hours_overrides` at all — so the refusal is a `return` rather than a rollback, and *"there is no code path"* is a property of the function's text rather than a promise about its behaviour. The conflict is decided from the row the server reads, through the same `announcement_replacement_kind()` phase 7's own vocabulary uses; `active` is the only public conflict, and `hidden`, `expired` and empty proceed without one. **1ae's sheet is 8C-3B.**
 9. **News detail page** — in scope, see §7f.
 10. **Tapas** — resolved, see §4. Three editable lists, no configurator.
 11. **No-JS.** The public site must fully work without JavaScript: phone links, menu, hours table, navigation, the map link, news articles. Only the open/closed badge, the mobile fullscreen menu and the announcement expiry guard degrade — each to a server-rendered value at most five minutes old. The admin may require JavaScript.
@@ -2270,7 +2455,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 5 | Menu administration | Category tabs, dish CRUD, reorder, side panel, Kladde badges, **immediate Udsolgt with 10 s Fortryd and the computed reset label**, **tapas list editor**, soft delete | E2E 2, 3 and 10 pass |
 | 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (done):** Månedens burger with its date window, its computed admin state, "Vis på forsiden" as a normal draft field and its own immediate Udsolgt path | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes — see §0d. **Complete and locked** by the completion pass of 2026-08-30 — see §0e |
 | 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (done):** the immediate path — "Vis besked" off and back on, "Fjern beskeden nu", immediate public removal and its ~10 s Fortryd. *Replacing an active announcement, `previous`/`replaced_at` and 1ae's conflict sheet moved to **phase 8**, where the generated message they belong to lives* | 7A: E2E 4 passes, including the no-network assertion — see §0f. 7B: `tests/e2e/announcement-remove.spec.ts` passes at 1440 and 375 — see §0g. **Complete and locked** by the completion pass of 2026-08-30 — see §0h |
-| 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3 (remaining):** 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, and `announcement_created` | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. E2E 5's announcement half belongs to 8C-3 |
+| 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3A (done):** generated-announcement **ownership** — `announcement.source_override_id`, the pairing CHECK, the ninth snapshot key, the ownership-aware write guard, and `apply_generated_announcement()`, the §7e item 8 coordinator that decides the conflict server-side and delegates the atomic write. `announcement_created` is **dropped**; no UI. **8C-3B (remaining):** 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, the ~10 s Fortryd strip, §7e item 6's removal consequence, and the deletion of the 8C-1 harness | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. 8C-3A: `supabase/tests/017_generated_announcement.test.sql` and scenario 4 of `tests/e2e/announcement-replacement.spec.ts` pass — see §0n. E2E 5's announcement half belongs to 8C-3B |
 | 9 | News | List, editor with structured body, autosave, publish/unpublish, **`/nyheder/[slug]` with the slug policy and `NewsArticle` JSON-LD**, forside teaser | E2E 6 passes, incl. unpublish → 404 |
 | 10 | Images | Signed upload, client downscale, sharp derivatives, library with usage labels, replace/delete warnings | E2E 7 passes |
 | 11 | Remaining editors | Forsiden, Mad ud af huset (incl. the visibility toggle hiding the nav item), Kontaktoplysninger, **`/admin/brugere`** | E2E 8 passes; the owner can invite and deactivate a staff user |
@@ -2355,8 +2540,9 @@ no history, no stack and no array.
 **It adds no control anywhere in the administration.** `/admin/besked` is phase 7's editor,
 unchanged — no "Erstat", no "Behold eksisterende", no source selector, no conflict sheet —
 and the opening-hours screen is phase 8B's, unchanged. The one address outside those is an
-unlinked, environment-gated integration harness that **8C-3 deletes**; §0k reading F records
-why it exists and what keeps it safe.
+unlinked, environment-gated integration harness that **8C-3B deletes**; §0k reading F
+records why it exists and what keeps it safe, and §0n records the third action 8C-3A added
+to it rather than inventing a second harness.
 
 **Phase 8C-2 is complete and green, and is recorded in §0m.** The **generated** message
 itself now exists, as one pure module — `lib/announcements/generated.ts` — with no
@@ -2369,9 +2555,20 @@ closing, never `override.closes_at` and never an invented midnight. An override 
 changes nothing a guest could notice returns `no_effect`; an expiry already past returns
 `expired` and is never moved forward.
 
+**Phase 8C-3A is complete and green, and is recorded in §0n.** Generated-announcement
+**ownership** is settled: `announcement.source_override_id` names the override that
+composed the message on the hjemmeside, paired with `source` in both directions by a
+CHECK, restored with the message by Fortryd, and carried in `previous` as its ninth key.
+§4's `opening_hours_overrides.announcement_created` is **dropped** — one pointer that can
+be joined beats a boolean two statements have to keep in step. `apply_generated_announcement()`
+is §7e item 8's coordinator: it re-reads the singleton server-side, returns `conflict` for
+an announcement a guest can read unless replacement was explicitly confirmed, and otherwise
+delegates the write so the content, the snapshot and the ownership move in one transaction.
+It writes nothing about the opening hours in any branch.
+
 **Phase 8 is not locked.** 1t's "Vis også som besked øverst på hjemmesiden", the editable
 suggestion beneath it, "Erstat med den nye besked", "Behold eksisterende besked", 1ae's
-conflict sheet and `opening_hours_overrides.announcement_created` are all **8C-3**, which
-also deletes the 8C-1 harness. It is not started. Nothing phase 8A or 8B added names
-`public.announcement`, no screen composes or imports a generated message, and
-`announcement_created` is written by nothing and stays `false`.
+conflict sheet, the ~10 s Fortryd strip and §7e item 6's removal consequence are all
+**8C-3B**, which also deletes the 8C-1 harness. It is not started. Nothing phase 8A or 8B
+added names `public.announcement`, no screen composes or imports a generated message, and
+no screen writes an announcement of any kind.

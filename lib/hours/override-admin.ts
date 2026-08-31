@@ -49,11 +49,19 @@ import {
  * `overrides_delete_staff`. Nothing in this module names `public.opening_hours`, so no
  * path through it can reach the recurring schedule.
  *
- * **No announcement, in any branch.** `public.announcement` is named nowhere here, and
- * neither is `announcement_created` — §4's column for the generated opening-hours message
- * of **phase 8C**. Creating, publishing and removing an override in phase 8B leaves the
- * announcement row byte-identical, which `supabase/tests/014_opening_hours_overrides.test.sql`
- * asserts from real JWTs.
+ * **No announcement is written, in any branch.** `public.announcement` is named nowhere
+ * here, no announcement module is imported, and creating, publishing or saving an
+ * override leaves the announcement row byte-identical —
+ * `supabase/tests/014_opening_hours_overrides.test.sql` asserts it from real JWTs.
+ *
+ * **One announcement-shaped word survives, and it is a refusal rather than a reach.**
+ * Since 8C-3A a published override can *own* the generated announcement on the
+ * hjemmeside (`announcement.source_override_id`), and `remove_opening_hours_override()`
+ * refuses to delete one that does. {@link RemoveOverrideStatus} carries that refusal —
+ * `owns_announcement` — because a status this module received has to be a status it can
+ * name. What to *offer* instead is §7e item 6's *"ask, and default to removing the
+ * announcement too"*, and that is **8C-3B**: nothing here removes an announcement,
+ * reads one, or decides anything about one.
  */
 
 // ---------------------------------------------------------------------------
@@ -174,6 +182,17 @@ export async function createOverrideDraft(
 export type RemoveOverrideStatus =
   /** The row is gone; the date follows the weekly schedule again. */
   | 'removed'
+  /**
+   * The override still owns a generated announcement, so it was **not** removed —
+   * §7e item 6, and phase 8C-3A's half of it.
+   *
+   * Either it owns the announcement the hjemmeside is showing, or it owns the one
+   * stashed for a Fortryd that is still on offer. Deciding what to offer instead —
+   * the item's *"ask, and default to removing the announcement too"* — is **8C-3B**;
+   * until then the honest answer is a refusal that says which override is holding
+   * what, rather than a foreign-key violation or a silently orphaned message.
+   */
+  | 'owns_announcement'
   /** Somebody else changed or removed it first (§6). Nothing was written. */
   | 'conflict'
   /** No such row, or the caller may not see it. */
@@ -192,7 +211,7 @@ export type RemoveOverrideResult = {
 }
 
 const removeResultSchema = z.object({
-  status: z.enum(['removed', 'conflict', 'not_found', 'forbidden']),
+  status: z.enum(['removed', 'owns_announcement', 'conflict', 'not_found', 'forbidden']),
   was_published: z.boolean().nullish(),
 })
 

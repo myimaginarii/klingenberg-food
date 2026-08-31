@@ -24,6 +24,13 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
  *     real change against, so a draft holds only the changed fields (§4), and to say what
  *     the hjemmeside is showing right now, which must never be read off a draft.
  *
+ * `source_override_id` IS READ THE SAME WAY, AND FOR THE SAME REASON
+ *
+ * It is not a field of `announcementDraft` either, so a draft cannot carry ownership;
+ * it is returned beside the values, from the **live** row, because §7e item 6's
+ * question — does this override own what the hjemmeside is showing? — is a question
+ * about the published state and never about a pending edit.
+ *
  * `is_visible` IS READ, AND ONLY READ
  *
  * It is not a field of `announcementDraft` and is therefore not part of
@@ -46,12 +53,13 @@ type AnnouncementRow = {
   expires_at: string | null
   is_visible: boolean
   source: string
+  source_override_id: string | null
   updated_at: string
   draft: unknown
 }
 
 const ANNOUNCEMENT_ADMIN_COLUMNS =
-  'id, message, link_type, link_page, link_url, link_label, expires_at, is_visible, source, updated_at, draft'
+  'id, message, link_type, link_page, link_url, link_label, expires_at, is_visible, source, source_override_id, updated_at, draft'
 
 export type AdminAnnouncement = {
   readonly id: string
@@ -65,6 +73,16 @@ export type AdminAnnouncement = {
   readonly isVisible: boolean
   /** `'manual'` or `'opening_hours'`. Phase 8 writes the second; phase 7A never does. */
   readonly source: string
+  /**
+   * The one-off opening-hours override that owns a generated announcement — 8C-3A.
+   *
+   * Read from the **live** row, never from a draft: ownership is a fact about what is
+   * published, and `announcementDraft` has no such field, so a draft could not carry
+   * one either way. `null` for a manual announcement, always — the pair is
+   * `announcement_source_owner_check`'s, and `lib/announcements/ownership.ts` is what
+   * it means.
+   */
+  readonly sourceOverrideId: string | null
   readonly hasDraft: boolean
   /** The editable fields the stored draft actually changes, in schema order. */
   readonly draftFields: readonly string[]
@@ -121,6 +139,7 @@ export const readAdminAnnouncement = cache(async (): Promise<AdminAnnouncement |
     live: toValues(data),
     isVisible: data.is_visible,
     source: data.source,
+    sourceOverrideId: data.source_override_id,
     hasDraft: data.draft !== null && data.draft !== undefined,
     draftFields: changedFields,
     draftMalformed: malformed,

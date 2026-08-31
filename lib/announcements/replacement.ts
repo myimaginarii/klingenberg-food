@@ -13,9 +13,11 @@ import { ANNOUNCEMENT_MESSAGE_MAX_LENGTH } from './lifecycle'
 import { isConsistentAnnouncementLink } from './link'
 import {
   ANNOUNCEMENT_SOURCES,
-  announcementSnapshotSchema,
-  type AnnouncementSnapshot,
-} from './snapshot'
+  REPLACED_ANNOUNCEMENT_KINDS,
+  isConsistentAnnouncementOwnership,
+  type ReplacedAnnouncementKind,
+} from './ownership'
+import { announcementSnapshotSchema, type AnnouncementSnapshot } from './snapshot'
 
 /**
  * Replacing the published announcement, and putting the previous one back — design
@@ -117,6 +119,17 @@ export const announcementReplacementSchema = z.strictObject({
   link_label: z.union([z.string().trim().min(1).max(60), z.null()]),
   expires_at: z.iso.datetime({ offset: true }),
   source: z.enum(ANNOUNCEMENT_SOURCES),
+  /**
+   * The override that owns a generated announcement — 8C-3A.
+   *
+   * Paired with `source` in both directions by
+   * {@link parseAnnouncementReplacement}, and again by `replace_announcement()` in
+   * SQL, and again by `announcement_source_owner_check` on the table. A caller may
+   * say *which* override composed the message it is carrying; it may not say that a
+   * generated message belongs to nobody, or that a hand-written one belongs to a
+   * date.
+   */
+  source_override_id: z.union([z.uuid(), z.null()]),
 })
 
 export type AnnouncementReplacement = z.infer<typeof announcementReplacementSchema>
@@ -144,6 +157,10 @@ export function parseAnnouncementReplacement(
   // one nobody could tell had gone wrong.
   if (parsed.data.link_type === 'url' && parsed.data.link_label === null) return null
 
+  // `source` and `source_override_id` are one fact in two fields (`./ownership.ts`).
+  // `replace_announcement()` restates this, and the table CHECKs it.
+  if (!isConsistentAnnouncementOwnership(parsed.data)) return null
+
   return parsed.data
 }
 
@@ -154,21 +171,13 @@ export function parseAnnouncementReplacement(
 /**
  * What the replacement displaced, decided by the **server** from the row it read.
  *
- * The distinction 1ae exists for is `'active'` and only `'active'`: a message a guest
- * can read right now. The other three are recorded rather than acted on here, because
- * whether they deserve a sheet is 8C-3's decision and not this layer's.
- *
- *   * `active`  — a publicly visible announcement was replaced.
- *   * `hidden`  — a valid, unexpired message that had been switched off. It is
- *                 snapshotted **with its own `is_visible = false`**, so a restore
- *                 puts it back switched off rather than switching it on.
- *   * `expired` — a message whose expiry had passed. No guest could see it, so it is
- *                 not a public conflict; it is stashed faithfully all the same.
- *   * `none`    — there was no message at all. Replacing nothing is allowed and is
- *                 not dressed up as a conflict; the snapshot records the empty state,
- *                 so Fortryd can put the emptiness back.
+ * The vocabulary lives in `./ownership.ts` beside {@link replacementNeedsConfirmation},
+ * because 8C-3A's coordinator and 1ae's future sheet both need it and neither may
+ * import a `server-only` module to get it. Re-exported here because this is where 8C-1
+ * introduced it, and a caller of `replaceAnnouncement()` should not have to know that
+ * it moved.
  */
-export type ReplacedAnnouncementKind = 'active' | 'hidden' | 'expired' | 'none'
+export type { ReplacedAnnouncementKind }
 
 /** The outcome vocabulary. Only `replaced` changed anything. */
 export type ReplaceAnnouncementStatus =
@@ -225,7 +234,8 @@ const replaceResultSchema = z.object({
   ]),
   reason: z.string().nullish(),
   updated_at: z.iso.datetime({ offset: true }).nullish(),
-  replaced: z.enum(['active', 'hidden', 'expired', 'none']).nullish(),
+  replaced: z.enum(REPLACED_ANNOUNCEMENT_KINDS).nullish(),
+  source_override_id: z.union([z.uuid(), z.null()]).nullish(),
   before: z.unknown().nullish(),
 })
 
@@ -275,6 +285,10 @@ export async function replaceAnnouncement(
     p_expires_at: replacement.expires_at,
     p_source: replacement.source,
     p_expected_updated_at: request.expectedUpdatedAt,
+    // Named explicitly rather than left to the SQL default. The default is the safe
+    // half of the pair — a caller that says nothing is saying "manual" — but a
+    // trusted lifecycle field should be stated by every caller that means it.
+    p_source_override_id: replacement.source_override_id,
   })
 
   if (error) {
@@ -321,6 +335,18 @@ export type RestoreAnnouncementStatus =
   | 'nothing_to_restore'
   /** `previous` was not a snapshot this system wrote. Nothing written, nothing dropped. */
   | 'invalid_snapshot'
+  /**
+   * The snapshot names an override that no longer exists — 8C-3A.
+   *
+   * `previous` is jsonb, so the foreign key on `source_override_id` does not reach
+   * inside it. An override that owned the displaced announcement, and was deleted
+   * while it owned only the *stashed* one, leaves a snapshot pointing at nothing.
+   * `remove_opening_hours_override()` refuses exactly that deletion, so this is
+   * reachable only through a direct PostgREST DELETE — and it is named rather than
+   * allowed to become a foreign-key violation with nothing for a person to read.
+   * Nothing is written and the snapshot is left in place.
+   */
+  | 'owner_missing'
   /** Somebody else changed the row first (§6). Nothing was written. */
   | 'conflict'
   /** No row, or the caller may not see it. */
@@ -366,12 +392,14 @@ const restoreResultSchema = z.object({
     'restored',
     'nothing_to_restore',
     'invalid_snapshot',
+    'owner_missing',
     'conflict',
     'not_found',
     'forbidden',
   ]),
   updated_at: z.iso.datetime({ offset: true }).nullish(),
   showable: z.boolean().nullish(),
+  source_override_id: z.union([z.uuid(), z.null()]).nullish(),
   after: z.unknown().nullish(),
 })
 
@@ -483,6 +511,8 @@ export function describeRestoreObstacle(status: RestoreAnnouncementStatus): stri
       return 'Der er ingen tidligere besked at sætte tilbage.'
     case 'invalid_snapshot':
       return 'Den gemte tidligere besked kan ikke læses, så den blev ikke sat tilbage.'
+    case 'owner_missing':
+      return 'Den ændrede åbningstid, som den tidligere besked hørte til, findes ikke længere, så beskeden blev ikke sat tilbage.'
     case 'conflict':
       return 'Nogen andre har rettet beskeden imens. Genindlæs siden, og prøv igen.'
     case 'not_found':

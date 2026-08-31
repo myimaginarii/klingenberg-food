@@ -9,7 +9,7 @@ import { isAnnouncementExpired } from './expiry'
 import { announcementExpiryInstant } from './expiry-editor'
 import { ANNOUNCEMENT_MESSAGE_MAX_LENGTH } from './lifecycle'
 import type { AnnouncementPageRoute } from './link'
-import type { AnnouncementSource } from './snapshot'
+import type { AnnouncementSource } from './ownership'
 
 /**
  * The generated opening-hours announcement — design 1t, 1ac, 1ae; technical plan §4,
@@ -23,16 +23,16 @@ import type { AnnouncementSource } from './snapshot'
  * WHAT IT IS, AND WHAT IT IS NOT (phase 8C-2)
  *
  * It is the **domain logic** that turns a one-off opening-hours change into the
- * announcement 8C-3 will suggest. It performs no database access, reads no clock,
- * expires no cache tag, imports no React and no Server Action, and writes nothing —
- * including `opening_hours_overrides.announcement_created`, which **8C-3** sets after
- * the announcement operation succeeds and which nothing writes yet.
+ * announcement 8C-3 suggests. It performs no database access, reads no clock, expires
+ * no cache tag, imports no React and no Server Action, and writes nothing at all.
  *
- * It does not replace an announcement either. `replaceAnnouncement()` in
- * `./replacement.ts` is the mechanism 8C-1 built and 8C-3 calls; what this returns is
- * a value **shaped to be** its payload — see {@link GeneratedAnnouncement} — and
- * nothing here calls it. That is why this module imports `./expiry`, `./expiry-editor`,
- * `./lifecycle` and two types, and not the server module that carries `server-only`.
+ * It does not replace an announcement either, and it does not know which override owns
+ * one. `replaceAnnouncement()` in `./replacement.ts` is the mechanism 8C-1 built and
+ * `./generated-operation.ts` is the 8C-3A coordinator that calls it; what this returns
+ * is a value **shaped to be** its payload, minus the ownership the coordinator adds —
+ * see {@link GeneratedAnnouncement} — and nothing here calls either of them. That is
+ * why this module imports `./expiry`, `./expiry-editor`, `./lifecycle` and two types,
+ * and not the server modules that carry `server-only`.
  *
  * THE EXPIRY RULE, AND WHY IT IS NOT THE OVERRIDE'S CLOSING TIME
  *
@@ -151,15 +151,24 @@ export type GeneratedAnnouncementRequest = {
 /**
  * The suggestion, in the shape `replace_announcement()` takes.
  *
- * Deliberately **assignable to** `AnnouncementReplacement` (`./replacement.ts`) rather
- * than imported from it: that module carries `server-only`, and a pure generator that
- * dragged the Supabase client behind it would stop being one. The narrowing is real —
- * a generated announcement never has an external URL and always calls itself
- * `'opening_hours'` — and the unit suite asserts both that it type-checks as a
- * replacement and that `parseAnnouncementReplacement()` accepts it.
+ * Deliberately **assignable to** `AnnouncementReplacement` (`./replacement.ts`) minus
+ * its ownership field, rather than imported from it: that module carries
+ * `server-only`, and a pure generator that dragged the Supabase client behind it would
+ * stop being one. The narrowing is real — a generated announcement never has an
+ * external URL and always calls itself `'opening_hours'` — and the unit suite asserts
+ * both that it type-checks as a replacement once an owner is added and that
+ * `parseAnnouncementReplacement()` accepts the result.
  *
  * `is_visible` is absent for the reason it is absent from the replacement payload:
  * 1ae says *"Den nye besked går live"*, so it is not a choice anybody makes.
+ *
+ * `source_override_id` is absent because **this module does not know it, and must not
+ * need to** (8C-3A). The generator is given an {@link OverrideContent} — the three
+ * content columns of one date — which may equally be a *draft's* content, asked before
+ * anything is published and therefore possibly belonging to no row at all. Ownership
+ * is a fact about the published override row, so the coordinator supplies it, from the
+ * row it read. A generator that demanded an id would stop being able to answer 1t's
+ * question *"what would this change say?"* while somebody is still typing it.
  */
 export type GeneratedAnnouncement = {
   readonly message: string
@@ -301,4 +310,39 @@ export function generateOpeningHoursAnnouncement(
       source: GENERATED_ANNOUNCEMENT_SOURCE,
     },
   }
+}
+
+// ---------------------------------------------------------------------------
+// The one field a person may change
+// ---------------------------------------------------------------------------
+
+/**
+ * The same suggestion, with a staff member's own wording — design 1t, 1ae; §7 of the
+ * 8C-3A brief.
+ *
+ * 1t offers the generated message as an **editable** field: the override model has no
+ * reason column, so *"Lukket mandag 21.09"* is deliberately neutral and somebody may
+ * want to say why (§0m). This is the whole of what that permission amounts to, stated
+ * as a function so that "the message may be edited and nothing else may" is a property
+ * of the type rather than of a reviewer's attention.
+ *
+ * Everything else is returned unchanged, and cannot be otherwise: the link, the
+ * expiry and the source are read off {@link GeneratedAnnouncement} and never off an
+ * argument. There is no parameter here through which a browser could move an expiry,
+ * point the bar at another page, drop the link, or call a hand-written message
+ * generated.
+ *
+ * `null` for a message this system would not accept — blank, whitespace, or past
+ * 1ac's 90 characters. The caller reports it; nothing is truncated to fit.
+ */
+export function withEditedMessage(
+  announcement: GeneratedAnnouncement,
+  message: string,
+): GeneratedAnnouncement | null {
+  const trimmed = message.trim()
+
+  if (trimmed.length === 0) return null
+  if (trimmed.length > ANNOUNCEMENT_MESSAGE_MAX_LENGTH) return null
+
+  return { ...announcement, message: trimmed }
 }

@@ -3,6 +3,98 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 8C-3A — no dependencies added (2026-08-31)
+
+**Generated-announcement ownership and atomic coordination** (§0n) adds **no package**.
+`package.json` and the lockfile are byte-identical to the phase-8C-2 state. It adds one
+migration, one pure module, one server module and one Server Action on the existing
+gated harness, and nothing else.
+
+### The three things that would have justified a package, and why none is here
+
+**A state machine or workflow library.** This increment coordinates a multi-step
+operation — read the published override, read the published week, generate, decide a
+conflict, replace, move ownership, snapshot, audit — which is the shape people reach for
+`xstate` or a saga runner to express. It is a **plpgsql function calling a plpgsql
+function**, and that is not a compromise: every step after the decision has to be in one
+transaction, and a library that orchestrated them from Node would put a network boundary
+between the write and the ownership move — exactly the two-transaction failure the brief
+forbids. §8 of the brief says *"do not create a generic workflow engine"*, and the
+strongest way to obey that is to have nothing that could become one:
+`apply_generated_announcement()` takes no table name, no column name, no step list and
+no callback.
+
+**An ORM or query builder for the composition.** `replace_announcement()` is reused
+rather than reimplemented, and the reuse is a `select public.replace_announcement(…)`
+inside the coordinator. The alternative — reading the row in TypeScript, deciding, and
+issuing the write from there — is what the earlier phases already refused for every
+immediate path, for the reason §0e answer A records: the decision and the write would
+stop being the same transaction.
+
+**A date library, for the ninth phase running.** The coordinator reads no clock of its
+own beyond a single `new Date()` handed to the 8C-2 generator, which is the one
+parameter that module has for it. Every Copenhagen conversion is still
+`announcementExpiryInstant()`, which is still the one `Intl.DateTimeFormat` boundary
+phase 2 built.
+
+### One migration, and what it does not contain
+
+`20260831180000_generated_announcement_ownership.sql`:
+
+- adds `announcement.source_override_id uuid`, a foreign key to
+  `opening_hours_overrides` with **`on delete restrict`**, and
+  `announcement_source_owner_check` pairing it with `source` in both directions;
+- **drops `opening_hours_overrides.announcement_created`** — §0n records why one
+  pointer beats a boolean that a second statement has to keep in step, and why keeping
+  the boolean would have meant rebuilding §0l's column-grant-and-guard apparatus on a
+  second table;
+- normalises any `previous` written before it, adding the ninth key as `null` — such a
+  snapshot can only be a manual one, so the value is a restatement rather than a guess;
+- adds `source_override_id` to the column-level UPDATE grant, making it twelve, and
+  extends `tg_guard_announcement_write()` so the pointer moves only under the same
+  transition `source` does;
+- adds `announcement_replacement_kind()` — the four-way answer `replace_announcement()`
+  computed inline, lifted out so the coordinator asks the same question rather than a
+  second one that looks like it;
+- replaces `replace_announcement()` with a nine-parameter version (the ninth appended
+  and defaulted to `null`, which is the safe half of the pair) that requires the named
+  override to exist **and be published**;
+- replaces `restore_announcement()` so ownership comes back in the same `update` as the
+  eight keys beside it, and names `owner_missing` for the one case a jsonb snapshot can
+  outlive;
+- adds `apply_generated_announcement()` — the coordinator;
+- replaces `remove_opening_hours_override()` so it refuses with `owns_announcement`
+  rather than meeting a foreign-key violation.
+
+What it does **not** contain: no table, no view, no index, no policy, no scheduled
+anything, and **no SECURITY DEFINER function** — every function it touches is SECURITY
+INVOKER with `set search_path = ''`, so RLS decides for every caller against their own
+JWT. It writes nothing to `public.opening_hours` or `public.opening_hours_overrides`
+outside the removal it was already replacing, which is what makes §7e item 8's *"no code
+path can roll the hours back"* a property of the text.
+
+**No partial unique index**, and the absence is deliberate rather than an omission:
+"at most one override owns the current announcement" is structural — one singleton row,
+one column, one value — and an index could only have made a duplicate unlikely to be
+written somewhere there is nowhere for one to live.
+
+### One temporary directory, unchanged in kind
+
+`app/(admin)/admin/intern/besked-erstatning/` gains a **third Server Action** rather than
+a sibling. The brief forbids inventing a second harness, and `updateTag()` is still only
+callable from inside a Server Action, so proving the coordinator through the real cache
+path needed a form dispatching to one. The three properties that make it safe are
+unchanged: the environment flag, `requireStaff()` before the flag, and no field through
+which the browser could choose content — the generated action carries an override id,
+two version tokens and one confirmation bit, and the wording is composed on the server.
+**8C-3B still deletes it.**
+
+### `npm audit --audit-level=high` — clean
+
+Run against the unchanged lockfile after `npm ci`: **0 vulnerabilities**.
+
+---
+
 ## Phase 8C-2 — no dependencies added (2026-08-31)
 
 The **pure opening-hours announcement generator** (§0m) adds **no package**, and adds no
@@ -31,9 +123,10 @@ it.
 
 ### Nothing was added to the runtime, because nothing calls it
 
-The module is imported by its unit suite and by nothing else, so `next build` produces
-the same route table and the same client bundles it did at `4160bb0`. **8C-3** is the
-increment that gives it a caller.
+The module was imported by its unit suite and by nothing else, so `next build` produced
+the same route table and the same client bundles it did at `4160bb0`. **8C-3A** is the
+increment that gave it a caller — `lib/announcements/generated-operation.ts`, and no
+screen.
 
 ---
 
@@ -98,7 +191,8 @@ What it does **not** contain: no table, no column, no view, no trigger, no index
 no grant on any table, no scheduled anything, and **no SECURITY DEFINER function** — all four
 are SECURITY INVOKER with `set search_path = ''`, so RLS decides for every caller against
 their own JWT. It names `public.opening_hours` and `public.opening_hours_overrides` nowhere,
-composes no message, and writes `announcement_created` nowhere.
+composes no message, and writes `announcement_created` nowhere. *(That column was
+dropped by 8C-3A; ownership is `announcement.source_override_id`. See §0n.)*
 
 ### One temporary directory, recorded so it is not forgotten
 
@@ -193,8 +287,10 @@ has exactly its five phase-1 policies, and asserts that the DELETE policy is sti
 
 It also contains nothing that names `public.announcement`. `announcement_created` — §4's
 column for the generated opening-hours message — is written by no statement in the migration
-and by no line of the application; the pgTAP suite asserts no override was ever marked as
-having produced one.
+and by no line of the application; the pgTAP suite asserted no override was ever marked as
+having produced one. *(8C-3A dropped the column; `014` now asserts the stronger fact that
+it no longer exists, and that no override owns the announcement after everything phase 8B
+does.)*
 
 ### One correctness fix in phase 4's machinery, and why it belongs here
 

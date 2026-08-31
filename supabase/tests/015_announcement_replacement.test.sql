@@ -97,6 +97,28 @@ create function pg_temp.version() returns timestamptz language sql as $fn$
   select updated_at from public.announcement limit 1
 $fn$;
 
+/*
+ * The override a generated announcement belongs to — phase 8C-3A.
+ *
+ * `source = 'opening_hours'` now names exactly one published override
+ * (`announcement_source_owner_check`), so every call below that exercises the generated
+ * source has to have one to point at. It is created once, published, and dated ahead so
+ * `overrides_select_public` and `readAdminOverrides` would both accept it.
+ *
+ * A *manual* replacement passes nothing at all and relies on the parameter's default —
+ * which is the safe half of the pair, and is asserted as such further down.
+ */
+insert into public.opening_hours_overrides (date, kind, opens_at, closes_at, status)
+values (((now() at time zone 'Europe/Copenhagen')::date + 5), 'custom', '17:00', '19:00', 'published');
+
+select set_config('test.owner_override',
+  (select id from public.opening_hours_overrides
+    where date = ((now() at time zone 'Europe/Copenhagen')::date + 5))::text, true);
+
+create function pg_temp.owner_override() returns uuid language sql as $fn$
+  select current_setting('test.owner_override')::uuid
+$fn$;
+
 create function pg_temp.snapshot() returns jsonb language sql as $fn$
   select public.announcement_snapshot(a) from public.announcement a limit 1
 $fn$;
@@ -144,6 +166,7 @@ create function pg_temp.reset_fixture() returns void language sql security defin
          expires_at  = now() + interval '2 hours',
          is_visible  = true,
          source      = 'manual',
+         source_override_id = null,
          previous    = null,
          replaced_at = null,
          draft       = jsonb_build_object('message', 'Kladde C der skal overleve');
@@ -164,8 +187,8 @@ select pg_temp.reset_fixture();
 select is(
   (select array_agg(k order by k) from jsonb_object_keys(pg_temp.snapshot()) k),
   array['expires_at', 'is_visible', 'link_label', 'link_page',
-        'link_type', 'link_url', 'message', 'source']::text[],
-  'a snapshot has exactly the eight published keys');
+        'link_type', 'link_url', 'message', 'source', 'source_override_id']::text[],
+  'a snapshot has exactly the nine published keys');
 
 select ok(not (pg_temp.snapshot() ? 'draft'),
   'and never the draft — a draft is not published content');
@@ -256,7 +279,7 @@ select pg_temp.become_staff();
 select is(
   (select public.replace_announcement(
      'Besked B — den nye', 'none', null, null, null,
-     now() + interval '3 hours', 'opening_hours', pg_temp.version()) ->> 'status'),
+     now() + interval '3 hours', 'opening_hours', pg_temp.version(), pg_temp.owner_override()) ->> 'status'),
   'replaced',
   'staff may replace the published announcement');
 
@@ -637,7 +660,7 @@ select pg_temp.reset_fixture();
 select pg_temp.become_staff();
 select is(
   (select public.replace_announcement('B', 'none', null, null, null,
-     now() + interval '1 hour', 'opening_hours', pg_temp.version()) ->> 'replaced'),
+     now() + interval '1 hour', 'opening_hours', pg_temp.version(), pg_temp.owner_override()) ->> 'replaced'),
   'active', 'replacing a visible, unexpired message reports `active`');
 reset role;
 
@@ -649,7 +672,7 @@ select set_config('test.snapshot_hidden', pg_temp.snapshot()::text, true);
 select pg_temp.become_staff();
 select is(
   (select public.replace_announcement('B', 'none', null, null, null,
-     now() + interval '1 hour', 'opening_hours', pg_temp.version()) ->> 'replaced'),
+     now() + interval '1 hour', 'opening_hours', pg_temp.version(), pg_temp.owner_override()) ->> 'replaced'),
   'hidden', 'replacing a switched-off but valid message reports `hidden`');
 reset role;
 
@@ -675,7 +698,7 @@ select set_config('test.expires_expired', (select expires_at::text from public.a
 select pg_temp.become_staff();
 select is(
   (select public.replace_announcement('B', 'none', null, null, null,
-     now() + interval '1 hour', 'opening_hours', pg_temp.version()) ->> 'replaced'),
+     now() + interval '1 hour', 'opening_hours', pg_temp.version(), pg_temp.owner_override()) ->> 'replaced'),
   'expired', 'replacing an expired message reports `expired` — no guest could see it');
 reset role;
 
@@ -687,7 +710,7 @@ update public.announcement set message = null, is_visible = false, link_type = '
 select pg_temp.become_staff();
 select is(
   (select public.replace_announcement('B', 'none', null, null, null,
-     now() + interval '1 hour', 'opening_hours', pg_temp.version()) ->> 'replaced'),
+     now() + interval '1 hour', 'opening_hours', pg_temp.version(), pg_temp.owner_override()) ->> 'replaced'),
   'none', 'replacing nothing reports `none` rather than pretending there was a conflict');
 reset role;
 
@@ -723,7 +746,7 @@ select set_config('test.expires_soon', (select expires_at::text from public.anno
 select pg_temp.become_staff();
 select is(
   (select public.replace_announcement('Besked B', 'none', null, null, null,
-     now() + interval '1 hour', 'opening_hours', pg_temp.version()) ->> 'status'),
+     now() + interval '1 hour', 'opening_hours', pg_temp.version(), pg_temp.owner_override()) ->> 'status'),
   'replaced', 'the replacement goes through while A is still current');
 reset role;
 
@@ -754,7 +777,7 @@ update public.announcement set expires_at = now() + interval '2 hours';
 select pg_temp.become_staff();
 select is(
   (select public.replace_announcement('Besked B', 'none', null, null, null,
-     now() + interval '1 hour', 'opening_hours', pg_temp.version()) ->> 'status'),
+     now() + interval '1 hour', 'opening_hours', pg_temp.version(), pg_temp.owner_override()) ->> 'status'),
   'replaced', 'set up an unexpired previous');
 select is(
   (select public.restore_announcement(pg_temp.version()) ->> 'showable'),
@@ -767,7 +790,7 @@ update public.announcement set expires_at = now() + interval '2 hours';
 select pg_temp.become_staff();
 select is(
   (select public.replace_announcement('Besked B', 'none', null, null, null,
-     now() + interval '1 hour', 'opening_hours', pg_temp.version()) ->> 'status'),
+     now() + interval '1 hour', 'opening_hours', pg_temp.version(), pg_temp.owner_override()) ->> 'status'),
   'replaced', 'set up a previous that then expires');
 reset role;
 
@@ -794,12 +817,12 @@ select pg_temp.become_staff();
 
 select is(
   (select public.replace_announcement('Besked B', 'none', null, null, null,
-     now() + interval '1 hour', 'opening_hours', pg_temp.version()) ->> 'status'),
+     now() + interval '1 hour', 'opening_hours', pg_temp.version(), pg_temp.owner_override()) ->> 'status'),
   'replaced', 'A is replaced by B');
 
 select is(
   (select public.replace_announcement('Besked D', 'none', null, null, null,
-     now() + interval '1 hour', 'opening_hours', pg_temp.version()) ->> 'status'),
+     now() + interval '1 hour', 'opening_hours', pg_temp.version(), pg_temp.owner_override()) ->> 'status'),
   'replaced', 'and then B is replaced by D');
 
 reset role;
@@ -854,7 +877,7 @@ select set_config('test.pages', (select count(*)::text from public.pages), true)
 select pg_temp.become_staff();
 select is(
   (select public.replace_announcement('Besked B', 'none', null, null, null,
-     now() + interval '1 hour', 'opening_hours', pg_temp.version()) ->> 'status'),
+     now() + interval '1 hour', 'opening_hours', pg_temp.version(), pg_temp.owner_override()) ->> 'status'),
   'replaced', 'a replacement, for the tables below to be measured against');
 select is(
   (select public.restore_announcement(pg_temp.version()) ->> 'status'),

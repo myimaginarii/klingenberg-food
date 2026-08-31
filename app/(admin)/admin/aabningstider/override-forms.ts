@@ -77,9 +77,9 @@ function text(source: FormData | URLSearchParams, name: string): string {
 /**
  * Exactly what the editor submitted, before any rule has been applied to it.
  *
- * Five names are read and no others, so a form carrying `status`, `announcement_created`,
- * `id`, `aaben-mon` or `schedule` contributes nothing — the reading is by name rather than
- * by iteration, which is the structural half of "no extra value reaches the row".
+ * Five names are read and no others, so a form carrying `status`, `id`, `aaben-mon` or
+ * `schedule` contributes nothing — the reading is by name rather than by iteration, which
+ * is the structural half of "no extra value reaches the row".
  * `toOverrideDraft` is what decides whether these strings mean anything.
  */
 export function readOverrideForm(source: FormData | URLSearchParams): OverrideFormValues {

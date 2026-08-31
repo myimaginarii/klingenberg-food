@@ -75,19 +75,72 @@ function code(source: string): string {
 }
 
 describe('the phase-8C boundary, in the code rather than in a promise', () => {
-  it.each(OVERRIDE_PATH_FILES)('%s names no announcement of any kind', (path) => {
+  /*
+   * 8C-3A narrowed this by exactly one word, and the narrowing is worth stating.
+   *
+   * `lib/hours/override-admin.ts` now names one announcement-shaped thing:
+   * `'owns_announcement'`, the status `remove_opening_hours_override()` returns when a
+   * date still owns the generated message on the hjemmeside. That is the database
+   * refusing a deletion, mapped into the removal wrapper's own vocabulary — not this
+   * path reaching for an announcement. Everything that would be reaching is still
+   * forbidden below: the table, the domain modules, the lifecycle RPCs, the snapshot
+   * columns and the ownership pointer.
+   *
+   * `announcement_created` is asserted separately, and more strongly: 8C-3A dropped
+   * the column, so it must appear in **no file in the repository**, not merely in
+   * these four.
+   */
+  it.each(OVERRIDE_PATH_FILES)('%s reaches for no announcement', (path) => {
     const source = code(read(path))
 
     for (const forbidden of [
-      'announcement',
-      'previous',
-      'replaced_at',
-      'announcement_created',
+      "from('announcement')",
+      '@/lib/announcements/',
+      'replace_announcement',
+      'restore_announcement',
+      'apply_generated_announcement',
       'set_announcement_visible',
       'publish_announcement',
+      'source_override_id',
+      'previous',
+      'replaced_at',
     ]) {
       expect(source.toLowerCase(), `${path} does not name ${forbidden}`).not.toContain(
         forbidden.toLowerCase(),
+      )
+    }
+  })
+
+  it('the only announcement word in the override path is the removal refusal', () => {
+    // One file, and every occurrence in it part of `owns_announcement`. If the word
+    // appears anywhere else, or in any other shape, the rule above has stopped being
+    // "no reaching" and started being "some reaching".
+    const mentions = OVERRIDE_PATH_FILES.filter((path) => /announcement/i.test(code(read(path))))
+
+    expect(mentions).toEqual(['lib/hours/override-admin.ts'])
+
+    const stripped = code(read('lib/hours/override-admin.ts')).replaceAll(
+      'owns_announcement',
+      '',
+    )
+
+    expect(stripped).not.toMatch(/announcement/i)
+  })
+
+  it('announcement_created exists nowhere at all — 8C-3A dropped the column', () => {
+    // Not "this path does not write it", which is what phase 8B asserted. The column is
+    // gone: `announcement.source_override_id` is the single representation of
+    // ownership, and a boolean beside it would be a second store of one fact. Migrations
+    // are excluded because `20260831180000` is the statement that drops it and
+    // `20260829120000` is the one that created it — a `drop column` has to be able to
+    // name what it drops.
+    for (const { path, source } of applicationFiles()) {
+      expect(source, `${path} names announcement_created`).not.toContain('announcement_created')
+    }
+
+    for (const path of ['lib/hours/override-form.ts', 'lib/schemas/opening-hours.ts']) {
+      expect(read(path), `${path} names announcement_created`).not.toContain(
+        'announcement_created',
       )
     }
   })
@@ -236,7 +289,23 @@ describe('the generated announcement is domain logic and nothing more (8C-2)', (
   })
 })
 
-describe('nothing above the generator has been wired to it — that is 8C-3', () => {
+/*
+ * ---------------------------------------------------------------------------
+ * The 8C-3A boundary: one caller, and it is the domain coordinator
+ * ---------------------------------------------------------------------------
+ *
+ * 8C-2 asserted that **nothing** called the generator. 8C-3A gives it exactly one
+ * caller — `lib/announcements/generated-operation.ts`, the server-side coordinator —
+ * and the narrowed rule is that it stays exactly one, and that no *screen* is it.
+ *
+ * The gated integration harness reaches the coordinator, which is the whole reason it
+ * exists (`app/(admin)/admin/intern/besked-erstatning/harness.ts`), and it is exempted
+ * by name rather than by pattern so that a second exemption has to be written down.
+ */
+const COORDINATOR_MODULE = 'lib/announcements/generated-operation.ts'
+const HARNESS_DIR = 'app/(admin)/admin/intern/besked-erstatning'
+
+describe('the generator has one caller, and no screen is it — 8C-3A', () => {
   const files = applicationFiles()
 
   it('there are files to check', () => {
@@ -245,10 +314,36 @@ describe('nothing above the generator has been wired to it — that is 8C-3', ()
 
   it('no Server Action, route, page or component imports the generator', () => {
     for (const { path, source } of files) {
-      expect(source, `${path} imports the generator`).not.toContain(GENERATOR_IMPORT)
+      // The closing quote matters: `@/lib/announcements/generated-operation` — the
+      // coordinator the harness reaches — starts with the same characters, and the
+      // rule here is about the *pure generator*.
+      expect(source, `${path} imports the generator`).not.toContain(`${GENERATOR_IMPORT}'`)
       expect(source, `${path} calls the generator`).not.toContain(
         'generateOpeningHoursAnnouncement',
       )
+    }
+  })
+
+  it('the coordinator is the generator’s only caller in lib/', () => {
+    const callers = [...walk(join(ROOT, 'lib'))]
+      .map((absolute) => relative(ROOT, absolute).split(sep).join('/'))
+      .filter((path) => /\.ts$/.test(path) && path !== GENERATOR_MODULE)
+      .filter((path) => {
+        const source = code(readFileSync(join(ROOT, path), 'utf8'))
+
+        return source.includes(`${GENERATOR_IMPORT}'`) || source.includes("from './generated'")
+      })
+
+    expect(callers).toEqual([COORDINATOR_MODULE])
+  })
+
+  it('only the gated harness reaches the coordinator — no production screen does', () => {
+    const importers = files
+      .filter(({ source }) => code(source).includes('@/lib/announcements/generated-operation'))
+      .map(({ path }) => path)
+
+    for (const path of importers) {
+      expect(path.startsWith(HARNESS_DIR), `${path} reaches the coordinator`).toBe(true)
     }
   })
 

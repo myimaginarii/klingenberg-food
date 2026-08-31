@@ -3,7 +3,8 @@ import 'server-only'
 import type { AnnouncementReplacement } from '@/lib/announcements/replacement'
 
 /**
- * The 8C-1 integration harness — **not part of the administration**, and temporary.
+ * The 8C-1 / 8C-3A integration harness — **not part of the administration**, and
+ * temporary.
  *
  * WHY IT EXISTS
  *
@@ -21,10 +22,27 @@ import type { AnnouncementReplacement } from '@/lib/announcements/replacement'
  * 8C-3). So the form lives here, on an address nothing links to, behind a flag that is
  * off unless a test switched it on.
  *
- * **8C-3 deletes this directory.** The real caller is the conflict sheet, on the
+ * **8C-3B deletes this directory.** The real caller is the conflict sheet, on the
  * opening-hours screen, with a payload composed by 8C-2 — and once that exists there is
  * a production form dispatching to a production action, and nothing left for this to
  * prove.
+ *
+ * WHAT 8C-3A ADDED, AND WHY IT IS NOT A SECOND HARNESS
+ *
+ * 8C-3A's coordinator (`lib/announcements/generated-operation.ts`) has the same
+ * problem 8C-1's mechanism had, for the same reason: proving that its write reaches
+ * the **first** guest request means going through `updateTag()`, which is only
+ * callable from a Server Action, which is only reachable from a rendered form. The
+ * brief asks that no second harness be invented, so this one gains a third action
+ * rather than a sibling directory. It obeys the same three rules as the other two —
+ * the flag, `requireStaff()` first, and no field through which the browser could
+ * choose content.
+ *
+ * The generated action carries **an override id, two version tokens and one
+ * confirmation bit**, and no message: the wording is composed on the server by the
+ * 8C-2 generator, from the published override and the published weekly schedule. That
+ * an *edited* message may travel is 8C-3B's, and is asserted in the unit suite over
+ * `withEditedMessage()` rather than given a field here.
  *
  * WHAT KEEPS IT SAFE
  *
@@ -65,11 +83,16 @@ export function isHarnessVariant(value: unknown): value is HarnessVariant {
 /**
  * The messages, composed on the server.
  *
- * Deliberately **not** opening-hours wording: nothing in 8C-1 generates a message from a
+ * Deliberately **not** opening-hours wording: nothing here generates a message from a
  * date and a pair of times, and a fixture that looked like one would blur the boundary
- * this phase is asked to keep. `source` is `'opening_hours'` because that is the value
- * the mechanism must be *capable* of writing, and this is the only place in the
- * repository that passes it.
+ * this harness is asked to keep. The generated path has its own action below.
+ *
+ * `source` is `'manual'`, and 8C-3A is why it changed. A `'opening_hours'`
+ * announcement now names the override that owns it — `announcement_source_owner_check`
+ * refuses one that does not — so a fixture that claimed the value without an owner
+ * would be `invalid_payload` rather than a test of anything. The value is exercised by
+ * {@link harnessGenerate} instead, through the coordinator, from a real published
+ * override.
  */
 const MESSAGES: Record<HarnessVariant, string> = {
   b: 'Testbesked B fra erstatningsmekanismen',
@@ -85,14 +108,26 @@ export function harnessReplacement(variant: HarnessVariant): AnnouncementReplace
     link_url: null,
     link_label: null,
     expires_at: new Date(Date.now() + 2 * 60 * 60 * 1000).toISOString(),
-    source: 'opening_hours',
+    source: 'manual',
+    source_override_id: null,
   }
 }
 
-/** The field names the two forms submit. A version token, and a closed variant key. */
+/**
+ * The field names the forms submit.
+ *
+ * Version tokens, a closed variant key, an override id and a confirmation bit — every
+ * one of them either a `updated_at` the server handed out, a name from a closed set,
+ * or a row id RLS decides the caller may see. There is no field for a message, a link,
+ * an expiry, a source, an owner it did not read, `previous`, `replaced_at`, `draft`,
+ * an entity name or a table name.
+ */
 export const HARNESS_FORM = {
   version: 'version',
   variant: 'variant',
+  override: 'override',
+  overrideVersion: 'overrideVersion',
+  confirm: 'confirm',
 } as const
 
 export const HARNESS_PATH = '/admin/intern/besked-erstatning'

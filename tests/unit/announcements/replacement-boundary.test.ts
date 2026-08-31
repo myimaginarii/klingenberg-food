@@ -123,13 +123,27 @@ describe('the opening-hours screen has no announcement control yet', () => {
     expect(files.length).toBeGreaterThan(0)
   })
 
+  /*
+   * 8C-3A narrowed this list by exactly one row and widened it by one.
+   *
+   * `announcement_created` is **gone from the schema**, not merely unwritten: 8C-3A
+   * replaced it with `announcement.source_override_id`, the single representation of
+   * ownership. So the assertion moves from "this screen does not write the column" to
+   * the stronger "the column exists nowhere in the repository at all", which is
+   * asserted in `tests/unit/hours/override-source.test.ts`.
+   *
+   * `source_override_id` takes its place here: the opening-hours screen may not name
+   * the ownership pointer either, because the screen that will — 1t's checkbox and
+   * 1ae's sheet — is **8C-3B**.
+   */
   it.each([
     ['the announcement table', "from('announcement')"],
     ['the replacement domain module', '@/lib/announcements/replacement'],
+    ['the generated-announcement coordinator', '@/lib/announcements/generated-operation'],
     ['the announcement lifecycle', '@/lib/announcements/lifecycle'],
-    ['the announcement_created column', 'announcement_created'],
+    ['the ownership pointer', 'source_override_id'],
     ['1ae’s wording', 'Vis også som besked'],
-  ])('does not reach for %s — that is 8C-2 and 8C-3', (_what, needle) => {
+  ])('does not reach for %s — that is 8C-3B', (_what, needle) => {
     for (const file of files) {
       expect(file.code, `${file.path} mentions ${needle}`).not.toContain(needle)
     }
@@ -200,13 +214,20 @@ describe('the integration harness is gated, guarded and unlinked', () => {
   })
 
   it('expires the cache only after a result that reached the row', () => {
+    // Three actions now (8C-3A added the generated one), and the third is the one that
+    // matters most: a `conflict` is §7e item 8's first attempt, which writes nothing,
+    // so it must reach no `expirePublicCacheTags` either. Each expiry is asserted to
+    // stand *after* its own action's early return.
     const replaced = actions.indexOf("result.status !== 'replaced'")
     const restored = actions.indexOf("result.status !== 'restored'")
+    const applied = actions.indexOf("result.status !== 'applied'")
     const expiries = [...actions.matchAll(/expirePublicCacheTags\(/g)].map((m) => m.index ?? -1)
 
-    expect(expiries).toHaveLength(2)
+    expect(expiries).toHaveLength(3)
     expect(expiries[0]).toBeGreaterThan(replaced)
     expect(expiries[1]).toBeGreaterThan(restored)
+    expect(expiries[2]).toBeGreaterThan(applied)
+    expect(applied).toBeGreaterThan(-1)
   })
 
   it('is linked from nowhere — not the dashboard, not the navigation, not a screen', () => {
@@ -218,16 +239,27 @@ describe('the integration harness is gated, guarded and unlinked', () => {
     }
   })
 
-  it('lets the browser choose a closed variant key and nothing else', () => {
+  it('lets the browser choose a closed variant key, ids and tokens, and nothing else', () => {
     expect(HARNESS_VARIANTS).toEqual(['b', 'd'])
 
     expect(isHarnessVariant('b')).toBe(true)
     expect(isHarnessVariant('erstat-alt')).toBe(false)
     expect(isHarnessVariant(null)).toBe(false)
 
-    // The two hidden fields the forms carry, and no third.
+    // The hidden fields the forms carry, and no others. `override` and
+    // `overrideVersion` were added by 8C-3A and are a row id RLS decides the caller may
+    // see plus the `updated_at` the server handed out with it; `confirm` is 1ae's one
+    // bit. None of them is content: there is still no field for a message, a link, an
+    // expiry, a source, an owner the server did not read, `previous`, `replaced_at`,
+    // `draft`, an entity name or a table name.
     const fields = [...page.matchAll(/name=\{HARNESS_FORM\.(\w+)\}/g)].map((m) => m[1])
-    expect([...new Set(fields)].sort()).toEqual(['variant', 'version'])
+    expect([...new Set(fields)].sort()).toEqual([
+      'confirm',
+      'override',
+      'overrideVersion',
+      'variant',
+      'version',
+    ])
   })
 
   it('composes its payload on the server, and the payload is a valid replacement', () => {
@@ -235,7 +267,12 @@ describe('the integration harness is gated, guarded and unlinked', () => {
       const payload = harnessReplacement(variant)
 
       expect(parseAnnouncementReplacement(payload)).not.toBeNull()
-      expect(payload.source).toBe('opening_hours')
+      // `'manual'`, and 8C-3A is why it changed: a generated announcement now names the
+      // override that owns it, so a fixture claiming the value without one would be
+      // `invalid_payload` rather than a test of anything. The generated path is
+      // exercised through the coordinator instead, from a real published override.
+      expect(payload.source).toBe('manual')
+      expect(payload.source_override_id).toBeNull()
       expect(Date.parse(payload.expires_at)).toBeGreaterThan(Date.now())
     }
   })

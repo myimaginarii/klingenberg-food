@@ -579,8 +579,8 @@ select is(
   (select count(*) from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.proname like '%announcement%'),
-  9::bigint,
-  'the announcement has exactly nine functions: two content readers, its publish, its visibility write, the snapshot pair, replace/restore (phase 8C-1), and the write guard that decides which of them may move which column (the 8C-1 hardening pass)');
+  11::bigint,
+  'the announcement has exactly eleven functions: two content readers, its publish, its visibility write, the snapshot pair, replace/restore (phase 8C-1), the write guard that decides which of them may move which column (the 8C-1 hardening pass), and the replacement-kind reader and generated-announcement coordinator (phase 8C-3A)');
 
 /*
  * SECURITY INVOKER, like every other write function here. A definer-rights function
