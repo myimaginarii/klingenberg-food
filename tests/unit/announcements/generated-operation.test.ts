@@ -520,6 +520,8 @@ describe('the coordinator expires nothing and renders nothing', () => {
         '@/lib/publishing/entities',
         '@/lib/supabase/server',
         './generated',
+        // Pure: the 90-character constant, so the refusal sentence cannot drift from it.
+        './lifecycle',
         './ownership',
         './snapshot',
         'zod',

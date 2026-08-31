@@ -10,6 +10,7 @@ import {
   PUBLIC_ROUTES,
   SECONDARY_TEL_HREF,
 } from './support/site'
+import { waitForPublicShell } from './support/public-shell'
 
 /**
  * The public site, in a real browser — technical plan §9.
@@ -147,6 +148,9 @@ test.describe('ordering is by telephone', () => {
 test.describe('opening hours come from the phase 2 engine', () => {
   test('Find os prints exactly the rows the formatter produces', async ({ page }) => {
     await page.goto('/find-os')
+    // The `count()` below answers immediately — the streamed shell has to be in the
+    // document first, or the disclosure reads as absent on a page that carries it.
+    await waitForPublicShell(page)
 
     const expected = formatDailyHours(CONFIRMED_SCHEDULE)
 

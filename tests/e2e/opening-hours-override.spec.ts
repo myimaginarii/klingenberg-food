@@ -1,7 +1,8 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 
-import { addDays } from '@/lib/time/calendar'
+import { formatWeekdayName } from '@/lib/hours/format'
+import { addDays, weekdayOf } from '@/lib/time/calendar'
 
 import { OWNER, signIn, STAFF } from './support/admin'
 import { ensureAvailability, isSoldOut, openSection } from './support/menu-admin'
@@ -641,10 +642,23 @@ test.describe('the sold-out reset', () => {
       await expect(overrideStateBadge(staffPage)).toHaveText('På hjemmesiden')
     }
 
+    /*
+     * The engine's answer as the sentence would word it — the weekday **and** the time,
+     * because the time alone cannot tell one week from the next: on a Tuesday, closing
+     * every open day up to the next normally-closed one moves the reset exactly one week,
+     * to the same weekday at the same time, and a time-only comparison sails past it.
+     */
+    const expectedSentence = (published: Parameters<typeof expectedResetOpening>[1]) => {
+      const opening = expectedResetOpening(TODAY, published)
+
+      return {
+        weekday: formatWeekdayName(weekdayOf(opening.date), 'long'),
+        time: opening.time,
+      }
+    }
+
     // The seeded week's own answer, before any override exists.
-    expect(await resetTime()).toMatchObject({
-      time: expectedResetOpening(TODAY, []).time,
-    })
+    expect(await resetTime()).toMatchObject(expectedSentence([]))
 
     /*
      * Direction one — a normally **open** day, closed.
@@ -666,7 +680,6 @@ test.describe('the sold-out reset', () => {
       daysBeforeIt.length > 0 ? daysBeforeIt : [expectedResetOpening(TODAY, []).date]
 
     const overrides = []
-    const beforeAnyClosure = await resetTime()
 
     for (const date of openDays) {
       // A draft first, to prove it moves nothing.
@@ -677,7 +690,7 @@ test.describe('the sold-out reset', () => {
       expect(
         await resetTime(),
         'a pending override does not move the sold-out reset',
-      ).toMatchObject({ time: expectedResetOpening(TODAY, overrides).time })
+      ).toMatchObject(expectedSentence(overrides))
 
       await openOverrideCard(staffPage, date)
       await publishFromBand(staffPage)
@@ -687,13 +700,21 @@ test.describe('the sold-out reset', () => {
       expect(
         await resetTime(),
         'a published closure is skipped by the reset',
-      ).toMatchObject({ time: expectedResetOpening(TODAY, overrides).time })
+      ).toMatchObject(expectedSentence(overrides))
     }
 
+    /*
+     * The movement itself is a claim about **dates**, asked of the engine, because the
+     * rendered sentence carries no date: on a Tuesday the closures push the reset exactly
+     * one week, to the same weekday and time, and `beforeAnyClosure` would wrongly read
+     * as "nothing moved". The screen's agreement with the engine at every step is what
+     * the loop above just asserted; this line only guards against the trivial pass in
+     * which neither of them moved at all.
+     */
     expect(
-      await resetTime(),
+      expectedResetOpening(TODAY, overrides).date,
       'closing the day the dish would have come back on actually moved the answer',
-    ).not.toEqual(beforeAnyClosure)
+    ).not.toBe(expectedResetOpening(TODAY, []).date)
 
     /*
      * Direction two — a normally **closed** day, opened.
@@ -706,7 +727,7 @@ test.describe('the sold-out reset', () => {
     expect(
       await resetTime(),
       'a normally closed day is skipped while it has no override',
-    ).toMatchObject({ time: expectedResetOpening(TODAY, overrides).time })
+    ).toMatchObject(expectedSentence(overrides))
 
     await publish(closedDay, 'custom', '07:15', '08:15')
     overrides.push(customOverride(closedDay, '07:15', '08:15'))
@@ -722,7 +743,7 @@ test.describe('the sold-out reset', () => {
     // Back to the seed: every override removed, and Thor available.
     await removeAllOverrides(staffPage)
 
-    expect(await resetTime()).toMatchObject({ time: expectedResetOpening(TODAY, []).time })
+    expect(await resetTime()).toMatchObject(expectedSentence([]))
 
     await ensureAvailability(staffPage, BURGERS, THOR, false)
     expect(await isSoldOut(staffPage, THOR)).toBe(false)

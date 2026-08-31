@@ -269,8 +269,10 @@ export async function replaceAnnouncement(
   // is one edit rather than several.
   if (!mayChangeEntity('announcement', profile)) return replaceRefusal('forbidden')
 
-  // Parsed here as well as in SQL. A caller that composed the payload in server code
-  // is still a caller, and 8C-2 will be one.
+  // Parsed here as well as in SQL. The shipped generated-announcement path calls
+  // `apply_generated_announcement()` directly (`./generated-operation.ts`), which reuses
+  // `replace_announcement()` inside the database — so this wrapper has no production
+  // caller and stands as the tested TypeScript statement of that RPC's contract.
   const replacement = parseAnnouncementReplacement(request.replacement)
   if (replacement === null) return replaceRefusal('invalid_payload', 'shape')
 

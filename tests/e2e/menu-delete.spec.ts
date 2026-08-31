@@ -16,6 +16,7 @@ import {
   saveDish,
   undoStrip,
 } from './support/menu-admin'
+import { waitForPublicShell } from './support/public-shell'
 
 /**
  * Slet ret — technical plan §6, §7e item 4; design 1r / 1y / 1aa.
@@ -55,6 +56,9 @@ async function visit(browser: Browser, path: string) {
   const context = await browser.newContext()
   const page = await context.newPage()
   await page.goto(path)
+  // `isPublic` below asks `count()`, which answers immediately — the streamed shell has
+  // to be in the document first, or a dish that is on the page reads as missing.
+  await waitForPublicShell(page)
 
   return { context, page }
 }

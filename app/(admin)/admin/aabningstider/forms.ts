@@ -20,9 +20,10 @@ import { WEEKDAY_KEYS, type WeekdayKey } from '@/lib/time/calendar'
  * There is no field for an entity name, a table name or a row id: `opening_hours` is a
  * singleton and the server locates it through the publishing registry
  * (`lib/publishing/locate.ts`), so the browser never names what it is writing. There is no
- * field for a **date**, a "kun denne dag", an exception or an override — one-off dates are
- * phase 8B and this form cannot express one. There is no field for a message, a link or an
- * expiry: generated opening-hours announcements are a later phase-8 increment, and nothing
+ * field for a **date**, a "kun denne dag", an exception or an override — one-off dates
+ * belong to the lower card (`./override-forms.ts`, phase 8B) and this form cannot express
+ * one. There is no field for a message, a link or an expiry: the generated opening-hours
+ * announcement rides on the one-off card's own publish (phase 8C-3B), and nothing
  * submitted here can reach `public.announcement`. And there is no field for a weekday key:
  * the seven names are built from `WEEKDAY_KEYS` on both sides, so a submission carrying
  * `aaben-xyz` is a submission nothing reads.

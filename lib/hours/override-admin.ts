@@ -54,14 +54,15 @@ import {
  * override leaves the announcement row byte-identical —
  * `supabase/tests/014_opening_hours_overrides.test.sql` asserts it from real JWTs.
  *
- * **One announcement-shaped word survives, and it is a refusal rather than a reach.**
+ * **One announcement-shaped decision passes through here, and it is carried, not made.**
  * Since 8C-3A a published override can *own* the generated announcement on the
  * hjemmeside (`announcement.source_override_id`), and `remove_opening_hours_override()`
- * refuses to delete one that does. {@link RemoveOverrideStatus} carries that refusal —
- * `owns_announcement` — because a status this module received has to be a status it can
- * name. What to *offer* instead is §7e item 6's *"ask, and default to removing the
- * announcement too"*, and that is **8C-3B**: nothing here removes an announcement,
- * reads one, or decides anything about one.
+ * refuses to delete one that does until the caller confirms §7e item 6's *"remove the
+ * announcement too"*. {@link RemoveOverrideStatus} carries that refusal —
+ * `owns_announcement` — and `removeAnnouncement` carries the confirmed answer through to
+ * the database, where the two halves move in one transaction (8C-3B). The *decision* is
+ * worded by `describeOverrideRemoval()` and made by the person; nothing here reads a
+ * message or decides anything about one.
  */
 
 // ---------------------------------------------------------------------------

@@ -51,9 +51,10 @@ import { openingHoursHref } from './routes'
  * code path to keep in step. That is a property of phase 2's design, not something this
  * action arranges, and it is why nothing here mentions a dish.
  *
- * **No announcement is written, in any branch.** A generated opening-hours message,
- * `source='opening_hours'`, the `previous` stash and 1ae's conflict sheet are later phase-8
- * increments; nothing in this file names `public.announcement` or its cache tag.
+ * **No announcement is written, in any branch.** The generated opening-hours message
+ * belongs to the one-off card's own publish (`./override-publish-actions.ts`, phase
+ * 8C-3B); publishing the recurring week never composes one, and nothing in this file
+ * names `public.announcement` or its cache tag.
  */
 export async function publishOpeningHours(): Promise<void> {
   const profile = await requireOwner()

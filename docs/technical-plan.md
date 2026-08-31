@@ -1643,8 +1643,113 @@ message with it.
 | A **database draft** for previewing the proposed announcement | §8 of the brief forbids it. The suggestion is already visible and editable in the card, and the preview contract that matters — pending hours visible in Draft Mode, guests unchanged — is phase 8B's and is untouched. |
 | A generic workflow engine, a modal library, a form-state library | See `docs/dependencies.md`. |
 
-**Phase 8C-3B is complete and green. Phase 8 is not locked** — a dedicated completion/lock
-pass is the next step.
+**Phase 8C-3B is complete and green.** The completion/lock pass it called for was run on
+2026-08-31 and is recorded in §0p, which closed the phase.
+
+---
+
+## §0p. Phase 8 — complete and locked (2026-08-31)
+
+Phase 8 (Opening hours administration, §15) was built in seven increments — **8A** the
+recurring week (§0i), **8B** one-off overrides (§0j), **8C-1** the replacement/restore
+mechanism (§0k) and its lifecycle-column hardening (§0l), **8C-2** the pure generator
+(§0m), **8C-3A** ownership and coordination (§0n), and **8C-3B** the workflow (§0o) — and
+closed by a completion pass on 2026-08-31. The seven records above stay exactly as
+written: each is the account of what its increment decided and why, and several contain
+statements that were true when written and were later superseded — every such statement
+is already marked in place. **This section is the statement of the CURRENT truth**, so a
+later reader does not have to replay seven increments to know what stands.
+
+### What "phase 8" is, in force today
+
+| Rule | Where it is enforced |
+|---|---|
+| **The recurring weekly schedule is Owner-only.** The weekly card renders only for an owner; a staff member sees a statement in its place. Absence is not the enforcement: `requireOwner()` first in both weekly Server Actions, `mayChangeEntity` inside the machinery, and `opening_hours_update_owner` — still the table's only UPDATE policy — refuse a staff write three times over, asserted from a real Staff JWT. | `app/(admin)/admin/aabningstider/{save,publish}-actions.ts`, `supabase/tests/013` |
+| **One-off overrides are Staff and Owner**, per §5, drawn per card on one screen. | `page.tsx`, `overrides_{insert,update,delete}_staff`, `supabase/tests/014` |
+| **An override is pending through `status='draft'` when it has never been live, and through its `draft` column when it has** — §0j's four-state model, unchanged. An edit taken back to the published values clears the draft. | `lib/hours/override-admin.ts`, `20260831120000` |
+| **The generated announcement is an option on the one-off card's own publish** — 1t's checkbox, ticked by default, with the editable suggestion beneath it. The suggestion follows the date and times until the person edits the text; the dirty flag is browser state and no server decision consults it. A publish from the pending band, or with the box cleared, publishes the hours and touches no announcement. | `GeneratedAnnouncementField`, `lib/announcements/generated-suggestion.ts` |
+| **The expiry is the LATER of the normal closing and the special one** (§0m's corrected rule): a normally-closed day opened specially expires at the special close; a closed day expires at the normal close; a change that changes nothing is `no_effect` and produces no message. Nothing is ever moved forward to make a suggestion publishable. | `lib/announcements/generated.ts` |
+| **The browser may say the wording and nothing else.** Five values travel: the tick, the message, the announcement's version token, the override's id and version token, and 1ae's one confirmation bit. The expiry, the link, `source` and `source_override_id` are re-derived on the server from the published rows on every call — the confirmed second one included. | `override-forms.ts`, `apply_generated_announcement()`, `supabase/tests/017` |
+| **The hours are published first and always.** The override is published and its cache tag expired before the announcement is attempted, and the coordinator issues no statement against either hours table in any branch — so no conflict, Behold, refusal or failure can roll the hours back. Structural, and asserted at source level as well as end to end. | `override-publish-actions.ts`, `lib/announcements/generated-operation.ts`, `tests/unit/announcements/generated-operation.test.ts` |
+| **Only an ACTIVE announcement is a conflict.** Hidden, expired and empty are replaced without a question; 1ae is shown for the one case a guest could read. `Esc` resolves nothing, the backdrop is inert, and focus starts on the choice that changes nothing. | `announcement_replacement_kind()`, `AnnouncementConflictSheet` |
+| **"Behold eksisterende besked" is a link and writes nothing** — the hours stay published, the current message stays byte-identical, the checkbox comes back cleared, and the screen says 1ae's own sentence. | `announcement-actions.ts` (it appears in no action file) |
+| **Replacement stashes exactly one level in `previous`** (nine keys, ownership included) **and the ~10 s Fortryd restores it atomically** — content, visibility, source and owning override in one UPDATE, with nothing extended to make an expired message look current. | `replace_announcement()`, `restore_announcement()`, `supabase/tests/015`–`017` |
+| **Ownership is `announcement.source_override_id` and nothing else** — one pointer, paired with `source` in both directions by a CHECK, moved only inside lifecycle statements, never derived from the message's wording. **`announcement_created` is dropped and stays dropped.** | `20260831180000`, `lib/announcements/ownership.ts` |
+| **Direct writes cannot forge the lifecycle.** A Staff or Owner session's direct UPDATE owns `draft` and nothing else on `public.announcement`; the published columns, visibility, source, ownership, `previous` and `replaced_at` move only under the named transitions (`publish`, `visibility`, `replace`, `restore`, `detach`, `discard_previous`), each marker single-use. A direct DELETE on `opening_hours_overrides` is refused by the BEFORE DELETE guard; `remove_opening_hours_override()` is the one door. **No SECURITY DEFINER anywhere.** | `20260831160000`, `20260831200000`, `supabase/tests/016`, `018` |
+| **Removal is one decision table.** A pending-only override deletes silently; a live override with a pending edit loses only the edit; a live override asks first; one that owns the generated announcement asks about both and takes both away in one transaction; one named only by an obsolete `previous` snapshot is deleted and the stash discarded, with the current message untouched. Displaced announcements are never resurrected by a removal — the ~10 s Fortryd after a replacement is the only restoration mechanism. | `describeOverrideRemoval()`, `remove_opening_hours_override()` |
+| **The first guest request after a committed write reflects it.** Cache tags are expired only after a commit, only for what actually changed, and `expireTime` keeps every public page inside the five-minute contract. | `tests/e2e/public-cache.spec.ts`, `tests/e2e/opening-hours-announcement.spec.ts` |
+| **The 8C-1 harness is gone.** `app/(admin)/admin/intern/` does not exist, no flag references it, and the boundary suite asserts the absence. | `tests/unit/announcements/generated-boundary.test.ts` |
+
+### What the completion pass changed
+
+The product itself needed **no behavioural fix**: the Owner, Staff and guest walkthroughs
+against a production build, the frame-1t/1ae audit at 375/768/1440, and the keyboard and
+axe passes all came back clean. What moved:
+
+- **Three streamed-shell `count()` barriers in tests.** The React 19 race the announcement
+  suite was cured of (a `count()` asked right after `goto` answers 0 about a page that
+  carries the element) had three remaining exposed sites: `visit()` in
+  `tests/e2e/menu-delete.spec.ts` and the Find-os disclosure check in
+  `tests/e2e/public-site.spec.ts` now wait for the public shell; the suggestion-chip count
+  in `tests/a11y/announcement-admin.spec.ts` now waits for the first chip. The
+  `monthly-admin.ts` and `weekly-admin.ts` helpers named by the earlier report were
+  already swept. `hours-override.ts`'s three remaining `count()` calls run behind
+  `openOverrideCard`'s auto-waiting form assertion on the same streamed document, or on a
+  page already interacted with, and are not exposed.
+- **Five stale phase-pointer comments corrected** — files whose headers still described
+  8C as future (`override-forms.ts`, `forms.ts`, `publish-actions.ts`,
+  `WeeklyHoursEditor.tsx`, `lib/hours/override-admin.ts`) now describe what shipped.
+- **The `too_long` refusal sentence now interpolates `ANNOUNCEMENT_MESSAGE_MAX_LENGTH`**
+  instead of hard-coding "90" (`generated-operation.ts`), so the constant cannot drift
+  from the sentence about it.
+- **One dead helper removed** — `describeWeekday` in `lib/hours/weekly-form.ts`, exported
+  and referenced by nothing.
+- **One Tuesday-blind assertion in the override suite corrected.** The §7b wiring test in
+  `tests/e2e/opening-hours-override.spec.ts` proved "closing the reset day moved the
+  answer" by comparing the rendered sentence's weekday and time — and the sentence carries
+  no date, so on a Tuesday, where closing every open day up to the next normally-closed
+  one moves the reset exactly one week to the *same weekday at the same time*, the
+  movement was invisible and the test failed. The suite had simply never run on a Tuesday
+  before. The movement claim is now asked of the engine's **dates**, and the screen
+  comparisons carry the weekday word as well as the time, so the agreement the loop
+  asserts is no longer time-only. The product's behaviour was correct throughout — every
+  screen-versus-engine step in the same test passed on the day that exposed it.
+
+### Two states of the code, recorded rather than tidied
+
+- **`replaceAnnouncement()` in `lib/announcements/replacement.ts` has no production
+  caller.** The shipped path calls `apply_generated_announcement()`, which reuses
+  `replace_announcement()` inside the database. The TypeScript wrapper is kept: it is the
+  tested statement of that RPC's contract, its types are what hold the 8C-2 generator's
+  output to the replacement shape, and `restoreAnnouncement()` beside it is live (the
+  Fortryd). Its comment now says so. Deleting it would mean deleting the 8C-1 mapping
+  suite to remove a function that costs nothing and guards a contract.
+- **A manual publish over a generated announcement keeps the ownership.** Somebody who
+  edits the live generated message at `/admin/besked` and publishes changes the wording;
+  `source` and `source_override_id` stay, because `publish_announcement()`'s transition
+  may not move them and ownership moves only inside replace/restore/detach. That is the
+  model's own reading — the pointer, never the text, is the fact — and it is safe: the
+  consequence is that deleting the override still offers to take the (edited) message
+  down, behind the same confirmation. It is recorded here so it is a decision, not a
+  surprise.
+
+### The final regression
+
+From a clean tree, `npm ci`, `npm run db:reset:full` and a fresh production build:
+typecheck, lint and the source policy clean; **1892 unit tests in 59 files**; **1184
+pgTAP assertions in 18 files**, from real anonymous, Staff and Owner JWTs; **899
+Playwright tests collected in 23 files across 42 project-spec registrations — 892 passed
+and 7 deliberately skipped (width/device guards), zero failed and zero flaky**, run with
+`--retries=0` — the generated-announcement suite collected by exactly its two dedicated
+projects and no others; `npm audit --audit-level=high` clean. The walkthroughs and the
+regression together re-verified phases 5, 6 and 7 behind phase 8: dishes, sold-out,
+delete/restore, reorder and Tapas; the weekly special, Saturday menu and monthly burger;
+manual announcement editing, expiry, visibility and undo; the public-cache contract; zero
+public cookies; and no browser Supabase client.
+
+**Phase 8 is complete and locked.** What §15 lists from phase 9 onward is untouched: no
+news administration, no Om os/Forside editors beyond phase 4's, no image pipeline, and
+the menu-category content editor still has no phase (§0b).
 
 ---
 

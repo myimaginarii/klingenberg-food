@@ -26,9 +26,9 @@ import { WEEKDAY_KEYS, type WeekdayKey } from '@/lib/time/calendar'
  * is *data*, seeded in `supabase/seed.sql`, and this file contains none of those times.
  *
  * **1t's lower half is not here.** "ENKELT ÆNDRING", the date field, "Andre tider en enkelt
- * dag", the suggested message and "Vis også som besked øverst på hjemmesiden" are phase 8B
- * and a later phase-8 increment; this card cannot express a date, and the form it submits
- * has no field for one.
+ * dag", the suggested message and "Vis også som besked øverst på hjemmesiden" live in
+ * `OverrideEditor` and `GeneratedAnnouncementField` (phases 8B and 8C-3B); this card cannot
+ * express a date, and the form it submits has no field for one.
  *
  * WHY THE TIMES DISAPPEAR WHEN A DAY IS CLOSED, WITHOUT A LINE OF JAVASCRIPT
  *

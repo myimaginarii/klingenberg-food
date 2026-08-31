@@ -8,12 +8,13 @@ import {
 import { openingHoursHref } from './routes'
 
 /**
- * The one-off card's two vocabularies — design 1t (lower card); technical plan §8.
+ * The one-off card's vocabularies — design 1t (lower card), 1ae; technical plan §8.
  *
- * **Two, and they are disjoint on purpose.** This screen now carries two permission
- * domains and, inside the lower one, two operations that act on the same row by different
- * rules — an ordinary Gem that writes a pending change, and a removal that can take a live
- * override off the hjemmeside at once. Keeping their field names apart is what makes
+ * **Disjoint on purpose.** This screen carries two permission domains and, inside the
+ * lower one, several operations that act on the same rows by different rules — an
+ * ordinary Gem that writes a pending change, a removal that can take a live override off
+ * the hjemmeside at once, and (since 8C-3B) the optional generated announcement with
+ * 1ae's decision and its Fortryd. Keeping their field names apart is what makes
  * "a save can never remove anything, and a removal can never carry content" a property of
  * the parsers rather than a claim about the actions:
  *
@@ -24,16 +25,19 @@ import { openingHoursHref } from './routes'
  *     date, no kind, no times, so a removal cannot carry a content value at all. (The
  *     pending band's Offentliggør carries less still: one date, and the server resolves
  *     everything else from it.)
+ *   * {@link OVERRIDE_ANNOUNCEMENT_FORM}, {@link OVERRIDE_CONFLICT_FORM} and
+ *     {@link OVERRIDE_UNDO_FORM} — the generated announcement's three (8C-3B), documented
+ *     on each below. The **wording** is the one content value any of them may carry.
  *
- * WHAT NEITHER SHAPE HAS A FIELD FOR
+ * WHAT NO SHAPE HAS A FIELD FOR
  *
  * A table name, a column name, an entity name or a status: the entity is a literal in the
- * action and the row is located by an id RLS still has to allow. A **message**, a link or
- * an expiry: the generated opening-hours announcement is **phase 8C**, and nothing
- * submitted here can reach `public.announcement`. A weekday: this card is about one
- * calendar date and the recurring week is the other card's, whose twenty-one field names
- * (`aaben-*`, `fra-*`, `til-*`) are read by a different parser in a different file and are
- * Owner-only at three independent layers.
+ * action and the row is located by an id RLS still has to allow. An **expiry**, a link, a
+ * source or an owning override: the server re-derives all four from the published rows on
+ * every call, so no submission can move them (§7e item 8). A weekday: this card is about
+ * one calendar date and the recurring week is the other card's, whose twenty-one field
+ * names (`aaben-*`, `fra-*`, `til-*`) are read by a different parser in a different file
+ * and are Owner-only at three independent layers.
  *
  * `version` carries the `updated_at` the card was rendered from — the whole of optimistic
  * concurrency (§6). `version-dato` carries the date that version belongs to, because a

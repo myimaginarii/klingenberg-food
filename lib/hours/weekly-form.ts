@@ -415,7 +415,3 @@ export function describeWeeklyHoursPending(
  * the two dropdowns that appear there already say the day is open.
  */
 export const WEEKDAY_STATE_LABELS = { open: 'Åbent', closed: 'Lukket' } as const
-
-export function describeWeekday(row: WeekdayFormValues): string {
-  return row.open ? WEEKDAY_STATE_LABELS.open : WEEKDAY_STATE_LABELS.closed
-}

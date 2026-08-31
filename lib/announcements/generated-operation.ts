@@ -15,6 +15,7 @@ import {
   withEditedMessage,
   type GeneratedAnnouncement,
 } from './generated'
+import { ANNOUNCEMENT_MESSAGE_MAX_LENGTH } from './lifecycle'
 import {
   REPLACED_ANNOUNCEMENT_KINDS,
   announcementOwnershipOf,
@@ -456,7 +457,7 @@ export function describeGeneratedAnnouncementObstacle(
     case 'expired':
       return 'Tidspunktet er allerede passeret, så beskeden ville være udløbet med det samme.'
     case 'too_long':
-      return 'Beskeden må højst være 90 tegn.'
+      return `Beskeden må højst være ${ANNOUNCEMENT_MESSAGE_MAX_LENGTH} tegn.`
     case 'not_published':
       return 'Offentliggør den ændrede åbningstid først. Beskeden fortæller om noget, der endnu ikke står på hjemmesiden.'
     case 'stale_override':

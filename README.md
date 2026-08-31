@@ -7,7 +7,7 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–7 complete and locked; phases 8A, 8B, 8C-1, 8C-2 and 8C-3A complete and green.** The public site renders from the database;
+**Status: phases 0–8 complete and locked.** The public site renders from the database;
 the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
@@ -118,9 +118,10 @@ Four things are worth knowing about it:
     asks about the generated announcement it may own, cleans up an obsolete `previous`
     snapshot and audits both halves in one transaction. No SECURITY DEFINER was added.
 
-**Phase 8 is not locked.** A dedicated completion/lock pass is the next step. `/admin` itself
-is still the **foundation-level** dashboard from phase 4 plus the menu, announcement and
-opening-hours entries — the remaining section screens arrive in their own phases.
+**Phase 8 is complete and locked** — the completion pass of 2026-08-31 is recorded in
+technical plan §0p, which is the statement of what "phase 8" is in force today. `/admin`
+itself is still the **foundation-level** dashboard from phase 4 plus the menu, announcement
+and opening-hours entries — the remaining section screens arrive in their own phases.
 
 ## Requirements
 
@@ -350,24 +351,26 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 8C onward, plus: the weekly off-platform backup workflow
+Everything in §15 from phase 9 onward, plus: the weekly off-platform backup workflow
 (phase 13, §10f) and Sentry (phase 13). `docs/dependencies.md` records which package
 arrives in which phase. Phase 6 is **complete and locked** — 6A (Ugens ret and
 Lørdagsmenu, §0c), 6B (Månedens burger, §0d), and the completion pass over both halves
 (§0e). Phase 7 is **complete and locked** — 7A (§0f), 7B (§0g), and the completion pass
-over both halves (§0h). Phase 8 is **not locked**: 8A (§0i) and 8B (§0j) are complete and
-green, **8C-1** (§0k) and its hardening pass (§0l) are complete and green, **8C-2** (§0m)
-and **8C-3A** (§0n) are complete and green, and **8C-3B** is not started.
+over both halves (§0h). Phase 8 is **complete and locked** — 8A (§0i), 8B (§0j), 8C-1
+(§0k) and its hardening pass (§0l), 8C-2 (§0m), 8C-3A (§0n), 8C-3B (§0o), and the
+completion pass over all seven (§0p).
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published
 message and never content — nothing in phase 7, 8A or 8B reads or writes `previous` or
 `replaced_at`. §0k lists what **8C-1** does not do: it replaces and restores, and it does
 **not** compose a message from a one-off opening-hours change. §0m lists what **8C-2** does
-not do: it composes the message and has no caller. §0n lists what **8C-3A** does not do: it
-settles ownership and coordinates the operation, and it draws nothing — 1t's "Vis også som
-besked øverst på hjemmesiden", 1ae's conflict sheet, the Fortryd strip, §7e item 6's removal
-consequence and the deletion of the harness are all **8C-3B**. None of the four adds a
+not do: it composes the message, and its one caller is the 8C-3A coordinator. §0n lists
+what **8C-3A** does not do: it settles ownership and coordinates the operation, and it
+draws nothing — 1t's "Vis også som besked øverst på hjemmesiden", 1ae's conflict sheet, the
+Fortryd strip, §7e item 6's removal consequence and the deletion of the harness were all
+built by **8C-3B** (§0o), and §0p is the statement of the whole in force today. None of the
+increments adds a
 replacement control to `/admin/besked`. There is no archive and no history at all, by design, and a guest cannot
 dismiss the bar — so nothing per-visitor is stored and the public site still sets **no
 cookies**.

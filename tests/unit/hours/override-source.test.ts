@@ -156,6 +156,28 @@ describe('the phase-8C boundary, in the code rather than in a promise', () => {
     }
   })
 
+  it('the hours are published and the cache told before the message is attempted', () => {
+    // §7e item 8's ordering, pinned at source level rather than observed end to end: in
+    // `publishOverrideOn` the publish comes first, the `hours` tag is expired from its
+    // result, and only then does `announceOverride` reach the coordinator — which the
+    // suite above already holds to issuing no statement against the hours. A publish that
+    // did not happen returns before the announcement is attempted at all.
+    const source = code(read('app/(admin)/admin/aabningstider/override-publish-actions.ts'))
+
+    const publish = source.indexOf('publishPendingChange(')
+    const expire = source.indexOf('expirePublicCacheTags(result.cacheTags)')
+    const announce = source.indexOf('applyGeneratedAnnouncement(')
+
+    expect(publish, 'the override is published').toBeGreaterThan(-1)
+    expect(expire, 'its cache tag is expired after the publish').toBeGreaterThan(publish)
+    expect(announce, 'the message is attempted only after both').toBeGreaterThan(expire)
+
+    expect(
+      source,
+      'a refused publish, or no request, ends before the announcement is attempted',
+    ).toContain("result.status !== 'published' || announcement === null")
+  })
+
   it('the removal wrapper still writes no announcement of its own', () => {
     // It carries §7e item 6's confirmation bit to `remove_opening_hours_override()`, and
     // the transition itself is the database's — one transaction, so the two halves cannot

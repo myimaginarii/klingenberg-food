@@ -148,6 +148,9 @@ test('the suggestion chips are 44 px targets and a real radio group', async () =
   await page.goto(ANNOUNCEMENT_PATH)
 
   const chips = page.getByRole('radio')
+  // `count()` answers immediately, and the streamed document is not necessarily in
+  // place when `goto` resolves — wait for one chip, then count them all.
+  await expect(chips.first()).toBeVisible()
   const count = await chips.count()
 
   // "Vælg selv" plus at least one suggestion. The closing chip is absent only when the
