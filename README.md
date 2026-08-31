@@ -69,12 +69,10 @@ transaction each, one audit row each, and **exactly one level** of undo. Those t
 have an active purpose for the first time since phase 1. `source='opening_hours'` is now a
 value a **server-side** caller may pass, from a closed vocabulary.
 
-**It adds no control anywhere in the administration.** `/admin/besked` is phase 7's editor,
-unchanged — no "Erstat", no source selector, no conflict sheet — and the opening-hours
-screen is phase 8B's, unchanged. The one address outside those is an unlinked,
-environment-gated integration harness (`/admin/intern/besked-erstatning`) that exists only
-because `updateTag()` can be called from a Server Action and nowhere else; **8C-3B deletes
-it**.
+**It added no control anywhere in the administration**, and drove its own integration proof
+through an unlinked, environment-gated harness, because `updateTag()` can be called from a
+Server Action and nowhere else. **Phase 8C-3B deleted that harness**: the real controls
+exist now, and the same scenarios run through them.
 
 **Phase 8C-2** is finished, and it is one pure function: `generateOpeningHoursAnnouncement()`
 turns a one-off opening-hours change into 1t's suggested message, its link and its expiry —
@@ -94,14 +92,35 @@ delegates the write to `replace_announcement()` so the content, the snapshot and
 ownership move in one transaction. It writes nothing about the opening hours in any branch,
 so no refusal here can roll a published override back.
 
-**Phase 8C-3B is not started**: 1t's "Vis også som besked øverst på hjemmesiden" checkbox and
-its editable suggestion, 1ae's conflict sheet with "Erstat med den nye besked" and "Behold
-eksisterende besked", the ten-second Fortryd strip, §7e item 6's removal consequence, and the
-deletion of the harness. Nothing in 8A or 8B names `public.announcement`, no screen composes a
-generated message, and no screen imports the generator.
-`/admin` itself is still the **foundation-level** dashboard from phase 4 plus the menu,
-announcement and opening-hours entries — the remaining section screens arrive in their own
-phases.
+**Phase 8C-3B** is finished, and it is the workflow: 1t's *"Vis også som besked øverst på
+hjemmesiden"* with its editable suggestion, **1ae's conflict sheet** with both branches, the
+~10 s Fortryd, §7e item 6's removal consequence, and the deletion of the 8C-1 harness.
+
+Four things are worth knowing about it:
+
+  * **The hours are published first and always.** The Server Action publishes the override
+    and expires its cache tag *before* the optional message is attempted, and the coordinator
+    issues no statement against the hours tables in any branch. "Behold eksisterende besked",
+    a stale token, a refused wording and an outright failure therefore all leave the new
+    opening times exactly where they are — the separation is structural, not careful.
+  * **The browser may edit the message and nothing else.** The expiry, the link, the source
+    and the owning override are re-derived on the server from the published rows, on the
+    first attempt and again on the confirmed one. The one thing a person controls is the
+    wording, and `withEditedMessage()` is the whole of that permission.
+  * **The suggestion follows the fields until somebody edits it**, which is the one place
+    this administration spends JavaScript. Server and browser run the *same* pure module
+    (`lib/announcements/generated-suggestion.ts`), so they cannot drift; the dirty flag is UI
+    state and no decision consults it.
+  * **A one-off change can now only be deleted through one door.** `authenticated` keeps its
+    DELETE privilege — a SECURITY INVOKER function spends the caller's, so revoking it would
+    take the trusted removal away too — and a BEFORE DELETE guard trigger makes that
+    privilege spendable only by `remove_opening_hours_override()`, which checks the version,
+    asks about the generated announcement it may own, cleans up an obsolete `previous`
+    snapshot and audits both halves in one transaction. No SECURITY DEFINER was added.
+
+**Phase 8 is not locked.** A dedicated completion/lock pass is the next step. `/admin` itself
+is still the **foundation-level** dashboard from phase 4 plus the menu, announcement and
+opening-hours entries — the remaining section screens arrive in their own phases.
 
 ## Requirements
 
@@ -214,15 +233,11 @@ app/
                           forsiden" and the §7d computed state
     besked/           Besked på hjemmesiden (phase 7) — the message, its optional
                       link, its required future expiry and 1ad's suggestion chips
-    aabningstider/    Åbningstider (phases 8A + 8B) — the Owner-only weekly schedule,
-                      and the Staff-and-Owner one-off change for a single date.
-                      Seven weekday rows, one form, one vocabulary. No date field:
-                      one-off overrides are 8B and cannot be expressed here.
-    intern/           NOT part of the administration. One environment-gated, unlinked
-                      address (`besked-erstatning`) that exists only so the phase-8C-1
-                      replacement mechanism and the phase-8C-3A coordinator can be driven
-                      through a real Server Action and prove the cache path. It chooses no
-                      content: ids, version tokens and one confirmation bit. 8C-3B deletes it.
+    aabningstider/    Åbningstider (phases 8A + 8B + 8C-3B) — the Owner-only weekly
+                      schedule, the Staff-and-Owner one-off change for a single date, and
+                      1t's optional generated announcement with 1ae's conflict sheet.
+                      The hours are published first and always; the message is attempted
+                      afterwards and can never roll them back.
     indhold/ login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
   api/preview/        start and stop Draft Mode — staff session required
 proxy.ts              session refresh + unauthenticated redirect. Authorizes nothing.

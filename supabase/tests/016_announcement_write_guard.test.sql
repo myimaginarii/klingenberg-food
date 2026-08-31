@@ -498,7 +498,7 @@ select throws_ok(
               'source_override_id', pg_temp.owner_override()),
             replaced_at = now() $$,
   '42501',
-  'announcement: previous and replaced_at are written only by replace_announcement() or restore_announcement()',
+  'announcement: previous and replaced_at are written only by replace_announcement(), restore_announcement() or remove_opening_hours_override()',
   'a staff member cannot manufacture a previous snapshot');
 
 -- Step 2 has nothing to work with. Asserted anyway, because "the second step fails

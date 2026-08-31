@@ -2,6 +2,25 @@ import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
 
 import { OWNER, signIn, STAFF } from '../e2e/support/admin'
+import { todayInCopenhagen } from '../e2e/support/hours-override'
+import { addDays, weekdayOf } from '@/lib/time/calendar'
+
+/**
+ * The next date the recurring week is open on, so an override on it is a real change and
+ * 1t's option is offered at all. Computed from the confirmed week rather than written
+ * down: Monday and Tuesday are closed, and a hard-coded "three days from now" would scan
+ * an empty card whenever today happened to be a Saturday.
+ */
+function firstNormallyOpenDay(from: string): string {
+  const closed = new Set(['mon', 'tue'])
+
+  for (let offset = 0; offset < 14; offset += 1) {
+    const date = addDays(from, offset)
+    if (!closed.has(weekdayOf(date))) return date
+  }
+
+  throw new Error('the seeded week has no open day')
+}
 
 /**
  * Accessibility of Åbningstider — technical plan §9, design 1aa, 1t.
@@ -511,5 +530,129 @@ test.describe('a staff member’s view of the same screen', () => {
     )
 
     expect(overflow).toBe(false)
+  })
+})
+
+/**
+ * 1t's generated-announcement option — phase 8C-3B.
+ *
+ * Scanned the same read-only way as everything else in this file. Both states below are
+ * reachable from the address alone: a refused save comes back with its codes *and* the
+ * values it was refused for (`./override-forms.ts`), and an announcement refusal comes
+ * back with the wording as well (`./announcement-routes.ts`). So nothing here writes, and
+ * the suites that do can run afterwards undisturbed.
+ *
+ * The states that genuinely need a write — 1ae's sheet, the green Fortryd strip and the
+ * removal confirmation that names both halves — are scanned inside
+ * `tests/e2e/opening-hours-announcement.spec.ts`, where they can be produced honestly.
+ *
+ * The date is computed, not written down. A suite that hard-coded one would scan the
+ * option this month and an empty card the next.
+ */
+test.describe('the generated-announcement option', () => {
+  /**
+   * The card, echoed back with valid values.
+   *
+   * A code has to be present for the echo to apply at all — the screen shows submitted
+   * values only beside a refusal — so `art_ugyldig` is used, which attaches its message to
+   * the radio group and leaves the date and the two times alone. The *suggestion* is
+   * recomputed from those values by the same pure module the browser runs, so it appears
+   * exactly as it would after a real edit.
+   */
+  function cardWith(extra: Record<string, string> = {}): string {
+    const parameters = new URLSearchParams({
+      'enkelt-fejl': 'art_ugyldig',
+      dato: firstNormallyOpenDay(addDays(todayInCopenhagen(), 3)),
+      art: 'custom',
+      fra: '17:00',
+      til: '19:00',
+      ...extra,
+    })
+
+    return `${HOURS_PATH}?${parameters.toString()}`
+  }
+
+  test('has no accessibility violations, and keeps its 44 px targets', async () => {
+    await page.goto(cardWith())
+
+    await expect(
+      page.getByRole('checkbox', { name: 'Vis også som besked øverst på hjemmesiden' }),
+    ).toBeChecked()
+
+    expect(await violations(page)).toEqual([])
+    expect(await smallTargets(page)).toEqual([])
+  })
+
+  test('the message field is labelled, and its helper is bound to it', async () => {
+    await page.goto(cardWith())
+
+    const field = overrideFormOn(page).getByLabel('Foreslået besked — ret den gerne')
+    await expect(field).toBeVisible()
+
+    const id = await field.getAttribute('id')
+    expect(id, 'the message field carries an id its label points at').not.toBeNull()
+    await expect(page.locator(`label[for="${id}"]`)).toHaveCount(1)
+
+    // 1t's helper and the character count are both bound to the field, so neither is a
+    // sentence a screen reader only meets by wandering into it.
+    const describedBy = (await field.getAttribute('aria-describedby')) ?? ''
+    const ids = describedBy.split(/\s+/).filter(Boolean)
+    expect(ids.length).toBe(2)
+
+    const texts = await Promise.all(ids.map((each) => page.locator(`#${each}`).innerText()))
+    expect(texts.join(' ')).toContain('Retter du tiderne, opdateres forslaget')
+  })
+
+  test('the option’s state is a tick and a word, not a colour', async () => {
+    await page.goto(cardWith())
+
+    // 1aa: status is never carried by colour alone. The checkbox has a real checked state,
+    // and the expiry it implies is written out beside it.
+    await expect(
+      page.getByRole('checkbox', { name: 'Vis også som besked øverst på hjemmesiden' }),
+    ).toBeChecked()
+
+    await expect(overrideFormOn(page).getByText(/Udløber automatisk/)).toBeVisible()
+  })
+
+  test('an over-long wording is marked invalid, explained, and still scannable', async () => {
+    await page.goto(cardWith({ forslag: 'x'.repeat(120), besked: 'too_long' }))
+
+    const field = overrideFormOn(page).getByLabel('Foreslået besked — ret den gerne')
+
+    await expect(field).toHaveAttribute('aria-invalid', 'true')
+    await expect(overrideFormOn(page).getByText(/højst være 90/)).toBeVisible()
+
+    // The screen's own report of the refusal, beside the field's.
+    await expect(page.getByRole('status').filter({ hasText: 'højst være 90 tegn' })).toBeVisible()
+
+    expect(await violations(page)).toEqual([])
+    expect(await smallTargets(page)).toEqual([])
+  })
+
+  test('does not scroll sideways at this width', async () => {
+    await page.goto(cardWith())
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+    )
+
+    expect(overflow).toBe(false)
+  })
+
+  test('and not at 768 either, where the card’s rows change shape', async () => {
+    const projectViewport = page.viewportSize()
+
+    await page.setViewportSize({ width: 768, height: 1024 })
+    await page.goto(cardWith())
+
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1,
+    )
+
+    expect(overflow).toBe(false)
+    expect(await smallTargets(page)).toEqual([])
+
+    if (projectViewport !== null) await page.setViewportSize(projectViewport)
   })
 })

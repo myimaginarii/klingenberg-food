@@ -1,7 +1,7 @@
 import { getOpenState } from '@/lib/hours/engine'
 import { formatWeekdayName } from '@/lib/hours/format'
 import type { OpeningHoursOverride, WeeklySchedule } from '@/lib/hours/types'
-import { addDays, isIsoDate, type IsoDate, type IsoTime } from '@/lib/time/calendar'
+import { addDays, isIsoDate, parseIsoDate, type IsoDate, type IsoTime } from '@/lib/time/calendar'
 import { copenhagenInstantOf, copenhagenWallClock } from '@/lib/time/copenhagen'
 
 import { parseExpiryInstant } from './expiry'
@@ -57,6 +57,35 @@ export type AnnouncementExpiryFields = {
  */
 export function announcementExpiryInstant(date: IsoDate, time: IsoTime): Date {
   return copenhagenInstantOf(date, time)
+}
+
+/**
+ * "14.09.2026 kl. 20:00" — 1ae's own rendering of an expiry, for a sheet or a helper.
+ *
+ * Copenhagen wall clock, like every other time this administration prints, and tabular
+ * numerals are the caller's business. Takes the stored ISO instant rather than a Date so
+ * a screen can hand it whatever the database answered; an unparseable value returns null
+ * rather than "Invalid Date kl. NaN:NaN".
+ */
+export function formatExpiryStamp(expiresAt: string | null | undefined): string | null {
+  const instant = parseExpiryInstant(expiresAt)
+  if (instant === null) return null
+
+  const { date, time } = copenhagenWallClock(instant)
+  const { year, month, day } = parseIsoDate(date)
+
+  return `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${year} kl. ${time}`
+}
+
+/** "søndag 14.09.2026 kl. 20:00" — 1t's helper, which names the day as well. */
+export function formatExpiryWeekdayStamp(expiresAt: string | null | undefined): string | null {
+  const instant = parseExpiryInstant(expiresAt)
+  if (instant === null) return null
+
+  const stamp = formatExpiryStamp(expiresAt)
+  if (stamp === null) return null
+
+  return `${formatWeekdayName(copenhagenWallClock(instant).weekday, 'long')} ${stamp}`
 }
 
 /** The same instant read back as the two fields, so the editor round-trips exactly. */

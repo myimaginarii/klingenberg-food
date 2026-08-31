@@ -7,6 +7,9 @@ import {
   HoursStateBadge,
   HoursStatusNotice,
 } from '@/components/admin/hours/HoursNotices'
+import { AnnouncementConflictSheet } from '@/components/admin/hours/AnnouncementConflictSheet'
+import { GeneratedAnnouncementField } from '@/components/admin/hours/GeneratedAnnouncementField'
+import { OverrideAnnouncementNotice } from '@/components/admin/hours/OverrideAnnouncementNotices'
 import { OverrideEditor } from '@/components/admin/hours/OverrideEditor'
 import {
   OverrideList,
@@ -18,8 +21,12 @@ import {
 } from '@/components/admin/hours/OverrideNotices'
 import { WeeklyHoursEditor } from '@/components/admin/hours/WeeklyHoursEditor'
 import { AdminSectionBar, BarLink, BarSubmit } from '@/components/admin/menu/AdminSectionBar'
+import { readGeneratedAnnouncementFor } from '@/lib/announcements/generated-operation'
+import { isOwnedByOverride } from '@/lib/announcements/ownership'
+import { suggestOverrideAnnouncement } from '@/lib/announcements/generated-suggestion'
 import { requireStaff } from '@/lib/auth/guards'
 import { isActiveOwner } from '@/lib/auth/session'
+import { readAdminAnnouncement } from '@/lib/content/announcement-admin'
 import { readAdminOpeningHours } from '@/lib/content/hours-admin'
 import { readAdminOverrides } from '@/lib/content/hours-overrides-admin'
 import {
@@ -51,18 +58,32 @@ import {
   readOpeningHoursForm,
   weekdayFieldNames,
 } from './forms'
+import {
+  replaceGeneratedAnnouncement,
+  undoGeneratedAnnouncement,
+} from './announcement-actions'
+import { ANNOUNCEMENT_OUTCOME, describeAnnouncementOutcome } from './announcement-routes'
 import { saveOverride } from './override-actions'
 import {
   decodeOverrideProblems,
+  OVERRIDE_ANNOUNCEMENT_FORM,
+  OVERRIDE_CONFLICT_FORM,
   OVERRIDE_ERROR_FIELD,
   OVERRIDE_FORM,
   OVERRIDE_ROW_FORM,
+  OVERRIDE_UNDO_FORM,
   readOverrideForm,
 } from './override-forms'
 import { publishPendingOverride, saveAndPublishOverride } from './override-publish-actions'
 import { removeOverrideAction } from './override-remove-actions'
 import { publishOpeningHours } from './publish-actions'
-import { EDITOR_ANCHOR, openingHoursHref, OPENING_HOURS_PARAM, OVERRIDE_ANCHOR } from './routes'
+import {
+  EDITOR_ANCHOR,
+  openingHoursHref,
+  OPENING_HOURS_PARAM,
+  OVERRIDE_ANCHOR,
+  OVERRIDE_PUBLISH_ANCHOR,
+} from './routes'
 import { saveOpeningHoursDraft } from './save-actions'
 
 /**
@@ -73,12 +94,20 @@ import { saveOpeningHoursDraft } from './save-actions'
  * ÆNDRING", with its date, its two kinds, its two times, Kladde → Forhåndsvis →
  * Offentliggør, and a way to take a change away again.
  *
- * **Not** the generated announcement. "Vis også som besked øverst på hjemmesiden", the
- * suggested message beneath it, `source='opening_hours'`, `previous`, `replaced_at`,
- * "Erstat med den nye besked" and conflict sheet **1ae** are **phase 8C**, and none of it
- * is reachable from here: no form on this screen has a field for a message, a link or an
- * expiry, and `public.announcement` is named by nothing in this folder. Phase 7 is locked
- * and is neither read nor written by a line of this phase.
+ * **And** the generated announcement — phase 8C-3B. 1t's "Vis også som besked øverst på
+ * hjemmesiden" with its editable suggestion, conflict sheet **1ae** with both its branches,
+ * and the ~10 s Fortryd that follows a replacement. Phase 7's own editor at `/admin/besked`
+ * is untouched and is neither read nor written from here: this screen reaches the
+ * announcement through **one** door, `applyGeneratedAnnouncement()`, which composes every
+ * authoritative field from the published rows itself.
+ *
+ * ================= THE ORDER OF THE THREE THINGS ON THIS SCREEN =================
+ *
+ * §7e item 8 makes the hours authoritative and the message secondary, and the screen says
+ * so in two separate places rather than one combined one: `OverrideStatusNotice` reports
+ * the **hours**, `OverrideAnnouncementNotice` reports the **message**, and both can stand
+ * at once. *"Åbningstiderne er gemt. Beskeden blev ikke oprettet."* is not a contradiction
+ * to be resolved — it is the outcome 1ae promises for "Behold eksisterende besked".
  *
  * ================= TWO CARDS, TWO PERMISSION DOMAINS, ONE SCREEN =================
  *
@@ -114,9 +143,15 @@ import { saveOpeningHoursDraft } from './save-actions'
  * and the way to look at one is Forhåndsvis.
  *
  * All the state this screen has is in the URL (`./routes.ts`), so there is nothing in the
- * browser to keep in step with the server, and it has **no client components at all** —
- * the weekday rows and the two time fields redraw themselves from a checkbox and a radio
- * with a sibling selector rather than with a script.
+ * browser to keep in step with the server — the weekday rows and the two time fields redraw
+ * themselves from a checkbox and a radio with a sibling selector rather than with a script.
+ *
+ * **One** exception, and it is the frame's own doing: 1t promises that the suggested message
+ * follows the date and the times *until somebody edits it*, which is browser state by
+ * definition. `GeneratedAnnouncementField` is that one client component, and 1ae's sheet
+ * reuses `ModalDialog`, which the administration already had. Everything else on the screen
+ * is still server-rendered, and the announcement's own decisions — the expiry, the link,
+ * the source, the owner, the conflict — are all made on the server, twice.
  */
 
 /** A repeated parameter is a malformed request, not two answers: take the first. */
@@ -166,17 +201,31 @@ export default async function OpeningHoursAdminPage({
   const profile = await requireStaff()
   const isOwner = isActiveOwner(profile)
 
-  const [params, hours, overrides] = await Promise.all([
+  const [params, hours, overrides, announcement] = await Promise.all([
     searchParams,
-    // The weekly singleton is only read for the card that shows it. A staff member's page
-    // issues no query against `opening_hours` at all.
-    isOwner ? readAdminOpeningHours() : Promise.resolve(null),
+    /*
+     * Read for **everybody** since 8C-3B, where phase 8A read it only for the owner whose
+     * card shows it.
+     *
+     * The recurring week is half of the generated announcement's expiry rule — *the later
+     * of the normal closing and the special one* (§0m) — so the suggestion 1t shows a staff
+     * member cannot be composed without it. `opening_hours_select_staff` is what permits
+     * the read; `opening_hours_update_owner` is still the table's only UPDATE policy, so
+     * reading it here gives a staff member no way to change a minute of it.
+     */
+    readAdminOpeningHours(),
     readAdminOverrides(),
+    readAdminAnnouncement(),
   ])
 
   // The singleton is created by the initial migration and has no DELETE privilege, so this
   // is unreachable in a healthy database — and a screen that rendered empty rows against no
   // row would offer saves that could only fail.
+  //
+  // Still asked of the owner alone. A staff member has no weekly card to render, so a
+  // missing schedule costs them the announcement *suggestion* and nothing else — which is
+  // handled where the suggestion is computed, rather than by 404-ing a screen whose own
+  // card works perfectly.
   if (isOwner && hours === null) notFound()
 
   const status = one(params[OPENING_HOURS_PARAM.status])
@@ -276,8 +325,89 @@ export default async function OpeningHoursAdminPage({
     selected?.current ?? null,
   )
 
-  const removal = describeOverrideRemoval(lifecycle)
+  /*
+   * Whether the date on screen owns the announcement the hjemmeside is showing — §7e item 6,
+   * asked of ids and never of the message's wording. It changes which sentence "Fjern"
+   * offers, and nothing else: the Server Action asks the same question of the same rows
+   * again, and the database asks it a third time inside its own transaction.
+   */
+  const ownsAnnouncement =
+    announcement !== null &&
+    selected !== null &&
+    isOwnedByOverride(
+      {
+        source: announcement.source === 'opening_hours' ? 'opening_hours' : 'manual',
+        source_override_id: announcement.sourceOverrideId,
+      },
+      selected.id,
+    )
+
+  const removal = describeOverrideRemoval(lifecycle, ownsAnnouncement)
   const confirming = one(params[OPENING_HOURS_PARAM.confirm]) === '1'
+
+  // ---------------------------------------------------------------------------
+  // The optional generated announcement (phase 8C-3B)
+  // ---------------------------------------------------------------------------
+
+  const announcementStatus = one(params[OPENING_HOURS_PARAM.announcement])
+  const conflictId = one(params[OPENING_HOURS_PARAM.conflict])
+  const undoToken = one(params[OPENING_HOURS_PARAM.undo])
+
+  /*
+   * The wording somebody already approved, carried back by a conflict or a refusal.
+   *
+   * It is a *value in a field*, never authority: whatever is in it is re-validated by
+   * `withEditedMessage()` on the server against a suggestion regenerated from the published
+   * rows, and it can reach `message` and nothing else.
+   */
+  const echoedMessage = one(params[OPENING_HOURS_PARAM.suggestion]) ?? null
+
+  const outcome = describeAnnouncementOutcome(announcementStatus)
+
+  /*
+   * What this card would suggest right now, computed by the same pure module the browser
+   * re-runs as somebody types (`suggestOverrideAnnouncement`). Rendering it here is what
+   * keeps the first paint right and the no-JavaScript case working; the browser's copy
+   * takes over from the first keystroke, and the *server* composes the real thing again
+   * when Gem og offentliggør is pressed.
+   */
+  const suggestion =
+    hours === null ? null : suggestOverrideAnnouncement(overrideValues, hours.live, new Date())
+
+  /*
+   * 1ae's own data, re-read rather than trusted.
+   *
+   * The address carries an override id and a wording. Everything else the sheet shows is
+   * read here, now: the current announcement from its own row, and the proposed one from
+   * `readGeneratedAnnouncementFor()` — the same function the coordinator uses, against the
+   * **published** override. So the sheet cannot show a message that differs from the one
+   * "Erstat" would publish, and a `konflikt` id somebody typed by hand resolves to a row
+   * RLS lets them see or to nothing at all.
+   */
+  const proposed =
+    conflictId === undefined ? null : await readGeneratedAnnouncementFor(conflictId)
+
+  const conflict =
+    proposed !== null &&
+    proposed.ok &&
+    conflictId !== undefined &&
+    announcement !== null &&
+    // No current message means nothing to be asked about. The coordinator would apply the
+    // announcement without a conflict, so the sheet would be a question with one answer.
+    announcement.live.message !== null &&
+    announcement.live.message.trim().length > 0
+      ? {
+          overrideId: conflictId,
+          overrideVersion: proposed.overrideUpdatedAt,
+          version: announcement.updatedAt,
+          message: echoedMessage ?? proposed.announcement.message,
+          current: {
+            message: announcement.live.message,
+            expiresAt: announcement.live.expires_at,
+          },
+          proposedExpiresAt: proposed.announcement.expires_at,
+        }
+      : null
 
   return (
     <>
@@ -338,6 +468,25 @@ export default async function OpeningHoursAdminPage({
           <WeeklyHoursOwnerOnlyNotice />
         )}
 
+        {/*
+          The announcement's own report, beside the hours' own above. `undo` turns the same
+          sentence into 1aa's green strip with Fortryd in it — ten seconds, `role="status"`,
+          and it never takes focus.
+        */}
+        <OverrideAnnouncementNotice
+          key={undoToken ?? announcementStatus ?? 'ingen'}
+          outcome={outcome}
+          undo={
+            undoToken === undefined
+              ? null
+              : {
+                  action: undoGeneratedAnnouncement,
+                  fieldName: OVERRIDE_UNDO_FORM.version,
+                  version: undoToken,
+                }
+          }
+        />
+
         <OverrideMalformedDraftNotice malformed={selected?.draftMalformed ?? false} />
 
         <OverridePendingNotice
@@ -350,11 +499,44 @@ export default async function OpeningHoursAdminPage({
         <OverrideEditor
           action={saveOverride}
           anchorId={OVERRIDE_ANCHOR}
+          announcement={
+            /*
+             * Drawn only when there is a schedule to compose against and a row to name the
+             * version of. The field itself decides whether the *option* is offered, from
+             * the suggestion handed to it: a refusal renders an explanation and no
+             * checkbox, because §4 forbids a checked-but-useless control.
+             */
+            hours === null || suggestion === null || announcement === null ? null : (
+              <GeneratedAnnouncementField
+                defaultWanted={
+                  // 1t draws it ticked, and §3 makes that the default. The one exception is
+                  // 1ae's own: *"Kun den nye besked droppes — afkrydsningen fjernes"*, so
+                  // coming back from "Behold eksisterende besked" leaves the box clear
+                  // rather than re-offering the message that was just declined.
+                  announcementStatus !== ANNOUNCEMENT_OUTCOME.kept
+                }
+                echoedMessage={echoedMessage}
+                fieldNames={OVERRIDE_ANNOUNCEMENT_FORM}
+                idPrefix={OVERRIDE_ANCHOR}
+                initial={suggestion}
+                overrideFieldNames={OVERRIDE_FORM}
+                schedule={hours.live}
+                version={announcement.updatedAt}
+              />
+            )
+          }
           errorFor={(field) => overrideErrorFor(overrideErrors, field)}
           fieldNames={OVERRIDE_FORM}
-          key={cardKey({ ...overrideValues, lifecycle, confirming })}
+          key={cardKey({
+            ...overrideValues,
+            lifecycle,
+            confirming,
+            announcementStatus,
+            ownsAnnouncement,
+          })}
           previewHref="/api/preview/start?maal=forside"
           publishAction={saveAndPublishOverride}
+          publishId={OVERRIDE_PUBLISH_ANCHOR}
           stateBadge={overrideStateBadge(lifecycle)}
           statePending={overrideIsPending(lifecycle)}
           stateSentence={describeOverrideState(
@@ -390,6 +572,33 @@ export default async function OpeningHoursAdminPage({
             selectedDate={selectedDate}
           />
         </OverrideEditor>
+
+        {/*
+          1ae. Rendered last so it is the last thing in the document when JavaScript is off
+          — where it is an ordinary block with two working controls — and promoted to a real
+          modal by `ModalDialog` when it is on. It cannot be dismissed by clicking outside
+          and `Esc` resolves nothing: a decision is required, and both ways out are labelled
+          buttons.
+        */}
+        {conflict === null ? null : (
+          <AnnouncementConflictSheet
+            action={replaceGeneratedAnnouncement}
+            current={conflict.current}
+            fieldNames={OVERRIDE_CONFLICT_FORM}
+            idPrefix={OVERRIDE_ANCHOR}
+            keepHref={openingHoursHref({
+              date: selectedDate,
+              publishFocus: true,
+              announcement: ANNOUNCEMENT_OUTCOME.kept,
+            })}
+            message={conflict.message}
+            overrideId={conflict.overrideId}
+            overrideVersion={conflict.overrideVersion}
+            proposed={{ message: conflict.message, expiresAt: conflict.proposedExpiresAt }}
+            returnFocusTo={OVERRIDE_PUBLISH_ANCHOR}
+            version={conflict.version}
+          />
+        )}
       </main>
     </>
   )

@@ -50,7 +50,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(105);
+select plan(111);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures
@@ -782,16 +782,63 @@ select is(
 select is(pg_temp.previous_owner(), pg_temp.a(),
   'so A owns only the stashed announcement now');
 
+/*
+ * Phase 8C-3B changed this half, and §18 of the brief is why.
+ *
+ * 8C-3A refused the deletion, because a snapshot naming a deleted row would turn the next
+ * Fortryd into `owner_missing`. But refusing forever is not an answer either: the person is
+ * deleting the very hours that snapshot describes, and there is no second outcome in which
+ * putting it back would mean anything. So the trusted removal now **resolves** it — the
+ * obsolete stash is discarded inside the same transaction, the current announcement is left
+ * alone, and the override goes.
+ */
+-- One call, two assertions: the removal is not idempotent and must not be issued twice
+-- just to look at its reply from two angles.
+create temp table removal_of_a as
+  select public.remove_opening_hours_override(pg_temp.a(), pg_temp.ov(pg_temp.a())) as reply;
+
 select is(
-  (select public.remove_opening_hours_override(pg_temp.a(), pg_temp.ov(pg_temp.a())) ->> 'status'),
-  'owns_announcement',
-  'and removing A is still refused — the Fortryd it holds would otherwise have nothing to point at');
+  (select reply ->> 'status' from removal_of_a),
+  'removed',
+  'removing A now succeeds: the stash it held is resolved rather than refused forever');
+
+select is(
+  (select reply ->> 'discarded_previous' from removal_of_a),
+  'true',
+  'and the reply says which cleanup it had to do');
 
 reset role;
 select is(
   (select count(*) from public.opening_hours_overrides where id = pg_temp.a()),
-  1::bigint,
-  'A is still there: a refusal deletes nothing');
+  0::bigint,
+  'A is gone');
+
+select is(
+  (select previous from public.announcement),
+  null,
+  'the obsolete stash is gone with it — no Fortryd can now point at a row that is not there');
+
+select is(
+  (select replaced_at from public.announcement),
+  null,
+  'and replaced_at goes with the snapshot it timed');
+
+-- The half that must NOT move: C still owns the message a guest is reading.
+select is(
+  (select message from public.announcement),
+  'Genereret af C',
+  'the current announcement is untouched — only the stash was obsolete');
+
+select is(
+  (select source_override_id from public.announcement),
+  current_setting('test.override_c')::uuid,
+  'and C still owns it');
+
+select is(
+  (select count(*)::int from public.audit_log
+    where entity = 'announcement' and action = 'discard_previous'),
+  1,
+  'the discard is audited, so a Fortryd that later fails has something to explain it');
 
 
 select * from finish();

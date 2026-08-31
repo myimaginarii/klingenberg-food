@@ -45,7 +45,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(88);
+select plan(89);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures
@@ -763,12 +763,16 @@ select is(
   'and no override owns the announcement: nothing in phase 8B''s path can make one');
 
 /*
- * Exactly one opening-hours function names the announcement table, and 8C-3A is why:
- * `remove_opening_hours_override()` asks whether the date still owns the generated
- * message before it deletes anything, and refuses with `owns_announcement` if it does
- * (§7e item 6). That is a **read**, and the two assertions below are what say so —
- * the name, and the absence of any write statement against the table in any of them.
- * Deciding what to offer instead of the refusal is 8C-3B's.
+ * Exactly one opening-hours function names the announcement table, and §7e item 6 is why:
+ * `remove_opening_hours_override()` asks whether the date owns the generated message, and
+ * — since 8C-3B — takes it down with the override when the caller confirms it.
+ *
+ * The boundary this pair keeps is therefore narrower than 8C-3A's *"reads, never writes"*,
+ * and it is narrow in the direction that matters: **removal is the only opening-hours
+ * function that may touch the announcement at all.** Publishing an override, saving one,
+ * and the whole weekly schedule still cannot reach it, and the announcement is still never
+ * INSERTed or DELETEd by anything here — the singleton is not created or destroyed by an
+ * opening-hours operation, only transitioned by the one that owns §7e item 6.
  */
 select set_eq(
   $$ select p.proname::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -776,15 +780,24 @@ select set_eq(
         and pg_get_functiondef(p.oid) ilike '%public.announcement%'
         and p.proname like '%opening_hours%' $$,
   array['remove_opening_hours_override'],
-  'exactly one opening-hours function names the announcement table — the removal, to refuse itself');
+  'exactly one opening-hours function names the announcement table — the removal, for §7e item 6');
 
 select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public'
       and p.proname like '%opening_hours%'
-      and pg_get_functiondef(p.oid) ~* '(update|insert\s+into|delete\s+from)\s+public\.announcement'),
+      and pg_get_functiondef(p.oid) ~* '(insert\s+into|delete\s+from)\s+public\.announcement'),
   0::bigint,
-  'and no opening-hours function writes to it — the announcement is read, never moved, from this side');
+  'and none of them creates or destroys the announcement row — it is transitioned, never replaced');
+
+select is(
+  (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public'
+      and p.proname like '%opening_hours%'
+      and p.proname <> 'remove_opening_hours_override'
+      and pg_get_functiondef(p.oid) ~* 'update\s+public\.announcement'),
+  0::bigint,
+  'and only the removal updates it — publishing or saving an override still cannot reach a message');
 
 
 select * from finish();

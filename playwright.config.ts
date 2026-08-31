@@ -66,7 +66,21 @@ export default defineConfig({
         'e2e/opening-hours.spec.ts',
         'e2e/opening-hours-override.spec.ts',
         'e2e/public-cache.spec.ts',
-        'e2e/announcement-replacement.spec.ts',
+        /*
+         * The generated-announcement workflow is a serial WRITE suite owned by its two
+         * dedicated projects at the end of the chain — never by these two, which run
+         * first, in parallel with each other, and are read-only by design.
+         *
+         * This entry is load-bearing in a way its neighbours are not, and it earned this
+         * comment by failing: when 8C-3B replaced `announcement-replacement.spec.ts` with
+         * this file, the stale ignore entry kept ignoring the deleted file and nothing
+         * ignored the new one. Both generic projects then ran the whole workflow
+         * concurrently — two module instances with identical date allocators racing one
+         * announcement singleton — and the wreckage surfaced as unexplainable state in the
+         * dedicated projects downstream. `npx playwright test --list` is the check: this
+         * file must appear under exactly two projects, both named for it.
+         */
+        'e2e/opening-hours-announcement.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -87,7 +101,8 @@ export default defineConfig({
         'e2e/opening-hours.spec.ts',
         'e2e/opening-hours-override.spec.ts',
         'e2e/public-cache.spec.ts',
-        'e2e/announcement-replacement.spec.ts',
+        // See the desktop project's entry for why this one must exist.
+        'e2e/opening-hours-announcement.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -391,27 +406,34 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     /*
-     * Replacing the published announcement and putting the previous one back (phase
-     * 8C-1), and the **last** project of the run.
+     * The generated opening-hours announcement — 1t's checkbox, 1ae's conflict sheet, both
+     * of its branches, the ~10 s Fortryd and §7e item 6's removal (phase 8C-3B). The
+     * **last** two projects of the run.
      *
-     * Chained last for two reasons. It writes the announcement, whose bar is in the shared
-     * public layout, so a guest assertion made by any other suite would be a coin toss if
-     * this one could act between its own write and its own read — the reason every write
-     * suite is chained. And it is the only suite that drives the internal replacement
-     * harness, which nothing else in the run knows about; putting it at the end keeps that
-     * temporary address away from every other project's state.
+     * Chained last for the reason phase 8C-1's harness suite was: it writes the
+     * announcement, whose bar is in the shared public layout, so a guest assertion made by
+     * any other suite would be a coin toss if this one could act between its own write and
+     * its own read.
      *
-     * One width, because nothing here is about layout: the assertions are on the bytes a
-     * guest is served and on the state of a form, which are the same at every size. 8C-3
-     * brings 1ae, and 1ae brings the two widths with it.
+     * **Two widths now**, where 8C-1 needed one. That suite asserted bytes served to a
+     * guest and the state of a form, which are the same at every size; this one draws 1ae,
+     * and 1ae is a sheet with a footer that stacks on a phone and a row on a desktop, a
+     * focus trap, and a 375 px width the brief asks for by name. Mobile runs first and
+     * hands its state to the desktop project, exactly as the override suites do.
      *
      * It starts from the state the announcement suites leave and leaves that same state
-     * behind: published and expired, switched off, nothing pending.
+     * behind: published and expired, switched off, nothing pending, and no overrides.
      */
     {
-      name: 'announcement-replacement',
-      testMatch: 'e2e/announcement-replacement.spec.ts',
+      name: 'opening-hours-announcement-mobile',
+      testMatch: 'e2e/opening-hours-announcement.spec.ts',
       dependencies: ['public-cache'],
+      use: { ...devices['Pixel 7'], viewport: { width: 375, height: 780 } },
+    },
+    {
+      name: 'opening-hours-announcement',
+      testMatch: 'e2e/opening-hours-announcement.spec.ts',
+      dependencies: ['opening-hours-announcement-mobile'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],
@@ -424,18 +446,14 @@ export default defineConfig({
         reuseExistingServer: !process.env.CI,
         timeout: 240_000,
         /*
-         * The phase-8C-1 integration harness (§6, §7e item 8) — see
-         * `app/(admin)/admin/intern/besked-erstatning/harness.ts`.
+         * No environment of its own since phase 8C-3B.
          *
-         * Proving that a replacement and its restore each land on the **first** guest
-         * request means going through `updateTag()`, and `updateTag()` may only be called
-         * from inside a Server Action — which is only reachable when something renders a
-         * form that dispatches to it. 8C-1 adds no replacement control to the
-         * administration, so the form lives at an unlinked address that does not exist
-         * unless this flag is set. It is set here, for the test server, and nowhere else:
-         * a deployed build has no such variable, so the address is a 404 and both actions
-         * refuse. 8C-3 deletes the harness and this line with it.
+         * 8C-1 proved the first-guest-request promise through an unlinked, flag-gated
+         * harness, because `updateTag()` is only reachable from a Server Action and 8C-1
+         * was forbidden to add a replacement control. 8C-3B added the real one — 1t's
+         * checkbox and 1ae's sheet on `/admin/aabningstider` — so the harness, its flag
+         * and this line are gone, and the same scenarios are driven through the screen a
+         * person actually uses.
          */
-        env: { ...process.env, ANNOUNCEMENT_REPLACEMENT_HARNESS: '1' },
       },
 })

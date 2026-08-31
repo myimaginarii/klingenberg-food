@@ -183,14 +183,18 @@ export type RemoveOverrideStatus =
   /** The row is gone; the date follows the weekly schedule again. */
   | 'removed'
   /**
-   * The override still owns a generated announcement, so it was **not** removed —
-   * §7e item 6, and phase 8C-3A's half of it.
+   * The override owns the announcement the hjemmeside is showing, and removing it too
+   * was not confirmed — §7e item 6. **Nothing was written**: no announcement, no
+   * override, no audit row.
    *
-   * Either it owns the announcement the hjemmeside is showing, or it owns the one
-   * stashed for a Fortryd that is still on offer. Deciding what to offer instead —
-   * the item's *"ask, and default to removing the announcement too"* — is **8C-3B**;
-   * until then the honest answer is a refusal that says which override is holding
-   * what, rather than a foreign-key violation or a silently orphaned message.
+   * This is the *question*, not a refusal to be worked around. `describeOverrideRemoval()`
+   * words it and the screen asks it; answering yes is the same call with
+   * `removeAnnouncement: true`, which takes both away in one transaction.
+   *
+   * An override named only inside `previous` no longer produces this status. Deleting it
+   * destroys the source that snapshot describes, so there is no second answer in which
+   * the snapshot stays meaningful: the trusted removal discards the obsolete stash as
+   * part of its own transaction and says so in `discardedPrevious` (§18).
    */
   | 'owns_announcement'
   /** Somebody else changed or removed it first (§6). Nothing was written. */
@@ -206,17 +210,35 @@ export type RemoveOverrideResult = {
   readonly status: RemoveOverrideStatus
   /** True when the removed override was live, so a guest's answer just changed. */
   readonly wasPublished: boolean
-  /** The tags to expire — empty unless a **published** override was removed. */
+  /**
+   * True when the generated announcement it owned was taken down with it.
+   *
+   * Read back from what the database answered, never assumed from what was asked: the
+   * request may say `removeAnnouncement: true` for an override that turns out to own
+   * nothing, and what the screen reports must be what actually happened.
+   */
+  readonly removedAnnouncement: boolean
+  /** True when an obsolete `previous` snapshot naming this override was discarded (§18). */
+  readonly discardedPrevious: boolean
+  /** The tags to expire — empty unless something a guest can read actually moved. */
   readonly cacheTags: readonly CacheTag[]
 }
 
 const removeResultSchema = z.object({
   status: z.enum(['removed', 'owns_announcement', 'conflict', 'not_found', 'forbidden']),
   was_published: z.boolean().nullish(),
+  removed_announcement: z.boolean().nullish(),
+  discarded_previous: z.boolean().nullish(),
 })
 
 function refusal(status: RemoveOverrideStatus): RemoveOverrideResult {
-  return { status, wasPublished: false, cacheTags: [] }
+  return {
+    status,
+    wasPublished: false,
+    removedAnnouncement: false,
+    discardedPrevious: false,
+    cacheTags: [],
+  }
 }
 
 /**
@@ -241,7 +263,19 @@ function refusal(status: RemoveOverrideStatus): RemoveOverrideResult {
  */
 export async function removeOverride(
   profile: Profile,
-  request: { readonly overrideId: string; readonly expectedUpdatedAt: string },
+  request: {
+    readonly overrideId: string
+    readonly expectedUpdatedAt: string
+    /**
+     * §7e item 6's answer: take the generated announcement this override owns away too.
+     *
+     * One bit, and it can do exactly one thing — turn the `owns_announcement` question
+     * into the transition that answers it. It cannot reach an announcement this override
+     * does not own, cannot make a deletion happen that would not otherwise happen, and is
+     * ignored entirely when there is nothing owned.
+     */
+    readonly removeAnnouncement: boolean
+  },
 ): Promise<RemoveOverrideResult> {
   if (!mayChangeEntity('opening_hours_override', profile)) return refusal('forbidden')
 
@@ -250,6 +284,7 @@ export async function removeOverride(
   const { data, error } = await supabase.rpc('remove_opening_hours_override', {
     p_id: request.overrideId,
     p_expected_updated_at: request.expectedUpdatedAt,
+    p_remove_announcement: request.removeAnnouncement,
   })
 
   if (error) {
@@ -267,13 +302,26 @@ export async function removeOverride(
   if (parsed.data.status !== 'removed') return refusal(parsed.data.status)
 
   const wasPublished = parsed.data.was_published === true
+  const removedAnnouncement = parsed.data.removed_announcement === true
+  const discardedPrevious = parsed.data.discarded_previous === true
 
   return {
     status: 'removed',
     wasPublished,
-    // Stated once, for the `opening_hours_override` entity, in the publishing registry —
-    // so the tag a removal expires and the tag a publish expires cannot drift apart.
-    cacheTags: wasPublished ? publishableEntity('opening_hours_override').cacheTags : [],
+    removedAnnouncement,
+    discardedPrevious,
+    /*
+     * Both entities' tags, and each one only for a change a guest could notice.
+     *
+     * Stated through the publishing registry rather than by name, so the tag a removal
+     * expires and the tag a publish expires cannot drift apart. A discarded `previous`
+     * moves nothing public — the announcement a guest reads is untouched by that branch —
+     * so it expires nothing, which is the same rule a pending override's removal follows.
+     */
+    cacheTags: [
+      ...(wasPublished ? publishableEntity('opening_hours_override').cacheTags : []),
+      ...(removedAnnouncement ? publishableEntity('announcement').cacheTags : []),
+    ],
   }
 }
 

@@ -968,7 +968,7 @@ than tidied away.
 | C | **What happens when the previous announcement's expiry passes inside the ten seconds?** | **It is restored exactly as it stood, and nothing extends the expiry.** The result may be an announcement that is immediately ineligible for public display, and that is accepted: the previous state is a *fact*, not a request to show something, and refusing the restore would leave the replacement live with no way back. The reply carries `showable`, so the administration reports what actually happened rather than a success a visitor would contradict. **This is the one place restore and `set_announcement_visible` deliberately part company** — the visibility function *refuses* the on direction for an expired bar (`not_showable`, §0g reading C), because there the request genuinely is "show this now". |
 | D | **What counts as "the current announcement" to stash?** | **Whatever the row holds — and the result says which of four it was.** `active` (a guest can read it) is the only case 1ae exists for. A **valid message that was switched off** is still the thing being replaced, so it is stashed *with its own `is_visible = false`* and comes back switched off. An **expired** message is not a public conflict, and is stashed faithfully all the same. **No message at all** is not dressed up as a conflict: the empty state is a valid snapshot, so Fortryd can put the emptiness back. 8C-1 reports; **8C-3 decides** whether a sheet is shown. |
 | E | **Does a replacement touch a pending manual draft?** | **No, and it is structural.** Nothing in the technical plan says a replacement supersedes a draft, so the default safety rule holds: neither UPDATE names `draft`, and `lib/announcements/replacement.ts` imports nothing from `lib/drafts` and nothing from `lib/publishing` beyond the role matrix and the cache tags. Asserted over the module's whole import list, from real JWTs in pgTAP, and end to end — published A + pending draft C, replaced by B, restored to A, with C byte-identical at every step and never public. |
-| F | **How is the first-guest-request promise proved with no screen to press?** | **With an internal harness that 8C-3 deletes.** `updateTag()` may only be called from inside a Server Action, and a Server Action is only reachable when something renders a form that dispatches to it. Since 8C-1 must add no replacement control, the form lives at an unlinked address behind an environment flag (`app/(admin)/admin/intern/besked-erstatning/`), set by `playwright.config.ts` for the test server and by nothing else — a deployed build has no such variable, so the address is a 404 and both actions refuse. It is guarded by `requireStaff()` first and the flag second, and **the browser still chooses no content**: the submission is a closed variant key and a version token, and the payload is composed on the server. That is exactly the shape 8C-3's real form will have. |
+| F | **How is the first-guest-request promise proved with no screen to press?** | **With an internal harness that 8C-3B deleted.** *(Deleted, as promised — §0o. The scenarios moved to `tests/e2e/opening-hours-announcement.spec.ts`, which drives them through 1t's checkbox and 1ae's sheet.)* `updateTag()` may only be called from inside a Server Action, and a Server Action is only reachable when something renders a form that dispatches to it. Since 8C-1 must add no replacement control, the form lives at an unlinked address behind an environment flag (`app/(admin)/admin/intern/besked-erstatning/`), set by `playwright.config.ts` for the test server and by nothing else — a deployed build has no such variable, so the address is a 404 and both actions refuse. It is guarded by `requireStaff()` first and the flag second, and **the browser still chooses no content**: the submission is a closed variant key and a version token, and the payload is composed on the server. That is exactly the shape 8C-3B's real form took. |
 
 ### What phase 8C-1 deliberately does not contain
 
@@ -1257,7 +1257,7 @@ accepts every announcement it produces.
 - **8C-1's boundaries are intact.** Nothing here calls `replaceAnnouncement()` or
   `restoreAnnouncement()`, names `previous` or `replaced_at`, or touches a draft or the
   bar's visibility. The temporary replacement harness at
-  `/admin/intern/besked-erstatning` is unchanged and is still **8C-3's to delete**.
+  `/admin/intern/besked-erstatning` is unchanged here, and was **deleted by 8C-3B** (§0o).
 
 ### What phase 8C-2 deliberately does not contain
 
@@ -1294,7 +1294,8 @@ is recorded in §0n; the remaining user-facing half is **8C-3B**.
 8C-1 built the transaction that *carries* a replacement. 8C-2 built the pure generator
 that *composes* one from a one-off opening-hours change. This increment is the thing
 between them, and it is a **backend/domain** increment: no screen changed, 1t draws no
-checkbox, 1ae does not exist, and the 8C-1 harness is still there.
+checkbox, 1ae does not exist, and the 8C-1 harness is still there. All three were 8C-3B's
+(§0o): the checkbox and the sheet exist now, and the harness is gone.
 
 It exists because of one question neither earlier increment could answer:
 
@@ -1452,10 +1453,198 @@ the CHECK refuses outright. **If the previous announcement was manual, the key i
 | **The deletion of the 8C-1 harness** | **8C-3B.** It gained a third action here rather than a sibling directory, because the brief forbids inventing a second harness and `updateTag()` is still only reachable from a Server Action. |
 | **A second undo level, an archive, or a history of ownership** | **never** (§4, 1ad). One snapshot, one level; `audit_log` carries the ownership in its before/after pair, and that is the history. |
 
-**Phase 8C-3A is complete and green. Phase 8 is not locked**: **8C-3B** — 1t's checkbox
-and editable suggestion, conflict sheet 1ae with both branches, the ~10 s Fortryd strip
-over `restore_announcement()`, §7e item 6's removal consequence, and the deletion of the
-8C-1 harness — is not started.
+**Phase 8C-3A is complete and green.** Everything in the table above was built by
+**8C-3B**, recorded in §0o below.
+
+---
+
+## §0o — Phase 8C-3B: the generated opening-hours announcement workflow
+
+*Design 1t, 1ae, 1aa; §4, §5, §6, §7e items 6 and 8, §8, §9.*
+
+The phase that makes the opening-hours announcement usable from the real admin screen, and
+the last implementation increment of phase 8. It adds **no package** (see
+`docs/dependencies.md`).
+
+### The ordering rule, kept structurally
+
+§7e item 8 is the spine of this increment: *"the hours override is written first and always;
+the announcement is only attempted afterwards … There is no code path where a 'Behold
+eksisterende' choice can roll back the hours."*
+
+`app/(admin)/admin/aabningstider/override-publish-actions.ts` is that sentence as a sequence:
+
+  1. `publishPendingChange()` publishes the override;
+  2. `expirePublicCacheTags()` expires the `hours` tag, so the **first** guest request after
+     the press already has the new times;
+  3. only then does `announceOverride()` call `applyGeneratedAnnouncement()`.
+
+Steps 1 and 2 are committed and the public cache is already told before step 3 begins, and
+step 3's coordinator issues no statement against `public.opening_hours` or
+`public.opening_hours_overrides` in any branch. So the separation is a property of the
+functions' text, not of a reviewer's attention: a conflict, a "Behold eksisterende", a
+refused wording and an outright failure each add a **second** code to the address beside the
+hours' own (`./announcement-routes.ts` takes the two separately) and none of them can reach
+what step 1 wrote.
+
+### What the browser may say, and what the server re-derives
+
+| The browser sends | The server derives, on every call |
+|---|---|
+| whether the person ticked 1t's box | the message's **expiry** — the later of the normal and special closings |
+| the **wording** they approved | the **link** — `/find-os` + "Se tider" for changed hours, none for a closed day |
+| the announcement's version token (§6) | `source = 'opening_hours'` |
+| the override's id and version token (§6) | `source_override_id` — the published override that owns it |
+| 1ae's one confirmation bit | `previous`, `replaced_at` — the displaced snapshot and its stamp |
+
+`withEditedMessage()` is the whole of the permission in the left column's second row: it
+validates the wording against 1ac's rules and can assign to `message` and nothing else.
+Both the first attempt and the confirmed second one re-read the published override and the
+published recurring week and re-ask the generator, so a form that sat open while somebody
+edited the hours cannot publish a stale sentence — and if the hours did move,
+`stale_override` says so.
+
+### The suggestion that follows the fields, and then stops
+
+1t promises: *"Skrevet ud fra dato og tider ovenfor. Retter du tiderne, opdateres forslaget —
+indtil du selv har rettet i teksten."* That is browser state by definition, and it is the one
+place this administration spends JavaScript (§7e item 11 allows it).
+
+`lib/announcements/generated-suggestion.ts` is a **pure** module that answers *"what would
+this card say?"*, and the **server** and the **browser** both run it — the server for the
+first paint, the browser on every change to the date, the kind or the two times. One
+implementation, so the two cannot drift by a comma.
+
+`GeneratedAnnouncementField` holds three values: the tick, the message, and whether a person
+has edited it. **The dirty flag is UI state and never authority** — it decides only whether
+a time change overwrites the field, is not submitted, and no server decision consults it.
+
+One implementation detail is load-bearing enough to record: the form-level listener
+**ignores events from the message field itself**. A controlled input and a native listener on
+an ancestor hear the same bubbling `input` event, the native one first — so a version that
+recomputed on every event would write the suggestion back, reset React's value tracker, and
+suppress the `onChange` that would have set the dirty flag. The typed character would vanish
+and the field would look uneditable while appearing to work.
+
+### 1ae, and why `Esc` resolves nothing
+
+The sheet is `components/admin/menu/ModalDialog.tsx` — the native `<dialog>` opened with
+`showModal()` the administration has used since phase 5D — with **one new prop**, `locked`.
+Backdrop clicks, the focus trap and the inert background are the platform's, not a script's.
+
+`locked` suppresses `Esc`. 1ae is a *decision*, not a confirmation: "Behold eksisterende
+besked" drops the new message and "Erstat med den nye besked" publishes it, and mapping `Esc`
+to either would put a choice in somebody's mouth. There are always two labelled ways out, and
+focus starts on the one that changes nothing a guest can read.
+
+**Giving focus back needed a second mechanism, and the reason is worth recording.** Phase 5D's
+confirmation pays that debt through the address: its cancel control is a plain `<a>`, so
+closing it is a *full* navigation to the fragment of the control it was opened from, and a
+browser focuses a focusable fragment target on arrival. Neither of 1ae's exits can do that —
+one is a `<Link>` and the other is a Server Action, and both produce **soft** navigations that
+move the URL without moving the keyboard. A fragment would have looked right and done nothing.
+So `ModalDialog` gained `returnFocusTo`: the id of the control the sheet was opened from,
+focused as the dialog unmounts, whichever way out was taken. It is asserted in
+`tests/e2e/opening-hours-announcement.spec.ts` rather than assumed.
+
+**"Behold eksisterende besked" is a link.** It reaches no Server Action, so the branch that
+keeps the existing message cannot write anything — not by design that could drift, but
+because there is nothing there to call. The screen then says 1ae's own promised sentence:
+*"Åbningstiderne er gemt. Beskeden blev ikke oprettet."*
+
+### §7e item 6, and the door it closes
+
+Deleting a one-off change now asks about the generated announcement it owns and, when
+confirmed, takes both away in **one transaction** —
+`remove_opening_hours_override(id, version, remove_announcement)`. Ownership is
+`isOwnedByOverride()`: an id compared to an id, never the message's wording.
+
+"Removing the announcement" is a transition to the **empty state**
+(`announcement_replacement_kind()` already called it `'none'`): the message, its link and its
+expiry are cleared, `is_visible` goes false, `source` returns to `'manual'` and
+`source_override_id` to null — so nothing is left that could be toggled back on as a message
+about hours that no longer exist. `previous` and `replaced_at` go with it, because the same
+statement moves `updated_at` and any Fortryd still on offer is already bound to a token that
+no longer matches. **`draft` is not named**, so a pending manual announcement survives.
+
+An override named only inside `previous.source_override_id` is handled explicitly (the case
+8C-3A recorded as producing `owner_missing`): the trusted removal discards that obsolete
+snapshot in the same transaction, leaves the current announcement alone, deletes the override
+and audits both. A Fortryd already on screen then fails as a conflict, which is correct —
+somebody explicitly deleted the thing it would restore. No history table, no text parsing.
+
+### The direct-DELETE hole, closed
+
+8C-3A's `restore_announcement()` recorded `owner_missing` as *"reachable only through a direct
+PostgREST DELETE"*. That was the hole, and this phase closes it.
+
+`authenticated` **keeps** its DELETE privilege on `public.opening_hours_overrides`, because a
+SECURITY INVOKER function spends the caller's privileges — revoking it, measured from a real
+Staff JWT, refuses the attack and the trusted removal equally. **No SECURITY DEFINER was
+added**; §8 forbids it and so does the brief. Instead the *transition* is constrained, by the
+same mechanism `20260831160000` used for the announcement's own columns: a BEFORE DELETE
+guard trigger recognising a transaction-local marker that only
+`remove_opening_hours_override()` sets. One pattern in this repository for *"a privilege that
+may only be spent by a named transition"*, not two.
+
+`supabase/tests/018_override_removal.test.sql` proves it from real Staff **and** Owner JWTs,
+including that a statement-wide `DELETE` with no `where` is refused per row and that the
+marker cannot be held open for a later statement.
+
+### The harness is gone
+
+`app/(admin)/admin/intern/` is deleted, with the `ANNOUNCEMENT_REPLACEMENT_HARNESS` flag and
+the `playwright.config.ts` line that set it. Its scenarios were not deleted with it —
+`tests/e2e/opening-hours-announcement.spec.ts` drives replacement, restore, ownership and the
+first-guest-request promise through `/admin/aabningstider`, at 375 and 1440.
+
+### Two §25 cases assert one layer down — a substitution, not a gap
+
+§25 lists *"stale announcement while conflict sheet open"* and *"stale override while
+conflict sheet open"* among the E2E cases. Both are covered, and **neither is a browser
+scenario**. The reasoning is worth recording, because "we moved a test" and "we dropped a
+test" look identical in a diff.
+
+They are **concurrency and atomicity guarantees**, and a rendered page is the weakest place
+to assert one. A screen can show that a refusal appeared; what actually matters is what the
+database *did not do*. `supabase/tests/017_generated_announcement.test.sql` asserts both
+from real Staff JWTs, and asserts four properties no browser assertion could reach:
+
+  * the operation answers `stale_announcement` / `stale_override`;
+  * the **whole affected row** is byte-identical afterwards;
+  * **no audit row** was written — a refusal is not an event;
+  * **no partial ownership mutation** — `source` and `source_override_id` never move apart.
+
+The other half of the behaviour — that each status reaches a person as the right sentence,
+in the right tone, at an address that has *not* lost what happened to the opening hours, and
+with no `konflikt` and no `fortryd` on it — is pure, and is asserted deterministically in
+`tests/unit/announcements/generated-suggestion.test.ts`.
+
+The E2E versions existed briefly and were removed after they argued against themselves.
+Driving two browser contexts at one announcement singleton, the second session's write
+repeatedly landed **before** the conflict sheet existed; the coordinator then correctly saw
+no conflict and applied the message — a different and equally valid branch, asserted as
+though it were the stale one. A test that can silently exercise the wrong branch is worse
+than no test, and the branch it was meant to cover is covered more strongly one layer down.
+
+The browser suite keeps what only a browser can prove: that the hours are public before the
+question is asked, that 1ae appears for an active message and not for a hidden or expired
+one, that both of its branches do what they say, that Fortryd restores, that ownership
+follows the override through A → B → Fortryd, and that removing an override takes its
+message with it.
+
+### What phase 8C-3B deliberately does not contain
+
+| | Why |
+|---|---|
+| A branch that **keeps** an `opening_hours` announcement after deleting its override | It would leave guests reading about opening times that no longer exist. The source of truth asks for no detach-to-manual feature, and none was invented. |
+| A **second entry point** to the generated announcement, for an override that is already published with nothing pending | The message rides on a publish (§7e item 8's ordering). Adding one would be a second path to the same write, and a product decision nobody has made. Recorded as a known limitation. |
+| A **second undo level**, an archive, or a history of ownership | Never (§4, 1ad). One snapshot, one level; `audit_log` carries the ownership in its before/after pair. |
+| A **database draft** for previewing the proposed announcement | §8 of the brief forbids it. The suggestion is already visible and editable in the card, and the preview contract that matters — pending hours visible in Draft Mode, guests unchanged — is phase 8B's and is untouched. |
+| A generic workflow engine, a modal library, a form-state library | See `docs/dependencies.md`. |
+
+**Phase 8C-3B is complete and green. Phase 8 is not locked** — a dedicated completion/lock
+pass is the next step.
 
 ---
 
@@ -2072,9 +2261,9 @@ the request log asserted empty, in `tests/e2e/announcement.spec.ts`.
 
    **An image that is in use is a different question and keeps the original rule**: warn, and then null the reference — never a dangling id (design 1w already shows the image warning). Images are Staff-editable in full (§5), so nulling an image reference is a write Staff already hold; that is exactly the privilege a Forside reference does not have, which is why the two cases part company here.
 5. **Ugens ret week rollover.** Changing the week number blanks the form as a draft; the live site keeps the current card, including its week number, until publish. The editor shows the live week number next to the draft one so the difference is obvious. "Kopiér sidste uge" is the shortcut past the blank form. *Built in phase 6A; **§0c reading A** records exactly which fields "the form" means and why, and that choosing the published week again undoes the rollover.*
-6. **Override deleted after it generated an announcement.** Ask, and default to removing the announcement too when `source='opening_hours'` and it points at that date. *"Points at that date" is `announcement.source_override_id`, and nothing else — never the message, the weekday, the formatted date, the expiry or the link label, because the suggested wording is editable (§0m) and is therefore evidence of nothing.* **The model is built in 8C-3A (§0n); the asking is 8C-3B.** Until then `remove_opening_hours_override()` refuses with `owns_announcement` while the override owns the live message **or** the one still stashed for a Fortryd, and the foreign key refuses the first of those outright — so the state this item exists to prevent (an announcement about hours that are gone) is unreachable rather than merely undesirable.
+6. **Override deleted after it generated an announcement.** Ask, and default to removing the announcement too when `source='opening_hours'` and it points at that date. *"Points at that date" is `announcement.source_override_id`, and nothing else — never the message, the weekday, the formatted date, the expiry or the link label, because the suggested wording is editable (§0m) and is therefore evidence of nothing.* **Built: the model in 8C-3A (§0n), the asking and the doing in 8C-3B (§0o).** `remove_opening_hours_override()` returns `owns_announcement` when the override owns the live message and removal was not confirmed — nothing written, no audit row — and takes both away in one transaction when it was. An override named only inside `previous` is not refused but *resolved*: the obsolete snapshot is discarded in the same transaction, the current announcement is left alone, and both halves are audited. Removing the announcement means the **empty state** — message, link and expiry cleared, `is_visible` false, `source` back to `'manual'`, `source_override_id` null — so nothing survives that could be toggled back on; `draft` is never named, so a pending manual announcement is preserved. **A direct PostgREST DELETE cannot reach any of this**: `overrides_guard_delete` refuses every deletion that did not come from the trusted function, without a SECURITY DEFINER and without revoking a privilege the function itself needs.
 7. **Override in the past, or on an already-closed day.** The date must be today or later; an override on a Monday is allowed (they may open specially) — and it correctly becomes a sold-out reset day (§7b).
-8. **Announcement conflict resolution must never lose the hours.** Server-authoritative: the hours override is written first and always; the announcement is only attempted afterwards; a conflict returns `{status:'conflict'}` and requires an explicit `confirmReplace: true` on the follow-up call. There is no code path where a "Behold eksisterende" choice can roll back the hours. **Built in 8C-3A (§0n)**: `apply_generated_announcement()` writes nothing about the opening hours in any branch — it issues no statement against `public.opening_hours` or `public.opening_hours_overrides` at all — so the refusal is a `return` rather than a rollback, and *"there is no code path"* is a property of the function's text rather than a promise about its behaviour. The conflict is decided from the row the server reads, through the same `announcement_replacement_kind()` phase 7's own vocabulary uses; `active` is the only public conflict, and `hidden`, `expired` and empty proceed without one. **1ae's sheet is 8C-3B.**
+8. **Announcement conflict resolution must never lose the hours.** Server-authoritative: the hours override is written first and always; the announcement is only attempted afterwards; a conflict returns `{status:'conflict'}` and requires an explicit `confirmReplace: true` on the follow-up call. There is no code path where a "Behold eksisterende" choice can roll back the hours. **Built in 8C-3A (§0n)**: `apply_generated_announcement()` writes nothing about the opening hours in any branch — it issues no statement against `public.opening_hours` or `public.opening_hours_overrides` at all — so the refusal is a `return` rather than a rollback, and *"there is no code path"* is a property of the function's text rather than a promise about its behaviour. The conflict is decided from the row the server reads, through the same `announcement_replacement_kind()` phase 7's own vocabulary uses; `active` is the only public conflict, and `hidden`, `expired` and empty proceed without one. **1ae's sheet is built in 8C-3B (§0o)**: the Server Action publishes the override and expires its cache tag *before* the announcement is attempted, so the ordering is a sequence of committed steps rather than a promise about rollback, and "Behold eksisterende besked" is a link that reaches no Server Action at all.
 9. **News detail page** — in scope, see §7f.
 10. **Tapas** — resolved, see §4. Three editable lists, no configurator.
 11. **No-JS.** The public site must fully work without JavaScript: phone links, menu, hours table, navigation, the map link, news articles. Only the open/closed badge, the mobile fullscreen menu and the announcement expiry guard degrade — each to a server-rendered value at most five minutes old. The admin may require JavaScript.
@@ -2455,7 +2644,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 5 | Menu administration | Category tabs, dish CRUD, reorder, side panel, Kladde badges, **immediate Udsolgt with 10 s Fortryd and the computed reset label**, **tapas list editor**, soft delete | E2E 2, 3 and 10 pass |
 | 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (done):** Månedens burger with its date window, its computed admin state, "Vis på forsiden" as a normal draft field and its own immediate Udsolgt path | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes — see §0d. **Complete and locked** by the completion pass of 2026-08-30 — see §0e |
 | 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (done):** the immediate path — "Vis besked" off and back on, "Fjern beskeden nu", immediate public removal and its ~10 s Fortryd. *Replacing an active announcement, `previous`/`replaced_at` and 1ae's conflict sheet moved to **phase 8**, where the generated message they belong to lives* | 7A: E2E 4 passes, including the no-network assertion — see §0f. 7B: `tests/e2e/announcement-remove.spec.ts` passes at 1440 and 375 — see §0g. **Complete and locked** by the completion pass of 2026-08-30 — see §0h |
-| 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3A (done):** generated-announcement **ownership** — `announcement.source_override_id`, the pairing CHECK, the ninth snapshot key, the ownership-aware write guard, and `apply_generated_announcement()`, the §7e item 8 coordinator that decides the conflict server-side and delegates the atomic write. `announcement_created` is **dropped**; no UI. **8C-3B (remaining):** 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, the ~10 s Fortryd strip, §7e item 6's removal consequence, and the deletion of the 8C-1 harness | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. 8C-3A: `supabase/tests/017_generated_announcement.test.sql` and scenario 4 of `tests/e2e/announcement-replacement.spec.ts` pass — see §0n. E2E 5's announcement half belongs to 8C-3B |
+| 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3A (done):** generated-announcement **ownership** — `announcement.source_override_id`, the pairing CHECK, the ninth snapshot key, the ownership-aware write guard, and `apply_generated_announcement()`, the §7e item 8 coordinator that decides the conflict server-side and delegates the atomic write. `announcement_created` is **dropped**; no UI. **8C-3B (done):** the workflow — 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, the ~10 s Fortryd strip, §7e item 6's removal consequence with its atomic two-table transaction, the BEFORE DELETE guard that closes the direct-DELETE bypass, and the deletion of the 8C-1 harness | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. 8C-3A: `supabase/tests/017_generated_announcement.test.sql` passes — see §0n. 8C-3B: `tests/e2e/opening-hours-announcement.spec.ts` passes at 1440 and 375, and `supabase/tests/018_override_removal.test.sql` asserts the removal lifecycle and refuses a direct DELETE from real Staff and Owner JWTs — see §0o. E2E 5 is complete |
 | 9 | News | List, editor with structured body, autosave, publish/unpublish, **`/nyheder/[slug]` with the slug policy and `NewsArticle` JSON-LD**, forside teaser | E2E 6 passes, incl. unpublish → 404 |
 | 10 | Images | Signed upload, client downscale, sharp derivatives, library with usage labels, replace/delete warnings | E2E 7 passes |
 | 11 | Remaining editors | Forsiden, Mad ud af huset (incl. the visibility toggle hiding the nav item), Kontaktoplysninger, **`/admin/brugere`** | E2E 8 passes; the owner can invite and deactivate a staff user |
@@ -2465,7 +2654,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-08-31: phases 0–7 are complete and locked; phases 8A and 8B are complete and green; 8C-1 — the announcement replacement and restore mechanism — is complete and green (§0k, hardened in §0l); and 8C-2 — the pure opening-hours announcement generator — is complete and green (§0m). 8C-3 is not started, and phase 8 is not locked.** Phase 5 was closed by a completion
+**Status, 2026-08-31: phases 0–7 are complete and locked; phases 8A, 8B, 8C-1 (§0k, hardened in §0l), 8C-2 (§0m), 8C-3A (§0n) and 8C-3B (§0o) are complete and green. Phase 8 is not locked** — a dedicated completion/lock pass is the next step, and it is the only phase-8 work remaining. Phase 5 was closed by a completion
 pass and is recorded in full in §0b, including the five capabilities it delivered and the five
 things that are deliberately outside it. Phase 6 was then built in two increments that share
 nothing but a table row: **6A — Ugens ret and Lørdagsmenu — is recorded in §0c**, and **6B —
@@ -2537,12 +2726,12 @@ closed eight-key shape validated on the way in **and** on the way out, the resto
 from the database rather than from the browser, and **exactly one level** is kept — there is
 no history, no stack and no array.
 
-**It adds no control anywhere in the administration.** `/admin/besked` is phase 7's editor,
-unchanged — no "Erstat", no "Behold eksisterende", no source selector, no conflict sheet —
-and the opening-hours screen is phase 8B's, unchanged. The one address outside those is an
-unlinked, environment-gated integration harness that **8C-3B deletes**; §0k reading F
-records why it exists and what keeps it safe, and §0n records the third action 8C-3A added
-to it rather than inventing a second harness.
+**8C-1 added no control anywhere in the administration.** `/admin/besked` is phase 7's
+editor and still is — no "Erstat", no "Behold eksisterende", no source selector, no conflict
+sheet — and the one address outside it was an unlinked, environment-gated integration
+harness. §0k reading F records why it existed and what kept it safe, and §0n records the
+third action 8C-3A added to it rather than inventing a second harness. **8C-3B deleted it**
+(§0o), because the real caller — 1ae's sheet on the opening-hours screen — exists now.
 
 **Phase 8C-2 is complete and green, and is recorded in §0m.** The **generated** message
 itself now exists, as one pure module — `lib/announcements/generated.ts` — with no
@@ -2566,9 +2755,16 @@ an announcement a guest can read unless replacement was explicitly confirmed, an
 delegates the write so the content, the snapshot and the ownership move in one transaction.
 It writes nothing about the opening hours in any branch.
 
-**Phase 8 is not locked.** 1t's "Vis også som besked øverst på hjemmesiden", the editable
-suggestion beneath it, "Erstat med den nye besked", "Behold eksisterende besked", 1ae's
-conflict sheet, the ~10 s Fortryd strip and §7e item 6's removal consequence are all
-**8C-3B**, which also deletes the 8C-1 harness. It is not started. Nothing phase 8A or 8B
-added names `public.announcement`, no screen composes or imports a generated message, and
-no screen writes an announcement of any kind.
+**Phase 8C-3B is complete and green, and is recorded in §0o.** 1t's "Vis også som besked
+øverst på hjemmesiden" with its editable suggestion, 1ae's conflict sheet with "Erstat med
+den nye besked" and "Behold eksisterende besked", the ~10 s Fortryd strip and §7e item 6's
+removal consequence all exist and are driven end to end at 375 and 1440. The hours are
+published first and always — the Server Action commits the override and expires its cache
+tag before the message is attempted, and the coordinator issues no statement against the
+hours tables in any branch — so no announcement outcome can roll a published override back.
+Deleting a one-off change now goes through one door, and a BEFORE DELETE guard makes that
+true of a direct PostgREST request as well, with no SECURITY DEFINER added anywhere.
+
+**Phase 8 is not locked.** A dedicated completion/lock pass is the next step: reading the
+five increments together, walking both cards against a production build as Staff and as
+Owner, and closing the phase the way phases 5, 6 and 7 were closed.

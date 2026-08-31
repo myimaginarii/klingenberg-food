@@ -27,7 +27,7 @@ import {
  * chips, operated with the arrow keys, and named by the legend above them — which is the
  * treatment 1r's label chips already use in this administration (`LabelFields`).
  *
- * One control is added to the frame's two, and one is left out:
+ * One control is added to the frame's three, and one of the frame's own arrives as a slot:
  *
  *   * **"Gem"** is added, beside them. §6 makes Forhåndsvis the middle step of the path by
  *     which content reaches the hjemmeside, and a preview needs something to preview. Without
@@ -35,13 +35,14 @@ import {
  *     had already gone live, and the promise this screen makes — *the hjemmeside does not
  *     move until you publish* — would have no state in which it was observable. It is the
  *     administration's established word for the established operation.
- *   * **"Vis også som besked øverst på hjemmesiden"**, the suggested message beneath it and
- *     the conflict sheet behind it are **not here at all** — they are phase 8C. They are
- *     absent rather than present and inert, for the same reason 1ah's image control was
- *     absent from the Månedens burger editor and 1ad's removal controls were absent from
- *     phase 7A: a control that lies is worse than a control that is not there yet. This
- *     card has no field for a message, a link or an expiry, and nothing it submits can
- *     reach `public.announcement`.
+ *   * **"Vis også som besked øverst på hjemmesiden"** and the suggested message beneath it
+ *     are **here now** — phase 8C-3B — and they arrive as a *slot*. This file renders
+ *     whatever the screen hands it and imports nothing that could reach an announcement:
+ *     no generator, no coordinator, no announcement table, no expiry and no link. The card
+ *     still has no field of its own for a message, and §7e item 8's ordering is not its
+ *     business either — the Server Action publishes the hours first and attempts the
+ *     message afterwards, whatever this form contained. 1ae's conflict sheet is the
+ *     screen's, drawn beside this card rather than inside it.
  *
  * WHY THE TWO TIME FIELDS APPEAR AND DISAPPEAR WITHOUT A LINE OF JAVASCRIPT
  *
@@ -74,6 +75,14 @@ export type OverrideEditorProps = {
   /** 1t's own "Gem og offentliggør". */
   readonly publishAction: (formData: FormData) => Promise<void>
   readonly anchorId: string
+  /**
+   * The id 1ae's sheet returns focus to — the publish button's own (§11).
+   *
+   * Handed in rather than derived, because the address that aims at it is built in
+   * `app/(admin)/admin/aabningstider/routes.ts` and a component that imported from `app/`
+   * would be the dependency the wrong way round.
+   */
+  readonly publishId: string
   readonly fieldNames: OverrideFieldNames
   readonly values: OverrideFormValues
   /** The `updated_at` this date's row was rendered from, or `''` when it has no row. */
@@ -90,6 +99,16 @@ export type OverrideEditorProps = {
   readonly statePending: boolean
   /** Where 1t's "Forhåndsvis" goes — the real public page, through Draft Mode. */
   readonly previewHref: string
+  /**
+   * 1t's "Vis også som besked øverst på hjemmesiden", with its suggested message.
+   *
+   * A slot rather than a component this file imports, and the card asks it nothing. The
+   * screen decides whether the option exists at all — it needs the published recurring
+   * week and the announcement singleton, which are its reads and not this card's — and
+   * hands in whatever it decided. That keeps the editor a Server Component whose only
+   * client child is one it never has to know about.
+   */
+  readonly announcement?: React.ReactNode
   /** The removal control and the list, rendered by the screen beneath the form. */
   readonly children?: React.ReactNode
 }
@@ -101,6 +120,7 @@ export function OverrideEditor({
   action,
   publishAction,
   anchorId,
+  publishId,
   fieldNames,
   values,
   version,
@@ -110,6 +130,7 @@ export function OverrideEditor({
   stateBadge,
   statePending,
   previewHref,
+  announcement,
   children,
 }: OverrideEditorProps) {
   const headingId = `${anchorId}-titel`
@@ -251,6 +272,14 @@ export function OverrideEditor({
           )}
         </fieldset>
 
+        {/*
+          1t draws the announcement option between the times and the footer, and that is
+          where it goes: inside the same form element, so its checkbox and its message are
+          submitted by the same "Gem og offentliggør" that publishes the hours, and its
+          client child can read the four fields above it out of the form they share.
+        */}
+        {announcement}
+
         <div className="flex flex-wrap items-center justify-end gap-2">
           <SubmitButton>Gem</SubmitButton>
           {/*
@@ -270,6 +299,7 @@ export function OverrideEditor({
           <button
             className="bg-brand-700 hover:bg-brand-500 active:bg-brand-900 rounded-field min-h-tap inline-flex items-center px-5 font-semibold text-white"
             formAction={publishAction}
+            id={publishId}
             type="submit"
           >
             Gem og offentliggør

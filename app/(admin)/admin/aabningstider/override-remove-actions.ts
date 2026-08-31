@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
+import { isOwnedByOverride } from '@/lib/announcements/ownership'
+import { readAdminAnnouncement } from '@/lib/content/announcement-admin'
 import { readAdminOverrides } from '@/lib/content/hours-overrides-admin'
 import { removeOverride } from '@/lib/hours/override-admin'
 import { describeOverrideRemoval, OVERRIDE_CONTENT_FIELDS } from '@/lib/hours/override-form'
@@ -50,11 +52,29 @@ import { openingHoursHref } from './routes'
  * again, and the sentence beside the button says so in as many words before it is pressed.
  * What it does get is the confirmation §6's table does not give any of those four.
  *
- * Nothing here names `public.opening_hours` or `public.announcement`. Removing an override
- * cannot touch the recurring week, and §7e item 6's other half — *"default to removing the
- * announcement too when `source='opening_hours'`"* — belongs with the generated message
- * that creates the situation, which is **phase 8C**. There is no announcement to remove in
- * phase 8B, because phase 8B never creates one.
+ * Nothing here names `public.opening_hours`: removing an override cannot touch the recurring
+ * week.
+ *
+ * ================= §7e ITEM 6, AND HOW LITTLE OF IT IS IN THIS FILE =================
+ *
+ * *"Ask, and default to removing the announcement too when `source='opening_hours'` and it
+ * points at that date."*
+ *
+ *   * **"Points at that date"** is `isOwnedByOverride()` — an id compared to an id. The
+ *     message's wording is editable and is therefore evidence of nothing, so it is never
+ *     read, parsed or matched here.
+ *   * **The asking** is `describeOverrideRemoval()`, which words every removal this screen
+ *     offers. This action calls it once and acts on what it says; it does not branch on the
+ *     lifecycle itself, so there is one decision table rather than one here and one on the
+ *     screen that would have to agree with it.
+ *   * **The doing** is one call to `remove_opening_hours_override()`, which takes the
+ *     announcement down and deletes the override **in one transaction** (§19). There is no
+ *     "hide the message, then delete the row" here, and there could not be: both statements
+ *     are inside one database function, so no request can succeed halfway.
+ *
+ * There is deliberately **no branch that keeps the announcement**. An `opening_hours`
+ * message whose override is gone describes opening times that no longer exist, and the
+ * source of truth asks for no way to produce one.
  */
 export async function removeOverrideAction(formData: FormData): Promise<void> {
   const profile = await requireStaff()
@@ -74,7 +94,26 @@ export async function removeOverrideAction(formData: FormData): Promise<void> {
     redirect(openingHoursHref({ overrideFocus: true, status: 'enkelt_not_found' }))
   }
 
-  const removal = describeOverrideRemoval(override.lifecycle)
+  /*
+   * Whether this override owns the announcement the hjemmeside is showing — read here, from
+   * the singleton, rather than accepted from the form. A browser that claimed ownership it
+   * did not have would change the *sentence* it was shown and nothing else: the database
+   * re-reads both columns inside its own transaction, and a confirmation for an override
+   * that owns nothing simply has nothing to take down.
+   */
+  const announcement = await readAdminAnnouncement()
+
+  const ownsAnnouncement =
+    announcement !== null &&
+    isOwnedByOverride(
+      {
+        source: announcement.source === 'opening_hours' ? 'opening_hours' : 'manual',
+        source_override_id: announcement.sourceOverrideId,
+      },
+      override.id,
+    )
+
+  const removal = describeOverrideRemoval(override.lifecycle, ownsAnnouncement)
   if (removal === null) {
     redirect(
       openingHoursHref({
@@ -128,9 +167,15 @@ export async function removeOverrideAction(formData: FormData): Promise<void> {
   const result = await removeOverride(profile, {
     overrideId: override.id,
     expectedUpdatedAt: version,
+    // The decision table's own answer, not a field the browser sent. The person confirmed
+    // the sentence `describeOverrideRemoval()` wrote, and this is that sentence's other half.
+    removeAnnouncement: removal.removesAnnouncement,
   })
 
-  // Only after the transaction, and only when a guest's answer actually moved.
+  // Only after the transaction, and only for what actually moved — `hours` for a published
+  // override, `announcement` for a generated message that came down with it. Both come from
+  // the publishing registry, and both are expired after the one transaction has committed,
+  // so no guest can observe a deleted override with its announcement still standing (§19).
   expirePublicCacheTags(result.cacheTags)
 
   redirect(
@@ -141,7 +186,9 @@ export async function removeOverrideAction(formData: FormData): Promise<void> {
       status:
         result.status === 'removed'
           ? result.wasPublished
-            ? 'enkelt_fjernet'
+            ? result.removedAnnouncement
+              ? 'enkelt_fjernet_med_besked'
+              : 'enkelt_fjernet'
             : 'enkelt_kladde_fjernet'
           : `enkelt_${result.status}`,
     }),

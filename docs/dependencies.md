@@ -3,6 +3,105 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 8C-3B — no dependencies added (2026-08-31)
+
+**The opening-hours generated-announcement workflow** — 1t's option, 1ae's conflict sheet,
+the ~10 s Fortryd, §7e item 6's removal consequence and the deletion of the 8C-1 harness —
+adds **no package**. `package.json` and the lockfile are byte-identical to the phase-8C-3A
+state.
+
+It is the largest user-facing increment of phase 8 and the one most likely to have justified
+a dependency, so the four that were considered are recorded here with the reason each was
+refused.
+
+**A modal/dialog library** (`@radix-ui/react-dialog`, `react-modal`, `focus-trap-react`).
+1ae's rules read like a feature list: cannot be dismissed by clicking outside, traps focus,
+returns focus to the control that opened it, is announced by its own name. Every one of them
+is what a native `<dialog>` opened with `showModal()` already does, **from the platform** —
+the backdrop is a real `::backdrop`, the rest of the page becomes inert, and the focus trap
+is the browser's rather than a scroll-and-recapture loop. The administration already had
+`components/admin/menu/ModalDialog.tsx` doing exactly this for Slet ret since phase 5D; 8C-3B
+added **one optional prop** to it (`locked`, which suppresses `Esc` where a decision is
+required) and nothing else. A library here would have replaced eleven lines with a dependency
+and taken the platform's guarantees away in exchange for a script's.
+
+**A form-state library** (`react-hook-form`, `formik`). 1t's promise — *"Retter du tiderne,
+opdateres forslaget — indtil du selv har rettet i teksten"* — is the only piece of client
+state in this administration, and it is three values: whether the box is ticked, what the
+message says, and whether a person has edited it. The component reads the four fields above
+it out of the enclosing form's own `FormData`, by name. A form library would have required
+lifting the *other* twelve controls on the screen into it as well, turning a Server Component
+screen into a client one to serve one checkbox.
+
+**A state machine or workflow library.** Refused for the reason 8C-3A recorded, which 8C-3B
+strengthens rather than relaxes: the multi-step operation is a plpgsql function calling a
+plpgsql function, inside one transaction. 8C-3B adds a second such operation —
+`remove_opening_hours_override()`, which now takes the generated announcement down *and*
+deletes the override — and it is one function for the same reason. §31 of the brief asks for
+no generic workflow engine, and the strongest way to obey that is to have nothing that could
+become one: neither function takes a table name, a column name, a step list or a callback.
+
+**A date/time library** (`date-fns`, `luxon`, `temporal-polyfill`). The new expiry stamps —
+1t's *"søndag 06.09.2026 kl. 20:00"* and 1ae's *"06.09.2026 kl. 20:00"* — are two functions in
+`lib/announcements/expiry-editor.ts`, both built on `lib/time/copenhagen.ts`, which has owned
+the Intl-based Copenhagen conversion and both daylight-saving conventions since phase 2. A
+library would have introduced a second opinion about what a Danish wall-clock time is.
+
+### What it did add, in the repository rather than in `package.json`
+
+  * **One migration** — `20260831200000_override_removal_lifecycle.sql`: a BEFORE DELETE
+    guard trigger on `public.opening_hours_overrides`, the announcement write guard taught
+    two more transitions by name (`detach`, `discard_previous`), and
+    `remove_opening_hours_override()` re-stated with §7e item 6's confirmation bit.
+  * **Two pure modules** — `lib/announcements/generated-suggestion.ts` (the one implementation
+    of "what would this card say?", shared by the server and the browser) and two formatters
+    added to `lib/announcements/expiry-editor.ts`.
+  * **Three components** — the 1t control, the 1ae sheet and this screen's announcement
+    notice. The Fortryd strip is `UndoStrip`/`AutoDismiss`, unchanged, because §14 of the
+    brief asks for the existing one rather than a second toast system.
+  * **Two Server Action modules and one pure route module** in
+    `app/(admin)/admin/aabningstider/`.
+
+### The direct-DELETE hardening, and why it is a trigger
+
+8C-3A's `restore_announcement()` records `owner_missing` as *"reachable only through a direct
+PostgREST DELETE"*. That sentence was the hole: §18 of the initial migration granted
+`delete on public.opening_hours_overrides to authenticated`, so a staff member with their own
+JWT could delete an override named only inside `announcement.previous.source_override_id` —
+jsonb, which no foreign key reaches into — bypassing the version check, the ownership rules,
+the audit row and the snapshot's integrity.
+
+**The privilege cannot be revoked**, and this is the same PostgreSQL constraint
+`20260831160000` recorded for the announcement's columns: a SECURITY INVOKER function
+executes with the privileges of whoever called it, so the DELETE the trusted function issues
+*is* the caller's DELETE. Measured from a real Staff JWT, revoking the grant refuses the
+attack and the trusted removal equally. SECURITY DEFINER is forbidden by §8 and by the brief.
+
+So the privilege stays and the **transition** is constrained: a BEFORE DELETE trigger, which
+is a rule the operation must satisfy rather than a privilege — in the same family as the
+table's CHECKs and its RLS policies. It runs for every deleter, a caller who does not own the
+table cannot turn it off, and it recognises the trusted removal by the same transaction-local
+GUC convention the announcement guard has used since 8C-1's hardening. One pattern in this
+repository for *"a privilege that may only be spent by a named transition"*, not two.
+`supabase/tests/018_override_removal.test.sql` proves it from real Staff **and** Owner JWTs,
+including that the marker cannot be held open for a later statement.
+
+### The temporary directory is gone
+
+`app/(admin)/admin/intern/` **has been deleted**, together with the
+`ANNOUNCEMENT_REPLACEMENT_HARNESS` flag and the `env` line in `playwright.config.ts` that set
+it. Its scenarios were not deleted with it: `tests/e2e/opening-hours-announcement.spec.ts`
+drives the same replacement, restore, ownership and first-guest-request assertions through
+`/admin/aabningstider`, which is the screen a person actually uses.
+`tests/unit/announcements/generated-boundary.test.ts` asserts over the source tree that the
+address, the flag and every reference to either are gone.
+
+### `npm audit --audit-level=high` — clean
+
+Run against the unchanged lockfile after `npm ci`: **0 vulnerabilities**.
+
+---
+
 ## Phase 8C-3A — no dependencies added (2026-08-31)
 
 **Generated-announcement ownership and atomic coordination** (§0n) adds **no package**.
@@ -78,16 +177,15 @@ path can roll the hours back"* a property of the text.
 one column, one value — and an index could only have made a duplicate unlikely to be
 written somewhere there is nowhere for one to live.
 
-### One temporary directory, unchanged in kind
+### One temporary directory, unchanged in kind — since deleted
 
-`app/(admin)/admin/intern/besked-erstatning/` gains a **third Server Action** rather than
-a sibling. The brief forbids inventing a second harness, and `updateTag()` is still only
-callable from inside a Server Action, so proving the coordinator through the real cache
-path needed a form dispatching to one. The three properties that make it safe are
-unchanged: the environment flag, `requireStaff()` before the flag, and no field through
-which the browser could choose content — the generated action carries an override id,
-two version tokens and one confirmation bit, and the wording is composed on the server.
-**8C-3B still deletes it.**
+`app/(admin)/admin/intern/besked-erstatning/` gained a **third Server Action** rather than
+a sibling. The brief forbade inventing a second harness, and `updateTag()` is only callable
+from inside a Server Action, so proving the coordinator through the real cache path needed a
+form dispatching to one. The three properties that made it safe: the environment flag,
+`requireStaff()` before the flag, and no field through which the browser could choose content.
+
+**Phase 8C-3B deleted it**, and moved its scenarios onto `/admin/aabningstider`.
 
 ### `npm audit --audit-level=high` — clean
 
@@ -194,17 +292,19 @@ their own JWT. It names `public.opening_hours` and `public.opening_hours_overrid
 composes no message, and writes `announcement_created` nowhere. *(That column was
 dropped by 8C-3A; ownership is `announcement.source_override_id`. See §0n.)*
 
-### One temporary directory, recorded so it is not forgotten
+### One temporary directory, recorded so it is not forgotten — since deleted
 
-`app/(admin)/admin/intern/besked-erstatning/` is an integration harness, not a screen. It
-exists because `updateTag()` — the real cache path the brief requires proof of — may only be
+`app/(admin)/admin/intern/besked-erstatning/` was an integration harness, not a screen. It
+existed because `updateTag()` — the real cache path the brief required proof of — may only be
 called from inside a Server Action, and a Server Action is only reachable from a rendered
-form. It is behind `ANNOUNCEMENT_REPLACEMENT_HARNESS=1`, which `playwright.config.ts` sets
-for the test server and nothing else sets anywhere; it is guarded by `requireStaff()` first
-and the flag second; nothing links to it; and the browser still chooses no content — the
-submission is a closed variant key and a version token. **8C-3 deletes it**, because the real
-caller is 1ae's conflict sheet. `tests/unit/announcements/replacement-boundary.test.ts` holds
-all four of those properties.
+form. It was behind `ANNOUNCEMENT_REPLACEMENT_HARNESS=1`, set by `playwright.config.ts` for
+the test server and by nothing else; guarded by `requireStaff()` first and the flag second;
+linked from nowhere; and the browser chose no content.
+
+**Phase 8C-3B deleted it**, because the real caller is 1ae's conflict sheet and it now exists.
+The boundary suite that held it to those properties is now
+`tests/unit/announcements/generated-boundary.test.ts`, which asserts the opposite: that the
+address, the flag and every reference to either are gone.
 
 ### `npm audit --audit-level=high` — clean
 

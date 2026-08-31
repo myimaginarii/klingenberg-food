@@ -66,6 +66,53 @@ export const OVERRIDE_ROW_FORM = {
   confirm: 'bekraeft',
 } as const
 
+/**
+ * 1t's optional generated announcement — the three fields the card adds, and no others.
+ *
+ * **What the browser is allowed to say**, and it is the whole list: *whether* the person
+ * asked for the message, *what wording* they approved, and *which version* of the
+ * announcement they were looking at when they asked (§6). Nothing here can reach an
+ * expiry, a link, a source, an owner, `previous` or `replaced_at`: the server re-reads
+ * the published override and the recurring week and re-asks `generateOpeningHoursAnnouncement()`
+ * for all five, on the first call and again on the confirmed one (§7 of the 8C-3B brief).
+ *
+ * `message` is the single exception, and it is an exception by design rather than by
+ * omission: the override model has no reason column, so *"Lukket mandag 21.09"* is
+ * deliberately neutral and 1t offers it as *"Foreslået besked — ret den gerne"*.
+ * `withEditedMessage()` is where that permission ends — it validates the wording against
+ * 1ac's rules and can assign to `message` and nothing else.
+ */
+export const OVERRIDE_ANNOUNCEMENT_FORM = {
+  /** 1t's checkbox. Present and `'1'` exactly when the person asked for the message. */
+  wanted: 'besked-til',
+  /** The wording they approved — the generator's, or their own edit of it. */
+  message: 'besked-tekst',
+  /** The `updated_at` the announcement singleton was rendered from (§6). */
+  version: 'besked-version',
+} as const
+
+/**
+ * 1ae's own submission: which override, both version tokens, the wording, and the one bit.
+ *
+ * The sheet is a *second* request, so it carries its own tokens rather than trusting the
+ * ones the first attempt used — and the server re-reads every row named here before it
+ * writes. "Behold eksisterende besked" submits none of this: it is a link, and it writes
+ * nothing at all (§12 of the 8C-3B brief).
+ */
+export const OVERRIDE_CONFLICT_FORM = {
+  override: 'aendring',
+  overrideVersion: 'aendring-version',
+  version: 'besked-version',
+  message: 'besked-tekst',
+  /** 1ae's "Erstat med den nye besked". Never set by the first attempt. */
+  confirm: 'erstat',
+} as const
+
+/** The Fortryd strip: the announcement version token the write returned, and nothing else. */
+export const OVERRIDE_UNDO_FORM = {
+  version: 'besked-version',
+} as const
+
 /** The query parameter a refused save carries its codes in. */
 export const OVERRIDE_ERROR_FIELD = 'enkelt-fejl'
 
@@ -94,6 +141,38 @@ export function readOverrideForm(source: FormData | URLSearchParams): OverrideFo
 /** The date the submitted version token was read for, or `''`. */
 export function readOverrideVersionDate(source: FormData | URLSearchParams): string {
   return text(source, OVERRIDE_FORM.versionDate)
+}
+
+/**
+ * What the card asked for on behalf of the announcement — or `null` when it asked for
+ * nothing.
+ *
+ * `null` is 1t's checkbox left clear, and §3 of the brief makes it a complete answer:
+ * publish the hours, call no coordinator, touch no announcement, create no ownership and
+ * show no sheet. It is read by name like everything else here, so a submission that
+ * carries a message without the checkbox asks for nothing — the wording is not the
+ * request.
+ *
+ * The message is passed on **as typed**, including the whitespace: trimming and 1ac's
+ * 90-character rule are `withEditedMessage()`'s, applied on the server against the
+ * generated announcement it is about to substitute into, so there is one implementation
+ * of "is this message allowed" rather than one here and one there.
+ */
+export type AnnouncementRequest = {
+  readonly message: string
+  /** The announcement version the card was rendered from (§6). */
+  readonly version: string
+}
+
+export function readAnnouncementRequest(
+  source: FormData | URLSearchParams,
+): AnnouncementRequest | null {
+  if (text(source, OVERRIDE_ANNOUNCEMENT_FORM.wanted) !== '1') return null
+
+  return {
+    message: text(source, OVERRIDE_ANNOUNCEMENT_FORM.message),
+    version: text(source, OVERRIDE_ANNOUNCEMENT_FORM.version),
+  }
 }
 
 /**

@@ -56,6 +56,14 @@ const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
     tone: 'success',
     text: 'Ændringen er fjernet. Den dato følger igen de normale åbningstider.',
   },
+  /*
+   * §7e item 6's own outcome: both halves went, in one transaction. Said as one sentence
+   * because it was one decision — the confirmation named both before it was pressed.
+   */
+  enkelt_fjernet_med_besked: {
+    tone: 'success',
+    text: 'Ændringen og beskeden er fjernet. Den dato følger igen de normale åbningstider, og der står ikke længere en besked om ændrede tider på hjemmesiden.',
+  },
   enkelt_kladde_fjernet: {
     tone: 'success',
     text: 'Kladden er fjernet. Det, der står på hjemmesiden, er uændret.',

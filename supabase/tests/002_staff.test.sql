@@ -16,7 +16,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(57);
+select plan(59);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures and identity check
@@ -254,9 +254,31 @@ select lives_ok(
   $$ update public.opening_hours_overrides set status = 'published'
       where date = current_date + 10 $$,
   'staff can publish a one-off override');
-select lives_ok(
+-- Phase 8C-3B: a direct DELETE is refused, and that is the point of `overrides_guard_delete`.
+--
+-- Staff keep the table-level DELETE privilege — a SECURITY INVOKER function spends the
+-- caller's privileges, so `remove_opening_hours_override()` could not delete anything
+-- without it — and the guard trigger is what decides when that privilege may actually be
+-- spent. Removing an override is still entirely within a staff member's rights; it simply
+-- has one door, which checks the version, the generated announcement the override may own
+-- and the audit trail on the way through (technical plan §7e item 6, §8).
+select throws_ok(
   $$ delete from public.opening_hours_overrides where date = current_date + 11 $$,
-  'staff can delete a one-off override');
+  '42501',
+  null,
+  'a direct DELETE of a one-off override is refused, whoever the staff member is');
+
+select lives_ok(
+  $$ select public.remove_opening_hours_override(
+       (select id from public.opening_hours_overrides where date = current_date + 11),
+       (select updated_at from public.opening_hours_overrides where date = current_date + 11),
+       false) $$,
+  'staff can delete a one-off override through the trusted removal function');
+
+select is(
+  (select count(*)::int from public.opening_hours_overrides where date = current_date + 11),
+  0,
+  'and the row is actually gone');
 
 -- --- Mad ud af huset, including its visibility toggle ---
 select lives_ok(

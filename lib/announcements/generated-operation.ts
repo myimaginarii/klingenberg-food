@@ -240,6 +240,83 @@ function parseSnapshot(value: unknown): AnnouncementSnapshot | null {
 }
 
 // ---------------------------------------------------------------------------
+// Re-reading the published rows, and asking the generator
+// ---------------------------------------------------------------------------
+
+/**
+ * What the published override currently suggests, or the reason it suggests nothing.
+ *
+ * The status vocabulary is {@link ApplyGeneratedAnnouncementStatus}'s own, narrowed to
+ * the refusals these three reads and the generator can produce — so a screen that shows
+ * the suggestion and the operation that writes it report a refusal in the same word.
+ */
+export type GeneratedAnnouncementSuggestion =
+  | {
+      readonly ok: true
+      readonly announcement: GeneratedAnnouncement
+      /** The `updated_at` the override was read with, for the follow-up call (§6). */
+      readonly overrideUpdatedAt: string
+    }
+  | {
+      readonly ok: false
+      readonly status: Extract<
+        ApplyGeneratedAnnouncementStatus,
+        'no_effect' | 'expired' | 'too_long' | 'not_published' | 'not_found'
+      >
+    }
+
+/**
+ * Steps 2 to 4 of the operation below, on their own — §7 of the 8C-3B brief.
+ *
+ * Exported because **two** callers need exactly this and must not disagree: the
+ * operation, which is about to write, and 1ae's conflict sheet, which has to name the
+ * announcement the person is being asked about. A sheet that re-derived the wording
+ * from anything else — the browser's copy, the message it was redirected with, a second
+ * call to the generator with different arguments — could show one sentence and publish
+ * another.
+ *
+ * It reads the **published** halves of both rows through the caller's own JWT, and it
+ * takes no argument but an id: the date, the times, the recurring week, the expiry, the
+ * link and the source all come from what the database answered.
+ */
+export async function readGeneratedAnnouncementFor(
+  overrideId: string,
+): Promise<GeneratedAnnouncementSuggestion> {
+  const overrides = await readAdminOverrides()
+  const override = overrides.find((candidate) => candidate.id === overrideId) ?? null
+
+  // `readAdminOverrides` lists today onwards, which is §7e item 7 from the other side:
+  // a past date is one no guest can read and no editor may create, so it is also one
+  // no announcement may be generated from.
+  if (override === null) return { ok: false, status: 'not_found' }
+
+  // `live` is null exactly while the row has never been published. This is §7e item
+  // 8's ordering, refused at the first step that can see it.
+  if (override.live === null) return { ok: false, status: 'not_published' }
+
+  const hours = await readAdminOpeningHours()
+  if (hours === null) return { ok: false, status: 'not_found' }
+
+  // The **published** halves of both, never the drafts: the announcement describes
+  // what a guest can read, and a guest reads neither draft.
+  const generated = generateOpeningHoursAnnouncement({
+    date: override.date,
+    override: override.live,
+    schedule: hours.live,
+    now: new Date(),
+  })
+
+  if (!generated.ok) return { ok: false, status: generated.reason }
+
+  return {
+    ok: true,
+    announcement: generated.announcement,
+    overrideUpdatedAt: override.updatedAt,
+  }
+}
+
+
+// ---------------------------------------------------------------------------
 // The operation
 // ---------------------------------------------------------------------------
 
@@ -281,36 +358,13 @@ export async function applyGeneratedAnnouncement(
   // is one edit rather than several.
   if (!mayChangeEntity('announcement', profile)) return refuse('forbidden')
 
-  const overrides = await readAdminOverrides()
-  const override = overrides.find((candidate) => candidate.id === request.overrideId) ?? null
-
-  // `readAdminOverrides` lists today onwards, which is §7e item 7 from the other side:
-  // a past date is one no guest can read and no editor may create, so it is also one
-  // no announcement may be generated from.
-  if (override === null) return refuse('not_found')
-
-  // `live` is null exactly while the row has never been published. This is §7e item
-  // 8's ordering, refused at the first step that can see it.
-  if (override.live === null) return refuse('not_published')
-
-  const hours = await readAdminOpeningHours()
-  if (hours === null) return refuse('not_found')
-
-  // The **published** halves of both, never the drafts: the announcement describes
-  // what a guest can read, and a guest reads neither draft.
-  const generated = generateOpeningHoursAnnouncement({
-    date: override.date,
-    override: override.live,
-    schedule: hours.live,
-    now: new Date(),
-  })
-
-  if (!generated.ok) return refuse(generated.reason)
+  const suggestion = await readGeneratedAnnouncementFor(request.overrideId)
+  if (!suggestion.ok) return refuse(suggestion.status)
 
   const announcement =
     request.message === undefined
-      ? generated.announcement
-      : withEditedMessage(generated.announcement, request.message)
+      ? suggestion.announcement
+      : withEditedMessage(suggestion.announcement, request.message)
 
   if (announcement === null) return refuse('invalid_payload', { reason: 'message' })
 

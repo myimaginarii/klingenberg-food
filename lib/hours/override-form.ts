@@ -443,27 +443,50 @@ export function describeOverridePending(
 /**
  * What "Fjern" does to this date, in the administration's own words.
  *
- * Three different operations wear the same verb, and the difference matters enough that the
- * screen says which one it is offering. The **server** decides from the row it read, never
- * from a field the browser sent; this function only words the decision.
+ * **The central decision table** for removal, and deliberately the only one: the Server
+ * Action asks it what a press means rather than branching on the lifecycle itself, and the
+ * screen draws whatever it returns. The **server** decides the inputs from the rows it
+ * read, never from a field the browser sent; this function only words the decision.
  *
  *   * `kladde` — the row has never been live, so removing it deletes it and no guest sees
  *     anything change. There is nothing to confirm.
  *   * `live_med_kladde` — only the pending edit goes; the published override stays exactly
- *     as the hjemmeside is showing it. Also nothing to confirm.
+ *     as the hjemmeside is showing it. Also nothing to confirm. **Never** touches an
+ *     announcement, even one this override owns: the published hours it describes are
+ *     exactly as they were.
  *   * `live` — the override leaves the hjemmeside and the date goes back to the normal
  *     weekly schedule, at once. That one asks first (§6: a change a guest can see is never
  *     made by a single unconfirmed press on this screen).
+ *   * `live` **and it owns the generated announcement** — §7e item 6. Both go, in one
+ *     transaction, and the confirmation says so. There is deliberately **no** branch that
+ *     keeps the message and deletes the hours it describes: that would leave guests
+ *     reading about opening times that no longer exist, and the source of truth asks for
+ *     no such feature.
  */
 export type OverrideRemoval = {
   readonly label: string
   readonly description: string
   /** True when the press changes what a guest reads and must therefore be confirmed. */
   readonly confirms: boolean
+  /**
+   * True when going ahead also takes the generated announcement down (§7e item 6).
+   *
+   * The Server Action sends this to the database as its one confirmation bit, so the
+   * sentence a person read and the transition that runs are decided in the same place.
+   */
+  readonly removesAnnouncement: boolean
 }
 
 export function describeOverrideRemoval(
   lifecycle: OverrideLifecycle,
+  /**
+   * Whether this override owns the announcement the hjemmeside is showing.
+   *
+   * Decided by `isOwnedByOverride()` from the two ownership columns — an id compared to
+   * an id, never the message's wording, its weekday, its expiry or its link (§7e item 6:
+   * the suggested text is editable and is therefore evidence of nothing).
+   */
+  ownsAnnouncement = false,
 ): OverrideRemoval | null {
   switch (lifecycle) {
     case 'ingen':
@@ -474,6 +497,7 @@ export function describeOverrideRemoval(
         description:
           'Kladden slettes. Den har aldrig været på hjemmesiden, så der ændrer sig ikke noget for gæsterne.',
         confirms: false,
+        removesAnnouncement: false,
       }
     case 'live_med_kladde':
       return {
@@ -481,13 +505,23 @@ export function describeOverrideRemoval(
         description:
           'Kun kladden slettes. Den ændring, der allerede står på hjemmesiden, bliver stående.',
         confirms: false,
+        removesAnnouncement: false,
       }
     case 'live':
-      return {
-        label: 'Fjern ændringen fra hjemmesiden',
-        description:
-          'Datoen følger igen de normale åbningstider. Det sker med det samme og kan ikke fortrydes — men ændringen kan altid laves igen herover.',
-        confirms: true,
-      }
+      return ownsAnnouncement
+        ? {
+            label: 'Fjern ændring og besked',
+            description:
+              'Datoen følger igen de normale åbningstider, og beskeden om de ændrede tider fjernes fra hjemmesiden. Beskeden fortæller om tider, der ikke længere gælder, så de to hører sammen. Det sker med det samme og kan ikke fortrydes — men ændringen kan altid laves igen herover.',
+            confirms: true,
+            removesAnnouncement: true,
+          }
+        : {
+            label: 'Fjern ændringen fra hjemmesiden',
+            description:
+              'Datoen følger igen de normale åbningstider. Det sker med det samme og kan ikke fortrydes — men ændringen kan altid laves igen herover.',
+            confirms: true,
+            removesAnnouncement: false,
+          }
   }
 }

@@ -26,17 +26,26 @@ import { describe, expect, it } from 'vitest'
  *   4. **The card's domain module is pure.** No Supabase, no `server-only`, no clock — so
  *      the date rule cannot pick up the machine's timezone by accident.
  *
- * WHAT PHASE 8C-2 MOVED, AND WHAT IT DID NOT
+ * WHAT PHASE 8C-3B CHANGED, AND WHAT IT DID NOT
  *
- * 8C-2 adds `lib/announcements/generated.ts` — a **pure** domain module that composes
- * 1t's suggested message and its expiry from an override, the recurring week and an
- * instant the caller supplies. That module is allowed to name announcement types; it is
- * the one place in this repository that is. So the last describe block below states the
- * narrowed boundary rather than the withdrawn one: the generator exists, it is pure, and
- * **nothing above it has been wired to it**. No Server Action calls it, no screen imports
- * it, 1t draws no "Vis også som besked øverst på hjemmesiden" checkbox, and the four files
- * above still name no announcement at all. Those are 8C-3's, and they are asserted here
- * so that arriving at them is a deliberate edit to this file rather than a quiet drift.
+ * 8C-2 and 8C-3A asserted here that **nothing above the generator had been wired to it**.
+ * 8C-3B is the phase that wires it, so the boundary narrows rather than lifting: three
+ * named files may now reach the announcement, and every other file on the one-off path
+ * still may not.
+ *
+ *   * `lib/hours/override-admin.ts` — the removal wrapper. It names `owns_announcement`
+ *     and carries §7e item 6's one confirmation bit, and it reaches no announcement module.
+ *   * `app/(admin)/admin/aabningstider/override-publish-actions.ts` — the hours-first
+ *     publish, which attempts the optional message **after** the override is live.
+ *   * `app/(admin)/admin/aabningstider/override-remove-actions.ts` — which asks
+ *     `isOwnedByOverride()` who owns the live message before it words the removal.
+ *
+ * The **import graph** as a whole — which files may reach the coordinator, what the
+ * browser may submit, and that ownership is never read out of a message — is asserted in
+ * `tests/unit/announcements/generated-boundary.test.ts`, which is 8C-3B's own boundary
+ * suite. What stays here is the half this file has always owned: that the one-off card's
+ * *hours* path cannot reach an announcement or the recurring week, that the generator is
+ * pure, and that a save tells the public cache nothing.
  */
 
 const ROOT = process.cwd()
@@ -52,6 +61,23 @@ const OVERRIDE_PATH_FILES = [
     .filter((entry) => entry.startsWith('override-'))
     .map((entry) => `app/(admin)/admin/aabningstider/${entry}`),
 ]
+
+/**
+ * The three files 8C-3B allows to know an announcement exists, named one at a time.
+ *
+ * An allow-list of **files**, not of a folder, so a fourth is a line somebody has to add
+ * here rather than a file that quietly appears next to the other three.
+ */
+const MAY_REACH_ANNOUNCEMENT = [
+  'lib/hours/override-admin.ts',
+  'app/(admin)/admin/aabningstider/override-publish-actions.ts',
+  'app/(admin)/admin/aabningstider/override-remove-actions.ts',
+]
+
+/** Everything on the one-off path that still may not. */
+const HOURS_ONLY_FILES = OVERRIDE_PATH_FILES.filter(
+  (path) => !MAY_REACH_ANNOUNCEMENT.includes(path),
+)
 
 function read(path: string): string {
   const absolute = join(ROOT, ...path.split('/'))
@@ -76,21 +102,16 @@ function code(source: string): string {
 
 describe('the phase-8C boundary, in the code rather than in a promise', () => {
   /*
-   * 8C-3A narrowed this by exactly one word, and the narrowing is worth stating.
+   * The rule that did not change: everything on the one-off path except the three named
+   * files reaches no announcement at all — not the table, not a domain module, not a
+   * lifecycle RPC, not the snapshot columns, not the ownership pointer.
    *
-   * `lib/hours/override-admin.ts` now names one announcement-shaped thing:
-   * `'owns_announcement'`, the status `remove_opening_hours_override()` returns when a
-   * date still owns the generated message on the hjemmeside. That is the database
-   * refusing a deletion, mapped into the removal wrapper's own vocabulary — not this
-   * path reaching for an announcement. Everything that would be reaching is still
-   * forbidden below: the table, the domain modules, the lifecycle RPCs, the snapshot
-   * columns and the ownership pointer.
-   *
-   * `announcement_created` is asserted separately, and more strongly: 8C-3A dropped
-   * the column, so it must appear in **no file in the repository**, not merely in
-   * these four.
+   * That is most of the path, and deliberately: 1t's card, its form vocabulary, its
+   * notices, its ordinary Gem and the admin read underneath them all still have no way to
+   * touch `public.announcement`. Only the two Server Actions that §7e items 6 and 8
+   * actually name, and the removal wrapper they call, may.
    */
-  it.each(OVERRIDE_PATH_FILES)('%s reaches for no announcement', (path) => {
+  it.each(HOURS_ONLY_FILES)('%s reaches for no announcement', (path) => {
     const source = code(read(path))
 
     for (const forbidden of [
@@ -102,7 +123,6 @@ describe('the phase-8C boundary, in the code rather than in a promise', () => {
       'set_announcement_visible',
       'publish_announcement',
       'source_override_id',
-      'previous',
       'replaced_at',
     ]) {
       expect(source.toLowerCase(), `${path} does not name ${forbidden}`).not.toContain(
@@ -111,20 +131,40 @@ describe('the phase-8C boundary, in the code rather than in a promise', () => {
     }
   })
 
-  it('the only announcement word in the override path is the removal refusal', () => {
-    // One file, and every occurrence in it part of `owns_announcement`. If the word
-    // appears anywhere else, or in any other shape, the rule above has stopped being
-    // "no reaching" and started being "some reaching".
-    const mentions = OVERRIDE_PATH_FILES.filter((path) => /announcement/i.test(code(read(path))))
+  /*
+   * And the three that may are held to *what* they may reach, one file at a time.
+   *
+   * None of them may write an announcement column, name a lifecycle RPC, or compose a
+   * message: each reaches exactly one door — the coordinator, the ownership predicate, or
+   * a status string — and everything authoritative is decided behind it.
+   */
+  it.each(MAY_REACH_ANNOUNCEMENT)('%s reaches one door and no further', (path) => {
+    const source = code(read(path))
 
-    expect(mentions).toEqual(['lib/hours/override-admin.ts'])
+    for (const forbidden of [
+      "from('announcement')",
+      'replace_announcement',
+      'restore_announcement',
+      'set_announcement_visible',
+      'publish_announcement',
+      'replaced_at',
+      'generateOpeningHoursAnnouncement',
+      'withEditedMessage',
+      'Ændrede åbningstider',
+    ]) {
+      expect(source, `${path} names ${forbidden}`).not.toContain(forbidden)
+    }
+  })
 
-    const stripped = code(read('lib/hours/override-admin.ts')).replaceAll(
-      'owns_announcement',
-      '',
-    )
+  it('the removal wrapper still writes no announcement of its own', () => {
+    // It carries §7e item 6's confirmation bit to `remove_opening_hours_override()`, and
+    // the transition itself is the database's — one transaction, so the two halves cannot
+    // come apart. This module names no announcement column and calls no announcement RPC.
+    const source = code(read('lib/hours/override-admin.ts'))
 
-    expect(stripped).not.toMatch(/announcement/i)
+    expect(source).toContain('remove_opening_hours_override')
+    expect(source).not.toContain('@/lib/announcements/')
+    expect(source).not.toContain('source_override_id')
   })
 
   it('announcement_created exists nowhere at all — 8C-3A dropped the column', () => {
@@ -145,15 +185,23 @@ describe('the phase-8C boundary, in the code rather than in a promise', () => {
     }
   })
 
+  /*
+   * The two cards share a screen and no code: a staff member's authority over one date
+   * must not become authority over the week.
+   *
+   * The probe is the *reach* rather than the string, because 8C-3B put the literal
+   * `'opening_hours'` legitimately on this path — it is the announcement's `source` value,
+   * one half of the ownership pair, and has nothing to do with the weekly table.
+   */
   it.each(OVERRIDE_PATH_FILES)('%s cannot reach the recurring weekly schedule', (path) => {
     const source = code(read(path))
 
     for (const forbidden of [
-      "'opening_hours'",
-      '"opening_hours"',
+      "from('opening_hours')",
       'publish_opening_hours(',
       'saveOpeningHoursDraft',
       'publishOpeningHours',
+      'readAdminOpeningHours',
       'weeklyScheduleSchema',
       'toWeeklySchedule',
     ]) {
@@ -291,32 +339,40 @@ describe('the generated announcement is domain logic and nothing more (8C-2)', (
 
 /*
  * ---------------------------------------------------------------------------
- * The 8C-3A boundary: one caller, and it is the domain coordinator
+ * The generator stays pure, and stays reached through two doors
  * ---------------------------------------------------------------------------
  *
- * 8C-2 asserted that **nothing** called the generator. 8C-3A gives it exactly one
- * caller — `lib/announcements/generated-operation.ts`, the server-side coordinator —
- * and the narrowed rule is that it stays exactly one, and that no *screen* is it.
+ * 8C-2 asserted that nothing called the generator; 8C-3A gave it one caller; 8C-3B gives
+ * it a second, and stops there.
  *
- * The gated integration harness reaches the coordinator, which is the whole reason it
- * exists (`app/(admin)/admin/intern/besked-erstatning/harness.ts`), and it is exempted
- * by name rather than by pattern so that a second exemption has to be written down.
+ *   * `lib/announcements/generated-operation.ts` — the server-side coordinator, which
+ *     re-reads the published rows and composes the authoritative payload.
+ *   * `lib/announcements/generated-suggestion.ts` — the pure module the **screen** and the
+ *     **browser** share, so 1t's *"Retter du tiderne, opdateres forslaget"* is answered by
+ *     one implementation in both runtimes rather than by two that agree today.
+ *
+ * No component, Server Action, route or page calls the generator directly. That is what
+ * keeps "the wording is composed in one place" a property of the import graph.
  */
 const COORDINATOR_MODULE = 'lib/announcements/generated-operation.ts'
-const HARNESS_DIR = 'app/(admin)/admin/intern/besked-erstatning'
+const SUGGESTION_MODULE = 'lib/announcements/generated-suggestion.ts'
 
-describe('the generator has one caller, and no screen is it — 8C-3A', () => {
+describe('the generator has two callers, and no screen is either — 8C-3B', () => {
   const files = applicationFiles()
 
   it('there are files to check', () => {
     expect(files.length).toBeGreaterThan(0)
   })
 
-  it('no Server Action, route, page or component imports the generator', () => {
-    for (const { path, source } of files) {
-      // The closing quote matters: `@/lib/announcements/generated-operation` — the
-      // coordinator the harness reaches — starts with the same characters, and the
-      // rule here is about the *pure generator*.
+  it('no Server Action, route, page or component imports the generator directly', () => {
+    for (const { path, source: file } of files) {
+      // Comments stripped, as everywhere else in this file: several of these modules name
+      // the generator in prose precisely in order to record that the *server* re-runs it.
+      const source = code(file)
+
+      // The closing quote matters: `@/lib/announcements/generated-operation` and
+      // `-suggestion` both start with the same characters, and the rule here is about the
+      // *pure generator* itself.
       expect(source, `${path} imports the generator`).not.toContain(`${GENERATOR_IMPORT}'`)
       expect(source, `${path} calls the generator`).not.toContain(
         'generateOpeningHoursAnnouncement',
@@ -324,7 +380,7 @@ describe('the generator has one caller, and no screen is it — 8C-3A', () => {
     }
   })
 
-  it('the coordinator is the generator’s only caller in lib/', () => {
+  it('the coordinator and the suggestion module are its only callers in lib/', () => {
     const callers = [...walk(join(ROOT, 'lib'))]
       .map((absolute) => relative(ROOT, absolute).split(sep).join('/'))
       .filter((path) => /\.ts$/.test(path) && path !== GENERATOR_MODULE)
@@ -333,53 +389,33 @@ describe('the generator has one caller, and no screen is it — 8C-3A', () => {
 
         return source.includes(`${GENERATOR_IMPORT}'`) || source.includes("from './generated'")
       })
+      .sort()
 
-    expect(callers).toEqual([COORDINATOR_MODULE])
+    expect(callers).toEqual([COORDINATOR_MODULE, SUGGESTION_MODULE].sort())
   })
 
-  it('only the gated harness reaches the coordinator — no production screen does', () => {
-    const importers = files
-      .filter(({ source }) => code(source).includes('@/lib/announcements/generated-operation'))
-      .map(({ path }) => path)
+  it('the suggestion module is pure — it is the one that runs in a browser', () => {
+    const source = code(read(SUGGESTION_MODULE))
 
-    for (const path of importers) {
-      expect(path.startsWith(HARNESS_DIR), `${path} reaches the coordinator`).toBe(true)
-    }
+    // It is imported by a `'use client'` component, so anything here that reached the
+    // server would be a build error rather than a subtle bug — and stating it keeps the
+    // reason visible.
+    expect(source).not.toContain('server-only')
+    expect(source).not.toContain('@supabase')
+    expect(source).not.toContain('createSupabaseServerClient')
+    expect(source).not.toContain('Date.now()')
   })
 
-  it('1t draws no announcement checkbox and no generated-message field yet', () => {
-    // Comments stripped, as everywhere else in this file: several of these screens name
-    // 1t's checkbox in prose precisely in order to record that they do not draw it.
-    for (const { path, source: file } of files) {
-      const source = code(file)
+  it('the client control composes no wording of its own', () => {
+    const control = code(
+      read('components/admin/hours/GeneratedAnnouncementField.tsx'),
+    )
 
-      for (const wording of [
-        'Vis også som besked',
-        'Foreslået besked',
-        'Erstat med den nye besked',
-        'Behold eksisterende',
-      ]) {
-        expect(source, `${path} renders “${wording}”`).not.toContain(wording)
-      }
-    }
+    // Every Danish sentence about *hours* comes from the domain. What is written in the
+    // component is the frame's own helper copy, which is about the control rather than
+    // about any particular date.
+    expect(control).not.toContain('Ændrede åbningstider')
+    expect(control).not.toContain('Lukket ')
+    expect(control).toContain('suggestOverrideAnnouncement')
   })
-
-  it.each(OVERRIDE_PATH_FILES)(
-    '%s still saves, publishes and removes without an announcement',
-    (path) => {
-      const source = code(read(path))
-
-      // The blanket rule at the top of this file already forbids the word
-      // "announcement" in these four paths. Stated again by name, because after 8C-2
-      // these are the three specific operations 8C-3 will be tempted to reach from.
-      for (const forbidden of [
-        GENERATOR_IMPORT,
-        'generateOpeningHoursAnnouncement',
-        'replaceAnnouncement',
-        'restoreAnnouncement',
-      ]) {
-        expect(source, `${path} names ${forbidden}`).not.toContain(forbidden)
-      }
-    },
-  )
 })

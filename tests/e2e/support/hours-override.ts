@@ -176,7 +176,43 @@ export async function saveOverride(page: Page): Promise<void> {
   )
 }
 
-export async function saveAndPublishOverride(page: Page): Promise<void> {
+/**
+ * 1t's own primary control — and, since phase 8C-3B, a decision about the message too.
+ *
+ * The card now draws *"Vis også som besked øverst på hjemmesiden"* **ticked by default**
+ * (§3), so a press that ignores it publishes a generated announcement as well as the hours.
+ * That is correct for a person and wrong for most tests: phase 8B's scenarios are about
+ * opening times, and a suite that silently created announcements would leave them standing
+ * for every project chained after it.
+ *
+ * So the option is **explicit here rather than inherited**: cleared unless a caller asks
+ * for it. `tests/e2e/opening-hours-announcement.spec.ts` is the suite that asks, and it is
+ * the one testing what the checkbox does.
+ */
+export async function saveAndPublishOverride(
+  page: Page,
+  options: { readonly announcement?: boolean } = {},
+): Promise<void> {
+  const wanted = options.announcement === true
+
+  /*
+   * `count()` and not `isVisible()`: the option is **absent** whenever the generator
+   * refuses (§4's `no_effect`, `expired`, `too_long`), which is a perfectly ordinary state
+   * for an 8B scenario and not something to wait five seconds for.
+   */
+  const option = overrideForm(page).getByRole('checkbox', {
+    name: 'Vis også som besked øverst på hjemmesiden',
+  })
+
+  if ((await option.count()) > 0 && (await option.isChecked()) !== wanted) {
+    // The label, not the input: the checkbox is `sr-only` so that 1aa's 44 px target is the
+    // drawn box beside it rather than a 22 px square (see `GeneratedAnnouncementField`).
+    const id = await option.getAttribute('id')
+
+    await overrideForm(page).locator(`label[for="${id}"]`).click()
+    await expect(option).toBeChecked({ checked: wanted })
+  }
+
   await pressAndSettle(page, () =>
     overrideForm(page).getByRole('button', { name: 'Gem og offentliggør' }).click(),
   )
@@ -199,23 +235,51 @@ export async function publishFromBand(page: Page): Promise<void> {
  * the card decides what that means.
  */
 export async function removeOverride(page: Page): Promise<void> {
+  /*
+   * **Two** destructive labels since phase 8C-3B, and the helper must walk either.
+   *
+   * `describeOverrideRemoval()` words a live removal differently when the override owns the
+   * generated announcement — *"Fjern ændring og besked"* rather than *"Fjern ændringen fra
+   * hjemmesiden"* — because the press takes both away (§7e item 6). Matching only the older
+   * sentence would leave a suite unable to clean up after itself the moment a scenario
+   * published a message, which is exactly when it most needs to.
+   */
   const confirmLink = overrideCard(page).getByRole('link', {
-    name: 'Fjern ændringen fra hjemmesiden',
+    name: /^(Fjern ændringen fra hjemmesiden|Fjern ændring og besked)$/,
   })
 
   if ((await confirmLink.count()) > 0) {
     await confirmLink.click()
+
+    // Wait for the *confirming* address before looking for the control only that address
+    // renders. The confirmation lives in the URL (`bekraeft=1`), so this is the navigation
+    // itself rather than a guess about how long it takes.
+    await page.waitForURL(/[?&]bekraeft=1/)
+
     await expect(
-      overrideCard(page).getByRole('button', { name: /^Ja — fjern ændringen/ }),
+      overrideCard(page).getByRole('button', { name: /^Ja — fjern/ }),
     ).toBeVisible()
   }
 
+  const button = overrideCard(page).getByRole('button', {
+    name: /^(Fjern kladden|Fortryd den ventende ændring|Ja — fjern)/,
+  })
+
+  /*
+   * A card with no removal control has nothing to remove, and that is a state a caller can
+   * legitimately arrive in rather than a failure.
+   *
+   * `removeAllOverrides` reads the list, then opens one of its dates — and since phase
+   * 8C-3B a removal can take a generated announcement down with the override and come back
+   * on a date of its own (§7e item 6), so the row a caller is about to open may already be
+   * gone. Returning lets the loop re-read the list and finish; waiting would spend the whole
+   * test timeout on a button that is correctly absent.
+   */
+  if ((await button.count()) === 0) return
+
   const before = page.url()
 
-  await overrideCard(page)
-    .getByRole('button', { name: /^(Fjern kladden|Fortryd den ventende ændring|Ja — fjern)/ })
-    .click()
-
+  await button.click()
   await page.waitForURL((url) => url.toString() !== before)
 }
 
