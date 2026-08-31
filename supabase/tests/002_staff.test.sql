@@ -16,7 +16,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(56);
+select plan(57);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures and identity check
@@ -218,13 +218,31 @@ select lives_ok(
   'staff can delete a news article');
 
 -- --- announcement ---
+--
+-- The §5 capability is "Announcement (besked): create, edit, publish, remove", and it
+-- is exercised here through the paths that own it rather than as one broad UPDATE.
+-- Until the 8C-1 hardening pass this was a single direct write of the published
+-- columns; `20260831160000_announcement_column_privileges.sql` closed that, because
+-- `restore_announcement()` trusts `previous` and a caller who may write the published
+-- columns directly may also write that one. What Staff may do is unchanged — a draft,
+-- then Offentliggør, then "Fjern beskeden nu". `016` asserts the refusals themselves.
 select lives_ok(
   $$ update public.announcement
-        set message = 'Vi lukker kl. 18 i dag', expires_at = now() + interval '2 hours',
-            is_visible = true, link_type = 'none' $$,
+        set draft = jsonb_build_object(
+              'message',    'Vi lukker kl. 18 i dag',
+              'link_type',  'none',
+              'expires_at', (now() + interval '2 hours')::text) $$,
+  'staff can write an announcement draft');
+select is(
+  (select public.publish_announcement(
+            (select id from public.announcement),
+            (select updated_at from public.announcement)) ->> 'status'),
+  'published',
   'staff can create and publish an announcement');
-select lives_ok(
-  $$ update public.announcement set is_visible = false $$,
+select is(
+  (select public.set_announcement_visible(
+            false, (select updated_at from public.announcement)) ->> 'status'),
+  'updated',
   'staff can remove an announcement immediately');
 
 -- --- one-off opening-hour overrides ---

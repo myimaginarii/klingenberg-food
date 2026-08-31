@@ -1020,6 +1020,106 @@ Fortryd strip over `restore_announcement` — are not started.
 
 ---
 
+## 0l. Phase 8C-1 hardening — the announcement lifecycle columns (2026-08-31)
+
+The 8C-1 acceptance report closed the mechanism and left one thing open:
+
+> Staff currently have a broad, table-level UPDATE capability on `public.announcement`.
+> Internal lifecycle fields such as `previous` and `replaced_at` can be modified directly
+> through the database/API, outside the trusted replacement and restore functions.
+
+That was accurate, and — once `restore_announcement()` existed — no longer something to
+merely record. **8C-2 is not started; this pass adds no feature and changes no screen.**
+
+### The finding, and why it mattered more after 8C-1 than before it
+
+`previous` and `replaced_at` sat unused from phase 1 until 8C-1 gave them a purpose. The
+purpose is what created the exposure: `restore_announcement()` reads `previous` from the
+row and publishes what it finds, deliberately without consulting `now()`, without the
+payload checks `replace_announcement()` makes, and without the showable checks
+`set_announcement_visible()` makes. Its safety rests entirely on `previous` being a value
+only `replace_announcement()` could have written — and the initial migration's
+`grant select, update on public.announcement to authenticated` meant anyone with a Staff
+session could write it. The session cookie is httpOnly, which defends against XSS and not
+against the person the session belongs to; a Staff member can read their own token out of
+their own browser and reach PostgREST with it.
+
+Reproduced before the fix, from a real Staff JWT: a forged eight-key snapshot written
+straight into `previous`, then `restore_announcement()` called, and the forged message
+live and public — logged as an ordinary `restore`.
+
+`is_valid_announcement_snapshot()` was never going to catch it, and this is the reading
+that matters: **the forged snapshot is a perfectly valid snapshot.** Eight keys, right
+types, an approved link, an expiry in the future. Nothing is wrong with its shape. What
+is wrong is who wrote it, and a shape validator cannot see that.
+
+### What the exposure did and did not amount to
+
+Staff may publish arbitrary announcement content — that is §5's matrix, not a
+vulnerability. The forgery route was still worth closing on its own terms:
+
+- **it bypassed the audit trail.** A direct UPDATE writes no `audit_log` row, so live
+  content could change with nothing in the record but a stamped `updated_by` (§8's
+  "silent data loss" row).
+- **it bypassed every validating path.** A blank message with `is_visible = true`, an
+  expiry already past, a `source` of `'opening_hours'` on a hand-typed message — none of
+  which `publish_announcement()` or `replace_announcement()` would produce.
+- **it bypassed optimistic concurrency** (§6), overwriting a colleague's change with no
+  conflict.
+- **it made a trusted function's input caller-controlled**, which is the part 8C-2 would
+  have built on: 8C-2 writes `source = 'opening_hours'` and 8C-3 puts a Fortryd over
+  `restore_announcement()`.
+
+### What the pass contains
+
+| | |
+|---|---|
+| **A column-level UPDATE grant**, replacing the table-level one | `20260831160000_announcement_column_privileges.sql` §1 |
+| **One BEFORE UPDATE guard trigger**, SECURITY INVOKER, owning the columns privileges cannot | `public.tg_guard_announcement_write()` |
+| **The four lifecycle functions, each declaring its transition** — otherwise byte-identical to 7A, 7B and 8C-1 | the same migration, §3 |
+| **The model, written down** | §5, "Column write ownership — `public.announcement`" |
+| **The proof** — 82 assertions from real Staff, Owner and anonymous JWTs, including the forgery attack end to end | `supabase/tests/016_announcement_write_guard.test.sql` |
+
+**No new table, no new column, no new view, no new index, no new policy, no new SECURITY
+DEFINER function, and no TypeScript.** The application already wrote `draft` directly and
+called an RPC for everything else, which is why nothing above the database had to move.
+
+### The one reading this pass had to settle
+
+| # | Question | The answer |
+|---|---|---|
+| A | **Can column privileges alone protect `previous` while the lifecycle functions stay SECURITY INVOKER?** | **No, and it is a property of PostgreSQL rather than of this schema.** A SECURITY INVOKER function runs with its caller's privileges; there is no per-function table grant, and no way to keep the caller's identity while borrowing the function's rights. So every column the four functions write must be a column `authenticated` holds UPDATE on — the exact privilege the attack used. Measured: with the grant narrowed to `(draft)`, the direct write is refused **and so are all four functions**. The two ways out that would have worked are SECURITY DEFINER (which takes the whole lifecycle out from under RLS, and is refused) and constraining the *transition* rather than the privilege. The pass takes the second, and narrows the grant as far as privileges can go underneath it — `id`, `is_singleton`, `created_at`, `updated_at` and `updated_by` are out of the grant entirely, because nothing writes them. |
+
+### Recorded explicitly, because each of these is a rule somebody could later assume away
+
+- **`draft` is the only column a direct write owns.** Everything else on this table moves
+  through `publish_announcement()`, `set_announcement_visible()`, `replace_announcement()`
+  or `restore_announcement()`. The guard is not a draft validator — a draft may contain
+  any keys at all, because `saveEntityDraft()` parses strictly on the way in and the
+  publish merge names its six fields literally. Both of those still have to exist.
+- **Nothing became SECURITY DEFINER.** The four lifecycle functions and the guard are all
+  invoker-rights with `search_path` pinned to nothing, and `016` asserts it by counting.
+- **`updated_at` and `updated_by` are still stamped.** A BEFORE trigger's assignment to
+  `NEW` is not privilege-checked, so removing them from the grant costs the stamp nothing
+  and costs a forger the concurrency token and the actor.
+- **The guard steps aside for `postgres` and `service_role` only**, which are migrations,
+  the seed and the fixtures — never a browser session. `authenticated` is a member of no
+  other role, so it cannot put that exemption on.
+- **Reading was not narrowed.** The editor still reads every column including `previous`;
+  `anon` still reads the same six it always did.
+- **The other four singleton tables were deliberately left alone.** None of them yet has a
+  column one trusted function is the sole author of and a second trusted function then
+  believes. Widening the pass is a decision of its own.
+- **Two phase-1 assertions changed meaning, and were rewritten rather than deleted.**
+  `002` and `003` asserted the announcement capability as one direct UPDATE of the
+  published columns. They now assert the same capability through the path that owns it —
+  a draft, then `publish_announcement()`, then `set_announcement_visible()` — and `016`
+  asserts the refusal of the old statement. §5's matrix is unchanged.
+
+**The lifecycle-column finding is closed. Phase 8C-2 is not started.**
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -1299,6 +1399,71 @@ Enforcement is **server-side plus RLS**, as required: every Server Action calls
 `requireStaff()`/`requireOwner()` first, and RLS re-checks the same rule through two `SECURITY
 DEFINER` helpers, `public.is_staff()` and `public.is_owner()`, reading `profiles` by `auth.uid()`.
 pgTAP asserts every row of this table from both a `staff` and an `owner` JWT (§9).
+
+### Column write ownership — `public.announcement` (the 8C-1 hardening pass)
+
+The matrix above says *who* may act. This says *through what*, for the one table where the
+difference has teeth: `restore_announcement()` treats `announcement.previous` as the
+server's own record of what to put back, so a caller able to write that column could
+publish content that none of the validating paths ever saw.
+
+A future reader should be able to answer "may I write this column directly?" without
+reading a grant. The answer is below, and `supabase/tests/016_announcement_write_guard.test.sql`
+asserts every row of it from real Staff and Owner JWTs.
+
+| Column | Written by | Directly writable? |
+|---|---|---|
+| `draft` | `saveEntityDraft()` — the editors, and nothing else | **Yes.** This is the one column a PostgREST UPDATE owns. |
+| `message`, `link_type`, `link_page`, `link_url`, `link_label`, `expires_at` | `publish_announcement()`, `replace_announcement()`, `restore_announcement()` | No. |
+| `is_visible` | those three, plus `set_announcement_visible()` — the only one that may move it alone | No. |
+| `source` | `replace_announcement()` (closed vocabulary), `restore_announcement()` (puts back what was stored) | No. |
+| `previous`, `replaced_at` | `replace_announcement()` writes them; `restore_announcement()` clears them | No — by anybody, ever. |
+| `id`, `is_singleton`, `created_at` | nothing | No: not in the grant. |
+| `updated_at`, `updated_by` | the `announcement_touch` trigger, from `now()` and `auth.uid()` | No: not in the grant. A BEFORE trigger's assignment to `NEW` is not privilege-checked, so the stamp is unaffected — and the concurrency token and the actor stop being a caller's to choose. |
+
+**Two mechanisms, because one of them cannot reach.** `id`, `is_singleton`,
+`created_at`, `updated_at` and `updated_by` are simply out of the grant:
+`20260831160000_announcement_column_privileges.sql` replaces the table-level
+`grant update` with a column list of eleven. The other ten columns **must** stay in that
+list, and this is the constraint the pass had to work around rather than wish away:
+
+> A SECURITY INVOKER function runs with the privileges of whoever called it. PostgreSQL
+> has no per-function table privilege and no way to run a body with the function's rights
+> while keeping the caller's identity — SECURITY DEFINER changes both or neither. So
+> every column `publish_announcement()`, `set_announcement_visible()`,
+> `replace_announcement()` and `restore_announcement()` writes is necessarily a column
+> `authenticated` holds UPDATE on.
+
+Measured, not assumed: with the grant narrowed to `(draft)` alone, a direct write to
+`previous` is refused with `42501` — and so are all four lifecycle functions, called from
+a real Staff JWT. Making them SECURITY DEFINER would buy the column restriction by taking
+the entire lifecycle out from under RLS, discarding the second of this section's two
+independent enforcement points. That is not a trade this architecture makes.
+
+So the remaining ten columns are owned by a rule rather than by a privilege: a BEFORE
+UPDATE trigger, `public.tg_guard_announcement_write()`, itself SECURITY INVOKER. Each
+lifecycle function declares its transition in a transaction-local setting immediately
+before its own UPDATE; the trigger reads that, consumes it, and refuses any column
+movement the declared transition does not own. A write that declares nothing — a direct
+PostgREST or GraphQL UPDATE — owns `draft` and nothing else.
+
+The declaration is not a back door, and it is four facts rather than one: `set_config()`
+is in `pg_catalog`, which PostgREST does not expose; a PostgREST request is one
+transaction containing one operation; the marker is single-use and cleared again by the
+function that set it; and `authenticated` is a member of no other role and holds no
+CREATE on `public`, so it can neither `set role service_role` nor define a function of
+its own. The trigger steps aside only for roles that are not `anon` or `authenticated` —
+migrations, `supabase/seed.sql` and the pgTAP fixtures, none of which is a browser
+session.
+
+**The rest of §5 is unchanged.** Both Staff and Owner may do everything the announcement
+row of the matrix says; they do it through the four functions, which is what they already
+did. RLS still decides the row, `requireStaff()` still decides the request, and no
+function became SECURITY DEFINER.
+
+The four other singleton tables carry the same table-level grant and are deliberately
+left alone: none of them yet has a column one trusted function is the sole author of and
+a second trusted function then believes.
 
 ### Accounts (decision 11)
 
@@ -1634,6 +1799,7 @@ No map library. No tile provider called at runtime. No JavaScript. The entire ma
 | Admin indexed by search engines | `/admin/*` returns `X-Robots-Tag: noindex, nofollow` and is disallowed in `robots.txt`. Preview deployments additionally sit behind Vercel Deployment Protection (§10). |
 | Silent data loss | Every publish and every immediate change writes to `audit_log` with before/after. Soft-delete for dishes. Daily managed database backups **plus** a weekly off-platform export of database *and* storage (§10f). |
 | System left with no owner | Database constraint trigger on `profiles`; the last active owner cannot be demoted, disabled or deleted. |
+| **A trusted function is fed forged state through a direct write** | `restore_announcement()` publishes whatever `announcement.previous` holds, so a caller who could write that column could publish content none of the validating paths ever saw. The columns a lifecycle function is the sole author of are therefore not directly writable at all: `authenticated` holds a **column-level** UPDATE grant, and a BEFORE UPDATE guard trigger refuses any movement of the published, visibility, provenance and lifecycle columns that did not come from the function that owns it (§5, `20260831160000_announcement_column_privileges.sql`). The lifecycle functions stay SECURITY INVOKER, so RLS still decides the row. |
 | **Production secrets exposed in logs** | Secrets are passed as environment variables, never as command-line arguments (which appear in process listings and some log lines). `set -x` is forbidden in workflow scripts and checked by a lint step. Backup and migration jobs run `--quiet`. Connection strings are never echoed. GitHub's secret masking is treated as a second line of defence, not the first. |
 | **Vulnerable dependency shipped** | Lockfile committed, `npm ci` in CI, Dependabot security updates, `npm audit` and CodeQL in the pipeline, GitHub push protection and secret scanning enabled. Framework version chosen and advisory-checked at implementation time, not from this document (§14). |
 | **Visitor tracking / consent liability** | No analytics, no pixel, no tag manager, no third-party script on the public site. Public visitors receive zero cookies, so no consent banner is required and the approved design stays intact (§12). |
@@ -1663,6 +1829,7 @@ No map library. No tile provider called at runtime. No JavaScript. The entire ma
 - `staff` **can** write every Staff row of the §5 matrix, including `dishes.details` and both `weekly_special` sold-out fields.
 - `owner` can do all of it.
 - The last active owner cannot be demoted, disabled or deleted — three assertions.
+- Only `draft` may be written directly on `public.announcement`; the published, visibility, provenance and lifecycle columns refuse a direct write from Staff **and** from Owner, and the forged-`previous` attack on `restore_announcement()` is run end to end (`016`).
 
 **Playwright — E2E, the paths where a bug would be visible to a guest:**
 

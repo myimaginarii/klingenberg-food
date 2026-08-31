@@ -7,7 +7,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(26);
+select plan(27);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures
@@ -153,9 +153,22 @@ select lives_ok(
 select lives_ok(
   $$ update public.weekly_special set name = 'Ugens ret' $$,
   'owner can edit Ugens ret');
+-- Through the paths that own it, for the reason the Staff suite records beside its own
+-- announcement block: since the 8C-1 hardening pass the published columns are not
+-- directly writable by anybody, so "publish an announcement" is a draft followed by
+-- Offentliggør. An Owner receives everything Staff receives, and this is that row.
 select lives_ok(
   $$ update public.announcement
-        set message = 'Lukket i dag', expires_at = now() + interval '3 hours', is_visible = true $$,
+        set draft = jsonb_build_object(
+              'message',    'Lukket i dag',
+              'link_type',  'none',
+              'expires_at', (now() + interval '3 hours')::text) $$,
+  'owner can write an announcement draft');
+select is(
+  (select public.publish_announcement(
+            (select id from public.announcement),
+            (select updated_at from public.announcement)) ->> 'status'),
+  'published',
   'owner can publish an announcement');
 select lives_ok(
   $$ insert into public.opening_hours_overrides (date, kind, status)
