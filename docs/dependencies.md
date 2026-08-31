@@ -3,6 +3,40 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 8C-2 — no dependencies added (2026-08-31)
+
+The **pure opening-hours announcement generator** (§0m) adds **no package**, and adds no
+migration either. `package.json` and the lockfile are byte-identical to the phase-8C-1
+state. `lib/announcements/generated.ts` imports six modules, all of them this
+repository's own.
+
+### The two things that would have justified a package, and why neither is here
+
+**A date / timezone library.** For the eighth phase running, and this is the phase where
+it would have been easiest to reach for one: the generator has to turn *"14.09.2026,
+20:00, Copenhagen"* into an absolute instant, across both daylight-saving transitions.
+It does it with **one call** to `announcementExpiryInstant()`, which is 1ad's own expiry
+conversion and which resolves to `copenhagenInstantOf()` — the single `Intl.DateTimeFormat`
+boundary phase 2 built and pinned with tests on the March gap and the October repeat. A
+second implementation of Copenhagen would be a second answer to the one question this
+system cannot afford two answers to. The suite asserts exact UTC instants in CET, in
+CEST, on both transition Sundays and on the Saturday either side of each.
+
+**A templating or i18n library.** The generated messages are two template literals over
+Danish words that already exist in `lib/hours/format.ts` — `formatWeekdayName`,
+`formatTimeRange`, `formatWeekdayDate` — and the site is monolingual by design (§7). The
+words are the approved frames' own, asserted character for character, and a message
+catalogue would put a layer between the frame and the string with nothing to gain from
+it.
+
+### Nothing was added to the runtime, because nothing calls it
+
+The module is imported by its unit suite and by nothing else, so `next build` produces
+the same route table and the same client bundles it did at `4160bb0`. **8C-3** is the
+increment that gives it a caller.
+
+---
+
 ## Phase 8C-1 — no dependencies added (2026-08-31)
 
 The announcement **replacement and restore mechanism** (§0k) adds **no package**.

@@ -136,10 +136,16 @@ describe('the opening-hours screen has no announcement control yet', () => {
   })
 })
 
-describe('nothing generates an opening-hours announcement yet', () => {
-  it('the phrase 1t suggests appears in no source file', () => {
-    // "Ændrede åbningstider søndag · 17:00–19:00" is 1t's own suggested message and
-    // 8C-2's output. A literal here would mean the message had started to exist.
+describe('no screen composes an opening-hours announcement', () => {
+  it('the phrase 1t suggests appears in no application file', () => {
+    // "Ændrede åbningstider søndag · 17:00–19:00" is 1t's own suggested message.
+    //
+    // 8C-2 built the generator that composes it — `lib/announcements/generated.ts`,
+    // a pure module with no caller — so the assertion narrows to what it was always
+    // about: a literal *in a screen* would mean the wording had escaped the domain
+    // layer and started being assembled by hand. `screenFiles()` walks `app/` and
+    // `components/` only, so the generator itself is out of scope by construction, and
+    // `tests/unit/hours/override-source.test.ts` holds it to its own purity rules.
     for (const { path, source } of screenFiles()) {
       expect(source, `${path} composes a generated announcement`).not.toContain(
         'Ændrede åbningstider',

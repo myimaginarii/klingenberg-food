@@ -1,10 +1,10 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative, sep } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
 /**
- * The phase-8 boundary, asserted over the source rather than promised — §0j, §7e, §8.
+ * The phase-8 boundary, asserted over the source rather than promised — §0j, §0m, §7e, §8.
  *
  * Phase 8B builds 1t's lower card and **not** the generated announcement it sits beside in
  * the frame. That boundary is the sort of thing that decays quietly: an import added for a
@@ -16,7 +16,7 @@ import { describe, expect, it } from 'vitest'
  *
  *   1. **Nothing in the one-off override's path can reach an announcement.** Not the
  *      table, not `source`, not `previous`, not `replaced_at`, and not
- *      `announcement_created` — §4's column for exactly the message phase 8C will generate.
+ *      `announcement_created` — §4's column for exactly the message phase 8C generates.
  *   2. **Nothing in it can reach the recurring weekly schedule.** The two cards share a
  *      screen and no code: a staff member's authority over one date must not become
  *      authority over the week.
@@ -25,6 +25,18 @@ import { describe, expect, it } from 'vitest'
  *      and only after their own transaction.
  *   4. **The card's domain module is pure.** No Supabase, no `server-only`, no clock — so
  *      the date rule cannot pick up the machine's timezone by accident.
+ *
+ * WHAT PHASE 8C-2 MOVED, AND WHAT IT DID NOT
+ *
+ * 8C-2 adds `lib/announcements/generated.ts` — a **pure** domain module that composes
+ * 1t's suggested message and its expiry from an override, the recurring week and an
+ * instant the caller supplies. That module is allowed to name announcement types; it is
+ * the one place in this repository that is. So the last describe block below states the
+ * narrowed boundary rather than the withdrawn one: the generator exists, it is pure, and
+ * **nothing above it has been wired to it**. No Server Action calls it, no screen imports
+ * it, 1t draws no "Vis også som besked øverst på hjemmesiden" checkbox, and the four files
+ * above still name no announcement at all. Those are 8C-3's, and they are asserted here
+ * so that arriving at them is a deliberate edit to this file rather than a quiet drift.
  */
 
 const ROOT = process.cwd()
@@ -160,4 +172,119 @@ describe('the card’s domain module is pure', () => {
     // move an override to another day, and neither can this module by accident.
     expect(source).toContain('today: IsoDate')
   })
+})
+
+// ---------------------------------------------------------------------------
+// The narrowed 8C boundary: the generator exists, and nothing is wired to it
+// ---------------------------------------------------------------------------
+
+const GENERATOR_MODULE = 'lib/announcements/generated.ts'
+const GENERATOR_IMPORT = '@/lib/announcements/generated'
+
+function* walk(dir: string): Generator<string> {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry)
+    if (statSync(full).isDirectory()) yield* walk(full)
+    else yield full
+  }
+}
+
+/** Every application file: Server Actions, routes, pages and components. */
+function applicationFiles(): { path: string; source: string }[] {
+  return [...walk(join(ROOT, 'app')), ...walk(join(ROOT, 'components'))]
+    .map((absolute) => relative(ROOT, absolute).split(sep).join('/'))
+    .filter((path) => /\.(ts|tsx)$/.test(path))
+    .map((path) => ({ path, source: readFileSync(join(ROOT, path), 'utf8') }))
+}
+
+describe('the generated announcement is domain logic and nothing more (8C-2)', () => {
+  const generator = read(GENERATOR_MODULE)
+
+  it('is pure — no database, no framework, no clock, no timezone of its own', () => {
+    for (const forbidden of [
+      'server-only',
+      'supabase',
+      'createSupabase',
+      'react',
+      'use server',
+      'new Date(',
+      'Date.now',
+      'Intl.',
+      'Europe/Copenhagen',
+      'expirePublicCacheTags',
+      'updateTag',
+      'announcement_created',
+    ]) {
+      expect(code(generator), `the generator uses ${forbidden}`).not.toContain(forbidden)
+    }
+  })
+
+  it('takes its instant as an argument, so it cannot read an ambient clock', () => {
+    expect(generator).toContain('now: Date')
+  })
+
+  it('calls neither half of 8C-1’s replacement mechanism', () => {
+    for (const forbidden of [
+      '@/lib/announcements/replacement',
+      'replaceAnnouncement',
+      'restoreAnnouncement',
+      'replace_announcement',
+      'restore_announcement',
+    ]) {
+      expect(code(generator), `the generator names ${forbidden}`).not.toContain(forbidden)
+    }
+  })
+})
+
+describe('nothing above the generator has been wired to it — that is 8C-3', () => {
+  const files = applicationFiles()
+
+  it('there are files to check', () => {
+    expect(files.length).toBeGreaterThan(0)
+  })
+
+  it('no Server Action, route, page or component imports the generator', () => {
+    for (const { path, source } of files) {
+      expect(source, `${path} imports the generator`).not.toContain(GENERATOR_IMPORT)
+      expect(source, `${path} calls the generator`).not.toContain(
+        'generateOpeningHoursAnnouncement',
+      )
+    }
+  })
+
+  it('1t draws no announcement checkbox and no generated-message field yet', () => {
+    // Comments stripped, as everywhere else in this file: several of these screens name
+    // 1t's checkbox in prose precisely in order to record that they do not draw it.
+    for (const { path, source: file } of files) {
+      const source = code(file)
+
+      for (const wording of [
+        'Vis også som besked',
+        'Foreslået besked',
+        'Erstat med den nye besked',
+        'Behold eksisterende',
+      ]) {
+        expect(source, `${path} renders “${wording}”`).not.toContain(wording)
+      }
+    }
+  })
+
+  it.each(OVERRIDE_PATH_FILES)(
+    '%s still saves, publishes and removes without an announcement',
+    (path) => {
+      const source = code(read(path))
+
+      // The blanket rule at the top of this file already forbids the word
+      // "announcement" in these four paths. Stated again by name, because after 8C-2
+      // these are the three specific operations 8C-3 will be tempted to reach from.
+      for (const forbidden of [
+        GENERATOR_IMPORT,
+        'generateOpeningHoursAnnouncement',
+        'replaceAnnouncement',
+        'restoreAnnouncement',
+      ]) {
+        expect(source, `${path} names ${forbidden}`).not.toContain(forbidden)
+      }
+    },
+  )
 })

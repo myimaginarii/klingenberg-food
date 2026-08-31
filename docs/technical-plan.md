@@ -1116,7 +1116,174 @@ called an RPC for everything else, which is why nothing above the database had t
   a draft, then `publish_announcement()`, then `set_announcement_visible()` — and `016`
   asserts the refusal of the old statement. §5's matrix is unchanged.
 
-**The lifecycle-column finding is closed. Phase 8C-2 is not started.**
+**The lifecycle-column finding is closed. Phase 8C-2 is recorded in §0m.**
+
+---
+
+## 0m. Phase 8C-2 — the pure opening-hours announcement generator (2026-08-31)
+
+8C-1 built the mechanism that *carries* a generated announcement and said, in as many
+words, that nothing composed one yet. This increment composes it, and does **only** that:
+
+> `lib/announcements/generated.ts` — one exported function,
+> `generateOpeningHoursAnnouncement()`, which turns a one-off opening-hours override
+> into the message, the link and the expiry 8C-3 will suggest, or into an explicit
+> refusal.
+
+**No database access, no clock read, no cache invalidation, no React, no Server Action,
+no write, no migration, and no caller.** The module is imported by its unit suite and by
+nothing else; `next build` produces the same route table it did before. 1t and 1ae are
+visually unchanged in the running application.
+
+### The corrected expiry rule, and the discrepancy that produced it
+
+The obvious reading — **`expires_at = override.closes_at`** — is wrong, and the approved
+design disproves it with a number. 1t draws a Sunday whose recurring hours are
+17:00–20:00, a one-off change to **17:00–19:00**, and the generated expiry **20:00**;
+1ae draws the same message beside *"Udløber 14.09.2026 kl. 20:00"*. The override's own
+closing is 19:00, and neither frame prints it.
+
+1t's helper sentence glosses the number as *"Udløber automatisk søndag 14.09.2026 kl.
+20:00 — når I lukker den dag"*, which reads like 19:00 and is the loose half. **The
+number is the authority**: it appears twice, in two frames, and the gloss once.
+
+The rule the number states, generalised to every case:
+
+> **The closing time the expiry uses is the LATER of the normal closing and the special
+> closing.** The message stands for as long as *either* picture could still be in a
+> guest's head — the one the recurring hours table gave them, or the one the override
+> gives them.
+
+| Normal | Override | Expiry closing | Why |
+|---|---|---|---|
+| 17:00–20:00 | 17:00–19:00 | **20:00** | somebody may still arrive at 19:30 expecting the usual |
+| 17:00–20:00 | 17:00–22:00 | **22:00** | the extra hours are the news, and they are news until they end |
+| closed | 13:00–18:00 | **18:00** | the only closing there is |
+| 15:00–20:00 | **closed** | **20:00** | the announcement stands through the hours guests would otherwise expect |
+| closed | **closed** | *(none)* | `no_effect` — see below |
+
+There is **no arbitrary midnight expiry** anywhere in this module, and nothing is ever
+moved forward to make a suggestion publishable.
+
+*A second design discrepancy, recorded because it is the reason the generator derives its
+own weekday:* 1t's drawn date, **14.09.2026, is a Monday**, and the frame labels it
+"Søndag". The generator takes an `IsoDate` and asks `weekdayOf` — it accepts no
+preformatted weekday string — so the mismatched pair the frame draws is not reproducible
+by construction. The unit suite uses **13.09.2026**, the Sunday beside it.
+
+### The two generated strings
+
+| | The rule | Example |
+|---|---|---|
+| **Changed hours** | `Ændrede åbningstider {weekday} · {from}–{to}`, from `lib/hours/format.ts` — the Danish weekday words, the en dash in the range, and the `·` `describeOverrideDay` already prints on the override list | `Ændrede åbningstider søndag · 17:00–19:00` |
+| **A closed day** | `Lukket {weekday} {DD.MM}` — `formatWeekdayDate`, unchanged from 8B | `Lukket mandag 21.09` |
+
+1ac's older shorthand for the second is *"Lukket mandag 21.09 — privat arrangement"*,
+and **the override model has no reason field**. So no reason is invented: not "sygdom",
+not "privat arrangement", not "ferie", not "vedligeholdelse". The suggestion is neutral
+and editable, and 8C-3 may let staff add whatever is true before it is used. Both strings
+are asserted against the frames' own text; the closed form's absent em dash is asserted
+too, so a reason cannot creep back in as punctuation.
+
+**1ac's 90-character rule** is checked and never worked around: a generated default that
+exceeded it would return `too_long` rather than be truncated. It is unreachable — the
+widest string either form can produce, over all seven weekdays and the widest clock faces
+the model allows, is **42 characters** — and it is stated all the same, on the same terms
+`invalid_snapshot` is stated in `./replacement.ts`.
+
+### The link defaults, from the frames
+
+1ac draws the two bars side by side. **"DESKTOP · MED LINK"** carries the changed-hours
+message with **"Se tider"**; **"DESKTOP · UDEN LINK"** carries the closed message as
+plain text, with the frame's own note — *"Link er valgfrit. Uden link er hele bjælken ren
+tekst — ingen tom knap, ingen pil."*
+
+* **Changed hours** → `link_type: 'page'`, `link_page: '/find-os'`, `link_label: 'Se
+  tider'`. Find os is the page carrying the seven-day hours table, and the constant is
+  typed as an `AnnouncementPageRoute` — a member of the same closed set
+  `ANNOUNCEMENT_LINK_PAGES` and `announcement_link_page_check` carry (§8), so a route
+  this site does not serve would not compile. No path string is hard-coded twice.
+* **A closed day** → `link_type: 'none'` and no page, URL or label. A closed day has no
+  times to go and look at, and no other CTA is invented for it.
+
+Every result carries `source: 'opening_hours'` — 8C-1's existing `ANNOUNCEMENT_SOURCES`
+vocabulary, not a second enum.
+
+### The shape
+
+    generateOpeningHoursAnnouncement({ date, override, schedule, now })
+      → { ok: true,  announcement: GeneratedAnnouncement }
+      → { ok: false, reason: 'no_effect' | 'expired' | 'too_long' }
+
+Everything it needs arrives as an argument. `schedule` is the recurring week — **it is
+never queried** — and `override` is 8B's own `OverrideContent`, the three content columns
+of one date, which may equally be a draft's content: the question is *what would this
+change say*, and it is asked before anything is published. `now` exists for exactly one
+decision and is never read from `Date.now()`.
+
+`GeneratedAnnouncement` is **assignable to** `AnnouncementReplacement` rather than
+imported from it — `./replacement.ts` carries `server-only`, and a pure generator that
+dragged the Supabase client behind it would stop being one. The unit suite asserts both
+halves: that it type-checks as a replacement, and that `parseAnnouncementReplacement()`
+accepts every announcement it produces.
+
+### Recorded explicitly, because each is a rule somebody could later assume away
+
+- **An override row is not a change.** `no_effect` covers both the case the brief names —
+  a closed override on a day the recurring week already closes — and the same situation
+  arrived at from the other side: a custom override that restates the hours the week
+  already has. Neither gets a message about nothing, and neither gets an expiry.
+- **One engine, asked twice.** The normal day and the special day are both
+  `getDayOpening()` from phase 2 — once with no overrides, once with this one treated as
+  published. There is no second opening-hours engine here, no re-implementation of "which
+  hours apply", and the times the message prints are the engine's own normalised ones, so
+  a Postgres `15:00:00` and a schedule's `15:00` produce the same string.
+- **One Copenhagen conversion.** `announcementExpiryInstant()` from `./expiry-editor.ts`
+  — the same call 1ad's own expiry fields use, which owns both daylight-saving
+  conventions. Nothing here concatenates `YYYY-MM-DD` + `HH:MM` + `Z`. The suite pins
+  exact UTC instants in CET, in CEST, on the spring transition Sunday, on the autumn
+  transition Sunday, and on the Saturday either side of each — where the same wall clock
+  is a different instant.
+- **One expiry rule.** `isAnnouncementExpired()` from `./expiry.ts`, so the boundary is
+  the anonymous RLS policy's own `expires_at > now()` and not a second opinion. At exactly
+  the expiry instant the answer is `expired`.
+- **`announcement_created` is still written by nothing** and stays `false`. Generating a
+  suggestion is not completing an announcement operation; **8C-3** owns that column, and
+  sets it only after the operation succeeds.
+- **8C-1's boundaries are intact.** Nothing here calls `replaceAnnouncement()` or
+  `restoreAnnouncement()`, names `previous` or `replaced_at`, or touches a draft or the
+  bar's visibility. The temporary replacement harness at
+  `/admin/intern/besked-erstatning` is unchanged and is still **8C-3's to delete**.
+
+### What phase 8C-2 deliberately does not contain
+
+| | Owner |
+|---|---|
+| 1t's **"Vis også som besked øverst på hjemmesiden"** checkbox, the editable suggestion beneath it and the generated expiry field | **8C-3.** No screen imports the generator; `tests/unit/hours/override-source.test.ts` asserts it over `app/` and `components/`. |
+| **Conflict sheet 1ae**, "Erstat med den nye besked", "Behold eksisterende besked", the focus trap and the green Fortryd strip | **8C-3**, unchanged from §0k. |
+| **Any Server Action, any write, any migration** | **8C-3.** The increment is one pure module and its tests; the database is untouched, so the pgTAP suite did not run and did not need to. |
+| **The §7e item 6 rule** — removing the generated announcement when its override is deleted | **8C-3.** There is still nothing published to remove. |
+
+### The boundary tests, narrowed rather than deleted
+
+Two forward-looking suites were written to fail exactly when this phase arrived. Neither
+was removed:
+
+- `tests/unit/hours/override-source.test.ts` keeps every phase-8B assertion — the four
+  override-path files still name no announcement of any kind — and **adds** the narrowed
+  half: the generator is pure and calls neither replacement function, no Server Action,
+  route, page or component imports it or names `generateOpeningHoursAnnouncement`, and no
+  screen renders "Vis også som besked", "Foreslået besked", "Erstat med den nye besked"
+  or "Behold eksisterende".
+- `tests/unit/announcements/replacement-boundary.test.ts` keeps its assertion unchanged —
+  the phrase *"Ændrede åbningstider"* appears in no file under `app/` or `components/` —
+  and its description is narrowed to what it was always about: no **screen** composes the
+  wording by hand.
+
+**Phase 8C-2 is complete and green. Phase 8 is not locked**: **8C-3** — 1t's checkbox and
+editable suggestion, conflict sheet 1ae with both branches, `announcement_created`, and
+the ~10 s Fortryd strip over `restore_announcement()` — is not started, and the 8C-1
+harness is still waiting to be deleted by it.
 
 ---
 
@@ -2103,7 +2270,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 5 | Menu administration | Category tabs, dish CRUD, reorder, side panel, Kladde badges, **immediate Udsolgt with 10 s Fortryd and the computed reset label**, **tapas list editor**, soft delete | E2E 2, 3 and 10 pass |
 | 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (done):** Månedens burger with its date window, its computed admin state, "Vis på forsiden" as a normal draft field and its own immediate Udsolgt path | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes — see §0d. **Complete and locked** by the completion pass of 2026-08-30 — see §0e |
 | 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (done):** the immediate path — "Vis besked" off and back on, "Fjern beskeden nu", immediate public removal and its ~10 s Fortryd. *Replacing an active announcement, `previous`/`replaced_at` and 1ae's conflict sheet moved to **phase 8**, where the generated message they belong to lives* | 7A: E2E 4 passes, including the no-network assertion — see §0f. 7B: `tests/e2e/announcement-remove.spec.ts` passes at 1440 and 375 — see §0g. **Complete and locked** by the completion pass of 2026-08-30 — see §0h |
-| 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (remaining):** the generated opening-hours message itself and `announcement_created`. **8C-3 (remaining):** **conflict sheet 1ae with both branches** | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. E2E 5's announcement half belongs to 8C-3 |
+| 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3 (remaining):** 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, and `announcement_created` | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. E2E 5's announcement half belongs to 8C-3 |
 | 9 | News | List, editor with structured body, autosave, publish/unpublish, **`/nyheder/[slug]` with the slug policy and `NewsArticle` JSON-LD**, forside teaser | E2E 6 passes, incl. unpublish → 404 |
 | 10 | Images | Signed upload, client downscale, sharp derivatives, library with usage labels, replace/delete warnings | E2E 7 passes |
 | 11 | Remaining editors | Forsiden, Mad ud af huset (incl. the visibility toggle hiding the nav item), Kontaktoplysninger, **`/admin/brugere`** | E2E 8 passes; the owner can invite and deactivate a staff user |
@@ -2113,7 +2280,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-08-31: phases 0–7 are complete and locked; phases 8A and 8B are complete and green; and 8C-1 — the announcement replacement and restore mechanism — is complete and green (§0k). 8C-2 and 8C-3 are not started, and phase 8 is not locked.** Phase 5 was closed by a completion
+**Status, 2026-08-31: phases 0–7 are complete and locked; phases 8A and 8B are complete and green; 8C-1 — the announcement replacement and restore mechanism — is complete and green (§0k, hardened in §0l); and 8C-2 — the pure opening-hours announcement generator — is complete and green (§0m). 8C-3 is not started, and phase 8 is not locked.** Phase 5 was closed by a completion
 pass and is recorded in full in §0b, including the five capabilities it delivered and the five
 things that are deliberately outside it. Phase 6 was then built in two increments that share
 nothing but a table row: **6A — Ugens ret and Lørdagsmenu — is recorded in §0c**, and **6B —
@@ -2191,9 +2358,20 @@ and the opening-hours screen is phase 8B's, unchanged. The one address outside t
 unlinked, environment-gated integration harness that **8C-3 deletes**; §0k reading F records
 why it exists and what keeps it safe.
 
-**Phase 8 is not locked.** The **generated** opening-hours announcement, "Vis også som besked
-øverst på hjemmesiden" and `opening_hours_overrides.announcement_created` are **8C-2**;
-"Erstat med den nye besked", "Behold eksisterende besked" and 1ae's conflict sheet are
-**8C-3**. Neither is started. Nothing phase 8A or 8B added names `public.announcement`,
-nothing anywhere composes a generated message, and `announcement_created` is written by
-nothing and stays `false`.
+**Phase 8C-2 is complete and green, and is recorded in §0m.** The **generated** message
+itself now exists, as one pure module — `lib/announcements/generated.ts` — with no
+database access, no clock read, no cache invalidation, no React, no Server Action and no
+caller. It composes 1ac's two forms (*"Ændrede åbningstider søndag · 17:00–19:00"* with
+"Se tider" to Find os, and the neutral *"Lukket mandag 21.09"* with no link at all),
+carries `source = 'opening_hours'`, and computes the expiry from the **corrected** rule
+the frames' own numbers state: the **later** of the normal closing and the special
+closing, never `override.closes_at` and never an invented midnight. An override that
+changes nothing a guest could notice returns `no_effect`; an expiry already past returns
+`expired` and is never moved forward.
+
+**Phase 8 is not locked.** 1t's "Vis også som besked øverst på hjemmesiden", the editable
+suggestion beneath it, "Erstat med den nye besked", "Behold eksisterende besked", 1ae's
+conflict sheet and `opening_hours_overrides.announcement_created` are all **8C-3**, which
+also deletes the 8C-1 harness. It is not started. Nothing phase 8A or 8B added names
+`public.announcement`, no screen composes or imports a generated message, and
+`announcement_created` is written by nothing and stays `false`.
