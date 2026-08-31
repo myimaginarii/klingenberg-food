@@ -1,5 +1,7 @@
 import { expect, type Browser, type Page } from '@playwright/test'
 
+import { waitForPublicShell } from './public-shell'
+
 /**
  * Driving Åbningstider, for the browser tests — design 1t, phase 8A.
  *
@@ -301,6 +303,9 @@ export async function previewHours(page: Page): Promise<GuestHours> {
  * branch the current width hides contributes nothing.
  */
 async function readFindOs(page: Page): Promise<GuestHours> {
+  // `count()` below answers immediately, so the shell has to be in the document first.
+  await waitForPublicShell(page)
+
   const details = page.locator('main details')
 
   if ((await details.count()) > 0) {

@@ -533,6 +533,16 @@ route-segment revalidation plus tagged data caching (`unstable_cache`), invalida
 
 The deprecated single-argument `revalidateTag(tag)` is not used anywhere.
 
+One default of that model has to be overridden rather than accepted, and `next.config.ts`
+does it: `expireTime`. Next.js pairs a route's `revalidate` with a default `expireTime` of
+one year, so a cached page goes *stale* after five minutes but does not *expire* for a
+year, and everything in between is stale-while-revalidate — Next's own response cache
+answers with the copy it holds, and the `Cache-Control` it sends tells every shared cache
+in front of the site that it may do the same. Both break the §6 promise that a publish is
+on the site on the *next* request, and the §7a promise that nothing a guest reads is more
+than five minutes old. Setting `expireTime` to the same five minutes removes the second
+age; `tests/e2e/public-cache.spec.ts` holds it there.
+
 Migrating to Cache Components is a phase of its own, to be planned rather than done in
 passing. Until then this is a supported model, not a legacy one.
 

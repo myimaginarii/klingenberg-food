@@ -1,5 +1,7 @@
 import { expect, type Browser, type Page } from '@playwright/test'
 
+import { waitForPublicShell } from './public-shell'
+
 /**
  * Driving Ugens ret & Lørdagsmenu, for the browser tests — design 1ag.
  *
@@ -303,6 +305,8 @@ export async function guestWeek(browser: Browser): Promise<GuestWeek> {
   const page = await context.newPage()
 
   await page.goto('/menu')
+  // `count()` below answers immediately, so the shell has to be in the document first.
+  await waitForPublicShell(page)
 
   const section = page.locator('#menu-ugens-ret')
   const dish = section.locator('article').first()

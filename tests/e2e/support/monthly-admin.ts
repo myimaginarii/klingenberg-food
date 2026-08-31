@@ -1,5 +1,7 @@
 import { expect, type Browser, type Page } from '@playwright/test'
 
+import { waitForPublicShell } from './public-shell'
+
 /**
  * Driving Månedens burger, for the browser tests — design 1ah.
  *
@@ -283,6 +285,8 @@ export async function guestBurger(browser: Browser): Promise<GuestBurger> {
   const page = await context.newPage()
 
   await page.goto('/')
+  // `count()` below answers immediately, so the shell has to be in the document first.
+  await waitForPublicShell(page)
 
   const heading = page.locator('#maanedens-burger-titel')
   const hasSection = (await heading.count()) > 0
@@ -300,6 +304,7 @@ export async function guestBurger(browser: Browser): Promise<GuestBurger> {
     .count()
 
   await page.goto('/menu')
+  await waitForPublicShell(page)
 
   // 1h places the card at the end of Burgere, which is where `MenuCategorySection`
   // renders it and where the administration puts the way to its editor.

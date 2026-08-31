@@ -1,5 +1,7 @@
 import { expect, type Browser, type Page } from '@playwright/test'
 
+import { waitForPublicShell } from './public-shell'
+
 /**
  * Driving Besked på hjemmesiden, for the browser tests — design 1ad, 1ac.
  *
@@ -306,33 +308,6 @@ export type GuestAnnouncement = {
   readonly height: number
   /** The header's distance from the top of the document. */
   readonly headerTop: number
-}
-
-/**
- * Wait until the public shell is actually **in the document**.
- *
- * `page.goto()` resolves on `load`, and on a streamed React 19 document that is too
- * early: the whole non-suspended shell — the announcement region, the header, `main`
- * and the footer — arrives inside `<body><div hidden>` and is moved into place by the
- * framework's own inline scripts a few milliseconds later. `document.readyState` is
- * already `"complete"` while that is still pending, so nothing about the navigation
- * says the body is populated.
- *
- * Every locator in {@link readAnnouncement} auto-waits for its element and is therefore
- * safe — **except `count()`, which answers immediately**. Asked one tick too early it
- * answers `0`, and the error is one-sided: it reports "there is no bar" on a page that
- * carries one. That is the whole of this suite's flakiness — a publish followed by a
- * guest read, or a poll waiting for the bar to *go*, resolving against a body that had
- * not been filled in yet.
- *
- * The footer is the anchor because it is the **last** element the public layout renders
- * (`app/(site)/layout.tsx`: announcement, header, main, footer): it is on every public
- * page whether or not there is an announcement, so waiting for it is not waiting for
- * the thing under test, and once it is in the document the announcement region's slot
- * has been filled in — with a bar, or with nothing.
- */
-async function waitForPublicShell(page: Page): Promise<void> {
-  await expect(page.getByRole('contentinfo')).toBeAttached()
 }
 
 /** Read the announcement region on whatever page `page` is currently showing. */

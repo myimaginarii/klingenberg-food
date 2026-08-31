@@ -64,6 +64,7 @@ export default defineConfig({
         'e2e/announcement.spec.ts',
         'e2e/announcement-remove.spec.ts',
         'e2e/opening-hours.spec.ts',
+        'e2e/public-cache.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -82,6 +83,7 @@ export default defineConfig({
         'e2e/announcement.spec.ts',
         'e2e/announcement-remove.spec.ts',
         'e2e/opening-hours.spec.ts',
+        'e2e/public-cache.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -335,6 +337,24 @@ export default defineConfig({
       testMatch: 'e2e/opening-hours.spec.ts',
       dependencies: ['opening-hours'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    /*
+     * The public cache's own promise (§6, §7a), and the last thing to run.
+     *
+     * It publishes, so it is chained for the reason every write suite is chained. It is
+     * chained *last* for a second reason: it deliberately lets a public page go past its
+     * five-minute window and then publishes into that state, which is the one state in
+     * which a cache is tempted to answer with the copy it already holds. Doing that while
+     * another suite was making guest assertions would move the page underneath it.
+     *
+     * One width, because nothing here is about layout: the assertions are on the bytes
+     * and the headers a guest is served, which are the same at every size.
+     */
+    {
+      name: 'public-cache',
+      testMatch: 'e2e/public-cache.spec.ts',
+      dependencies: ['opening-hours-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],
 

@@ -62,5 +62,12 @@ export type CacheTag = (typeof CACHE_TAGS)[keyof typeof CACHE_TAGS]
  * `app/(site)/layout.tsx` states the same interval as a route-segment `revalidate`,
  * which Next.js requires to be a literal, so the two cannot share one constant. They
  * are the same number for the same reason and are changed together.
+ *
+ * `next.config.ts` states it a third time, as `expireTime`, so that five minutes is
+ * where a cached page **expires** rather than where it merely goes stale. The reasoning
+ * is written out there; the short version is that anything longer is an invitation —
+ * to Next.js's own response cache and to any shared cache in front of it — to answer a
+ * request with a page older than five minutes, which is exactly what §6 and §7a promise
+ * cannot happen.
  */
 export const PUBLIC_REVALIDATE_SECONDS = 300

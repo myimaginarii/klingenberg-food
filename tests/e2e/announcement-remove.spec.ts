@@ -90,13 +90,22 @@ let staffPage: Page
  * guest's very next request must already have no bar, and a poll there would hide
  * precisely the defect that matters.
  *
- * A bar *coming back* is the convenience direction, and reading it single-shot measures
- * the cache rather than the phase. `updateTag` expires the entry when the transaction
- * commits, but the refreshed entry is written by the request that finds it stale, and a
- * request arriving inside that window is served the entry as it stood. That is the same
- * reason the setup scenario at the top of this file polls, and it says so there in its
- * own words. What is asserted is that the **same published message** comes back without
- * a publish — not how many milliseconds the local cache handler takes.
+ * A bar *coming back* is the convenience direction, and what is asserted about it is
+ * that the **same published message** comes back without a publish. The poll is a
+ * tolerance on the setup that produces it — two publishes in quick succession, see
+ * `publishLiveAnnouncement` — and nothing more.
+ *
+ * **It is not an allowance for a server cache window, and must not be described as one.**
+ * `ALWAYS_FRESH_PATH` is a dynamic route: it has no statically generated entry to go
+ * stale. The cached reads underneath it are tagged, and `updateTag()` *expires* those
+ * tags rather than marking them stale — an expired tag makes the next read a blocking
+ * miss, not a stale serve, so a publish is on the public site from the very next
+ * request. That was measured directly while phase 7's flakiness was being tracked down
+ * (27-61 ms after Offentliggor settled, first request every time), and again while the
+ * publish path was re-examined: with the `/menu` entry deliberately aged past its
+ * five-minute window, the first guest request after a publish is a cache MISS carrying
+ * the new price. The one stale-while-revalidate window the public site does have is the
+ * time-based §7a safety net, which no publish goes through.
  */
 async function expectGuestShows(browser: Browser, message: string): Promise<void> {
   await expect
@@ -176,8 +185,9 @@ test('a published announcement is on the hjemmeside', async ({ browser }) => {
    * establishes the *starting state*; it is not the claim. The claim — that a removal
    * reaches the hjemmeside **at once** — is asserted single-shot further down, where it
    * belongs. Setting the state takes two publishes in quick succession (see
-   * `publishLiveAnnouncement`), and holding the setup to the same instant-visibility bar
-   * as the operation under test would be testing the cache rather than the phase.
+   * `publishLiveAnnouncement`), and this is a tolerance on that setup rather than a
+   * statement about the cache: see `expectGuestShows` for why the publish path has no
+   * stale window for a poll to be covering.
    */
   await expect
     .poll(async () => (await guestAnnouncement(browser, ALWAYS_FRESH_PATH)).message ?? '', {
