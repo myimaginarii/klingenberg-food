@@ -1,10 +1,13 @@
 import type { Metadata } from 'next'
+import { draftMode } from 'next/headers'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { readSiteContact } from '@/lib/content/contact'
 import { articleExcerpt, readPublishedArticle } from '@/lib/content/news'
-import { pageMetadata } from '@/lib/seo/metadata'
+import { newsArticlePath } from '@/lib/news/slug'
+import { newsArticleMetadata, pageMetadata } from '@/lib/seo/metadata'
+import { newsArticleJsonLd, serializeJsonLd } from '@/lib/seo/news-article'
 
 import { MediaPlaceholder } from '@/components/site/MediaPlaceholder'
 import { NewsBody } from '@/components/site/news/NewsBody'
@@ -31,21 +34,49 @@ type ArticleParams = { params: Promise<{ slug: string }> }
 
 export async function generateMetadata({ params }: ArticleParams): Promise<Metadata> {
   const { slug } = await params
-  const article = await readPublishedArticle(slug)
+  const [article, draft] = await Promise.all([readPublishedArticle(slug), draftMode()])
 
   if (article === null) return pageMetadata('Nyhed', 'Nyhed fra Klingenberg Food.')
 
-  return pageMetadata(article.title, articleExcerpt(article) ?? 'Nyt fra Klingenberg Food.')
+  const description = articleExcerpt(article) ?? 'Nyt fra Klingenberg Food.'
+
+  // A Draft Mode preview may be showing an article that is not published: §7f's
+  // canonical and article metadata belong to public addresses only, so the preview
+  // carries the plain title and description and claims nothing.
+  if (draft.isEnabled) return pageMetadata(article.title, description)
+
+  return newsArticleMetadata({
+    title: article.title,
+    description,
+    path: newsArticlePath(article.slug),
+    publishedDate: article.displayDate,
+    modifiedAt: article.updatedAt,
+  })
 }
 
 export default async function NyhedPage({ params }: ArticleParams) {
   const { slug } = await params
-  const [article, contact] = await Promise.all([readPublishedArticle(slug), readSiteContact()])
+  const [article, contact, draft] = await Promise.all([
+    readPublishedArticle(slug),
+    readSiteContact(),
+    draftMode(),
+  ])
 
   if (article === null) notFound()
 
   return (
     <PageContainer className="py-7 md:py-11">
+      {/*
+        §11's NewsArticle block: published database values only, built by the SEO
+        helper and rendered as an ordinary text child — the serializer escapes what
+        HTML would care about, so no dangerouslySetInnerHTML (§8). A Draft Mode
+        preview may be showing an unpublished article and gets no block at all: a
+        draft has no public claims to make (§7f).
+      */}
+      {draft.isEnabled ? null : (
+        <script type="application/ld+json">{serializeJsonLd(newsArticleJsonLd(article))}</script>
+      )}
+
       <article className="max-w-[62ch]">
         <NewsMeta article={article} />
 

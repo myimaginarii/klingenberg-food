@@ -80,11 +80,18 @@ export function describeArticleAddress(article: {
   }
 }
 
-/** What saving will do — said before the fact, because the two states differ (§6, §4). */
+/**
+ * What saving will do — said before the fact, because the two states differ (§6, §4).
+ *
+ * Since 9B the editor also saves by itself, so the published sentence must own that
+ * too: an autosaved edit to a published article is public the moment it is gemt, and
+ * pretending autosave writes to some private draft would be the lie this model
+ * refuses to tell (phase brief §8).
+ */
 export function describeSaveConsequence(status: NewsAdminStatus): string {
   return status === 'published'
-    ? 'Nyheden er offentliggjort, og den har ingen kladde: Når du gemmer, er ændringerne på hjemmesiden med det samme.'
-    : 'Nyheden er en kladde. Gæster kan ikke se den, før du offentliggør den.'
+    ? 'Nyheden er offentliggjort, og den har ingen kladde: Ændringer gemmes automatisk, mens du skriver, og gemte ændringer er på hjemmesiden med det samme.'
+    : 'Nyheden er en kladde og gemmes automatisk, mens du skriver. Gæster kan ikke se den, før du offentliggør den.'
 }
 
 /** A confirmation's three sentences: the question, the consequence, the commit label. */

@@ -228,7 +228,7 @@ describe('saving an edit', () => {
     const { saveNewsArticle } = await subject()
     const result = await saveNewsArticle(STAFF, request())
 
-    expect(result).toEqual({ status: 'conflict', isPublic: false })
+    expect(result).toEqual({ status: 'conflict', isPublic: false, updatedAt: null })
     expect(rpc, 'no false audit for a write that did not happen').not.toHaveBeenCalled()
   })
 

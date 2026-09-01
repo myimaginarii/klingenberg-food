@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { bodyFromEditorText, bodyToEditorText } from '@/lib/news/body'
+import {
+  bodyFromEditorText,
+  bodyFromStructuredJson,
+  bodyHasMarks,
+  bodyToEditorText,
+} from '@/lib/news/body'
 
 /**
  * The 9A body format, held still in both directions: a blank line separates
@@ -103,5 +108,94 @@ describe('bodyToEditorText', () => {
   it('reports plain paragraphs as unmarked', () => {
     const body = bodyFromEditorText('Almindelig tekst.')
     expect(bodyToEditorText(body!).hasMarks).toBe(false)
+  })
+})
+
+describe('bodyFromStructuredJson — the 9B editor dialect', () => {
+  it('accepts the stored document shape, marks and all', () => {
+    const document = {
+      blocks: [
+        {
+          type: 'paragraph',
+          spans: [
+            { text: 'Se ' },
+            { text: 'menuen', bold: true },
+            { text: ' her', href: 'https://example.test/menu' },
+          ],
+        },
+      ],
+    }
+
+    expect(bodyFromStructuredJson(JSON.stringify(document))).toEqual({ ok: true, body: document })
+  })
+
+  it('refuses text that is not JSON at all', () => {
+    expect(bodyFromStructuredJson('ikke json')).toEqual({ ok: false, reason: 'malformed' })
+  })
+
+  it('refuses a document with an unknown key — strict, never repaired', () => {
+    const smuggled = {
+      blocks: [{ type: 'paragraph', spans: [{ text: 'Hej', html: '<script>' }] }],
+    }
+
+    expect(bodyFromStructuredJson(JSON.stringify(smuggled))).toEqual({
+      ok: false,
+      reason: 'malformed',
+    })
+  })
+
+  it.each([
+    ['javascript:alert(1)'],
+    ['data:text/html,x'],
+    ['http://example.test/usikker'],
+    ['//example.test/protokol-relativ'],
+    ['ikke en adresse'],
+  ])('refuses a link that is not an absolute https: address: %s', (href) => {
+    const document = { blocks: [{ type: 'paragraph', spans: [{ text: 'link', href }] }] }
+
+    expect(bodyFromStructuredJson(JSON.stringify(document))).toEqual({
+      ok: false,
+      reason: 'malformed',
+    })
+  })
+
+  it('refuses an unknown node type instead of guessing at it', () => {
+    const document = { blocks: [{ type: 'heading', spans: [{ text: 'H1' }] }] }
+
+    expect(bodyFromStructuredJson(JSON.stringify(document))).toEqual({
+      ok: false,
+      reason: 'malformed',
+    })
+  })
+
+  it('drops whitespace-only paragraphs, and calls a document with nothing left empty', () => {
+    const padded = {
+      blocks: [
+        { type: 'paragraph', spans: [{ text: '   ' }] },
+        { type: 'paragraph', spans: [{ text: 'Noget.' }] },
+      ],
+    }
+
+    expect(bodyFromStructuredJson(JSON.stringify(padded))).toEqual({
+      ok: true,
+      body: { blocks: [{ type: 'paragraph', spans: [{ text: 'Noget.' }] }] },
+    })
+
+    const blank = { blocks: [{ type: 'paragraph', spans: [{ text: '  ' }] }] }
+    expect(bodyFromStructuredJson(JSON.stringify(blank))).toEqual({ ok: false, reason: 'empty' })
+  })
+})
+
+describe('bodyHasMarks — the flattening guard, now load-bearing (9B)', () => {
+  it('reports bold, links, and their absence', () => {
+    expect(bodyHasMarks({ blocks: [{ type: 'paragraph', spans: [{ text: 'ren' }] }] })).toBe(false)
+    expect(
+      bodyHasMarks({ blocks: [{ type: 'paragraph', spans: [{ text: 'fed', bold: true }] }] }),
+    ).toBe(true)
+    expect(
+      bodyHasMarks({
+        blocks: [{ type: 'paragraph', spans: [{ text: 'link', href: 'https://example.test/' }] }],
+      }),
+    ).toBe(true)
   })
 })

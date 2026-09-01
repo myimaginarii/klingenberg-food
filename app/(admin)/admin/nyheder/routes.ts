@@ -44,6 +44,9 @@ export const NEWS_PARAM = {
  */
 export const EDITOR_ANCHOR = 'nyhed-editor'
 
+/** The editor `<form>`'s element id — how the bar's autosave controller finds it (9B). */
+export const EDITOR_FORM_ID = 'nyhed-editor-form'
+
 /**
  * The three footer controls and their confirmations. Cancelling a confirmation is a
  * navigation back to the control it was opened from, so the keyboard lands where it

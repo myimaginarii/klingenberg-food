@@ -28,10 +28,11 @@ type NewsRow = {
   slug: string
   category: string | null
   display_date: string | null
+  updated_at: string
   body: unknown
 }
 
-const COLUMNS = 'id, title, slug, category, display_date, body'
+const COLUMNS = 'id, title, slug, category, display_date, updated_at, body'
 
 function readSpan(raw: unknown): NewsSpan | null {
   const text = stringField(raw, 'text')
@@ -77,6 +78,7 @@ function toArticle(row: NewsRow): NewsArticle {
     slug: row.slug,
     category: row.category,
     displayDate: row.display_date as IsoDate | null,
+    updatedAt: row.updated_at,
     body: readNewsBody(row.body),
   }
 }

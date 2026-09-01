@@ -1,25 +1,27 @@
 import type { NewsBody, NewsParagraph } from '@/lib/content/types'
+import { newsBodySchema } from '@/lib/schemas/news'
 
 /**
  * The article body, between the editor and the database — technical plan §4, §7f.
  *
  * `news.body` is structured JSON — paragraph nodes carrying spans — and never HTML
- * (§8). Phase 9A's editor is one `<textarea>`: a blank line separates paragraphs, and
- * that is the whole of the format, stated here in both directions so the mapping is a
- * pure function a unit test can hold still.
+ * (§8). The editor speaks two dialects of it, and this module is both mappings:
  *
- * WHAT THIS DELIBERATELY DOES NOT DO
+ *   * **Plain text** (`bodyFromEditorText` / `bodyToEditorText`) — the 9A textarea's
+ *     format, kept as the no-JavaScript fallback for a body that carries no mark: a
+ *     blank line separates paragraphs, and that is the whole of it.
+ *   * **The structured document itself** (`bodyFromStructuredJson`) — what 9B's B/Link
+ *     editor submits: the stored shape, serialised as JSON in a hidden field, re-parsed
+ *     here against the same strict schema every other write goes through. Nothing is
+ *     invented on the way in — a malformed document, an unknown key or a link that is
+ *     not an absolute `https:` address is a refusal (§8), never a repair.
  *
- * The approved editor offers exactly **B and Link** (§7f, frame 1s), and those marks
- * are span properties the public renderer (`NewsBody.tsx`) already draws. The 9A
- * textarea can neither show nor produce them — the B/Link toolbar is a client
- * component and belongs to phase 9B together with the autosave it shares a component
- * with. Until then no row can carry a mark: the seed writes plain paragraphs and this
- * editor writes plain paragraphs. `bodyToEditorText` still reports `hasMarks`, so the
- * day 9B exists, an editor that would silently flatten a marked-up body has a fact to
- * check instead of an accident to have.
+ * `hasMarks` is the boundary between the two: a body with a bold or linked span has
+ * no faithful plain-text form, so the textarea fallback is offered only to a body
+ * without one — the protection 9A reserved the flag for.
  *
- * Pure: no database, no React, no imports beyond the shared body types.
+ * Pure: no database, no React; the one import beyond the shared types is the body's
+ * own Zod schema, so the editor and a forged POST are refused by the same sentence.
  */
 
 /** What the stored body looks like to the one control that edits it. */
@@ -56,9 +58,49 @@ export function bodyToEditorText(body: NewsBody): NewsBodyEditorText {
     block.spans.map((span) => span.text).join(''),
   )
 
-  const hasMarks = body.blocks.some((block) =>
+  return { text: paragraphs.join('\n\n'), hasMarks: bodyHasMarks(body) }
+}
+
+/** True when any span carries bold or a link — a body the textarea cannot show. */
+export function bodyHasMarks(body: NewsBody): boolean {
+  return body.blocks.some((block) =>
     block.spans.some((span) => span.bold === true || span.href !== undefined),
   )
+}
 
-  return { text: paragraphs.join('\n\n'), hasMarks }
+export type StructuredBodyResult =
+  /** The document, with whitespace-only paragraphs dropped. */
+  | { readonly ok: true; readonly body: NewsBody }
+  /** Not this schema's document at all — refused whole, never repaired (§8). */
+  | { readonly ok: false; readonly reason: 'malformed' }
+  /** A well-formed document with nothing to say — the "Skriv teksten" case. */
+  | { readonly ok: false; readonly reason: 'empty' }
+
+/**
+ * The structured editor's submitted document, or the refusal it earned.
+ *
+ * The JSON is parsed and then held to `newsBodySchema` — the same strict shape the
+ * write layer re-parses (§5's two layers): paragraph nodes only, spans of text with
+ * at most `bold` and an absolute-`https:` `href`, unknown keys refused. Whitespace-only
+ * paragraphs are dropped the way the textarea path drops blank lines; a document with
+ * nothing left is `empty`, so both dialects refuse a bodyless article with one sentence.
+ */
+export function bodyFromStructuredJson(raw: string): StructuredBodyResult {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(raw)
+  } catch {
+    return { ok: false, reason: 'malformed' }
+  }
+
+  const document = newsBodySchema.safeParse(parsed)
+  if (!document.success) return { ok: false, reason: 'malformed' }
+
+  const blocks = document.data.blocks.filter(
+    (block) => block.spans.map((span) => span.text).join('').trim().length > 0,
+  )
+
+  return blocks.length > 0
+    ? { ok: true, body: { blocks } }
+    : { ok: false, reason: 'empty' }
 }

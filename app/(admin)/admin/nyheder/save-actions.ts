@@ -57,6 +57,14 @@ const WRITE_STATUS: Record<Exclude<NewsWriteStatus, 'saved'>, string> = {
 }
 
 export async function createArticle(formData: FormData): Promise<void> {
+  // Autosave may already have created the row while the person was writing (phase
+  // brief §17): the controller then fills the hidden id and version fields, and this
+  // Gem is an ordinary save of that row — never a second INSERT of the same article.
+  const existingId = formData.get(NEWS_FORM.articleId)
+  if (typeof existingId === 'string' && existingId.length > 0) {
+    return saveArticle(formData)
+  }
+
   const profile = await requireStaff()
 
   const form = readNewsForm(formData)

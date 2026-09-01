@@ -7,8 +7,8 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–8 complete and locked; phase 9A (the news administration's core) is
-complete and green — phase 9 is not locked, 9B remains.** The public site renders from the database;
+**Status: phases 0–8 complete and locked; phases 9A and 9B (the whole of the news
+functionality) are complete and green — phase 9 is not locked: its lock pass remains.** The public site renders from the database;
 the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
@@ -131,8 +131,24 @@ the address 404s, republishing restores the same URL), and Slet with the 1r rule
 deliberately keeps its own persistence model: **no `draft` column** — a row is pending
 through `status='draft'`, and an edit to a *published* article is on the hjemmeside the
 moment it is saved, which the editor states beside the button that commits it. Technical
-plan §0q records the phase; images (phase 10), the B/Link body toolbar, autosave and the
-`NewsArticle` JSON-LD (phase 9B) are deliberately outside it.
+plan §0q records the phase.
+
+**Phase 9B** finishes the news functionality on that model. The Tekst field is the
+approved structured editor — exactly **B and Link**, a small purpose-built client
+component over the stored span shape, no editor library, no HTML in either direction —
+and it degrades honestly without JavaScript: a plain body edits as the 9A textarea,
+while a body with marks is shown read-only with the reason and travels back unchanged,
+never silently flattened. The editor **autosaves** ("Gemt for lidt siden"): debounced,
+one save in flight, refusing to save unchanged content, creating a brand-new draft row
+exactly once, and stopping — with the person's text kept on screen — when somebody
+else saved first. Because news has no draft layer, an autosaved edit to a *published*
+article is public on the next request, and the editor says precisely that. Each
+`/nyheder/[slug]` page now carries §7f's self-canonical, article Open Graph metadata
+and one `NewsArticle` JSON-LD block built from published values only (no image —
+photos are phase 10; nothing invented), and `/sitemap.xml` exists: the six public
+pages plus published articles, where unpublishing removes the entry on the first
+request and republishing restores the same address. Technical plan §0r records the
+phase; images stay phase 10, and the phase 9 lock pass is still owed.
 
 ## Requirements
 
@@ -231,6 +247,7 @@ accessibility assertion is made at both widths.
 ```
 app/
   layout.tsx          root layout — lang="da", the three approved fonts
+  sitemap.ts          /sitemap.xml — the six public pages + published news (§11, 9B)
   globals.css         design tokens from frame 1aa, in Tailwind v4 @theme
   (site)/             the public pages: forside, menu, om os, nyheder, find os, takeaway
   (admin)/admin/      the administration
@@ -265,8 +282,12 @@ components/
                       and share no business rules with it or with each other.
   admin/announcement/ Besked på hjemmesiden (phase 7). Its "sådan ser den ud" panel
                       renders the public bar itself, so the two cannot drift.
-  admin/news/         Nyheder (phase 9A). The list rows, the editor form, the shared
-                      confirmation dialog and the state badge. No business rules here.
+  admin/news/         Nyheder (phases 9A + 9B). The list rows, the editor form, the
+                      shared confirmation dialog, the state badge — and 9B's two client
+                      components: the B/Link body field (with its DOM-translation
+                      module) and the autosave controller. No business rules here:
+                      the editor's rules are lib/news/editor-model.ts, autosave's are
+                      lib/news/autosave.ts.
   admin/hours/        Åbningstider (phases 8A + 8B). The seven weekday rows, the one-off
                       change card, and this screen's
                       notices. Zero client components: a closed row hides its two
@@ -275,6 +296,9 @@ components/
                       guard — the only client component phase 7 adds (§7c)
 lib/
   config/site.ts      the only place an absolute site URL is produced
+  seo/                titles and descriptions; 9B adds the news article's canonical/OG
+                      metadata, the NewsArticle JSON-LD builder and the pure sitemap
+                      composition
   env/server.ts       the only place a server secret is read
   supabase/
     config.ts         the public URL and anon key
@@ -295,11 +319,15 @@ lib/
                       `generated.ts` the pure message generator (8C-2); `ownership.ts` what
                       "this override owns the announcement" means, decided by ids and never
                       by text; and `generated-operation.ts` the coordinator (8C-3A).
-  news/               the news rules (phase 9A): `slug.ts` is §7f letter for letter,
-                      `body.ts` the textarea ↔ structured-paragraphs mapping, `lifecycle.ts`
-                      every sentence the screen says about state, and `admin.ts` the writes —
-                      creation, the direct edit the draft machinery cannot do for an entity
-                      with no draft column, and the two trusted transitions
+  news/               the news rules (phases 9A + 9B): `slug.ts` is §7f letter for letter,
+                      `body.ts` both body dialects (plain text ↔ structured paragraphs, and
+                      the structured JSON the 9B editor submits, strictly re-parsed),
+                      `editor-model.ts` what B and Link mean over the stored spans,
+                      `autosave.ts` the pure autosave machine and its Danish status lines,
+                      `lifecycle.ts` every sentence the screen says about state, and
+                      `admin.ts` the writes — creation, the direct edit the draft machinery
+                      cannot do for an entity with no draft column, and the two trusted
+                      transitions
   hours/ time/        the pure time engines
   schemas/            the Zod shapes every write is re-parsed against
 scripts/

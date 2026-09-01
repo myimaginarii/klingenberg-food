@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  articleBodyState,
   decodeNewsErrors,
+  echoedBodyState,
   emptyNewsForm,
   encodeNewsFormEcho,
   errorField,
@@ -25,6 +27,7 @@ const VALID: NewsFormValues = {
   displayDate: '2026-09-01',
   category: 'Ny burger',
   body: 'Første afsnit.\n\nAndet afsnit.',
+  bodyDocument: '',
 }
 
 function form(overrides: Partial<NewsFormValues>): NewsFormValues {
@@ -104,7 +107,7 @@ describe('toNewsArticleValues — every refusal, attached to its field', () => {
 
   it('reports every problem at once, not one per attempt', () => {
     const result = toNewsArticleValues(
-      { title: '', displayDate: 'nix', category: 'Sladder', body: '' },
+      { title: '', displayDate: 'nix', category: 'Sladder', body: '', bodyDocument: '' },
       { frozenSlug: null },
     )
 
@@ -147,6 +150,7 @@ describe('the form’s two starting points', () => {
       displayDate: '2026-09-01',
       category: '',
       body: '',
+      bodyDocument: '',
     })
   })
 
@@ -173,6 +177,125 @@ describe('the form’s two starting points', () => {
       displayDate: '2026-08-20',
       category: 'Ny burger',
       body: 'Første afsnit.\n\nAndet afsnit.',
+      bodyDocument: '',
     })
+  })
+})
+
+describe('the structured body dialect (9B)', () => {
+  const MARKED = {
+    blocks: [
+      {
+        type: 'paragraph',
+        spans: [
+          { text: 'Se ' },
+          { text: 'menuen', bold: true },
+          { text: ' her', href: 'https://example.test/menu' },
+        ],
+      },
+    ],
+  }
+
+  it('wins over the plain field when it speaks, marks intact', () => {
+    const result = toNewsArticleValues(
+      form({ body: 'flad tekst der ville tabe fedt', bodyDocument: JSON.stringify(MARKED) }),
+      { frozenSlug: null },
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect(result.values.body).toEqual(MARKED)
+  })
+
+  it('refuses a malformed document with its own sentence, and repairs nothing', () => {
+    const result = toNewsArticleValues(form({ bodyDocument: '{"blocks": "nix"}' }), {
+      frozenSlug: null,
+    })
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+
+    expect(result.errors).toContain('tekst:ugyldig')
+  })
+
+  it('refuses an unsafe link server-side, whatever the browser said', () => {
+    const hostile = {
+      blocks: [{ type: 'paragraph', spans: [{ text: 'x', href: 'javascript:alert(1)' }] }],
+    }
+    const result = toNewsArticleValues(form({ bodyDocument: JSON.stringify(hostile) }), {
+      frozenSlug: null,
+    })
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+
+    expect(result.errors).toContain('tekst:ugyldig')
+  })
+
+  it('treats a document with nothing to say as the missing-text refusal', () => {
+    const blank = { blocks: [{ type: 'paragraph', spans: [{ text: '  ' }] }] }
+    const result = toNewsArticleValues(form({ bodyDocument: JSON.stringify(blank) }), {
+      frozenSlug: null,
+    })
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+
+    expect(result.errors).toContain('tekst:mangler')
+  })
+
+  it('echoes the document through a refusal, so marks survive the round trip', () => {
+    const typed = form({ bodyDocument: JSON.stringify(MARKED), displayDate: 'nix' })
+    const echo = encodeNewsFormEcho(typed, ['dato:ugyldig'])
+
+    const reread = readNewsForm(echo)
+    expect(reread).toEqual(typed)
+
+    const state = echoedBodyState(reread)
+    expect(state.document).toEqual(MARKED)
+    expect(state.hasMarks).toBe(true)
+  })
+
+  it('falls back to the typed plain text for an echo that cannot be read', () => {
+    const state = echoedBodyState(form({ body: 'ren tekst', bodyDocument: 'ikke json' }))
+
+    expect(state).toEqual({ text: 'ren tekst', document: null, hasMarks: false })
+  })
+})
+
+describe('articleBodyState — the hasMarks guard, load-bearing (9B)', () => {
+  const base = {
+    id: '11111111-1111-4111-8111-111111111111',
+    title: 'T',
+    slug: 't',
+    status: 'draft' as const,
+    publishedAt: null,
+    updatedAt: '2026-09-01T10:00:00.000Z',
+    category: null,
+    displayDate: null,
+  }
+
+  it('hands a plain body to the textarea dialect', () => {
+    const state = articleBodyState({
+      ...base,
+      body: { blocks: [{ type: 'paragraph', spans: [{ text: 'Ren tekst.' }] }] },
+    })
+
+    expect(state).toEqual({
+      text: 'Ren tekst.',
+      document: { blocks: [{ type: 'paragraph', spans: [{ text: 'Ren tekst.' }] }] },
+      hasMarks: false,
+    })
+  })
+
+  it('flags a marked body so no plain-text surface can flatten it', () => {
+    const state = articleBodyState({
+      ...base,
+      body: { blocks: [{ type: 'paragraph', spans: [{ text: 'Fed', bold: true }] }] },
+    })
+
+    expect(state.hasMarks).toBe(true)
+    expect(state.document).not.toBeNull()
   })
 })

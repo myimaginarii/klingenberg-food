@@ -159,6 +159,9 @@ export type NewsArticle = {
   slug: string
   category: string | null
   displayDate: IsoDate | null
+  /** The row's `updated_at` — `dateModified` in the article's JSON-LD (§11) and the
+   *  sitemap's `lastModified` (§7f), so both always state actual data. */
+  updatedAt: string
   body: NewsBody
 }
 

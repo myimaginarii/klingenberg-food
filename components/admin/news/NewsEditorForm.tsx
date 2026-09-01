@@ -1,24 +1,33 @@
-import { DateField, FieldGroupError, TextAreaField, TextField } from '@/components/admin/Field'
+import { DateField, FieldGroupError, TextField } from '@/components/admin/Field'
 import { SubmitButton } from '@/components/admin/SubmitButton'
+import type { NewsBody } from '@/lib/content/types'
+
+import { NewsBodyField } from './NewsBodyField'
 
 /**
- * The article editor — design 1s (desktop) and 1z (right card, mobile); phase 9A.
+ * The article editor — design 1s (desktop) and 1z (right card, mobile); phases 9A/9B.
  *
  * A plain `<form>` posting to a Server Action, like every editor in this
- * administration: no client component, no controlled inputs, and it works with
- * scripting off. 1s's fields, in 1s's order — Overskrift, the address beneath it
- * (§7f), Dato på hjemmesiden, the category chips, Tekst — and the image slot as the
- * approved *non-functional* treatment, because images are phase 10 and faking an
- * upload control that goes nowhere would be worse than saying so (phase brief §13).
+ * administration, and it still works whole with scripting off. 1s's fields, in 1s's
+ * order — Overskrift, the address beneath it (§7f), Dato på hjemmesiden, the category
+ * chips, Tekst — and the image slot as the approved *non-functional* treatment,
+ * because images are phase 10 and faking an upload control that goes nowhere would be
+ * worse than saying so (phase brief §13).
  *
- * TWO DELIBERATE DEPARTURES FROM THE FRAME, RECORDED HERE
+ * Phase 9B put the two client components 1s draws onto this server-rendered form,
+ * changing its nature nowhere else:
  *
- *   * **An explicit Gem button.** 1s autosaves ("Gemt for lidt siden"); autosave is a
- *     client component and belongs to phase 9B. Until then a form without a submit
- *     would be a form that cannot save at all.
- *   * **The Tekst field is a textarea, not the B/Link toolbar.** The toolbar is the
- *     same 9B client component. The helper line beneath the field states the 9A
- *     format instead of promising marks the field cannot make.
+ *   * **The Tekst field is `NewsBodyField`** — the B/Link editor when scripting runs,
+ *     the 9A textarea when it does not, and a mark-preserving read-only fallback when
+ *     it does not *and* the body carries marks it would flatten.
+ *   * **Autosave** (`NewsAutosave`, in the bar) finds this form by `formId` and keeps
+ *     the hidden id and version fields below current, which is why they render — 
+ *     empty — even for an article that does not exist yet (§17).
+ *
+ * **The Gem button stays**, deliberately, although 1s draws none: it is the whole of
+ * saving with scripting off, and with scripting on it is the explicit fallback the
+ * phase brief allows — the same action, the same version token, never a second save
+ * system.
  *
  * The one thing this form *says* that a generic editor would not: what saving does.
  * News has no draft column, so an edit to a published article is public the moment it
@@ -38,7 +47,13 @@ export type NewsEditorValues = {
   readonly title: string
   readonly displayDate: string
   readonly category: string
-  readonly body: string
+}
+
+/** The Tekst field's three facts — `article-form.ts`'s `EditorBodyState`, structurally. */
+export type NewsEditorBody = {
+  readonly text: string
+  readonly document: NewsBody | null
+  readonly hasMarks: boolean
 }
 
 export type NewsEditorErrorField = 'overskrift' | 'dato' | 'kategori' | 'tekst'
@@ -46,9 +61,11 @@ export type NewsEditorErrorField = 'overskrift' | 'dato' | 'kategori' | 'tekst'
 export function NewsEditorForm({
   action,
   anchorId,
+  formId,
   fieldNames,
   heading,
   values,
+  body,
   errorFor,
   categories,
   address,
@@ -59,6 +76,8 @@ export function NewsEditorForm({
 }: {
   action: (formData: FormData) => Promise<void>
   anchorId: string
+  /** The form element's id — how the autosave controller in the bar finds it. */
+  formId: string
   fieldNames: {
     readonly articleId: string
     readonly version: string
@@ -66,9 +85,11 @@ export function NewsEditorForm({
     readonly displayDate: string
     readonly category: string
     readonly body: string
+    readonly bodyDocument: string
   }
   heading: string
   values: NewsEditorValues
+  body: NewsEditorBody
   /** The message for one field, or undefined. Bound with `aria-describedby`. */
   errorFor: (field: NewsEditorErrorField) => string | undefined
   categories: readonly string[]
@@ -87,17 +108,19 @@ export function NewsEditorForm({
 
   return (
     <section aria-labelledby={headingId} className="bg-surface border-border rounded-card-lg border" id={anchorId}>
-      <form action={action} aria-label={heading} className="flex flex-col gap-4 p-4 md:p-5">
+      <form action={action} aria-label={heading} className="flex flex-col gap-4 p-4 md:p-5" id={formId}>
         <h2 className="text-heading font-sans font-semibold" id={headingId}>
           {heading}
         </h2>
 
-        {articleId === undefined ? null : (
-          <input name={fieldNames.articleId} type="hidden" value={articleId} />
-        )}
-        {version === undefined ? null : (
-          <input name={fieldNames.version} type="hidden" value={version} />
-        )}
+        {/*
+          Rendered even when empty: autosave's first save of a brand-new article
+          creates the row and writes the id and version into these two fields, so the
+          explicit Gem that may follow saves that row instead of creating a second
+          one (§17). React must not manage their values — the controller owns them.
+        */}
+        <input defaultValue={articleId ?? ''} name={fieldNames.articleId} type="hidden" />
+        <input defaultValue={version ?? ''} name={fieldNames.version} type="hidden" />
 
         <div className="flex flex-col gap-1.5">
           <TextField
@@ -174,14 +197,15 @@ export function NewsEditorForm({
           </fieldset>
         </div>
 
-        <TextAreaField
-          defaultValue={values.body}
+        <NewsBodyField
           error={errorFor('tekst')}
-          hint="Skriv det, som du ville fortælle det til en gæst. En tom linje giver et nyt afsnit. Ingen overskrifter og ingen HTML."
+          hasMarks={body.hasMarks}
           id={`${anchorId}-tekst`}
+          initialDocument={body.document}
+          initialText={body.text}
           label="Tekst"
           name={fieldNames.body}
-          rows={10}
+          structuredName={fieldNames.bodyDocument}
         />
 
         {/*

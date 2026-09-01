@@ -61,6 +61,55 @@ export async function fillArticle(
   }
 }
 
+/**
+ * The structured Tekst editor (phase 9B): the labelled textbox — a `contenteditable`
+ * surface once scripting has enhanced the field, the plain textarea before or
+ * without it. Both carry the same accessible name, so callers address the field a
+ * person addresses.
+ */
+export function bodyEditor(page: Page): Locator {
+  return editorForm(page).getByLabel('Tekst', { exact: true })
+}
+
+/**
+ * Wait for the debounced autosave to confirm — the bar saying "Gemt". The debounce
+ * is 2 s after the last input, so the timeout leaves room for it plus the write.
+ */
+export async function waitForAutosaved(page: Page): Promise<void> {
+  await expect(
+    page
+      .getByRole('banner')
+      .getByText(/Gemt for lidt siden|Gemt — ændringerne er på hjemmesiden/),
+  ).toBeVisible({ timeout: 15_000 })
+}
+
+/**
+ * Select `text` inside the body editor by double-click (one word) or by setting a
+ * DOM selection over the first occurrence — the way a person selects before
+ * pressing B or Link.
+ */
+export async function selectBodyText(page: Page, text: string): Promise<void> {
+  const editor = bodyEditor(page)
+
+  await editor.evaluate((root, wanted) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      const index = node.textContent?.indexOf(wanted) ?? -1
+      if (index < 0) continue
+
+      const range = document.createRange()
+      range.setStart(node, index)
+      range.setEnd(node, index + wanted.length)
+
+      const selection = window.getSelection()
+      selection?.removeAllRanges()
+      selection?.addRange(range)
+      return
+    }
+    throw new Error(`"${wanted}" not found in the body editor`)
+  }, text)
+}
+
 /** Gem — and wait for the action's redirect, so a caller can navigate immediately. */
 export async function saveArticle(page: Page): Promise<void> {
   await editorForm(page)

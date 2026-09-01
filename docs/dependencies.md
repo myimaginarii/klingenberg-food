@@ -3,6 +3,52 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 9B — no dependencies added (2026-09-01)
+
+**The rest of phase 9** — the B/Link body editor, autosave with 1s's "Gemt for lidt
+siden", the `NewsArticle` JSON-LD, §7f's canonical and article metadata, and the
+sitemap's news membership — adds **no package**. `package.json` and the lockfile are
+byte-identical to the phase-9A state. This is the increment 9A's entry predicted would
+be tempted hardest, so the refusals are recorded with what was built instead.
+
+**A rich-text editor** (`tiptap`, `lexical`, `prosemirror`, `slate`), refused again and
+now with the alternative in hand: the editing surface is one `contenteditable` region over the
+stored two-mark span shape. Every rule — what toggling B means, what a link may be, how
+a selection maps to the document, what a save serialises — is `lib/news/editor-model.ts`,
+pure functions over `NewsBody` pinned by ~40 unit cases; the DOM translation is
+`components/admin/news/body-editor-dom.ts` (~250 lines, no React); and the component
+wires the two. No `document.execCommand` (deprecated), no HTML serialisation in either
+direction — the DOM is *walked* into typed spans, so pasted markup contributes its
+characters and nothing else, and the public renderer still needs no sanitizer (§8). An
+editor engine would have solved arbitrary nested documents; this schema has exactly two
+marks by design (§7f), and an engine is also where headings, lists and paste-as-HTML
+come from — the features frame 1s's own caption forbids.
+
+**A client data-fetching or state library** (`swr`, `react-query`, `zustand`) for
+autosave. The autosave problem — debounce, one request in flight, stale responses,
+optimistic concurrency — is the shape those libraries advertise. It is instead a pure
+state machine (`lib/news/autosave.ts`, ~90 lines) whose transitions are unit-pinned,
+run by one controller component calling the same Server Action path the Gem button
+posts to. A cache library would have been a second opinion about freshness in a system
+whose freshness rules (§6's version token, §20's tag expiry) are already stated
+server-side — and §1 (adjustment 4) forbids it by name anyway.
+
+**A JSON-LD/schema.org helper** (`schema-dts`, `react-schemaorg`). The block is five
+fields restating stored values (§11: "nothing invented"), built by
+`lib/seo/news-article.ts` and serialised with a three-character escape so it renders as
+an ordinary React text child — no `dangerouslySetInnerHTML` (§8), which is the API every
+JSON-LD helper reaches for.
+
+**A sitemap generator** (`next-sitemap`). `app/sitemap.ts` is Next's own metadata route
+over a pure composition module (`lib/seo/sitemap.ts`); §11's whole requirement is six
+static paths plus the published articles the tagged read already returns.
+
+### `npm audit --audit-level=high` — clean
+
+Run against the unchanged lockfile: **0 vulnerabilities**.
+
+---
+
 ## Phase 9A — no dependencies added (2026-09-01)
 
 **The news administration's core** — the list, the editor, §7f's slug policy, per-item

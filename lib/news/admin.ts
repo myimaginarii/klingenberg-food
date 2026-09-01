@@ -66,6 +66,8 @@ export type CreateArticleResult = {
   readonly status: NewsWriteStatus
   /** The new row's id — present only when `saved`. */
   readonly articleId: string | null
+  /** The new row's `updated_at` — the version token the next save submits (§6). */
+  readonly updatedAt: string | null
 }
 
 /**
@@ -81,10 +83,12 @@ export async function createNewsArticle(
   profile: Profile,
   values: unknown,
 ): Promise<CreateArticleResult> {
-  if (!mayChangeEntity('news', profile)) return { status: 'forbidden', articleId: null }
+  if (!mayChangeEntity('news', profile)) {
+    return { status: 'forbidden', articleId: null, updatedAt: null }
+  }
 
   const parsed = newsArticleInput.safeParse(values)
-  if (!parsed.success) return { status: 'invalid', articleId: null }
+  if (!parsed.success) return { status: 'invalid', articleId: null, updatedAt: null }
 
   const input: NewsArticleInput = parsed.data
   const supabase = await createSupabaseServerClient()
@@ -100,19 +104,23 @@ export async function createNewsArticle(
       // The one column that makes this a draft a guest cannot see rather than a publish.
       status: 'draft',
     })
-    .select('id')
-    .maybeSingle<{ id: string }>()
+    .select('id, updated_at')
+    .maybeSingle<{ id: string; updated_at: string }>()
 
   if (error !== null) {
     // 23505 is the UNIQUE on `slug` — two tabs raced the collision suffix; 42501 is RLS
     // refusing a non-staff insert. The message is for the server log, never the browser.
-    if (error.code === '23505') return { status: 'slug_taken', articleId: null }
+    if (error.code === '23505') return { status: 'slug_taken', articleId: null, updatedAt: null }
 
     console.error(`Creating a news article failed: ${error.message}`)
-    return { status: error.code === '42501' ? 'forbidden' : 'failed', articleId: null }
+    return {
+      status: error.code === '42501' ? 'forbidden' : 'failed',
+      articleId: null,
+      updatedAt: null,
+    }
   }
 
-  if (data === null) return { status: 'failed', articleId: null }
+  if (data === null) return { status: 'failed', articleId: null, updatedAt: null }
 
   // `before` is null: there was nothing before. The actor is stamped from the JWT
   // inside `log_audit`, never from a parameter (§8).
@@ -130,7 +138,7 @@ export async function createNewsArticle(
     console.error(`Could not write the audit row for news ${data.id}: ${audit.error.message}`)
   }
 
-  return { status: 'saved', articleId: data.id }
+  return { status: 'saved', articleId: data.id, updatedAt: data.updated_at }
 }
 
 // ---------------------------------------------------------------------------
@@ -145,6 +153,8 @@ export type SaveArticleResult = {
    * `saved`: a draft save moves nothing public and must expire nothing.
    */
   readonly isPublic: boolean
+  /** The row's new `updated_at` — the version token the next save submits (§6). */
+  readonly updatedAt: string | null
 }
 
 export type SaveArticleRequest = {
@@ -186,10 +196,12 @@ export async function saveNewsArticle(
   profile: Profile,
   request: SaveArticleRequest,
 ): Promise<SaveArticleResult> {
-  if (!mayChangeEntity('news', profile)) return { status: 'forbidden', isPublic: false }
+  if (!mayChangeEntity('news', profile)) {
+    return { status: 'forbidden', isPublic: false, updatedAt: null }
+  }
 
   const parsed = newsArticleInput.safeParse(request.values)
-  if (!parsed.success) return { status: 'invalid', isPublic: false }
+  if (!parsed.success) return { status: 'invalid', isPublic: false, updatedAt: null }
 
   const input: NewsArticleInput = parsed.data
   const supabase = await createSupabaseServerClient()
@@ -205,14 +217,18 @@ export async function saveNewsArticle(
     })
     .eq('id', request.articleId)
     .eq('updated_at', request.expectedUpdatedAt)
-    .select('id, status')
-    .maybeSingle<{ id: string; status: 'draft' | 'published' }>()
+    .select('id, status, updated_at')
+    .maybeSingle<{ id: string; status: 'draft' | 'published'; updated_at: string }>()
 
   if (error !== null) {
-    if (error.code === '23505') return { status: 'slug_taken', isPublic: false }
+    if (error.code === '23505') return { status: 'slug_taken', isPublic: false, updatedAt: null }
 
     console.error(`Saving news article ${request.articleId} failed: ${error.message}`)
-    return { status: error.code === '42501' ? 'forbidden' : 'failed', isPublic: false }
+    return {
+      status: error.code === '42501' ? 'forbidden' : 'failed',
+      isPublic: false,
+      updatedAt: null,
+    }
   }
 
   if (data === null) {
@@ -225,6 +241,7 @@ export async function saveNewsArticle(
     return {
       status: existing.data === null ? 'not_found' : 'conflict',
       isPublic: false,
+      updatedAt: null,
     }
   }
 
@@ -254,7 +271,7 @@ export async function saveNewsArticle(
     }
   }
 
-  return { status: 'saved', isPublic }
+  return { status: 'saved', isPublic, updatedAt: data.updated_at }
 }
 
 /** The audit document for a create or a published edit: the content, whole (§4). */

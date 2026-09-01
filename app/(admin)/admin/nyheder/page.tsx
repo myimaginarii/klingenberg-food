@@ -1,5 +1,6 @@
 import { AdminSectionBar, BarLink } from '@/components/admin/menu/AdminSectionBar'
 import { NewsAdminList, type NewsAdminRow } from '@/components/admin/news/NewsAdminList'
+import { NewsAutosave } from '@/components/admin/news/NewsAutosave'
 import { NewsConfirmDialog } from '@/components/admin/news/NewsConfirmDialog'
 import { NewsEditorForm } from '@/components/admin/news/NewsEditorForm'
 import { NewsStateBadge } from '@/components/admin/news/NewsStateBadge'
@@ -22,7 +23,9 @@ import { NEWS_CATEGORIES } from '@/lib/schemas/news'
 import { copenhagenDateOf } from '@/lib/time/copenhagen'
 
 import {
+  articleBodyState,
   decodeNewsErrors,
+  echoedBodyState,
   emptyNewsForm,
   errorField,
   NEWS_ERROR_FIELD,
@@ -32,13 +35,16 @@ import {
   readNewsForm,
   type NewsErrorField,
 } from './article-form'
+import { autosaveArticle } from './autosave-actions'
 import { deleteArticle } from './delete-actions'
 import { publishArticle, unpublishArticle } from './publish-actions'
 import {
   DELETE_BUTTON_ANCHOR,
   DELETE_DIALOG_ANCHOR,
   EDITOR_ANCHOR,
+  EDITOR_FORM_ID,
   NEWS_PARAM,
+  NEWS_PATH,
   newsHref,
   PUBLISH_BUTTON_ANCHOR,
   PUBLISH_DIALOG_ANCHOR,
@@ -206,8 +212,21 @@ export default async function NewsAdminPage({
 
     return (
       <>
+        {/*
+          1s's bar: the badge, and beside it the autosave words ("Gemt for lidt
+          siden"). The controller lives here because the words do; it finds the form
+          below by its id, and it is the one client component this bar carries.
+        */}
         <AdminSectionBar backHref={newsHref()} backLabel="Nyheder" title={heading}>
           {editing === null ? null : <NewsStateBadge state={describeNewsState(editing)} />}
+          <NewsAutosave
+            action={autosaveArticle}
+            articleParam={NEWS_PARAM.article}
+            creatingParam={NEWS_PARAM.creating}
+            fieldNames={NEWS_FORM}
+            formId={EDITOR_FORM_ID}
+            listPath={NEWS_PATH}
+          />
         </AdminSectionBar>
 
         <main className="mx-auto flex w-full max-w-[52rem] flex-col gap-4 px-gutter py-6 md:px-8">
@@ -218,10 +237,12 @@ export default async function NewsAdminPage({
               action={createArticle}
               address={null}
               anchorId={EDITOR_ANCHOR}
+              body={echoed === null ? { text: '', document: null, hasMarks: false } : echoedBodyState(echoed)}
               categories={NEWS_CATEGORIES}
               consequence={describeSaveConsequence('draft')}
               errorFor={errorFor}
               fieldNames={NEWS_FORM}
+              formId={EDITOR_FORM_ID}
               heading={heading}
               saveLabel="Gem kladde"
               values={echoed ?? emptyNewsForm(todayIso)}
@@ -233,10 +254,12 @@ export default async function NewsAdminPage({
                 address={describeArticleAddress(editing)}
                 anchorId={EDITOR_ANCHOR}
                 articleId={editing.id}
+                body={echoed === null ? articleBodyState(editing) : echoedBodyState(echoed)}
                 categories={NEWS_CATEGORIES}
                 consequence={describeSaveConsequence(editing.status)}
                 errorFor={errorFor}
                 fieldNames={NEWS_FORM}
+                formId={EDITOR_FORM_ID}
                 heading={heading}
                 saveLabel={editing.status === 'published' ? 'Gem ændringer' : 'Gem kladde'}
                 values={echoed ?? newsFormValues(editing)}

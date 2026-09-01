@@ -1858,7 +1858,202 @@ the write spec is collected by exactly its two projects — the §22 check.
 The B/Link body toolbar (the one client component this area will have), autosave with
 1s's "Gemt for lidt siden", the `NewsArticle` JSON-LD block (§7f, §11) and its Rich
 Results verification, and — if review wants it — a per-article preview link on the list.
-Images stay phase 10.
+Images stay phase 10. *(Built 2026-09-01 — §0r is the record of what phase 9B contains;
+the external Rich Results verification moved to the final SEO/hardening phase, and the
+per-article list preview link was not asked for and was not added.)*
+
+---
+
+## §0r. Phase 9B — the structured editor, autosave, and the article's public claims (2026-09-01)
+
+Phase 9's remaining functionality is built: frame 1s/1z's **B/Link body editor**, the
+**autosave** the frames caption ("Gemt for lidt siden", "Gemmer selv som kladde, mens
+der skrives"), the **`NewsArticle` JSON-LD**, §7f's **canonical and article metadata**,
+**sitemap membership**, and the verification of the Forside teaser phase 3 built.
+**Phase 9 is not locked** — the lock pass (the full-suite completion regression over 9A
+and 9B together, frame-fidelity sign-off and the lock statement) is still owed.
+
+### The body model — one format, stated exactly
+
+`news.body` is unchanged: `{ blocks: [{ type: 'paragraph', spans: [{ text, bold?,
+href? }] }] }` — paragraph nodes of text runs, where a run may carry `bold: true`
+and/or an absolute-`https:` `href`, and nothing else. The editor edits *this* shape;
+there is no second format, no HTML anywhere in the pipeline in either direction, and
+`NewsBody.tsx` remains the public renderer with no `dangerouslySetInnerHTML` (§8).
+
+The editor is three modules with one direction of dependency:
+
+  * **`lib/news/editor-model.ts`** — every rule, pure. A selection is a block index and
+    a character offset; `toggleBold` (all-bold turns off, anything else turns on),
+    `setLink`/`clearLink` (independent of bold), `linkExtentAt` (a caret inside a link
+    means *that* link), `normalizeBody` (operations round-trip to the canonical stored
+    document) and `tidyBodyForSave` (blank line splits a paragraph, a lone line break
+    becomes a space, edges trim, empty paragraphs disappear — the textarea dialect's
+    rules restated for a document with marks). An empty or stale selection is clamped
+    into a no-op, never a corrupt body.
+  * **`components/admin/news/body-editor-dom.ts`** — the DOM translation, no React and
+    no decisions: the model rendered as `<p>`/`<span data-bold data-href>` (a link is
+    deliberately not an `<a>` while being edited), the DOM *walked* back into typed
+    spans (pasted markup contributes characters only), and the browser Selection mapped
+    to model offsets and back through the same walk.
+  * **`components/admin/news/NewsBodyField.tsx`** — the wiring: the toolbar (44 px
+    controls, `aria-pressed` on B, accessible names), the labelled `role="textbox"`
+    editing surface, the link panel (prefilled for an existing link, offers Fjern,
+    refuses anything that is not absolute `https:`), Ctrl+B routed through the same
+    toggle, every other `format*` input cancelled (no italic, no underline), paste
+    forced to plain text, drop refused.
+
+The stored document travels in a hidden field, `tekst_struktur`, as JSON — re-parsed
+server-side against `newsBodySchema` by `bodyFromStructuredJson` (`lib/news/body.ts`),
+so a malformed document, an unknown key, or a `javascript:`/`data:`/`http:` link is a
+refusal (`tekst:ugyldig`), never a repair. When `tekst_struktur` speaks it wins over
+the plain `tekst` field; refusal and conflict echoes carry it too, so marks survive
+every round trip.
+
+### The no-JavaScript fallback — and the `hasMarks` guard, load-bearing
+
+The public pages never needed JavaScript and still do not. In the editor:
+
+  * a body **without marks** falls back to the 9A textarea — plain paragraphs in, plain
+    paragraphs out, nothing to lose (text typed into it before scripting enhances the
+    field is adopted by the editor at the swap, not discarded);
+  * a body **with marks** is never offered as plain text: the field renders the body
+    read-only with a sentence saying it needs JavaScript to edit, and the original
+    structured document rides in the hidden field — so Gem still saves the title, date
+    and category while the text is returned byte for byte. 9A's `bodyToEditorText`
+    `hasMarks` flag is the switch, which is the protection it was reserved for.
+
+### Autosave — a pure machine, and the same save as Gem
+
+`lib/news/autosave.ts` owns the behaviour as a reducer the unit suite pins: a
+2-second debounce restarted by typing; **one save in flight**; a timer firing on
+unchanged content saves nothing (so a draft-only pause never writes a row and a
+published pause never expires a cache for nothing); edits made during a save mark the
+run and the *response* schedules the next attempt, so an older response can version
+the next save but can never overwrite newer edits — it never carries content into the
+form at all. `components/admin/news/NewsAutosave.tsx` runs the machine from the
+burgundy bar (where 1s draws the words), finds the form by id, and keeps the hidden
+id/version fields current so autosave, Gem and the confirmations always submit the
+newest token (§6).
+
+The write is `autosaveArticle` (`autosave-actions.ts`) — the one Server Action a
+client calls programmatically, and deliberately the same path as Gem:
+`toNewsArticleValues`, the §7f slug rules, `saveNewsArticle` with the version token
+inside the UPDATE's own WHERE. **The Gem button stays** as the explicit fallback and
+the whole of no-JS saving; it is not a second save system, because it is the same
+system. A Gem pressed while an autosave is in flight waits for it and then submits
+with the fresh token, so the two cannot race each other into a false conflict.
+
+**Creation** (§17 of the phase brief): a brand-new article's first valid pause creates
+the draft row once (`createNewsArticle`, born `status='draft'`); the response hands the
+editor the id and version, the address adopts `?nyhed=<id>` via `replaceState`, and
+every later autosave — and the Gem that may follow (`createArticle` delegates when the
+hidden id is filled) — saves that row. No row per debounce; an abandoned near-empty
+draft is an ordinary Kladde on the list, deletable through the ordinary Slet.
+
+### The published article, said truthfully
+
+News still has no draft column, so an autosaved edit to a **published** article is on
+the hjemmesiden the moment it commits: the action expires the `news` tag — only after
+success — and the status line says **“Gemt — ændringerne er på hjemmesiden”** rather
+than 1s's draft wording. `describeSaveConsequence` now says both halves out loud:
+changes save automatically, and saved changes are public immediately. A draft autosave
+expires nothing. Both first-request promises are asserted in the E2E suite, in fresh
+cookie-free contexts.
+
+### Audit under autosave — inspected, kept, and why
+
+Every published autosave goes through `saveNewsArticle`, so every content change a
+guest could read gets the same `update` audit row an explicit Gem writes — the §4
+recovery story holds under autosave, because to the model they are the same event.
+Spam is bounded structurally: a save happens only after a typing pause **and** only
+when content changed, so the audit reads as one row per settled thought, each with the
+real before/after. The 9A two-statement pattern (UPDATE, then `log_audit`, audit
+failure tolerated with a server log) is **kept**: an atomic RPC was weighed and
+declined because autosave changes the *frequency* of the path, not its trust model —
+news has no snapshot column a forged write could poison (§0q), the audit is a record
+rather than an authority, and a database function would have widened the security
+architecture for a failure mode (audit insert failing while the UPDATE commits) that
+RLS grants make practically unreachable for the same caller. Stale writes cannot audit
+falsely: a refused save writes zero rows and `log_audit` is never called.
+
+**Conflict** is a stop, never a merge: the stale autosave is refused by the version
+check, the bar says “Nogen andre har rettet denne nyhed” and that the local changes
+are **not** saved, autosave stops, and the person's text stays on screen to keep or
+copy — nothing replaces it with the database's version, no false “Gemt”, no false
+audit row. A deleted-underneath article gets the same treatment (`vaek`). A failed
+save or an incomplete form does not stop the machine; the next edit retries.
+
+### The Forside teaser — verified, not rebuilt
+
+Phase 3's implementation was already what §15 asks for: the Forside asks
+`readPublishedNews(1)` — published rows only, newest by `display_date` then
+`published_at` — takes the first answer or nothing, and renders nothing (no empty
+card) when nothing is published. Nothing is hard-coded; publish, published-edit,
+unpublish and delete all move it on the first request because they expire the same
+`news` tag the read is cached under. 9B added the unit suite
+(`tests/unit/home/news-teaser.test.tsx` — rendered markup plus source assertions) and
+the E2E teaser assertions; it changed no Forside code.
+
+### The article's public claims — JSON-LD, canonical, metadata, sitemap
+
+  * **`NewsArticle` JSON-LD** (§11): one block on `/nyheder/[slug]`, built by
+    `lib/seo/news-article.ts` — never assembled in JSX — from published values only:
+    `headline` (title), `datePublished` (`display_date`, omitted when unset),
+    `dateModified` (`updated_at`), `mainEntityOfPage` (the frozen slug under
+    `lib/config/site.ts`'s origin), `publisher` (the restaurant's name, no invented
+    logo). **No `image`** — photos are phase 10, and §11's rule for a value not
+    supplied is omitted, not invented. `serializeJsonLd` escapes `<`, `>`, `&` as JSON
+    `\uXXXX`, so the block renders as an ordinary React text child — no
+    `dangerouslySetInnerHTML` — and no title can close the `<script>` early. A Draft
+    Mode preview renders no block and no canonical: a draft has no public claims to
+    make. Unknown/unpublished slugs 404 before any of this runs. Rich Results
+    validation against Google's live tool is deliberately left for the final
+    SEO/hardening phase; 9B makes the markup structurally correct and locally tested.
+  * **Canonical and Open Graph** (§7f): `newsArticleMetadata` (`lib/seo/metadata.ts`)
+    adds the self-canonical at the frozen slug's absolute URL, `og:type=article`,
+    `og:locale=da_DK`, the article's own title/description/URL and
+    published/modified times. **No `og:image`**: the article has no photo before phase
+    10 and the branded fallback card §11 names is not yet supplied as an asset in the
+    repository — recorded here so the lock pass and phase 13 know it is a gap by
+    decision, not omission. When either arrives it lands in this one helper.
+  * **The sitemap** (§11, §7f): `app/sitemap.ts` now exists — phase 3 had never
+    created it, so 9B built the §11 file rather than extending one — as a reader over
+    the pure `lib/seo/sitemap.ts`: the six public pages (no invented `lastModified`)
+    plus one entry per **published** article at its frozen slug with `lastModified`
+    from `updated_at`. Published-only is not re-decided: the route uses the same
+    tagged public read as every page, so RLS decides membership and the same tag
+    expiry that removes an unpublished article's page removes its entry on the first
+    request; republishing returns the same URL. The route revalidates on the 5-minute
+    net like every public page.
+
+### The cache contract, restated for 9B (§20)
+
+Revalidate 5m / Expire 5m unchanged, sitemap included. Publish, published autosave,
+published Gem, unpublish, republish and published delete expire the `news` tag only
+after their write reported success; creation, draft saves (auto or explicit) and draft
+deletes expire nothing. First-request behaviour is asserted end to end for publish,
+published-autosave-edit, unpublish, republish, the teaser and the sitemap.
+
+### What phase 9B deliberately does not contain
+
+No editor or rich-text dependency, no sanitizer (still nothing to sanitize), no
+headings/lists/italic/underline/HTML mode, no image editing (the slot still states
+phase 10, `image_id` still untouched), no migration and no database object — the
+pgTAP suite is unchanged at 19 files because no function or grant moved — no client
+fetching/state library, no second save path, no per-article preview link on the list
+(review did not ask for it), and not the phase 13 SEO pass: no `Restaurant` JSON-LD,
+no sitewide canonicals, no robots.ts, no OG images.
+
+### The regression
+
+From the state above: typecheck, lint and the source policy clean; the full unit
+suite green (**2,182 tests in 74 files** — +84 in 4 new files and 3 extended for 9B);
+pgTAP unchanged and green (**1,256 assertions in 19 files**); `next build` clean with
+`/sitemap.xml` on the 5m/5m contract; `npx playwright test --list` collecting **991
+tests in 25 files** with the news write spec under exactly `news-admin-mobile` and
+`news-admin` (the §22 check); the full Playwright matrix green at `--retries=0`; and
+`npm audit --audit-level=high` clean on the unchanged lockfile.
 
 ---
 
