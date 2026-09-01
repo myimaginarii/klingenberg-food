@@ -75,10 +75,43 @@ async function tabUntilFocused(page: Page, target: Locator, maxTabs = 80): Promi
   throw new Error('the control was never reached by keyboard')
 }
 
-/** The dish fixture: point Thor at an image, or clear it, via the staff JWT. */
+/**
+ * The dish fixture: point Thor at an image, or clear it — through the door the
+ * editor uses. Since migration 20260901200000 a staff JWT cannot write the live
+ * `image_id` directly (pgTAP 023 proves the refusal), so the fixture writes the
+ * pending selection into `draft` and publishes it with `publish_dish()`: exactly
+ * what "Vælg billede" followed by Offentliggør does on 1r, with the same version
+ * check and the same audit row.
+ */
+async function publishThorImage(
+  imageId: string | null,
+): Promise<{ step: string; message: string } | null> {
+  const thor = await rest.from('dishes').select('id, updated_at').eq('name', 'Thor').single()
+  if (thor.error !== null) return { step: 'reading Thor', message: thor.error.message }
+  const row = thor.data as { id: string; updated_at: string }
+
+  const drafted = await rest
+    .from('dishes')
+    .update({ draft: { image_id: imageId } })
+    .eq('id', row.id)
+    .eq('updated_at', row.updated_at)
+    .select('updated_at')
+    .single()
+  if (drafted.error !== null) return { step: 'drafting the image', message: drafted.error.message }
+
+  const published = await rest.rpc('publish_dish', {
+    p_id: row.id,
+    p_expected_updated_at: (drafted.data as { updated_at: string }).updated_at,
+  })
+  if (published.error !== null) return { step: 'publishing', message: published.error.message }
+  const status = (published.data as { status: string }).status
+  if (status !== 'published') return { step: 'publishing', message: `status ${status}` }
+  return null
+}
+
 async function pointThorAt(imageId: string | null): Promise<void> {
-  const { error } = await rest.from('dishes').update({ image_id: imageId }).eq('name', 'Thor')
-  expect(error, `pointing Thor at ${imageId}: ${error?.message}`).toBeNull()
+  const failure = await publishThorImage(imageId)
+  expect(failure, `pointing Thor at ${imageId}: ${failure?.step} — ${failure?.message}`).toBeNull()
 }
 
 test.beforeAll(async ({ browser }) => {
@@ -89,9 +122,9 @@ test.beforeAll(async ({ browser }) => {
 })
 
 test.afterAll(async () => {
-  // Best-effort restoration even after a failure: the reference cleared, so the
-  // seeded menu is exactly as the suite found it.
-  await rest.from('dishes').update({ image_id: null }).eq('name', 'Thor')
+  // Best-effort restoration even after a failure: the reference cleared through
+  // the same publish door, so the seeded menu is exactly as the suite found it.
+  await publishThorImage(null)
   await rest.auth.signOut()
   await staffPage.context().close()
 })

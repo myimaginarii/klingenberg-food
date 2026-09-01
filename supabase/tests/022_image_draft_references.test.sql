@@ -25,7 +25,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 
-select plan(85);
+select plan(86);
 
 -- ---------------------------------------------------------------------------
 -- Fixtures and identity check
@@ -65,6 +65,26 @@ create function pg_temp.become_anon() returns void language plpgsql as $fn$
 begin
   perform set_config('request.jwt.claims', '{"role":"anon"}', true);
   execute 'set local role anon';
+end;
+$fn$;
+
+/*
+ * The fixture door for a LIVE image reference. Since 20260901200000 a Staff or
+ * Owner JWT cannot move dishes/weekly_special/monthly_burger.image_id directly —
+ * only publish, replace_image() and a confirmed delete_image() may (023 proves
+ * it) — so a fixture that needs a live reference in place sets it as the table
+ * owner, the way seed.sql would. SECURITY DEFINER here is the test's own
+ * privilege, never the application's; the guard steps aside for the owner
+ * exactly as it does for a migration.
+ */
+create function pg_temp.fixture_live_image(p_kind text, p_image uuid) returns void
+language plpgsql security definer set search_path = '' as $fn$
+begin
+  case p_kind
+    when 'dish'    then update public.dishes set image_id = p_image where name = 'Thor';
+    when 'weekly'  then update public.weekly_special set image_id = p_image;
+    when 'monthly' then update public.monthly_burger set image_id = p_image;
+  end case;
 end;
 $fn$;
 
@@ -208,7 +228,7 @@ select is(
   'nothing references anything yet');
 
 -- A live reference is one row, not pending.
-update public.dishes set image_id = pg_temp.img('test.img_a') where name = 'Thor';
+select pg_temp.fixture_live_image('dish', pg_temp.img('test.img_a'));
 
 select is(
   (select count(*) from public.image_references
@@ -391,9 +411,9 @@ select pg_temp.become_staff();
 
 -- Case C: the same image live AND in the same row's draft.
 select pg_temp.make_image('test.img_d', 'dddddddd-dddd-4ddd-8ddd-ddddddddddd2/original.jpg');
+select pg_temp.fixture_live_image('dish', pg_temp.img('test.img_d'));
 update public.dishes
-   set image_id = pg_temp.img('test.img_d'),
-       draft = jsonb_build_object('image_id', pg_temp.img('test.img_d')::text,
+   set draft = jsonb_build_object('image_id', pg_temp.img('test.img_d')::text,
                                   'name', 'Thor med nyt navn')
  where name = 'Thor';
 
@@ -419,9 +439,9 @@ select is(
 
 -- Case E: live A, draft B — deleting A clears the live pointer, keeps draft B.
 select pg_temp.make_image('test.img_e', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2/original.jpg');
+select pg_temp.fixture_live_image('dish', pg_temp.img('test.img_a'));
 update public.dishes
-   set image_id = pg_temp.img('test.img_a'),
-       draft = jsonb_build_object('image_id', pg_temp.img('test.img_e')::text)
+   set draft = jsonb_build_object('image_id', pg_temp.img('test.img_e')::text)
  where name = 'Thor';
 
 select is(
@@ -440,9 +460,8 @@ select is(
 
 -- Case A restated (live only): covered exhaustively by 020; one probe here that
 -- the behaviour still stands after the 10C-1 replacement of the function.
-update public.dishes
-   set image_id = pg_temp.img('test.img_e'), draft = null
- where name = 'Thor';
+select pg_temp.fixture_live_image('dish', pg_temp.img('test.img_e'));
+update public.dishes set draft = null where name = 'Thor';
 
 select is(
   (select public.delete_image(pg_temp.img('test.img_e'),
@@ -463,9 +482,9 @@ select pg_temp.make_image('test.rep_new', '22222222-bbbb-4bbb-8bbb-bbbbbbbbbbb3/
 select pg_temp.make_image('test.rep_other', '33333333-cccc-4ccc-8ccc-ccccccccccc3/original.jpg');
 
 -- §14 "draft only": the pending selection moves old→new.
+select pg_temp.fixture_live_image('dish', null);
 update public.dishes
-   set image_id = null,
-       draft = jsonb_build_object('image_id', pg_temp.img('test.rep_old')::text,
+   set draft = jsonb_build_object('image_id', pg_temp.img('test.rep_old')::text,
                                   'description', 'kladde ved erstatning')
  where name = 'Thor';
 
@@ -498,9 +517,9 @@ select is(
 
 -- §14 "live same old": live A + draft A, replace A→B moves both.
 select pg_temp.make_image('test.rep_old2', '44444444-dddd-4ddd-8ddd-ddddddddddd3/original.jpg');
+select pg_temp.fixture_live_image('dish', pg_temp.img('test.rep_old2'));
 update public.dishes
-   set image_id = pg_temp.img('test.rep_old2'),
-       draft = jsonb_build_object('image_id', pg_temp.img('test.rep_old2')::text)
+   set draft = jsonb_build_object('image_id', pg_temp.img('test.rep_old2')::text)
  where name = 'Thor';
 
 select set_config('test.rep2',
@@ -526,9 +545,9 @@ select is(
 select pg_temp.make_image('test.rep_a3', '55555555-eeee-4eee-8eee-eeeeeeeeeee3/original.jpg');
 select pg_temp.make_image('test.rep_b3', '66666666-ffff-4fff-8fff-fffffffffff3/original.jpg')
 ;
+select pg_temp.fixture_live_image('dish', pg_temp.img('test.rep_a3'));
 update public.dishes
-   set image_id = pg_temp.img('test.rep_a3'),
-       draft = jsonb_build_object('image_id', pg_temp.img('test.rep_other')::text)
+   set draft = jsonb_build_object('image_id', pg_temp.img('test.rep_other')::text)
  where name = 'Thor';
 
 select is(
@@ -587,7 +606,8 @@ update public.weekly_special
                                   'name', 'Stegt flæsk');
 update public.monthly_burger
    set draft = jsonb_build_object('image_id', pg_temp.img('test.rep_b4')::text);
-update public.dishes set draft = null, image_id = null where name = 'Thor';
+select pg_temp.fixture_live_image('dish', null);
+update public.dishes set draft = null where name = 'Thor';
 
 select is(
   (select public.replace_image(pg_temp.img('test.rep_b4'),
@@ -614,31 +634,35 @@ select throws_ok(
   '42501', null,
   'a direct DELETE is still refused — the marker is single-use and consumed');
 
--- The §28 measurement, recorded rather than assumed: a staff JWT can move a live
--- image_id column directly (the phase-1 table grant every SECURITY INVOKER
--- publish and replace function necessarily spends — §5's column-privilege
--- constraint), the FK still refuses an id that names nothing, and anon can move
--- nothing at all. The direct write carries exactly the authority the same person
--- already holds through draft-and-publish; the finding is recorded in the
--- technical plan for the final security audit.
-update public.dishes set image_id = pg_temp.img('test.rep_b5') where name = 'Thor';
+-- The §28 measurement, re-taken after 20260901200000: a staff JWT can NOT move a
+-- live image_id column directly any more — the reference guard refuses it, and
+-- 023 walks the whole property from every JWT. Here it is enough that the door
+-- is shut, that the FK is still the final gate on the trusted path, and that
+-- anon can move nothing at all.
+select throws_ok(
+  $$ update public.dishes set image_id = pg_temp.img('test.rep_b5') where name = 'Thor' $$,
+  '42501', null,
+  'measured: a staff JWT is refused a direct write of live image_id (20260901200000)');
 select is(
   (select image_id from public.dishes where name = 'Thor'),
-  pg_temp.img('test.rep_b5'),
-  'measured: a staff JWT holds direct UPDATE on live image_id (phase-1 grant, unchanged by 10C-1)');
+  null::uuid,
+  'and the column did not move');
 
-create function pg_temp.point_thor_nowhere() returns void
+-- A draft naming an image that does not exist is refused by the constraint at
+-- publish, so no dangling live id arrives through the door either.
+update public.dishes
+   set draft = '{"image_id": "99999999-9999-4999-8999-999999999997"}'::jsonb
+ where name = 'Thor';
+create function pg_temp.publish_thor_nowhere() returns void
 language sql as $fn$
-  update public.dishes
-     set image_id = '99999999-9999-4999-8999-999999999997'::uuid
-   where name = 'Thor'
+  select public.publish_dish((select id from public.dishes where name = 'Thor'),
+                             (select updated_at from public.dishes where name = 'Thor'))
 $fn$;
 select throws_ok(
-  'select pg_temp.point_thor_nowhere()',
+  'select pg_temp.publish_thor_nowhere()',
   '23503', null,
-  'but the FK refuses an image that does not exist — no dangling live id either');
-
-update public.dishes set image_id = null where name = 'Thor';
+  'the FK refuses an image that does not exist at publish — no dangling live id through the door');
+update public.dishes set draft = null where name = 'Thor';
 
 reset role;
 select pg_temp.become_anon();

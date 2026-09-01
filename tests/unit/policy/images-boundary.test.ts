@@ -257,6 +257,25 @@ describe('image_id is owned by exactly the 10C-1 selection paths (§29)', () => 
     expect(parsers).toEqual(SELECTION_ACTIONS)
   })
 
+  it('is written to no draft entity by any application statement — the database transitions own it', () => {
+    // The live column on dishes, weekly_special and monthly_burger is guarded in
+    // the database (migration 20260901200000): only publish_dish(),
+    // publish_weekly_special(), publish_monthly_burger(), replace_image() and a
+    // confirmed delete_image() may move it, and a PostgREST payload naming it on
+    // those tables is refused at run time. The database is the boundary; this
+    // pins that the application never even tries. News is the deliberate
+    // exception — it has no draft layer (§4), and its one save path restates
+    // image_id, exactly as 10C-1 accepted.
+    const writers = sourceFiles
+      .filter((file) =>
+        /\.(update|insert|upsert)\(\{[^}]*\bimage_id\b/.test(codeOf(file.source)),
+      )
+      .map((file) => file.path)
+      .sort()
+
+    expect(writers).toEqual(['lib/news/admin.ts'])
+  })
+
   it('every image action verifies existence before writing (brief §6)', () => {
     for (const path of SELECTION_ACTIONS) {
       const action = sourceFiles.find((file) => file.path === path)

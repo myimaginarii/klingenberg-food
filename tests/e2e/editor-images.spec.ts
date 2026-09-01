@@ -130,15 +130,13 @@ test.beforeAll(async ({ browser }) => {
 test.afterAll(async () => {
   // Best-effort restoration even after a failure, so the chain stays re-runnable:
   // no image reference anywhere, no leftover article, an empty library.
-  await rest.from('dishes').update({ image_id: null, draft: null }).eq('name', 'Thor')
-  await rest
-    .from('weekly_special')
-    .update({ image_id: null, draft: null })
-    .not('id', 'is', null)
-  await rest
-    .from('monthly_burger')
-    .update({ image_id: null, draft: null })
-    .not('id', 'is', null)
+  //
+  // The order is load-bearing since the published image reference became
+  // database-guarded (migration 20260901200000): a staff JWT cannot null a live
+  // image_id directly any more, so an image a failed run left in use is removed
+  // through the trusted door FIRST — a confirmed delete_image() detaches every
+  // live and draft reference — and the draft columns are cleared afterwards,
+  // naming no live column at all.
   await rest.from('news').delete().eq('slug', ARTICLE_SLUG)
 
   // Any image row a failed run left behind is removed through the trusted door,
@@ -153,6 +151,10 @@ test.afterAll(async () => {
       p_confirmed: true,
     })
   }
+
+  await rest.from('dishes').update({ draft: null }).eq('name', 'Thor')
+  await rest.from('weekly_special').update({ draft: null }).not('id', 'is', null)
+  await rest.from('monthly_burger').update({ draft: null }).not('id', 'is', null)
 
   await rest.auth.signOut()
   await staffPage.context().close()

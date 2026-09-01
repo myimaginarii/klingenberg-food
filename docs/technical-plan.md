@@ -2599,20 +2599,17 @@ kladde captions, and the E2E stories assert both.
 
 ### Recorded for the FINAL SECURITY AUDIT (phase 13)
 
-- **Live `image_id` is directly writable by a staff JWT** (measured in pgTAP
-  022), as every content column on these tables has been since phase 1: the
-  SECURITY INVOKER publish/replace/delete functions necessarily spend the
-  caller's own UPDATE privilege (§5's column-privilege constraint), so the
-  column cannot leave the grant. The direct write carries exactly the authority
-  the same person already holds through draft-and-publish — the FK refuses a
-  dangling id, anon can write nothing — so no privilege is widened and no
-  narrow guard was added: a transition guard here would have to recognise five
-  trusted transitions across three tables (FK referential actions included) for
-  a column whose direct writability is identical in kind to `name` and
-  `price_ore`. Re-weigh deliberately at the audit, together with the standing
-  §0t/§0u recordings (signed-token lifetime and session-unboundness,
-  service-role boundary, best-effort storage cleanup, `replace_image()`
-  accepting any successor).
+- ~~**Live `image_id` is directly writable by a staff JWT**~~ — **closed, not
+  accepted; see §0w.** This entry had argued that the direct write carried no
+  authority the same person lacks through draft-and-publish. The argument
+  mistook what the workflow is for: publishing decides *when* a change becomes
+  public and carries the version check, the audit row and the cache expiry with
+  it. Since `20260901200000` a direct write of the published `image_id` on
+  `dishes`, `weekly_special` and `monthly_burger` is refused by the database for
+  Staff and Owner alike, and pgTAP `023` proves it. The standing §0t/§0u
+  recordings (signed-token lifetime and session-unboundness, service-role
+  boundary, best-effort storage cleanup, `replace_image()` accepting any
+  successor) remain for the audit, unchanged.
 - Image-library replace/delete still expire no public cache tag — correct while
   nothing public renders images, and 10C-2 must wire the per-entity coupling
   the moment that changes.
@@ -2640,6 +2637,212 @@ Playwright matrix at `--retries=0`: **1,066 passed, 7 deliberately skipped
 (width/device guards), zero failed and zero flaky.** Phases 5–10B ran green
 behind it, unchanged; the public cache is still 5m/5m and no tracking cookie and
 no browser Supabase client appeared.
+
+---
+
+## §0w. Phase 10C-1 hardening — the published image reference is protected (2026-09-01)
+
+The one 10C-1 finding that was not accepted is closed: a Staff or Owner JWT can
+no longer move `dishes.image_id`, `weekly_special.image_id` or
+`monthly_burger.image_id` with a direct PostgREST write. §0v had recorded the
+direct write as accepted because it carried no privilege the same person lacks
+through Kladde → Forhåndsvis → Offentliggør. That argument mistook what the
+workflow is for: publishing decides *when* a change becomes public, and it
+carries the version check, the audit row and (from 10C-2) the public cache
+expiry with it — a direct UPDATE skipped all of that and changed the guest's
+photo at once. Migration `20260901200000` closes it, narrowly. **Phase 10 is
+still not locked**; 10C-2 is not started.
+
+### The privilege model, exactly
+
+`authenticated` holds a table-level UPDATE grant on all three tables (phase 1;
+INSERT and DELETE as well on `dishes`), RLS decides the rows with `is_staff()`,
+and every function that legitimately moves the column — the three publish
+functions, `replace_image()`, `delete_image()` — is SECURITY INVOKER and spends
+that grant. The announcement pass measured the consequence (§0l reading A) and
+it applies unchanged: a grant narrowed past `image_id` refuses the transitions
+too, and SECURITY DEFINER is refused as a way around that. So the *transition*
+is constrained rather than the privilege, with the mechanism `20260831160000`,
+`20260831200000` and `20260901140000` already use: every grant and every policy
+stands, and a BEFORE trigger recognises the trusted transitions by a
+transaction-local marker.
+
+### Every legitimate writer of a live `image_id` — enumerated from the source
+
+| Writer | Statement(s) | Transition word |
+|---|---|---|
+| `publish_dish()`, `publish_weekly_special()`, `publish_monthly_burger()` | the one phase-4 merge UPDATE each, `draft ? 'image_id'` moving the column | `publish` |
+| `replace_image()` | three live UPDATEs `set image_id = new where image_id = old` — **each may reach any number of rows** | `replace` |
+| `delete_image()` (confirmed) | three live UPDATEs `set image_id = null where image_id = p_id`, **new**, before its DELETE | `detach` |
+| the FK `ON DELETE SET NULL` | a referential UPDATE, **measured** to run as the table owner (`postgres`), so the guard steps aside for it as for a migration; reachable only through the two trusted image deletes | none needed |
+| `news.image_id` | the FK, and the one news save path — deliberately unguarded (§4, phase 9) | n/a |
+
+Nothing else moves the column: `set_dish_sold_out()`, `set_dish_deleted()`,
+the reorder, `copy_weekly_special_to_draft()`, the sold-out and touch triggers
+and every editor save write other columns or `draft`; no restore or undo
+transition touches these columns (the announcement's restore is another table,
+a dish's un-delete moves `deleted_at` only); and no application statement names
+`image_id` on the three tables at all — `tests/unit/policy/images-boundary.test.ts`
+now pins that the only `.update()` payload naming `image_id` anywhere in
+`app/`, `components/` and `lib/` is the news save.
+
+### The guard architecture
+
+- **The marker is `app.image_reference_write`, statement-scoped.** A BEFORE
+  INSERT OR UPDATE **OF `image_id`** FOR EACH ROW guard,
+  `tg_guard_image_reference_write()`, refuses (42501, PostgREST 403) any
+  movement of the live column from `anon` or `authenticated` that the marker
+  does not name. It reads the marker and never consumes it, so every row of a
+  multi-row statement is judged by the same word; an AFTER INSERT OR UPDATE FOR
+  EACH STATEMENT trigger, `tg_consume_image_reference_write()`, clears the
+  marker when the statement ends — rows moved or not. Each transition also
+  clears it explicitly, immediately after its statement.
+- **Why a second marker name and not `app.image_write`.** The images-row marker
+  is consumed by the first row it admits: one marker, one row. A replacement
+  that admitted the first dish and refused the second would be a half-applied
+  transition, so the reference marker authorises exactly one *statement*. Two
+  consumption rules under one name would be a trap for the next reader; two
+  names in the same family are not.
+- **The vocabulary admits shapes, not just words:** `publish` may set, change or
+  clear; `replace` moves a non-null image to a non-null image; `detach` only
+  clears. No word admits an INSERT that arrives with a photo — a new dish is
+  born as a draft (`lib/publishing/create.ts`) and meets its first live image
+  through publish — so that INSERT is always refused for browser roles.
+- **The guard is one column wide.** An UPDATE of any other column, an UPDATE
+  that names `image_id` with its current value (a PATCH echoing the row), and
+  every draft write are exactly the writes they were.
+- **Why direct PostgREST is refused.** A request is one transaction holding one
+  statement or one RPC: there is no second statement in which a marker could be
+  spent, `set_config` is not an exposed RPC, and the only functions that raise
+  this marker clear it before they return. Owner is refused exactly as Staff —
+  authority to publish is not authority to bypass — and anon is refused by the
+  missing grant, as before.
+- **SECURITY INVOKER retained** on all five transitions and both trigger
+  functions; `search_path` pinned; no grant, policy or other column changed.
+- **One bookkeeping order, recorded.** In PL/pgSQL, `PERFORM set_config(...)`
+  sets `FOUND` and `ROW_COUNT` (the call returns one row). The restated
+  transitions therefore read a guarded statement's row count *before* clearing
+  the marker, and the publish functions test that count rather than `FOUND`.
+  `delete_image()` and `replace_image()` had read their DELETE's count after the
+  clearing `PERFORM`; their FOR UPDATE lock had made the branch unreachable, and
+  the order is corrected while they are restated.
+
+### Publish, replace and delete after the guard
+
+- **Publish** is byte-for-byte the phase-4 merge with the marker around its one
+  UPDATE. Live A + draft B → B, live A + draft null → null, live null + draft B
+  → B — proved for all three entities, with every unrelated column
+  byte-identical, the draft cleared, `is_new_draft` cleared for a dish, and the
+  audit row written; a stale publish returns `conflict` and writes nothing.
+- **Replace** keeps the whole 10B/10C-1 contract: one transaction, the four
+  live columns and the three draft keys, one audit row naming both storage
+  paths, the old files removed only after commit. Proved multi-row: two dishes,
+  both singletons, an article and a pending draft move in one call, and a draft
+  naming a different image is untouched.
+- **Delete** keeps the whole 10C-1 contract and gains the explicit detach: a
+  confirmed delete clears exactly the `image_id` key from every draft, nulls
+  the three guarded live columns under `detach`, lets the news FK null its own,
+  removes the row and writes the audit — one transaction, no dangling id. The
+  guard would have let the FK through anyway (the referential action runs as
+  the owner), but a transition should be readable in the function that owns it
+  rather than rest on the privilege context of a referential action; the
+  measurement is pinned in `023` so a change in that behaviour fails a test.
+
+### Marker hygiene — measured
+
+After a successful publish, replace and delete; after a `conflict`; and after a
+transition that raised mid-way (a publish whose draft names an image that does
+not exist, refused by the FK after the marker was raised) — the very next
+direct write of the live column is refused. A marker raised by hand admits
+exactly one statement, however many rows, and is spent by a statement that
+moves nothing; `detach` cannot set, `replace` cannot clear or set from empty,
+no word admits an INSERT with a photo; and the two markers do not stand in for
+each other (`app.image_write='delete'` admits no reference write,
+`app.image_reference_write='publish'` admits no images-row delete).
+
+### News — not changed, by decision
+
+News has no draft column and no Draft → Preview → Publish snapshot (§4); its
+direct-edit model was accepted and locked in phase 9, and `news.image_id` stays
+writable through the one news save path. The inspection found no new news
+vulnerability: `replace_image()` and the FK move its reference exactly as
+before, and the image-selection form on 1s still travels only through
+`saveNewsArticle`.
+
+### Recorded for the CODE-QUALITY / CORRECTNESS AUDIT — the sold-out guard
+
+`tg_guard_sold_out_date()` validates every *changed* `sold_out_on` against
+today ±1 in Copenhagen, for every role — it has no owner or migration
+step-aside, unlike every transition guard. A date days in the past therefore
+exists only because days passed; the seed, a migration and a test fixture can
+none of them write one, and pgTAP `023` has to disable the trigger for one
+owner statement to stage the state. The trigger is deliberately **not** changed
+here: `023` proves that `replace_image()` and a confirmed `delete_image()` on a
+dish carrying a five-day-old sold-out date go through untouched (an unchanged
+column is not re-validated, the soft-delete fix from phase 5D), so nothing in
+this hardening breaks a sold-out workflow. The observation stands for the later
+audit: a validate-on-write trigger that cannot be satisfied by any trusted
+writer of historical state is a fixture cost and a restore-from-backup
+question, not a security property.
+
+### Tests
+
+- `supabase/tests/023_image_reference_guard.test.sql` — **142 assertions** from
+  real Staff, Owner and anonymous JWTs: structure (triggers, `OF image_id`,
+  unchanged grants and policies, no SECURITY DEFINER, no guard on news), the
+  refused bypass for Staff and Owner (change, clearing, INSERT with a photo, on
+  all three tables) beside every write that must still work, publish on all
+  three entities across the three live/draft combinations, the multi-row
+  replacement, the confirmed and refused deletes, the marker hygiene above, the
+  sold-out interplay, the referential-action measurement, and fingerprints on
+  every unrelated row.
+- `020`, `021`, `022` re-fixtured: a live reference is now staged through a
+  table-owner fixture door (`pg_temp.fixture_live_image`), never a direct staff
+  write; `022`'s §28 measurement is re-taken as a refusal and the FK's final say
+  is proved at publish instead of at a direct write (**86** assertions, +1).
+- `tests/unit/policy/images-boundary.test.ts` — one assertion added: no
+  application statement names `image_id` on the three draft entities.
+- `tests/e2e/editor-images.spec.ts` — the after-all restoration deletes
+  leftover images through `delete_image()` *first* and then clears drafts,
+  naming no live column; no story changed, and the UI required no change.
+- `tests/e2e/image-library.spec.ts` — the 10B-era usage fixture (`pointThorAt`,
+  a direct staff PATCH of `dishes.image_id`) was the one remaining direct
+  writer in the repository, found by the guard refusing it in the first full
+  run. It now stages Thor's usage the way a person does: the selection into
+  `draft`, then `publish_dish()` with the version token — the same door, the
+  same audit row. Every story and assertion is unchanged.
+
+### Standing carry-forwards for the final security audit — unchanged
+
+The signed-upload token findings (§0t, §0u), the service-role boundary, the
+best-effort storage cleanup, `replace_image()` accepting any successor, and the
+not-yet-wired cache expiry for library replace/delete (10C-2's obligation).
+
+### The regression
+
+From a clean tree: `npm ci`, `npm run db:reset:full` (the new migration applies
+cleanly), a fresh production build from an emptied `.next`. Typecheck, lint and
+the source policy clean; **2,300 unit tests in 84 files** (+1, the policy
+assertion); **1,594 pgTAP assertions in 23 files** (+142 in `023`, +1 in
+`022`), from real anonymous, Staff and Owner JWTs; **12 integration tests in 3
+files** unchanged; `npm audit --audit-level=high` clean (0 vulnerabilities);
+`npx playwright test --list` collecting **1,073 tests in 28 files**, with
+`e2e/editor-images.spec.ts` and `e2e/image-library.spec.ts` each under exactly
+their own two projects; and the full Playwright matrix at `--retries=0`,
+run as the chunked chain (the read-only trio together, every write project in
+its own invocation, in config order, against one detached production server):
+**1,066 passed, 7 deliberately skipped (width/device guards), zero failed and
+zero flaky** on the authoritative runs. Recorded honestly: the first full pass
+had one first-attempt failure in `opening-hours` (a save press whose 5 s
+settle poll timed out; nothing in this change touches opening hours) whose
+leftover Monday draft cascaded into the next three hours suites, and the
+`image-library` fixture refusal described above, which cascaded into
+`editor-images-mobile`. After the fixture change, a `db:reset:full` and a
+rebuild, every chunk from `opening-hours` to the end of the chain re-ran
+green at `--retries=0` against the same commit; the nineteen chunks before it
+had been green on the first pass. Phases 5–10B ran green behind it, unchanged;
+no browser Supabase client, no storage metadata from any form, and the service
+module boundary appeared exactly as before.
 
 ---
 
@@ -3336,6 +3539,7 @@ No map library. No tile provider called at runtime. No JavaScript. The entire ma
 | Silent data loss | Every publish and every immediate change writes to `audit_log` with before/after. Soft-delete for dishes. Daily managed database backups **plus** a weekly off-platform export of database *and* storage (§10f). |
 | System left with no owner | Database constraint trigger on `profiles`; the last active owner cannot be demoted, disabled or deleted. |
 | **A trusted function is fed forged state through a direct write** | `restore_announcement()` publishes whatever `announcement.previous` holds, so a caller who could write that column could publish content none of the validating paths ever saw. The columns a lifecycle function is the sole author of are therefore not directly writable at all: `authenticated` holds a **column-level** UPDATE grant, and a BEFORE UPDATE guard trigger refuses any movement of the published, visibility, provenance and lifecycle columns that did not come from the function that owns it (§5, `20260831160000_announcement_column_privileges.sql`). The lifecycle functions stay SECURITY INVOKER, so RLS still decides the row. |
+| **A published image reference is moved outside the workflow** | `dishes`, `weekly_special` and `monthly_burger` keep their phase-1 UPDATE grant (the SECURITY INVOKER transitions spend it), but a BEFORE INSERT/UPDATE OF `image_id` guard refuses any movement of the live column that did not come from the publish, replace or detach transition, recognised by a statement-scoped marker that an AFTER STATEMENT trigger spends — one statement, however many rows, so a global replacement stays atomic (§0w, `20260901200000_protect_published_image_references.sql`). Direct Staff **and** Owner writes are refused; `news.image_id` is deliberately unguarded (§4, phase 9). |
 | **Production secrets exposed in logs** | Secrets are passed as environment variables, never as command-line arguments (which appear in process listings and some log lines). `set -x` is forbidden in workflow scripts and checked by a lint step. Backup and migration jobs run `--quiet`. Connection strings are never echoed. GitHub's secret masking is treated as a second line of defence, not the first. |
 | **Vulnerable dependency shipped** | Lockfile committed, `npm ci` in CI, Dependabot security updates, `npm audit` and CodeQL in the pipeline, GitHub push protection and secret scanning enabled. Framework version chosen and advisory-checked at implementation time, not from this document (§14). |
 | **Visitor tracking / consent liability** | No analytics, no pixel, no tag manager, no third-party script on the public site. Public visitors receive zero cookies, so no consent banner is required and the approved design stays intact (§12). |
@@ -3366,6 +3570,7 @@ No map library. No tile provider called at runtime. No JavaScript. The entire ma
 - `owner` can do all of it.
 - The last active owner cannot be demoted, disabled or deleted — three assertions.
 - Only `draft` may be written directly on `public.announcement`; the published, visibility, provenance and lifecycle columns refuse a direct write from Staff **and** from Owner, and the forged-`previous` attack on `restore_announcement()` is run end to end (`016`).
+- The published `image_id` on `dishes`, `weekly_special` and `monthly_burger` refuses a direct write from Staff **and** from Owner — a change, a clearing and an INSERT with a photo alike — while publish, the multi-row `replace_image()` and a confirmed `delete_image()` still move it, no marker survives any transition, and the referential action's privilege context is measured rather than assumed (`023`).
 
 **Playwright — E2E, the paths where a bug would be visible to a guest:**
 
@@ -3643,7 +3848,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (done):** the immediate path — "Vis besked" off and back on, "Fjern beskeden nu", immediate public removal and its ~10 s Fortryd. *Replacing an active announcement, `previous`/`replaced_at` and 1ae's conflict sheet moved to **phase 8**, where the generated message they belong to lives* | 7A: E2E 4 passes, including the no-network assertion — see §0f. 7B: `tests/e2e/announcement-remove.spec.ts` passes at 1440 and 375 — see §0g. **Complete and locked** by the completion pass of 2026-08-30 — see §0h |
 | 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3A (done):** generated-announcement **ownership** — `announcement.source_override_id`, the pairing CHECK, the ninth snapshot key, the ownership-aware write guard, and `apply_generated_announcement()`, the §7e item 8 coordinator that decides the conflict server-side and delegates the atomic write. `announcement_created` is **dropped**; no UI. **8C-3B (done):** the workflow — 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, the ~10 s Fortryd strip, §7e item 6's removal consequence with its atomic two-table transaction, the BEFORE DELETE guard that closes the direct-DELETE bypass, and the deletion of the 8C-1 harness | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. 8C-3A: `supabase/tests/017_generated_announcement.test.sql` passes — see §0n. 8C-3B: `tests/e2e/opening-hours-announcement.spec.ts` passes at 1440 and 375, and `supabase/tests/018_override_removal.test.sql` asserts the removal lifecycle and refuses a direct DELETE from real Staff and Owner JWTs — see §0o. E2E 5 is complete |
 | 9 | News | **9A (done, §0q):** the list, the editor with the structured body (textarea form), per-item publish/unpublish behind confirmations, delete, the §7f slug policy end to end, the per-article Draft Mode preview target, and the public list/detail integration incl. unpublish → 404 — proven by `tests/e2e/news-admin.spec.ts` at 375 and 1440 and `supabase/tests/019`. **9B (done, §0r):** the B/Link structured editor, autosave, the `NewsArticle` JSON-LD, canonical/article metadata and the sitemap. The forside teaser has rendered since phase 3 and is verified against the news lifecycle | E2E 6 passes, incl. unpublish → 404 — **complete and locked** by the completion pass of 2026-09-01, recorded in §0s |
-| 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C:** image selection in the dish/weekly/monthly/news editors, public rendering with `<img srcset>`, per-entity cache invalidation | E2E 7's library half passes (`tests/e2e/image-library.spec.ts` — upload → library → used on a dish → delete warns → references nulled); the editor-selection half is 10C's |
+| 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C-1 (done, §0v; hardened, §0w):** image selection in the dish/weekly/monthly/news editors through one shared picker pair, `image_references` as the one definition of "referenced", the draft-aware `delete_image()`/`replace_image()`, and the published `image_id` of the three draft entities guarded in the database — direct PostgREST writes refused, only publish/replace/detach move it (pgTAP `022`, `023`). **10C-2:** public rendering with `<img srcset>`, the public read-model projection, per-entity cache invalidation | E2E 7's library half passes (`tests/e2e/image-library.spec.ts` — upload → library → used on a dish → delete warns → references nulled); the editor-selection half is 10C's |
 | 11 | Remaining editors | Forsiden, Mad ud af huset (incl. the visibility toggle hiding the nav item), Kontaktoplysninger, **`/admin/brugere`** | E2E 8 passes; the owner can invite and deactivate a staff user |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device | Full menu-edit and news flows completed on a 375 px viewport |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project |

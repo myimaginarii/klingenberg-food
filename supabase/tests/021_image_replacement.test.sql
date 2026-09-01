@@ -56,6 +56,26 @@ begin
 end;
 $fn$;
 
+/*
+ * The fixture door for a LIVE image reference. Since 20260901200000 a Staff or
+ * Owner JWT cannot move dishes/weekly_special/monthly_burger.image_id directly —
+ * only publish, replace_image() and a confirmed delete_image() may (023 proves
+ * it) — so a fixture that needs a live reference in place sets it as the table
+ * owner, the way seed.sql would. SECURITY DEFINER here is the test's own
+ * privilege, never the application's; the guard steps aside for the owner
+ * exactly as it does for a migration.
+ */
+create function pg_temp.fixture_live_image(p_kind text, p_image uuid) returns void
+language plpgsql security definer set search_path = '' as $fn$
+begin
+  case p_kind
+    when 'dish'    then update public.dishes set image_id = p_image where name = 'Thor';
+    when 'weekly'  then update public.weekly_special set image_id = p_image;
+    when 'monthly' then update public.monthly_burger set image_id = p_image;
+  end case;
+end;
+$fn$;
+
 /* Unrelated content, fingerprinted so "untouched" is a probe rather than a hope. */
 create function pg_temp.announcement_state() returns jsonb
 language sql security definer set search_path = '' as $fn$
@@ -143,9 +163,9 @@ select is(
   'the replacement image is created the same way — a finished library row');
 
 -- Thor references the old image, with a pending draft that must survive whole.
+select pg_temp.fixture_live_image('dish', (current_setting('test.img_a')::jsonb ->> 'id')::uuid);
 update public.dishes
-   set image_id = (current_setting('test.img_a')::jsonb ->> 'id')::uuid,
-       draft = '{"description": "pgTAP-kladde der skal overleve"}'::jsonb
+   set draft = '{"description": "pgTAP-kladde der skal overleve"}'::jsonb
  where name = 'Thor';
 
 -- 2a. Refusals, none of which move anything.
@@ -281,13 +301,9 @@ select set_config('test.img_g',
     1600, 1200, 250000, null, pg_temp.good_derivatives())::text,
   true);
 
-update public.dishes
-   set image_id = (current_setting('test.img_f')::jsonb ->> 'id')::uuid
- where name = 'Thor';
-update public.weekly_special
-   set image_id = (current_setting('test.img_f')::jsonb ->> 'id')::uuid;
-update public.monthly_burger
-   set image_id = (current_setting('test.img_f')::jsonb ->> 'id')::uuid;
+select pg_temp.fixture_live_image('dish',    (current_setting('test.img_f')::jsonb ->> 'id')::uuid);
+select pg_temp.fixture_live_image('weekly',  (current_setting('test.img_f')::jsonb ->> 'id')::uuid);
+select pg_temp.fixture_live_image('monthly', (current_setting('test.img_f')::jsonb ->> 'id')::uuid);
 insert into public.news (title, slug, body, status, image_id)
 values ('pgTAP-billedtest', 'pgtap-billedtest', '{"blocks": []}'::jsonb, 'draft',
         (current_setting('test.img_f')::jsonb ->> 'id')::uuid);

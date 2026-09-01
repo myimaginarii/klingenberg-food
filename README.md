@@ -225,6 +225,19 @@ the live columns. pgTAP `022` proves every live/draft combination; nothing publi
 renders an image yet — that, with the read-model projection and the image-write
 cache coupling, is 10C-2. Technical plan §0v records the phase.
 
+**Phase 10C-1 hardening** closes the one finding 10C-1 had left for the audit: a
+Staff or Owner JWT can no longer move a published `image_id` on `dishes`,
+`weekly_special` or `monthly_burger` with a direct PostgREST write. The phase-1
+grants stand (the SECURITY INVOKER transitions spend them); a BEFORE
+INSERT/UPDATE OF `image_id` guard refuses any movement of the live column that
+did not come from `publish_*()`, `replace_image()` or a confirmed
+`delete_image()`, recognised by a statement-scoped marker that an AFTER
+STATEMENT trigger spends — one statement, however many rows, so a global
+replacement stays atomic. `delete_image()` now detaches the three guarded
+columns itself before its DELETE; news is deliberately unguarded (its
+direct-edit model is phase 9's). pgTAP `023` proves the door from every JWT and
+the hygiene of the marker. Technical plan §0w records it.
+
 ## Requirements
 
 - Node 24 (`.nvmrc`)
