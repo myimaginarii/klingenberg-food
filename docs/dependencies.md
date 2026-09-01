@@ -3,6 +3,65 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 9A — no dependencies added (2026-09-01)
+
+**The news administration's core** — the list, the editor, §7f's slug policy, per-item
+publish/unpublish behind confirmations, delete, and the per-article preview target —
+adds **no package**. `package.json` and the lockfile are byte-identical to the phase-8
+lock. News is the phase people most expect to arrive with a CMS's luggage, so the four
+dependencies that were considered are recorded with the reason each was refused.
+
+**A rich-text editor** (`tiptap`, `lexical`, `prosemirror`, `slate`). §7f fixes the body
+to structured JSON with exactly **B and Link** — no headings, no HTML, no paste-as-HTML,
+and therefore no sanitizer to get wrong. Every editor library above is an engine for the
+general problem 9A does not have: arbitrary nested documents. Phase 9A's field is one
+`<textarea>` whose blank lines become paragraph nodes (`lib/news/body.ts`, two pure
+functions with a round-trip identity the unit suite pins), and 9B's B/Link toolbar is a
+small client component over `document.execCommand`-free selection handling on a shape of
+two marks — not a document model worth an engine. A library here would also have put the
+first heavyweight client bundle into an administration that is otherwise Server
+Components and forms.
+
+**A slugify library** (`slugify`, `@sindresorhus/slugify`, `limax`). §7f's rule is three
+named transliterations (æ→ae, ø→oe, å→aa), a diacritic fold, hyphens and a `-2` suffix —
+eleven lines in `lib/news/slug.ts`, pinned by unit tests including the Danish letters a
+general library gets configurably rather than correctly by default. The database's
+UNIQUE constraint and slug-grammar CHECK remain the final gate either way, so a library
+could only have added a second opinion about what an address is.
+
+**An HTML sanitizer** (`dompurify`, `sanitize-html`). Refused for the reason §7f gives:
+there is no HTML anywhere in the pipeline to sanitize. The body is typed nodes in, typed
+nodes out, and the public renderer (`NewsBody.tsx`, phase 3) draws them with no
+`dangerouslySetInnerHTML`. The strongest sanitizer is the one with nothing to do.
+
+**A date library, for the tenth phase running.** The news dates are a `YYYY-MM-DD`
+column edited by `<input type="date">` (the value *is* the storage format) and two
+stored instants rendered through `copenhagenDateOf` + `formatDanishDate`, both phase-2/3
+functions. Nothing here does arithmetic at all.
+
+### What it did add, in the repository rather than in `package.json`
+
+  * **One migration** — `20260901120000_news_admin.sql`: `unpublish_news()` and
+    `delete_news()`, both SECURITY INVOKER, both version-checked and audited, granted to
+    `authenticated` and revoked from `anon`. No table, no column, no policy, no trigger,
+    no SECURITY DEFINER.
+  * **Four pure/domain modules** — `lib/news/slug.ts`, `lib/news/body.ts`,
+    `lib/news/lifecycle.ts` (every sentence the screen says about state) and
+    `lib/news/admin.ts` (the writes the draft machinery cannot do for an entity with no
+    draft column, plus the two trusted transitions). One strict schema,
+    `lib/schemas/news.ts`, and one admin read, `lib/content/news-admin.ts`.
+  * **Five components and one screen** — the list, the editor form, the shared
+    confirmation dialog, the state badge, the status notice, and
+    `app/(admin)/admin/nyheder/` with four Server Action files, each its own vocabulary.
+  * **The reserved preview extension** — `lib/drafts/targets.ts`'s `maal=nyhed` target,
+    slug-grammar-gated and existence-checked through the caller's own JWT.
+
+### `npm audit --audit-level=high` — clean
+
+Run against the unchanged lockfile: **0 vulnerabilities**.
+
+---
+
 ## Phase 8C-3B — no dependencies added (2026-08-31)
 
 **The opening-hours generated-announcement workflow** — 1t's option, 1ae's conflict sheet,

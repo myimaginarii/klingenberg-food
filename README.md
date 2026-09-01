@@ -7,7 +7,8 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–8 complete and locked.** The public site renders from the database;
+**Status: phases 0–8 complete and locked; phase 9A (the news administration's core) is
+complete and green — phase 9 is not locked, 9B remains.** The public site renders from the database;
 the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
@@ -120,8 +121,18 @@ Four things are worth knowing about it:
 
 **Phase 8 is complete and locked** — the completion pass of 2026-08-31 is recorded in
 technical plan §0p, which is the statement of what "phase 8" is in force today. `/admin`
-itself is still the **foundation-level** dashboard from phase 4 plus the menu, announcement
-and opening-hours entries — the remaining section screens arrive in their own phases.
+itself is still the **foundation-level** dashboard from phase 4 plus the menu, announcement,
+opening-hours and news entries — the remaining section screens arrive in their own phases.
+
+**Phase 9A** is finished: **Nyheder** (`/admin/nyheder`) is the news administration's core —
+the list, writing an article, §7f's generated-and-frozen slug shown under the title,
+per-item Offentliggør behind 1s's confirmation, "Fjern fra hjemmesiden" (the row survives,
+the address 404s, republishing restores the same URL), and Slet with the 1r rule. News
+deliberately keeps its own persistence model: **no `draft` column** — a row is pending
+through `status='draft'`, and an edit to a *published* article is on the hjemmeside the
+moment it is saved, which the editor states beside the button that commits it. Technical
+plan §0q records the phase; images (phase 10), the B/Link body toolbar, autosave and the
+`NewsArticle` JSON-LD (phase 9B) are deliberately outside it.
 
 ## Requirements
 
@@ -239,6 +250,9 @@ app/
                       1t's optional generated announcement with 1ae's conflict sheet.
                       The hours are published first and always; the message is attempted
                       afterwards and can never roll them back.
+    nyheder/          Nyheder (phase 9A) — the list and the article editor on one URL-driven
+                      page; save/create, publish, unpublish and delete are four vocabularies
+                      in four action files, and the slug is generated, never typed (§7f)
     indhold/ login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
   api/preview/        start and stop Draft Mode — staff session required
 proxy.ts              session refresh + unauthenticated redirect. Authorizes nothing.
@@ -251,6 +265,8 @@ components/
                       and share no business rules with it or with each other.
   admin/announcement/ Besked på hjemmesiden (phase 7). Its "sådan ser den ud" panel
                       renders the public bar itself, so the two cannot drift.
+  admin/news/         Nyheder (phase 9A). The list rows, the editor form, the shared
+                      confirmation dialog and the state badge. No business rules here.
   admin/hours/        Åbningstider (phases 8A + 8B). The seven weekday rows, the one-off
                       change card, and this screen's
                       notices. Zero client components: a closed row hides its two
@@ -279,6 +295,11 @@ lib/
                       `generated.ts` the pure message generator (8C-2); `ownership.ts` what
                       "this override owns the announcement" means, decided by ids and never
                       by text; and `generated-operation.ts` the coordinator (8C-3A).
+  news/               the news rules (phase 9A): `slug.ts` is §7f letter for letter,
+                      `body.ts` the textarea ↔ structured-paragraphs mapping, `lifecycle.ts`
+                      every sentence the screen says about state, and `admin.ts` the writes —
+                      creation, the direct edit the draft machinery cannot do for an entity
+                      with no draft column, and the two trusted transitions
   hours/ time/        the pure time engines
   schemas/            the Zod shapes every write is re-parsed against
 scripts/
@@ -290,12 +311,12 @@ supabase/
   migrations/       schema, RLS, the draft/publish core, immediate sold-out, soft
                     delete, the weekly-special admin, the monthly-burger admin, the
                     announcement admin, the one-off override admin, the announcement
-                    replacement mechanism, its column-level write guard, and generated-
-                    announcement ownership
+                    replacement mechanism, its column-level write guard, generated-
+                    announcement ownership, and the news admin (unpublish + delete)
   seed.sql          the confirmed contact, opening-hours and menu facts
   templates/        Danish auth emails, versioned and applied through config.toml
   tests/            pgTAP — the §5 permission matrix, the owner invariant, and every
-                    write path phases 4–8C-3A added
+                    write path phases 4–9A added
 tests/
   unit/             the pure rules, under Vitest
   e2e/ a11y/        Playwright, against a production build; axe at 375 and 1440

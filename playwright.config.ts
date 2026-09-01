@@ -81,6 +81,10 @@ export default defineConfig({
          * file must appear under exactly two projects, both named for it.
          */
         'e2e/opening-hours-announcement.spec.ts',
+        // The news write suite (phase 9A) — owned by its two dedicated projects at the
+        // end of the chain, for the same reason as its neighbour above. `--list` check:
+        // the file appears under exactly `news-admin-mobile` and `news-admin`.
+        'e2e/news-admin.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -101,8 +105,9 @@ export default defineConfig({
         'e2e/opening-hours.spec.ts',
         'e2e/opening-hours-override.spec.ts',
         'e2e/public-cache.spec.ts',
-        // See the desktop project's entry for why this one must exist.
+        // See the desktop project's entry for why these two must exist.
         'e2e/opening-hours-announcement.spec.ts',
+        'e2e/news-admin.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -434,6 +439,32 @@ export default defineConfig({
       name: 'opening-hours-announcement',
       testMatch: 'e2e/opening-hours-announcement.spec.ts',
       dependencies: ['opening-hours-announcement-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    /*
+     * The news administration (phase 9A), at both widths, and the new tail of the
+     * chain. Chained for the reason every write suite is chained: it publishes,
+     * publishing news expires the `news` tag, and that tag is on `/nyheder` and on the
+     * Forside's teaser — pages other suites make guest assertions about. It runs after
+     * the generated-announcement pair because that pair *starts from* the exact state
+     * the announcement suites leave behind, while this suite only needs the seeded
+     * articles, which it restores by deleting everything it creates.
+     *
+     * Two widths, because 1s and 1z are two arrangements rather than one at two sizes:
+     * at 1440 the editor is 1s's wide card with the date and the category chips on one
+     * row, at 375 it is 1z's stacked form. Mobile runs first and hands its state to
+     * the desktop project, as the override and announcement suites do.
+     */
+    {
+      name: 'news-admin-mobile',
+      testMatch: 'e2e/news-admin.spec.ts',
+      dependencies: ['opening-hours-announcement'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    {
+      name: 'news-admin',
+      testMatch: 'e2e/news-admin.spec.ts',
+      dependencies: ['news-admin-mobile'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],

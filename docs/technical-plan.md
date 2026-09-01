@@ -1748,8 +1748,117 @@ manual announcement editing, expiry, visibility and undo; the public-cache contr
 public cookies; and no browser Supabase client.
 
 **Phase 8 is complete and locked.** What §15 lists from phase 9 onward is untouched: no
-news administration, no Om os/Forside editors beyond phase 4's, no image pipeline, and
-the menu-category content editor still has no phase (§0b).
+news administration *(phase 9A has since built its core — see §0q)*, no Om os/Forside
+editors beyond phase 4's, no image pipeline, and the menu-category content editor still
+has no phase (§0b).
+
+---
+
+## §0q. Phase 9A — the news administration's core (2026-09-01)
+
+`/admin/nyheder` exists: the article list (frame 1z), the editor (frame 1s), creation,
+editing, per-item Offentliggør behind 1s's confirmation, §7f's "Fjern fra hjemmesiden",
+and Slet under the 1r rule ("Slet spørger altid"). Staff **and** Owner, per §5's row —
+never Owner-only. Phase 9 is **not** locked: 9B remains, and its scope is listed at the
+end of this section.
+
+*A note on frame numbering, recorded so nobody hunts for it later: the phase-9A brief
+referred to the news frames as "1u and 1v"; in the design file those ids are Rediger
+forsiden and Kontaktoplysninger (phase 11). The news administration's approved frames
+are **1s** ("Nyhed-editor — desktop") and **1z** ("Nyheder + editor — mobil"), and they
+are what 9A was built and verified against.*
+
+### The persistence model, confirmed and stated once
+
+News keeps the model §4 gave it, and it is **not** the generic draft model:
+
+| Fact | Where it is enforced |
+|---|---|
+| **No `draft` column.** An article is pending while `status = 'draft'`; `pending_changes` lists it as `unpublished`; publishing flips the status. `saveEntityDraft` is never involved — `tests/unit/news/admin-mapping.test.ts` asserts the boundary over the module's own source. | `lib/news/admin.ts`, §4 |
+| **An edit writes the row itself.** For a draft, that changes nothing public. **For a published article, the save is on the hjemmesiden the moment the `news` tag expires** — there is no draft layer, the editor says so beside Gem (`describeSaveConsequence`), the save action expires the tag only after the write reported success, and the previous words go into an `update` audit row, which is their only surviving copy (§4's recovery story). | `saveNewsArticle()`, `save-actions.ts`, `019` |
+| **Two states, no third.** `draft` = not public (a guest can neither list it nor open its address — `news_select_public`, and `status` is not even in `anon`'s column grant); `published` = public. `published_at` is memory, not state: it survives an unpublish so the slug stays frozen and a republish keeps the original date. | `unpublish_news()`, `019` |
+| **Optimistic concurrency is the UPDATE's own WHERE.** A stale token writes zero rows; zero rows is told apart honestly (row still there → `conflict`, gone → `not_found`); a conflict echoes what was typed back into the form over the *new* version token, so nothing is lost and nothing is silently overwritten. | `saveNewsArticle()`, E2E "a stale save is refused" |
+
+### The slug policy — §7f, implemented exactly
+
+Generated from the title (æ→ae, ø→oe, å→aa; other accents fold to their base letter, so
+"café" is not misspelled "caf"; everything else becomes single hyphens), collision-suffixed
+`-2`, `-3`, …, **never typed** — there is no slug field anywhere, and the editor shows the
+resulting address under the title with a sentence saying whether it still follows the
+title (unpublished) or is locked (published). Frozen at first publish by the phase-1
+trigger, which `019` proves from real JWTs — including that it stays frozen *while
+unpublished*, so a republished article answers at the same address. There is no redirect
+machinery, because a frozen slug never needs one. The rules live in `lib/news/slug.ts`,
+pure and unit-pinned; the database UNIQUE stays the final gate and a lost race is a
+Danish sentence (`adresse_optaget`), not a stack trace.
+
+### One migration, and what it does not contain
+
+`20260901120000_news_admin.sql` adds `unpublish_news()` (status back to `'draft'`,
+`published_at` kept, audited, version-checked) and `delete_news()` (a hard delete — news
+has no soft-delete columns and §0a D2's "never purged" was decided for dishes — with the
+**whole article** in the audit row, which after the commit is the only place the words
+exist). Both SECURITY INVOKER with `set search_path = ''`, granted to `authenticated` and
+revoked from `anon`. It contains **no** table, column, view, index, policy, table grant,
+trigger or SECURITY DEFINER function — and no transition-marker machinery: phase 8's
+write guard exists because `announcement.previous` is a snapshot one trusted function
+writes and another believes, and news has no such column, so a direct staff UPDATE can
+forge nothing the model does not already allow. That direct-write path **is** the
+accepted News architecture, not a bypass (the §19 question, answered).
+
+### Scope decisions this phase had to make, and why
+
+- **Unpublish and delete are in 9A**, though the brief's minimum was "status handling,
+  publish". Both are §5's own row ("write … unpublish") and frame 1s's own controls
+  ("Fjern fra hjemmesiden", "Slet"); without delete the E2E suite could not restore
+  state through the real administration, and without unpublish a published article could
+  not be taken down at all.
+- **The body editor is one `<textarea>`** — blank line = new paragraph, mapped to the
+  structured JSON §4 requires (`lib/news/body.ts`), no HTML anywhere. The **B/Link
+  toolbar is 9B**: it is a client component, no stored row carries a mark yet (the seed
+  and this editor both write plain paragraphs), and `bodyToEditorText` reports
+  `hasMarks` so a future flattening save is a checkable fact. The editor's helper line
+  states the 9A format rather than promising marks the field cannot make.
+- **Autosave is 9B**, with the same client component; 9A has an explicit Gem, which the
+  frame does not draw and which is recorded here as the deliberate interim departure.
+- **Creation offers no publish/preview footer** — a row that does not exist yet cannot
+  be published or previewed; both appear after the first Gem.
+- **The category chips gained "Ingen kategori"**: the field is optional in the frame
+  ("valgfrit") and in the schema, and a radio group without an off-chip could never be
+  cleared without JavaScript. The five categories are 1s's own, as a closed set in
+  `lib/schemas/news.ts`.
+- **Preview** uses the slug-carrying target `lib/drafts/targets.ts` reserved for this
+  phase: `maal=nyhed&slug=…` accepts only the slug grammar (which cannot spell a path or
+  an origin) and requires the article to exist through the caller's own JWT, then opens
+  the real `/nyheder/[slug]` in Draft Mode — §6's promise for an unpublished article,
+  proven end to end.
+- **The image slot** renders the approved dashed frame stating that images come in a
+  later phase — no file input, no fake upload, and `image_id` is never read, echoed or
+  written (`019` proves it survives both transitions).
+
+### The cache contract (§20)
+
+Publish, unpublish, published-edit and published-delete each expire the `news` tag —
+only after their transaction reported success, and through the publishing registry so
+the tag cannot drift. A draft save, a draft delete and a creation expire nothing. The
+first-guest-request promise is asserted for publish, published-edit and unpublish in
+`tests/e2e/news-admin.spec.ts`, in fresh cookie-free contexts.
+
+### The regression
+
+From the state above: typecheck, lint and the source policy clean; **2021 unit tests in
+65 files** (+129 in 6 for news); **1256 pgTAP assertions in 19 files** (+72 in `019`,
+from real anonymous, Staff and Owner JWTs); the two dedicated Playwright projects
+(`news-admin-mobile`, `news-admin`) green at 375 and 1440 with `--retries=0`, the news
+a11y suite green under both generic projects, and `npx playwright test --list` confirming
+the write spec is collected by exactly its two projects — the §22 check.
+
+### What phase 9B is
+
+The B/Link body toolbar (the one client component this area will have), autosave with
+1s's "Gemt for lidt siden", the `NewsArticle` JSON-LD block (§7f, §11) and its Rich
+Results verification, and — if review wants it — a per-article preview link on the list.
+Images stay phase 10.
 
 ---
 
@@ -2131,7 +2240,7 @@ a second trusted function then believes.
 
 **Normal path — Kladde → Forhåndsvis → Offentliggør (design 1aa):**
 
-1. Editing writes to `draft` (autosaved for the news editor, as designed). Live columns are untouched, so the public site is byte-identical to before.
+1. Editing writes to `draft` (autosaved for the news editor, as designed — *the autosave is phase 9B; and news has no `draft` column at all: its edits write the row while `status` decides visibility, see §4 and §0q*). Live columns are untouched, so the public site is byte-identical to before.
 2. Forhåndsvis calls an authenticated route that enables Next.js **Draft Mode** and opens the real public URL — including `/nyheder/[slug]` for an unpublished article. In draft mode the content loaders merge `draft` over the live columns and caching is bypassed. The "Forhåndsvisning — ikke live endnu" bar renders from the draft-mode flag. There are no public preview links; preview requires a staff session.
 3. Offentliggør opens the confirmation showing what will go live, then in one transaction merges `draft` into the columns, nulls `draft`, writes an `audit_log` row, and calls `revalidateTag()` for the affected pages. The green toast with Fortryd follows.
 
@@ -2750,7 +2859,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (done):** Månedens burger with its date window, its computed admin state, "Vis på forsiden" as a normal draft field and its own immediate Udsolgt path | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes — see §0d. **Complete and locked** by the completion pass of 2026-08-30 — see §0e |
 | 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (done):** the immediate path — "Vis besked" off and back on, "Fjern beskeden nu", immediate public removal and its ~10 s Fortryd. *Replacing an active announcement, `previous`/`replaced_at` and 1ae's conflict sheet moved to **phase 8**, where the generated message they belong to lives* | 7A: E2E 4 passes, including the no-network assertion — see §0f. 7B: `tests/e2e/announcement-remove.spec.ts` passes at 1440 and 375 — see §0g. **Complete and locked** by the completion pass of 2026-08-30 — see §0h |
 | 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3A (done):** generated-announcement **ownership** — `announcement.source_override_id`, the pairing CHECK, the ninth snapshot key, the ownership-aware write guard, and `apply_generated_announcement()`, the §7e item 8 coordinator that decides the conflict server-side and delegates the atomic write. `announcement_created` is **dropped**; no UI. **8C-3B (done):** the workflow — 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, the ~10 s Fortryd strip, §7e item 6's removal consequence with its atomic two-table transaction, the BEFORE DELETE guard that closes the direct-DELETE bypass, and the deletion of the 8C-1 harness | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. 8C-3A: `supabase/tests/017_generated_announcement.test.sql` passes — see §0n. 8C-3B: `tests/e2e/opening-hours-announcement.spec.ts` passes at 1440 and 375, and `supabase/tests/018_override_removal.test.sql` asserts the removal lifecycle and refuses a direct DELETE from real Staff and Owner JWTs — see §0o. E2E 5 is complete |
-| 9 | News | List, editor with structured body, autosave, publish/unpublish, **`/nyheder/[slug]` with the slug policy and `NewsArticle` JSON-LD**, forside teaser | E2E 6 passes, incl. unpublish → 404 |
+| 9 | News | **9A (done, §0q):** the list, the editor with the structured body (textarea form), per-item publish/unpublish behind confirmations, delete, the §7f slug policy end to end, the per-article Draft Mode preview target, and the public list/detail integration incl. unpublish → 404 — proven by `tests/e2e/news-admin.spec.ts` at 375 and 1440 and `supabase/tests/019`. **9B (remaining):** the B/Link toolbar, autosave, `NewsArticle` JSON-LD. The forside teaser has rendered since phase 3 | E2E 6 passes, incl. unpublish → 404 |
 | 10 | Images | Signed upload, client downscale, sharp derivatives, library with usage labels, replace/delete warnings | E2E 7 passes |
 | 11 | Remaining editors | Forsiden, Mad ud af huset (incl. the visibility toggle hiding the nav item), Kontaktoplysninger, **`/admin/brugere`** | E2E 8 passes; the owner can invite and deactivate a staff user |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device | Full menu-edit and news flows completed on a 375 px viewport |
@@ -2759,7 +2868,10 @@ Each phase ends in something deployable and testable. No phase begins until the 
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-08-31: phases 0–7 are complete and locked; phases 8A, 8B, 8C-1 (§0k, hardened in §0l), 8C-2 (§0m), 8C-3A (§0n) and 8C-3B (§0o) are complete and green. Phase 8 is not locked** — a dedicated completion/lock pass is the next step, and it is the only phase-8 work remaining. Phase 5 was closed by a completion
+**Status, 2026-09-01: phases 0–8 are complete and locked** — phase 8's lock pass is
+recorded in §0p — **and phase 9A, the news administration's core, is complete and green
+(§0q). Phase 9 is not locked**: 9B (the B/Link body toolbar, autosave, the `NewsArticle`
+JSON-LD) is the remaining phase-9 work. Phase 5 was closed by a completion
 pass and is recorded in full in §0b, including the five capabilities it delivered and the five
 things that are deliberately outside it. Phase 6 was then built in two increments that share
 nothing but a table row: **6A — Ugens ret and Lørdagsmenu — is recorded in §0c**, and **6B —

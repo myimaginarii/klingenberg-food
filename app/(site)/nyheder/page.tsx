@@ -8,8 +8,8 @@ import { PageContainer } from '@/components/site/PageContainer'
  * Nyheder — design 1j (desktop) and 1n (mobile).
  *
  * A list of published articles, newest first. Writing, publishing and unpublishing them
- * is phase 9; this page only reads, and an unpublished article is invisible to it
- * because the RLS policy grants `anon` nothing else.
+ * is `/admin/nyheder` (phase 9A, §0q); this page only reads, and an unpublished article
+ * is invisible to it because the RLS policy grants `anon` nothing else.
  */
 export const metadata = pageMetadata(
   'Nyheder',

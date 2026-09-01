@@ -48,7 +48,13 @@ function readSpan(raw: unknown): NewsSpan | null {
   return span
 }
 
-function readBody(raw: unknown): NewsBody {
+/**
+ * The stored `body` as typed nodes. Exported since phase 9A: the editor reads the
+ * article through `lib/content/news-admin.ts`, and the two must project the stored
+ * document identically — one parser, not a public one and an admin one that could
+ * drift apart.
+ */
+export function readNewsBody(raw: unknown): NewsBody {
   const blocks: NewsParagraph[] = []
 
   for (const block of objectArrayField(raw, 'blocks')) {
@@ -71,7 +77,7 @@ function toArticle(row: NewsRow): NewsArticle {
     slug: row.slug,
     category: row.category,
     displayDate: row.display_date as IsoDate | null,
-    body: readBody(row.body),
+    body: readNewsBody(row.body),
   }
 }
 

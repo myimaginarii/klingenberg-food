@@ -1,3 +1,4 @@
+import { isNewsSlug, newsArticlePath } from '@/lib/news/slug'
 import type { EntityKey } from '@/lib/publishing/entities'
 
 /**
@@ -15,10 +16,14 @@ import type { EntityKey } from '@/lib/publishing/entities'
  * destination that is not one of these values, which is a stronger statement than any
  * amount of validating a URL that arrived from outside.
  *
- * `/nyheder/[slug]` is deliberately absent. Previewing one article needs a slug, and a
- * slug is data rather than a name from a closed set; the news editor is phase 9 and
- * will extend this module with a target that takes a slug and validates it against the
- * article the staff member is actually editing.
+ * `/nyheder/[slug]` is the one target that is not a fixed path, because previewing one
+ * article needs a slug and a slug is data rather than a name from a closed set. Phase
+ * 9A added it the narrowest way that stays true to the rule above: `newsPreviewPath`
+ * accepts only a string the slug grammar accepts — lowercase letters, digits and
+ * single hyphens, so it cannot contain `/`, `.`, `?`, `#` or anything else that could
+ * steer a URL — and the preview route additionally requires the article to exist,
+ * read through the staff member's own JWT (§6: the preview opens the real
+ * `/nyheder/[slug]` URL for an unpublished article). No URL is still ever accepted.
  */
 
 export const PREVIEW_TARGETS = {
@@ -40,6 +45,15 @@ export function previewPath(key: unknown): string | null {
   if (!TARGET_KEYS.includes(key as PreviewTargetKey)) return null
 
   return PREVIEW_TARGETS[key as PreviewTargetKey].path
+}
+
+/**
+ * The internal path for one article's preview, or `null` when the value is not a
+ * slug. The grammar is the whole gate here — the caller still checks the article
+ * exists before enabling Draft Mode.
+ */
+export function newsPreviewPath(slug: unknown): string | null {
+  return isNewsSlug(slug) ? newsArticlePath(slug) : null
 }
 
 /**

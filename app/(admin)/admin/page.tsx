@@ -9,6 +9,7 @@ import { PublishSummary } from '@/components/admin/PublishSummary'
 import { signOut } from './actions'
 import { OPENING_HOURS_PATH } from './aabningstider/routes'
 import { ANNOUNCEMENT_PATH } from './besked/routes'
+import { NEWS_PATH } from './nyheder/routes'
 import { publishSelectedChanges } from './publish-actions'
 import { AdminShell, Card, Notice, SubmitButton } from './ui'
 
@@ -150,11 +151,24 @@ export default async function AdminDashboard({
         </p>
       </Card>
 
+      {/* Nyheder — design 1s / 1z, phase 9A. Staff and Owner alike (§5). */}
+      <Card>
+        <h2 className="text-heading font-semibold">Nyheder</h2>
+        <p className="text-ink-2 text-meta mt-2">
+          Nyheder på hjemmesiden — lukkedage, nye retter og andet nyt. Skriv en kladde,
+          og offentliggør den, når den er klar.
+        </p>
+        <p className="mt-1">
+          <Link className={STANDALONE_LINK} href={NEWS_PATH}>
+            Åbn nyhederne
+          </Link>
+        </p>
+      </Card>
+
       <Card>
         <h2 className="text-heading font-semibold">Rediger indhold</h2>
         <p className="text-ink-2 text-meta mt-2">
-          Sidetekster og kontaktoplysninger. Den sidste redigeringsskærm — nyheder — kommer
-          i en senere fase.
+          Sidetekster og kontaktoplysninger.
         </p>
         <p className="mt-1">
           <Link className={STANDALONE_LINK} href="/admin/indhold">
