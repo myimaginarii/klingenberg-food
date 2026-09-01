@@ -7,8 +7,9 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–9 complete and locked.** Phase 9's completion pass (2026-09-01) is
-recorded in technical plan §0s. The public site renders from the database;
+**Status: phases 0–9 complete and locked; phase 10A (the image storage foundation)
+built and green.** Phase 9's completion pass (2026-09-01) is recorded in technical
+plan §0s, and phase 10A in §0t. The public site renders from the database;
 the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
@@ -162,6 +163,23 @@ committed content UPDATE), the missing `og:image`/publisher logo (assets not yet
 supplied), and the external Rich Results validation are all recorded in §0s for the
 final security/SEO passes.
 
+**Phase 10A** is finished, and it is **pipeline only** — no screen, no route, no
+visible change anywhere. It is the secure image storage foundation the 1w library
+(10B) and the editors' image selection (10C) will stand on: two Storage buckets
+(`media-originals`, private, the validated masters; `media`, public, the derivatives
+guests will read), a signed-upload flow whose every authoritative value — path,
+type, dimensions, derivative record, uploader — is server-derived, a `<canvas>`
+downscale for phone photos (an optimisation, never a security boundary), sharp
+re-encoding into AVIF + WebP at 480/960/1440/2160 with orientation baked in and
+EXIF/GPS stripped, and one door in / one door out at the database:
+`create_image()`/`delete_image()`, replay-safe, reference-aware, audited, with
+direct PostgREST writes refused by the same guard-trigger mechanism the override
+deletion uses. `lib/supabase/service.ts` gained its first and only runtime caller
+(`lib/images/storage.ts`), pgTAP suite `020` covers the whole authority boundary,
+and a new integration suite (`npm run test:integration`, in CI's database job) runs
+the pipeline end to end against the real local stack. Technical plan §0t records
+the phase, including what it deliberately does not contain.
+
 ## Requirements
 
 - Node 24 (`.nvmrc`)
@@ -235,8 +253,9 @@ npm run check:all      # the above, plus `next build` and the full Playwright su
 
 Individually: `npm run typecheck`, `npm run lint`, `npm run check:policy`, `npm test`,
 `npm run build`, `npm run test:e2e`. Database permission tests are separate because they
-need Docker: `npm run db:test`. CI runs all of them plus `npm audit --audit-level=high`
-and CodeQL.
+need Docker: `npm run db:test` — and so is the image-pipeline integration suite,
+`npm run test:integration`, which runs against the same local stack. CI runs all of
+them plus `npm audit --audit-level=high` and CodeQL.
 
 `npm run test:e2e` builds the site and serves it on port 3100. The read-only projects
 (`desktop`, `mobile`, `no-javascript`) run first; the projects that write to the database
@@ -315,8 +334,8 @@ lib/
   supabase/
     config.ts         the public URL and anon key
     server.ts         request-scoped client (user JWT) + cookie-free public client
-    service.ts        service-role client, behind `server-only`. Still unused — the
-                      first caller is the phase-10 upload path.
+    service.ts        service-role client, behind `server-only`. One runtime caller:
+                      lib/images/storage.ts (phase 10A), enforced by a policy test.
   auth/               session, and requireStaff() / requireOwner()
   content/            the read layer. `source.ts` is its single door to the database.
   publishing/         drafts, publish, pending changes — the phase-4 machinery
@@ -340,6 +359,13 @@ lib/
                       `admin.ts` the writes — creation, the direct edit the draft machinery
                       cannot do for an entity with no draft column, and the two trusted
                       transitions
+  images/             the image pipeline (phase 10A, §0t). `rules.ts` and
+                      `derivatives.ts` are the pure half — limits, accepted types,
+                      the path grammar, the AVIF+WebP ladder, the Danish refusals;
+                      `processing.ts` is the one sharp boundary; `storage.ts` the one
+                      service-role boundary; `signed-upload.ts`/`finalize.ts` the two
+                      flow halves the 10B actions will call; `client-upload.ts` the
+                      browser downscale-and-PUT half, unmounted until 10B.
   hours/ time/        the pure time engines
   schemas/            the Zod shapes every write is re-parsed against
 scripts/
@@ -352,13 +378,16 @@ supabase/
                     delete, the weekly-special admin, the monthly-burger admin, the
                     announcement admin, the one-off override admin, the announcement
                     replacement mechanism, its column-level write guard, generated-
-                    announcement ownership, and the news admin (unpublish + delete)
+                    announcement ownership, the news admin (unpublish + delete), and
+                    the image storage foundation (buckets + the trusted image doors)
   seed.sql          the confirmed contact, opening-hours and menu facts
   templates/        Danish auth emails, versioned and applied through config.toml
   tests/            pgTAP — the §5 permission matrix, the owner invariant, and every
-                    write path phases 4–9A added
+                    write path phases 4–10A added
 tests/
   unit/             the pure rules, under Vitest
+  integration/      the image pipeline against the real local stack (phase 10A) —
+                    `npm run test:integration`, needs Docker like pgTAP
   e2e/ a11y/        Playwright, against a production build; axe at 375 and 1440
 ```
 
@@ -412,15 +441,19 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 10 onward, plus: the weekly off-platform backup workflow
-(phase 13, §10f) and Sentry (phase 13). `docs/dependencies.md` records which package
-arrives in which phase. Phase 6 is **complete and locked** — 6A (Ugens ret and
+The rest of phase 10 — 10B's 1w library screen (list, alt text, usage labels,
+replace/delete confirmations, the upload UI) and 10C's image selection in the editors,
+public rendering and cache coupling — plus everything in §15 from phase 11 onward, and:
+the weekly off-platform backup workflow (phase 13, §10f) and Sentry (phase 13).
+`docs/dependencies.md` records which package arrives in which phase. Phase 6 is
+**complete and locked** — 6A (Ugens ret and
 Lørdagsmenu, §0c), 6B (Månedens burger, §0d), and the completion pass over both halves
 (§0e). Phase 7 is **complete and locked** — 7A (§0f), 7B (§0g), and the completion pass
 over both halves (§0h). Phase 8 is **complete and locked** — 8A (§0i), 8B (§0j), 8C-1
 (§0k) and its hardening pass (§0l), 8C-2 (§0m), 8C-3A (§0n), 8C-3B (§0o), and the
 completion pass over all seven (§0p). Phase 9 is **complete and locked** — 9A (§0q),
-9B (§0r), and the completion pass over both (§0s).
+9B (§0r), and the completion pass over both (§0s). Phase 10A is **built and green**
+(§0t) but phase 10 stays open until 10B and 10C land.
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published

@@ -2170,6 +2170,190 @@ has no phase (§0b).
 
 ---
 
+## §0t. Phase 10A — the image storage foundation (2026-09-01)
+
+Phase 10 (§15) is built in three increments: **10A** — the secure
+storage/upload/derivative foundation, recorded here; **10B** — the library screen
+1w draws (list, alt text, replace/delete confirmations, usage labels); **10C** —
+image selection wired into the dish, weekly, monthly and news editors, the public
+rendering, and the cache coupling. 10A ships **no screen, no route and no visible
+change anywhere**: it is the pipeline the next two increments stand on, in the same
+no-caller state 8C-2's generator shipped in.
+
+### The pipeline, and where authority lives
+
+    Server Action (10B) runs requireStaff()
+      -> requestImageUpload(): declared type and size checked, a fresh
+         <uuid>/original.<ext> path minted, one signed upload token for exactly
+         that path in the private bucket   (lib/images/signed-upload.ts)
+      -> the browser downscales to max 2560 px with <canvas>, orientation baked
+         in via imageOrientation: 'from-image', and PUTs to the one signed URL —
+         no Supabase client, no key, no configuration in the browser
+         (lib/images/client-upload.ts, unmounted until 10B)
+      -> finalizeImageUpload(): the original is downloaded back, sniffed and
+         decoded by sharp — the filename and declared type prove nothing —
+         derivatives are rendered and written to the public bucket, and only
+         then is the row created through create_image() with the caller's own
+         JWT   (lib/images/finalize.ts, lib/images/processing.ts)
+
+The browser contributes exactly two values: the declared MIME type (which chooses
+only the extension the original is *stored* under) and a filename kept as sanitised
+display metadata. Path, bucket, dimensions, byte size, sniffed type, derivative
+record, uploader and row id are all server-derived and re-validated in SQL.
+
+### The storage model
+
+| Bucket | Visibility | Contents | Written by |
+|---|---|---|---|
+| `media-originals` | private | validated originals, `<upload-uuid>/original.<jpg\|png\|webp>`, 10 MiB / three MIME types enforced by the bucket itself | the signed upload token (one path each), the service role |
+| `media` | **public** | derivatives only, `<upload-uuid>/<width>.<avif\|webp>`, immutable paths cached for a year | the service role only |
+
+`storage.objects` has **no policy for `anon` or `authenticated`** — asserted by
+pgTAP — so a browser session can write storage only through the one token the
+server minted; a staff JWT that could write the public bucket directly could put
+unprocessed bytes on the public site, which is exactly what §8's pipeline forbids.
+Anonymous visitors read `/storage/v1/object/public/media/...` and nothing else;
+originals are never publicly readable. Retention: **originals are kept, privately**
+(§8 — re-derivation, future sizes, and the recovery story all want the master);
+public pages will use derivatives only.
+
+`lib/supabase/service.ts` gained its first and only runtime caller,
+`lib/images/storage.ts` — a capability-shaped module (mint, download original,
+upload derivative, remove) that never exposes the client handle, so no caller can
+reach an arbitrary bucket or path. `tests/unit/policy/images-boundary.test.ts`
+holds the import graph to exactly that, and to sharp living only in
+`lib/images/processing.ts`.
+
+### Validation and limits (stated in `lib/images/rules.ts`, restated in SQL)
+
+- **Accepted input:** JPEG, PNG, WebP — sniffed from the actual bytes by sharp.
+  **SVG is refused by default** (a script format needing a different security
+  model), animation is refused (`pages > 1`), GIF/TIFF/AVIF/HEIC inputs are
+  refused. A sniffed type that contradicts the stored extension is refused whole.
+- **Limits:** 10 MiB per original (also the bucket's own `file_size_limit`),
+  30 megapixels decoded, 10 000 px per side. The pixel cap is handed to sharp as
+  `limitInputPixels` on every decoding pipeline, so a decompression bomb is
+  refused by the decoder; the header sniff itself allocates no pixels.
+- **Refusals** are a closed Danish vocabulary (`IMAGE_REFUSALS`) — §10g's
+  "Billedet kunne ikke uploades. Prøv igen." is the generic failure — and no
+  processor message, path or stack ever reaches the browser.
+
+### The derivative set
+
+§1 adjustment 3 verbatim: **AVIF + WebP at 480 / 960 / 1440 / 2160**, filtered to
+the source width — never upscaled — with the source width itself as the single rung
+when the original is below 480 px. AVIF quality 55, WebP quality 80, orientation
+normalised into the pixels (`.rotate()`), and **no metadata copied to any
+derivative** — EXIF including GPS, XMP and thumbnails do not survive processing,
+asserted on real encoded output. `images.derivatives` records only formats and
+measured per-rung dimensions; derivative *paths* are never stored — they derive
+from the row's own `storage_path` through one pure function, so a forged record has
+no path to point elsewhere.
+
+### The database: one door in, one door out (`20260901140000`)
+
+Phase 1's staff CRUD policies were right for a table nothing wrote; phase 10
+changes what a row *means* — "these processed files exist with these measured
+properties" — so the migration makes the trusted functions the only doors, with the
+exact mechanism 8C-3B built for override deletion (the guard trigger and the
+transaction-local `app.image_write` marker; policies and grants unchanged, no
+SECURITY DEFINER anywhere):
+
+- **`create_image()`** — SECURITY INVOKER; re-validates the strict path grammar,
+  the mime/extension pairing, every limit and the exact derivative ladder
+  (`is_valid_image_derivatives()`); takes `uploaded_by` from `auth.uid()`, never
+  from a parameter; audits as `upload`/`image`. **Replay-safe on `storage_path`**
+  (double-click, browser retry, duplicate finalize): the same finalized upload
+  answers `exists` with the same row, no second row, no second audit entry — a
+  raced duplicate lands on the UNIQUE constraint and reports the same.
+- **`delete_image()`** — SECURITY INVOKER; version-checked (`conflict`),
+  reference-aware: an image used by dishes/weekly/monthly/news refuses with
+  `in_use` and the count unless explicitly confirmed, and a confirmed delete nulls
+  every reference through the four `ON DELETE SET NULL` foreign keys in the same
+  transaction — §7e item 4's "warn, and then null the reference — never a dangling
+  id", with the warning half owned by 10B's screen. Audited as `delete`/`image`
+  with the content as the recovery story, returning the `storage_path` so the
+  server module can remove the files afterwards.
+- **Direct writes:** INSERT and DELETE are refused for `anon`/`authenticated` by
+  the guard; UPDATE is narrowed to a **column grant on `alt_text` alone** (the
+  announcement's §5 mechanism) — the one person-authored column, 10B's ordinary
+  edit. New safety CHECKs (path grammar floor with no traversal/backslash/control
+  characters, known MIME, dimension/byte caps, filename length) hold for every row
+  ever written.
+
+### Write ordering and cleanup
+
+Derivatives are written before the row; the row is written last, so **a row can
+never point at files that do not exist**. Every failure branch removes what it
+wrote (invalid bytes → original removed; derivative failure → written derivatives
+and original removed; refused RPC → everything removed). The one deliberate
+asymmetry: an upload that is never finalized leaves an original at an unguessable
+path in the private bucket — unreferenced bytes, not a broken page — and cleanup
+failures are server-logged rather than surfaced. 10B's library lists only database
+rows, so nothing orphaned is ever visible; a periodic orphan sweep was considered
+and refused as a scheduled job this architecture does not need (§7a's no-cron rule).
+
+### What 10A verified, and where
+
+- **Unit** (94 tests in 7 files): the rules, grammar and filename sanitisation;
+  the ladder and no-upscale plan; the client downscale planning plus a source
+  assertion over the DOM half (no jsdom, as phase 7A decided); the request flow's
+  authority (path minted, never chosen); the finalize flow's ordering, cleanup and
+  idempotency against recording fakes; and the new images-boundary policy suite.
+- **Processing** (real bytes, fixtures generated by sharp at run time): valid
+  JPEG/PNG/WebP decode and measure; garbage, executables, GIF and scripted SVG
+  refuse; EXIF orientation 6 reports person-visible dimensions, bakes the rotation
+  in and strips all EXIF from every derivative; parametrised limits refuse
+  oversized bytes/pixels/sides.
+- **pgTAP** (`020_image_storage.test.sql`, 72 assertions — total now **1,328 in
+  20 files**): buckets and their limits; zero storage policies; the five unchanged
+  images policies; both doors from real Staff and Owner JWTs; every forgery refusal
+  (traversal, hand-picked path, mime/extension lie, oversize, upscaled rung,
+  unknown derivative key, control characters); direct INSERT/UPDATE/DELETE refused
+  while `alt_text` stays editable; the single-use marker; the reference-aware
+  delete lifecycle with its audits; anon refused everywhere; unrelated tables
+  byte-identical. 002/003/019 were updated to the new permission surface (the 8C-3A
+  precedent: the suite follows the schema): staff/owner "add an image" now runs
+  through `create_image()`, and 019's phase-10 fixture row is written as superuser.
+- **Integration** (`tests/integration/images.test.ts`, new `npm run
+  test:integration`, wired into CI's database job): the storage HTTP surface pgTAP
+  cannot honestly cover — the full pipeline against the real local stack with a
+  real staff sign-in; public derivative reads with EXIF verified absent; the
+  private bucket refusing public reads; a tokenless PUT and a mis-pathed token
+  refused; the bucket refusing an 11 MiB body; garbage and a declared-type lie
+  leaving no row and no files; replay converging on one row.
+
+### Recorded for the FINAL SECURITY AUDIT (phase 13)
+
+- An unfinalized upload's original persists at an unguessable path in the private
+  bucket (see cleanup above) — re-weigh whether launch wants a manual sweep note in
+  the runbooks.
+- A signed upload token is bound to one path but not to the requesting *session*;
+  any staff member could in principle finalize a colleague's pending upload path if
+  they learned its UUID. Both parties are staff and the finalize re-validates
+  everything, so this is recorded as accepted, not fixed.
+- The §0s audit-insert tolerance does **not** apply here: `create_image()` and
+  `delete_image()` call `log_audit()` unconditionally in-transaction — a failed
+  audit insert fails the write.
+- `imgproxy` (Supabase's transformation service) is unused; derivatives are
+  pre-rendered. If it is ever enabled, re-check that it cannot read
+  `media-originals`.
+
+### What phase 10A deliberately does not contain
+
+No screen, no route, no Server Action, no navigation entry; no change to any
+editor; `image_id` still owned by nothing (`images-boundary` asserts it); no cache
+tag touched — creating or deleting an unreferenced image changes no public page,
+and the entity-cache coupling is 10C's, next to the references that create it; no
+usage view (10B, beside the labels that read it); no `next/image` and no
+`next.config.ts` images block (§1 adjustment 3 — plain `<img srcset>` in 10C); no
+queue, no job service, no orphan-sweep cron. The 10B Server Actions must set
+`maxDuration` generously on the library route (AVIF at 2160 px is the slow rung —
+measured locally around a second, but Vercel's default function window deserves the
+headroom).
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -2852,7 +3036,7 @@ No map library. No tile provider called at runtime. No JavaScript. The entire ma
 |---|---|
 | Public site performs an admin write | The public half has no Supabase client, no token, and no mutation endpoint. The anon key's RLS policies grant `SELECT` on published rows only — no `INSERT`/`UPDATE`/`DELETE` policy exists for `anon` on any table. |
 | Authorization by hidden UI | Every Server Action begins with `requireStaff()`/`requireOwner()`; RLS re-checks the same rule with the user's own JWT. Middleware is explicitly documented as routing only — which is also why the middleware-bypass advisory class does not apply here. |
-| Service-role key reaches the browser | The key is not `NEXT_PUBLIC_`-prefixed, lives in `lib/supabase/service.ts` behind `import 'server-only'`, and is used in exactly three places (signed upload URLs, migrations/seed, the one-time owner bootstrap). A lint rule forbids importing it outside `lib/`. |
+| Service-role key reaches the browser | The key is not `NEXT_PUBLIC_`-prefixed, lives in `lib/supabase/service.ts` behind `import 'server-only'`, and has exactly three call sites: the phase-10 image storage boundary (`lib/images/storage.ts` — signed upload URLs and the derivative pipeline, §0t), migrations/seed, and the one-time owner bootstrap. `tests/unit/policy/images-boundary.test.ts` holds the runtime import graph to that one module. |
 | Drafts leak to the public | Draft Mode is enabled only by an authenticated route; the draft cookie is httpOnly and signed. Content loaders read `draft` only when draft mode is on **and** a staff session exists. |
 | Malicious upload | Signed upload URL issued only after a role check; server validates magic bytes (not the declared MIME), caps size, re-encodes with sharp (which discards anything that is not an image and strips EXIF/GPS), stores under a random path. Originals go to a private bucket; only derivatives are publicly readable. |
 | XSS from staff-entered content | News body is structured JSON rendered by our own components — no HTML parsing, no `dangerouslySetInnerHTML` anywhere, including the new detail page. Tapas list items and all other free text are plain strings. |
@@ -3023,7 +3207,9 @@ It does two things and then stops:
 
 1. `supabase db dump` of the production database (schema + data) — an off-platform copy of the data,
    independent of Supabase's own retention.
-2. An incremental sync of the `media` Storage bucket via Supabase Storage's S3-compatible endpoint
+2. An incremental sync of **both Storage buckets** — `media` (public derivatives) and
+   `media-originals` (the private masters, the half that cannot be regenerated; §0t) —
+   via Supabase Storage's S3-compatible endpoint
    with `aws s3 sync` (incremental, resumable, one tool). `supabase storage cp -r` is the fallback if
    S3 credentials are not wanted.
 
@@ -3168,7 +3354,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (done):** the immediate path — "Vis besked" off and back on, "Fjern beskeden nu", immediate public removal and its ~10 s Fortryd. *Replacing an active announcement, `previous`/`replaced_at` and 1ae's conflict sheet moved to **phase 8**, where the generated message they belong to lives* | 7A: E2E 4 passes, including the no-network assertion — see §0f. 7B: `tests/e2e/announcement-remove.spec.ts` passes at 1440 and 375 — see §0g. **Complete and locked** by the completion pass of 2026-08-30 — see §0h |
 | 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3A (done):** generated-announcement **ownership** — `announcement.source_override_id`, the pairing CHECK, the ninth snapshot key, the ownership-aware write guard, and `apply_generated_announcement()`, the §7e item 8 coordinator that decides the conflict server-side and delegates the atomic write. `announcement_created` is **dropped**; no UI. **8C-3B (done):** the workflow — 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, the ~10 s Fortryd strip, §7e item 6's removal consequence with its atomic two-table transaction, the BEFORE DELETE guard that closes the direct-DELETE bypass, and the deletion of the 8C-1 harness | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. 8C-3A: `supabase/tests/017_generated_announcement.test.sql` passes — see §0n. 8C-3B: `tests/e2e/opening-hours-announcement.spec.ts` passes at 1440 and 375, and `supabase/tests/018_override_removal.test.sql` asserts the removal lifecycle and refuses a direct DELETE from real Staff and Owner JWTs — see §0o. E2E 5 is complete |
 | 9 | News | **9A (done, §0q):** the list, the editor with the structured body (textarea form), per-item publish/unpublish behind confirmations, delete, the §7f slug policy end to end, the per-article Draft Mode preview target, and the public list/detail integration incl. unpublish → 404 — proven by `tests/e2e/news-admin.spec.ts` at 375 and 1440 and `supabase/tests/019`. **9B (done, §0r):** the B/Link structured editor, autosave, the `NewsArticle` JSON-LD, canonical/article metadata and the sitemap. The forside teaser has rendered since phase 3 and is verified against the news lifecycle | E2E 6 passes, incl. unpublish → 404 — **complete and locked** by the completion pass of 2026-09-01, recorded in §0s |
-| 10 | Images | Signed upload, client downscale, sharp derivatives, library with usage labels, replace/delete warnings | E2E 7 passes |
+| 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B:** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline. **10C:** image selection in the dish/weekly/monthly/news editors, public rendering with `<img srcset>`, per-entity cache invalidation | E2E 7 passes |
 | 11 | Remaining editors | Forsiden, Mad ud af huset (incl. the visibility toggle hiding the nav item), Kontaktoplysninger, **`/admin/brugere`** | E2E 8 passes; the owner can invite and deactivate a staff user |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device | Full menu-edit and news flows completed on a 375 px viewport |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project |
@@ -3176,7 +3362,9 @@ Each phase ends in something deployable and testable. No phase begins until the 
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-09-01: phases 0–9 are complete and locked** — phase 8's lock pass is
+**Status, 2026-09-01: phases 0–9 are complete and locked; phase 10A (the image
+storage foundation) is built and green, recorded in §0t** — phase 10 itself stays
+open until 10B and 10C land. Phase 8's lock pass is
 recorded in §0p, and **phase 9's in §0s**: 9A (the news administration's core, §0q) and
 9B (the B/Link body editor, autosave, the `NewsArticle` JSON-LD, canonical metadata and
 the sitemap, §0r) were read as one system, walked as Owner, Staff and guest against a

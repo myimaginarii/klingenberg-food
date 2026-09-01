@@ -493,9 +493,15 @@ select is(
 -- 9. Phase 10's column is preserved, never cleared
 -- ===========================================================================
 
-select pg_temp.become_staff();
-
+-- Phase 10A made create_image()/delete_image() the only doors for browser
+-- sessions, so this phase-10 fixture row is written as superuser — the guard
+-- steps aside for roles that are not anon/authenticated, exactly as it does for
+-- migrations and the seed. This suite's subject is the news administration, not
+-- the image pipeline (020 owns that).
+reset role;
 insert into public.images (storage_path) values ('test/nyhed-foto.jpg');
+
+select pg_temp.become_staff();
 
 update public.news
    set image_id = (select id from public.images where storage_path = 'test/nyhed-foto.jpg')

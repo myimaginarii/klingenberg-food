@@ -177,9 +177,15 @@ select lives_ok(
 select lives_ok(
   $$ update public.pages set is_visible = false where key = 'takeaway' $$,
   'owner can toggle the Mad ud af huset page');
-select lives_ok(
-  $$ insert into public.images (storage_path) values ('media/owner.avif') $$,
-  'owner can add an image');
+-- Phase 10A: created through the trusted door, as for staff in 002.
+select is(
+  (select public.create_image(
+     '00000000-0000-4000-8000-000000000003/original.png', 'image/png',
+     400, 300, 12000, null,
+     '{"formats": ["avif", "webp"],
+       "widths": [{"width": 400, "height": 300}]}'::jsonb) ->> 'status'),
+  'created',
+  'owner can add an image through create_image()');
 
 select * from finish();
 rollback;

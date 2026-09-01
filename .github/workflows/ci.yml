@@ -159,6 +159,17 @@ jobs:
       - name: pgTAP
         run: npm run db:test
 
+      # Phase 10A: the storage HTTP surface — signed-token scope, bucket limits,
+      # public derivative reads, pipeline cleanup — cannot be asserted from SQL,
+      # so the upload pipeline runs end to end against the same local stack.
+      - name: Image storage integration tests
+        run: |
+          eval "$(npx supabase status -o env)"
+          NEXT_PUBLIC_SUPABASE_URL="$API_URL" \
+          NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY" \
+          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+            npm run test:integration
+
       - name: Stop local Supabase
         if: always()
         run: npx supabase stop --no-backup

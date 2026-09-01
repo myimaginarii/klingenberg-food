@@ -3,6 +3,57 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Advisory check — 2026-09-01 (phase 10A addition)
+
+One runtime dependency was added for phase 10A (the image storage foundation,
+technical plan §0t). Nothing already installed was changed, and no development
+dependency was added.
+
+| Package | Version | Why |
+|---|---|---|
+| `sharp` | 0.35.4 | §1 (adjustment 3) names it: "Server re-encodes with `sharp` into a fixed derivative ladder (AVIF + WebP at 480/960/1440/2160) and strips EXIF including GPS." The one image decoder/encoder in the system, imported by exactly one module (`lib/images/processing.ts`, enforced by `tests/unit/policy/images-boundary.test.ts`). |
+
+Pinned exactly. **The lockfile already resolved this exact version**: `next@16.3.3`
+declares `sharp: ^0.35.3` as an *optional* dependency, and 0.35.4 was already in
+`package-lock.json` and on disk. Promoting it to a direct, pinned dependency changes
+one thing that matters: our image pipeline no longer depends on Next.js continuing
+to want the same library — if a future Next drops or moves its optional sharp, ours
+stays. The lockfile diff is four lines (the `optional` flags), no new package and no
+new transitive code. Licence: Apache-2.0; the `@img/sharp-*` platform binaries ship
+prebuilt libvips 1.3.3 per platform via `optionalDependencies`, exactly as Next
+already installed them.
+
+**Advisory result: no known advisory affects the selected version.** The advisory
+history worth recording: sharp below 0.32.6 bundled the libwebp affected by
+CVE-2023-4863 (GHSA-54xq-cgqr-rpm3, HIGH) — 0.35.4 is three minor lines past the
+fix. `npm audit --audit-level=high` over the full resolved tree after the change:
+**0 vulnerabilities**.
+
+Two behaviours the pipeline depends on, verified by the processing suite rather
+than assumed: sharp copies **no metadata** to output unless `withMetadata()` is
+called (nothing calls it — EXIF/GPS stripping is the default we rely on and assert
+on real encoded bytes), and `limitInputPixels` makes the decoder refuse a
+decompression bomb before allocation (the header-only `metadata()` sniff also
+enforces it, which is why the pipeline sniffs without the limit and classifies
+explicitly — recorded here because it is a version-behaviour a future upgrade must
+re-verify).
+
+### What phase 10A did not add
+
+No upload framework, no media-library/CMS package, no client image library, no
+storage SDK beyond the `@supabase/storage-js` already inside `supabase-js`, and no
+queue/job service. The browser half is `createImageBitmap` + `<canvas>` + one
+`fetch` PUT — platform APIs, zero packages. `file-type`/magic-byte libraries were
+considered and refused: sharp's own decoder *is* the byte-sniffing authority, and a
+second opinion about what the bytes are would be a second answer to §8's one
+question.
+
+### `npm audit --audit-level=high` — clean
+
+Run after `npm install` re-resolved the tree: **0 vulnerabilities**.
+
+---
+
 ## Phase 9 completion pass — no dependencies added (2026-09-01)
 
 The lock pass over 9A and 9B (technical plan §0s) changed no dependency and no
@@ -1318,11 +1369,12 @@ Node can work without a downgrade, while CI and production stay on 24.
 
 ### Still to add, in the phase that needs it
 
-`sharp` (phase 10) and the Sentry server SDK (phase 13). Each is version-checked and
+The Sentry server SDK (phase 13). Each addition is version-checked and
 advisory-checked at the point it is added, and this file updated.
 
 Added in phase 1: `@supabase/supabase-js` and `@supabase/ssr`. Added in phase 3:
-`@playwright/test` and `@axe-core/playwright`. Added in phase 4: `zod`. pgTAP needed no
+`@playwright/test` and `@axe-core/playwright`. Added in phase 4: `zod`. Added in
+phase 10A: `sharp` (see the entry at the top of this file). pgTAP needed no
 npm dependency — it runs through the Supabase CLI (see the phase-1 section above).
 
 ### Open schema item — resolved in phase 3

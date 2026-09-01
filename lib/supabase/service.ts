@@ -17,14 +17,17 @@ import { getSupabaseUrl } from './config'
  *
  * §8 names three legitimate call sites for the service role across the entire project:
  *
- *   1. minting signed upload URLs after a role check   (phase 10)
+ *   1. the image storage boundary                      (lib/images/storage.ts —
+ *                                                       signed upload URLs and the
+ *                                                       derivative pipeline, §0t)
  *   2. migrations and seeding                          (the Supabase CLI, and
  *                                                       scripts/seed-local-users.mjs)
  *   3. the one-time production owner bootstrap         (phase 14)
  *
- * Nothing in phase 1 calls it from the running application. It is defined now so that
- * the key has exactly one door in the Next.js runtime when phase 10 arrives, rather
- * than being reached for ad hoc.
+ * Phase 10A gave it its one runtime caller, `lib/images/storage.ts` — a narrow,
+ * capability-shaped module that never exposes this client handle.
+ * `tests/unit/policy/images-boundary.test.ts` asserts the import graph stays exactly
+ * that, so a second caller is a decision with a failing test, never an accident.
  *
  * Two guards keep the key out of the browser:
  *   * `import 'server-only'` at the top of this file and of `lib/env/server.ts`, so a

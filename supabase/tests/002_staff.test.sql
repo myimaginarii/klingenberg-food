@@ -167,15 +167,31 @@ select lives_ok(
   'staff can delete a dish row');
 
 -- --- images ---
+-- Phase 10A: rows are created and removed only through the trusted functions —
+-- a direct INSERT/DELETE would let a session assert processed files that do not
+-- exist, or silently null four tables' references. The §5 capability ("Dish
+-- photos, and all image upload / replace / delete: Staff yes") is exercised
+-- through the doors it actually has; 020_image_storage.test.sql owns the guard's
+-- own assertions.
+select is(
+  (select public.create_image(
+     '00000000-0000-4000-8000-000000000002/original.jpg', 'image/jpeg',
+     1600, 1200, 250000, 'burger.jpg',
+     '{"formats": ["avif", "webp"],
+       "widths": [{"width": 480, "height": 360}, {"width": 960, "height": 720},
+                  {"width": 1440, "height": 1080}]}'::jsonb) ->> 'status'),
+  'created',
+  'staff can add an image through create_image()');
 select lives_ok(
-  $$ insert into public.images (storage_path) values ('media/test-b.avif') $$,
-  'staff can add an image');
-select lives_ok(
-  $$ update public.images set alt_text = 'En burger' where storage_path = 'media/test-b.avif' $$,
-  'staff can edit an image');
-select lives_ok(
-  $$ delete from public.images where storage_path = 'media/test-b.avif' $$,
-  'staff can delete an image');
+  $$ update public.images set alt_text = 'En burger'
+      where storage_path = '00000000-0000-4000-8000-000000000002/original.jpg' $$,
+  'staff can edit an image''s alt text');
+select is(
+  (select public.delete_image(i.id, i.updated_at) ->> 'status'
+     from public.images i
+    where i.storage_path = '00000000-0000-4000-8000-000000000002/original.jpg'),
+  'deleted',
+  'staff can delete an image through delete_image()');
 
 -- --- Ugens ret and Lørdagsmenu ---
 select lives_ok(
