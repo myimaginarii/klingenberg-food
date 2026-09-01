@@ -2488,7 +2488,158 @@ zero failed and zero flaky.** Phases 5–9 ran green behind it, unchanged.
 **Phase 10B is complete and green. Phase 10 is not locked** — 10C (entity image
 selection, public `<img srcset>` rendering, per-entity cache invalidation, and
 the draft-reference revisit `delete_image()`'s comment reserves) remains, and the
-phase-10 lock pass after it.
+phase-10 lock pass after it. *(10C-1 — the editor selection and the
+draft-reference revisit — is complete; see §0v. 10C-2 — the public rendering and
+the cache coupling — remains.)*
+
+---
+
+## §0v. Phase 10C-1 — editor image selection and the draft-aware reference model (2026-09-01)
+
+Images are now a real content field in the four approved editors — the dish panel
+(1r), Ugens ret (1ag), Månedens burger (1ah) and the news editor (1s) — through
+one shared picker over the 10B library, and the image-reference model was made
+whole for the fact 10C-1 itself creates: an image id can now live inside pending
+draft JSON, where no foreign key reaches. **Phase 10 is still not locked**: 10C-2
+— public `<img srcset>` rendering, the public read-model projection, and the
+image-write cache coupling — is not started.
+
+### The image model, per entity — stated exactly
+
+| | live | pending | preview | publish | Fjern billede |
+|---|---|---|---|---|---|
+| **dish / weekly / monthly** | the row's `image_id` column | `draft->'image_id'` — a uuid string is a pending selection, JSON `null` a pending removal, an absent key no pending change (§4's delta rule, reduced to one field) | `overlayDraft` with the entity's own spec — the same overlay every Draft-Mode loader and admin read uses | the phase-4 SQL merge, unchanged: `draft ? 'image_id'` moves it into the column | writes the pending state (`null` over a live image; leaves the draft when nothing is live) |
+| **news** | the row's `image_id` column | none — news has no draft layer (§4), and none was invented | the article's own row/status model | n/a — a draft article's whole row becomes public via `publish_news()` | sets the column `null` through the one news save path |
+
+Published and pending images differ freely; a guest keeps the published image
+until Offentliggør, and no draft save expires any cache tag. A published news
+article's image change is public on the next request, exactly like its other
+fields, and expires the `news` tag through the same `isPublic` cue every news
+save uses.
+
+### The selector — one component pair, four editors
+
+`ImagePickerField` (the slot: 1r/1ag/1ah/1s's "Billede (valgfrit)", empty and
+chosen states) and `ImagePickerDialog` (the picker: the library's thumbnails as
+submit buttons inside one form, promoted to a modal `<dialog>` by the existing
+`ModalDialog`, an ordinary fragment-scrolled block without JavaScript). The
+frames draw only the slot and "Vælg billede", so the picker is the
+administration's smallest existing pattern — the URL-driven server-rendered
+dialog — with no folders, search, filters, cropping, sorting, metadata controls
+or upload; uploading stays on `/admin/billeder`, which the dialog links to. Each
+screen has its own image Server Action; for the three draft entities it is an
+ordinary partial-editor draft write (like reordering), so `image_id` stays
+outside every content form's field list and a Gem can never clear a pending
+photo. For news the action routes through `saveNewsArticle` — the one news save
+path — restating the row's own content and changing only the image.
+
+Departures, recorded: 1r's chosen-state "Erstat"/"Fjern" ship as "Skift
+billede"/"Fjern billede", because "Erstat" already means global asset
+replacement one screen away and one word must not mean two things; 1s's
+drag-to-upload dropzone is deliberately not built into the editor (the library
+owns upload, brief §3); and each slot sits after its card's Gem form rather than
+between its fields, because the removal control is a form of its own and forms
+cannot nest.
+
+### The browser/server authority boundary (brief §6)
+
+A picker submits two values — the entity's version token and `billede`, an image
+id or the empty value ("no image") — plus its screen's own identifying fields
+(`ret`, `nyhed`). Parsed strictly by one reader (`readImageSelectionForm`); no
+field exists for a storage path, derivative, MIME type, dimension, bucket,
+filename or usage claim. The server verifies the id names an image this caller
+can read (`imageExists`, through the caller's own JWT — draft JSON has no FK to
+refuse a dangling id for it), re-parses through the entity's strict schema,
+re-checks the role matrix and applies the version token as optimistic
+concurrency; the FK on the live column remains the final gate at publish. The
+§29 policy suite now asserts the narrower truth: the selection control renders
+only in the two picker components, is parsed only by the four image actions, and
+`image_id` stays outside every content editor's field list while being required
+(nullable) in `newsArticleInput`.
+
+### Reference discovery — one definition (brief §19)
+
+`public.image_references` (migration `20260901180000`), a SECURITY INVOKER view:
+the four live `image_id` columns plus the three draft `image_id` keys, each row
+`(image_id, kind, entity_id, name, pending)`. `pending` is true for a draft-held
+reference and for a news reference on an unpublished article — display truth in
+one word. `delete_image()` counts from the view; the library's usage read maps
+the same rows; so a caption, a delete refusal and the confirmed detach can never
+disagree about what "referenced" means. The labels say it in plain Danish:
+"Bruges på: Odin", and "Odin (kladde)" only when every reference from that place
+is pending (§12).
+
+### Deletion and replacement over drafts (briefs §13–§16)
+
+`delete_image()` now reads the row FOR UPDATE (so the version check holds until
+commit), refuses `in_use` with the full live+draft count, and a confirmed delete
+clears exactly the `image_id` key from every draft naming the image — `nullif(draft
+- 'image_id', '{}')`, so every other pending field is byte-identical and an
+emptied draft becomes `NULL` again (the phase-4 empty-draft rule, restated in
+SQL) — in the same transaction the FKs null the live columns. The audit's
+before-document now records the live/draft reference counts beside the recovery
+content. `replace_image()` moves the three draft keys old→new with `jsonb_set`
+exactly as it moves the four live columns; a draft naming a different image is
+untouched. Every §13/§14 live-versus-draft combination is proved in pgTAP `022`
+(85 assertions) from real Staff, Owner and anonymous JWTs, with fingerprints on
+unrelated drafts, rows and tables, and refused transitions writing nothing. No
+SECURITY DEFINER appeared; the guard-marker convention is unchanged.
+
+### The preview boundary (brief §18)
+
+Draft Mode resolves pending images at the read-model level by construction —
+the preview loaders overlay with the same `overlayDraft` + spec the editors and
+the unit proof (`tests/unit/drafts/image-preview.test.ts`) exercise — but **no
+public or preview page renders an image yet**: the public read models carry no
+image projection, and the E2E suite asserts the guest menu serves zero
+`/storage/v1/` images. Rendering the resolved value (preview and guest alike) is
+10C-2, together with the projection and the responsive markup. The observable
+10C-1 surfaces for a pending image are the editor's own slot and the library's
+kladde captions, and the E2E stories assert both.
+
+### Recorded for the FINAL SECURITY AUDIT (phase 13)
+
+- **Live `image_id` is directly writable by a staff JWT** (measured in pgTAP
+  022), as every content column on these tables has been since phase 1: the
+  SECURITY INVOKER publish/replace/delete functions necessarily spend the
+  caller's own UPDATE privilege (§5's column-privilege constraint), so the
+  column cannot leave the grant. The direct write carries exactly the authority
+  the same person already holds through draft-and-publish — the FK refuses a
+  dangling id, anon can write nothing — so no privilege is widened and no
+  narrow guard was added: a transition guard here would have to recognise five
+  trusted transitions across three tables (FK referential actions included) for
+  a column whose direct writability is identical in kind to `name` and
+  `price_ore`. Re-weigh deliberately at the audit, together with the standing
+  §0t/§0u recordings (signed-token lifetime and session-unboundness,
+  service-role boundary, best-effort storage cleanup, `replace_image()`
+  accepting any successor).
+- Image-library replace/delete still expire no public cache tag — correct while
+  nothing public renders images, and 10C-2 must wire the per-entity coupling
+  the moment that changes.
+
+### What phase 10C-1 deliberately does not contain
+
+| | Owner |
+|---|---|
+| Public and preview image rendering, the public read-model projection, `<img srcset>`, per-entity cache coupling for image writes | **10C-2** |
+| Alt text anywhere outside the library — entities store only `image_id`, so a later alt edit updates every usage (§22) | **by design** |
+| Image selection for the `pages` documents (Forsiden, Om os, Mad ud af huset) — their schemas carry no image keys yet | **phase 11** |
+| Folders, search, filters, cropping, upload-in-editor | **never** |
+
+### The regression
+
+From a clean tree: `npm ci`, `npm run db:reset:full`, a fresh production build.
+Typecheck, lint and the source policy clean; **2,299 unit tests in 84 files**
+(+28 in 3 new files, plus the updated policy and fixture suites); **1,451 pgTAP
+assertions in 22 files** (+85 in `022`), from real anonymous, Staff and Owner
+JWTs; **12 integration tests in 3 files** unchanged; `npm audit
+--audit-level=high` clean (0 vulnerabilities); `npx playwright test --list`
+collecting **1,073 tests in 28 files**, with `e2e/editor-images.spec.ts` under
+exactly `editor-images-mobile` and `editor-images` (the §29 check); and the full
+Playwright matrix at `--retries=0`: **1,066 passed, 7 deliberately skipped
+(width/device guards), zero failed and zero flaky.** Phases 5–10B ran green
+behind it, unchanged; the public cache is still 5m/5m and no tracking cookie and
+no browser Supabase client appeared.
 
 ---
 

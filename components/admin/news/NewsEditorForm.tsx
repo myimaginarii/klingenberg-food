@@ -10,9 +10,8 @@ import { NewsBodyField } from './NewsBodyField'
  * A plain `<form>` posting to a Server Action, like every editor in this
  * administration, and it still works whole with scripting off. 1s's fields, in 1s's
  * order — Overskrift, the address beneath it (§7f), Dato på hjemmesiden, the category
- * chips, Tekst — and the image slot as the approved *non-functional* treatment,
- * because images are phase 10 and faking an upload control that goes nowhere would be
- * worse than saying so (phase brief §13).
+ * chips, Tekst — and, since phase 10C-1, the real image slot as `imageSlot` below,
+ * replacing 9A's deliberately non-functional placeholder.
  *
  * Phase 9B put the two client components 1s draws onto this server-rendered form,
  * changing its nature nowhere else:
@@ -73,6 +72,7 @@ export function NewsEditorForm({
   saveLabel,
   articleId,
   version,
+  imageSlot,
 }: {
   action: (formData: FormData) => Promise<void>
   anchorId: string
@@ -101,6 +101,14 @@ export function NewsEditorForm({
   /** Both present for an existing article, both absent for a new one. */
   articleId?: string
   version?: string
+  /**
+   * 1s's "Billede (valgfrit)" slot (phase 10C-1) — `ImagePickerField`, rendered by
+   * the page. A sibling of the form rather than a field inside it: its removal
+   * control is a form of its own, forms cannot nest, and the selection travels
+   * through its own action into the one news save path — so a content save neither
+   * clears nor chooses a photo.
+   */
+  imageSlot?: React.ReactNode
 }) {
   const headingId = `${anchorId}-titel`
   const categoryErrorId = `${anchorId}-kategori-fejl`
@@ -208,19 +216,6 @@ export function NewsEditorForm({
           structuredName={fieldNames.bodyDocument}
         />
 
-        {/*
-          1s's image slot, in the only honest state it can have before phase 10: the
-          approved dashed frame, stating that the capability is coming rather than
-          drawing an upload control that goes nowhere. No file input, no image_id.
-        */}
-        <div className="flex flex-col gap-1.5">
-          <p className="text-meta text-neutral-ink font-medium">Billede (valgfrit)</p>
-          <div className="border-field-border bg-field-bg rounded-card flex min-h-24 flex-col items-center justify-center gap-1 border-[1.5px] border-dashed p-4 text-center">
-            <p className="text-ink-2 font-medium">Billeder kommer i en senere fase</p>
-            <p className="text-ink-3 text-micro">Nyheden kan sagtens offentliggøres uden billede.</p>
-          </div>
-        </div>
-
         <div className="border-border flex flex-col gap-3 border-t pt-4 md:flex-row md:items-center md:justify-between">
           <p className="text-ink-2 text-meta max-w-[52ch]">{consequence}</p>
           <div className="md:shrink-0">
@@ -228,6 +223,13 @@ export function NewsEditorForm({
           </div>
         </div>
       </form>
+
+      {/*
+        1s draws the slot between Tekst and the footer; it sits after the form here
+        because its removal control is a form of its own and forms cannot nest —
+        recorded as a 10C-1 layout departure.
+      */}
+      {imageSlot === undefined ? null : <div className="p-4 pt-0 md:p-5 md:pt-0">{imageSlot}</div>}
     </section>
   )
 }

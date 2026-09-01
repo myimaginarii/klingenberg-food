@@ -27,6 +27,31 @@ const STATUS_NOTICES: Record<string, { tone: NoticeTone; message: string }> = {
       'Nyheden er fjernet fra hjemmesiden og gemt som kladde. Den kan offentliggøres igen med samme adresse.',
   },
   slettet: { tone: 'success', message: 'Nyheden er slettet.' },
+  // The image slot (phase 10C-1). News has no draft layer, so the sentences follow
+  // the save model: a draft article's image is invisible until publish, a published
+  // article's image change is live at once — and a removal never leaves the library.
+  billede_gemt: {
+    tone: 'success',
+    message: 'Billedet er valgt. Nyheden er ikke offentliggjort endnu.',
+  },
+  billede_gemt_live: {
+    tone: 'success',
+    message: 'Billedet er valgt og er på hjemmesiden nu.',
+  },
+  billede_fjernet: {
+    tone: 'success',
+    message:
+      'Billedet er fjernet fra nyheden — det bliver i billedbiblioteket. Nyheden er ikke offentliggjort endnu.',
+  },
+  billede_fjernet_live: {
+    tone: 'success',
+    message:
+      'Billedet er fjernet fra nyheden — det bliver i billedbiblioteket. Hjemmesiden viser ændringen nu.',
+  },
+  billede_findes_ikke: {
+    tone: 'error',
+    message: 'Billedet findes ikke længere i biblioteket. Intet blev gemt — vælg et andet billede.',
+  },
   ugyldig: { tone: 'warning', message: 'Ret felterne herunder, og prøv igen.' },
   adresse_optaget: {
     tone: 'warning',

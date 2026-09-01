@@ -12,8 +12,9 @@ import type { Profile } from '@/lib/auth/session'
  * above it, which is where the quiet mistakes would live:
  *
  *   1. **A write reaching a column the editor does not own.** The UPDATE payload must
- *      be exactly the five content fields — never `status`, `published_at` or
- *      `image_id` (phase 10's column, preserved by never being named).
+ *      be exactly the six content fields — `image_id` joined them in 10C-1 — and
+ *      never `status` or `published_at`, which move only through the trusted
+ *      transitions.
  *   2. **Concurrency in name only.** The version token must be in the UPDATE's own
  *      filter, and zero rows must be told apart honestly: still exists → `conflict`,
  *      gone → `not_found`. No silent overwrite, and no audit row for a refusal.
@@ -69,6 +70,7 @@ const VALUES = {
   body: { blocks: [{ type: 'paragraph', spans: [{ text: 'Første afsnit.' }] }] },
   category: 'Ny burger' as const,
   display_date: '2026-09-01',
+  image_id: null,
 }
 
 const BEFORE = {
@@ -77,6 +79,7 @@ const BEFORE = {
   body: { blocks: [{ type: 'paragraph', spans: [{ text: 'Gammel tekst.' }] }] },
   category: null,
   displayDate: null,
+  imageId: null,
   status: 'published' as const,
 }
 
@@ -125,7 +128,7 @@ describe('creating (staff and owner alike, §5)', () => {
 
   it('refuses an unknown key before the database is asked at all', async () => {
     const { createNewsArticle } = await subject()
-    const result = await createNewsArticle(STAFF, { ...VALUES, image_id: ARTICLE })
+    const result = await createNewsArticle(STAFF, { ...VALUES, storage_path: 'a/b.jpg' })
 
     expect(result.status).toBe('invalid')
     expect(tableCalls).toEqual([])
@@ -160,7 +163,7 @@ describe('saving an edit', () => {
     }
   }
 
-  it('updates exactly the five content fields — never status, published_at or image_id', async () => {
+  it('updates exactly the six content fields — never status or published_at', async () => {
     replies.push({ data: { id: ARTICLE, status: 'draft' }, error: null })
 
     const { saveNewsArticle } = await subject()
@@ -171,6 +174,7 @@ describe('saving an edit', () => {
       'body',
       'category',
       'display_date',
+      'image_id',
       'slug',
       'title',
     ])
@@ -216,6 +220,7 @@ describe('saving an edit', () => {
         body: BEFORE.body,
         category: BEFORE.category,
         display_date: BEFORE.displayDate,
+        image_id: BEFORE.imageId,
       },
       p_after: VALUES,
     })

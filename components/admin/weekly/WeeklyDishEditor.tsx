@@ -22,12 +22,11 @@ import { WeeklyAvailabilityBlock, type WeeklyAvailabilityForm } from './WeeklyAv
  * dietary claim is invented anywhere in this phase, and no field exists that the
  * `weekly_special` columns do not already have.
  *
- * **The image control is not here**, and that is a phase boundary rather than an
- * omission. 1ag draws "Billede (valgfrit)" with a `FOTO` frame and a "Vælg billede"
- * button; the image library is phase 10 (§0b), exactly as 1r's `FOTO` frame was a
- * phase-10 slot rather than a phase-5 gap. `image_id` is therefore owned by no editor
- * yet, and — importantly — is cleared by neither of the two on this screen, so a value
- * phase 10 eventually writes cannot be wiped by somebody saving a price.
+ * **The image slot arrived in phase 10C-1**, as `imageSlot` below — the shared
+ * `ImagePickerField` over 1ag's "Billede (valgfrit)". It is deliberately not a field
+ * of this form: the selection is its own draft write with its own action, so
+ * `image_id` remains outside {@link WEEK_EDITOR_FIELDS} and a Gem here still cannot
+ * wipe a pending photo, exactly as before the slot existed.
  *
  * THE GLUTEN AND LACTOSE NOTE IS INFORMATION, NOT A FIELD
  *
@@ -82,6 +81,7 @@ export function WeeklyDishEditor({
   availabilityForm,
   errorFor,
   pending,
+  imageSlot,
 }: {
   anchorId: string
   action: (formData: FormData) => Promise<void>
@@ -99,6 +99,14 @@ export function WeeklyDishEditor({
   errorFor: (field: 'uge' | 'navn' | 'beskrivelse' | 'pris_lille' | 'pris_stor') => string | undefined
   /** The Kladde line for this card, or null when nothing is pending. */
   pending: string | null
+  /**
+   * 1ag's "Billede (valgfrit)" slot (phase 10C-1) — `ImagePickerField`, rendered by
+   * the page. A sibling of the Gem form, not a field inside it: its removal control
+   * is a form of its own, forms cannot nest, and the selection is its own draft
+   * write exactly as reordering is — so a Gem here can never clear a pending photo,
+   * and choosing a photo can never overwrite a half-typed description.
+   */
+  imageSlot?: React.ReactNode
 }) {
   const headingId = `${anchorId}-titel`
 
@@ -210,6 +218,8 @@ export function WeeklyDishEditor({
           Gem laver en kladde. Hjemmesiden ændrer sig først, når du trykker Offentliggør.
         </p>
       </form>
+
+      {imageSlot === undefined ? null : <div className="mt-4">{imageSlot}</div>}
     </section>
   )
 }

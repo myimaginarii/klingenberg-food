@@ -31,15 +31,16 @@ import { assertNoQueryError } from './source'
  * server as an address), no uploader identity (1w's design has no place for it),
  * and no raw storage internals beyond what one `<img>` needs.
  *
- * USAGE (brief §3) is derived, on every request, from the four image_id
- * relationships — dishes, weekly_special, monthly_burger, news — by id and by
- * nothing else. §4's rule ("no image_usages join table — usage is derived from the
- * known reference columns") is implemented here in the read layer rather than as a
- * database view: the same four reads a view would run, without a migration to
- * carry them, and RLS still decides every row through the caller's own JWT.
- * Soft-deleted dishes are included deliberately: their rows still reference the
- * image, `delete_image()` counts them, and a label that disagreed with the
- * refusal would be a lie.
+ * USAGE (brief §3) is derived, on every request, from `public.image_references`
+ * — the SECURITY INVOKER view phase 10C-1 introduced as the one definition of
+ * "referenced": the four live image_id columns plus the three pending draft
+ * keys. §4's rule ("no image_usages join table — usage is derived from the known
+ * reference columns") still holds — the view stores nothing — and RLS still
+ * decides every row through the caller's own JWT. Reading the same object
+ * `delete_image()` counts from is what keeps a caption and a delete refusal one
+ * truth. Soft-deleted dishes are included deliberately: their rows still
+ * reference the image, `delete_image()` counts them, and a label that disagreed
+ * with the refusal would be a lie.
  */
 
 type ImageRow = {
@@ -99,45 +100,43 @@ function thumbnailOf(row: ImageRow): AdminImageThumbnail | null {
   }
 }
 
+type ImageReferenceRow = {
+  image_id: string
+  kind: 'dish' | 'weekly' | 'monthly' | 'news'
+  name: string
+  pending: boolean
+}
+
 /**
- * Every usage, keyed by image id — four reads, one per relationship, each through
- * the caller's own JWT. The names are read fresh so a renamed dish relabels its
+ * Every usage, keyed by image id — one read of `public.image_references`, through
+ * the caller's own JWT. The view is the single definition of "referenced" (phase
+ * 10C-1): the same rows `delete_image()` counts before refusing with `in_use`,
+ * live columns and pending draft keys alike, so a caption and a delete refusal
+ * cannot disagree. The names are read fresh so a renamed dish relabels its
  * usages on the next request.
  */
 const readImageUsages = cache(async (): Promise<ReadonlyMap<string, ImageUsage[]>> => {
   const supabase = await createSupabaseServerClient()
 
-  const [dishes, weekly, monthly, news] = await Promise.all([
-    supabase.from('dishes').select('image_id, name').not('image_id', 'is', null),
-    supabase.from('weekly_special').select('image_id').not('image_id', 'is', null),
-    supabase.from('monthly_burger').select('image_id').not('image_id', 'is', null),
-    supabase.from('news').select('image_id, title').not('image_id', 'is', null),
-  ])
+  const { data, error } = await supabase
+    .from('image_references')
+    .select('image_id, kind, name, pending')
+    .returns<ImageReferenceRow[]>()
 
-  assertNoQueryError('the dish image references', dishes.error)
-  assertNoQueryError('the weekly-special image reference', weekly.error)
-  assertNoQueryError('the monthly-burger image reference', monthly.error)
-  assertNoQueryError('the news image references', news.error)
+  assertNoQueryError('the image references', error)
 
   const usages = new Map<string, ImageUsage[]>()
-  const add = (imageId: string | null, usage: ImageUsage) => {
-    if (imageId === null) return
-    const list = usages.get(imageId)
-    if (list === undefined) usages.set(imageId, [usage])
-    else list.push(usage)
-  }
 
-  for (const row of (dishes.data ?? []) as { image_id: string | null; name: string }[]) {
-    add(row.image_id, { kind: 'dish', name: row.name })
-  }
-  for (const row of (weekly.data ?? []) as { image_id: string | null }[]) {
-    add(row.image_id, { kind: 'weekly', name: 'Ugens ret' })
-  }
-  for (const row of (monthly.data ?? []) as { image_id: string | null }[]) {
-    add(row.image_id, { kind: 'monthly', name: 'Månedens burger' })
-  }
-  for (const row of (news.data ?? []) as { image_id: string | null; title: string }[]) {
-    add(row.image_id, { kind: 'news', name: `Nyheden “${row.title}”` })
+  for (const row of data ?? []) {
+    const usage: ImageUsage = {
+      kind: row.kind,
+      name: row.kind === 'news' ? `Nyheden “${row.name}”` : row.name,
+      pending: row.pending,
+    }
+
+    const list = usages.get(row.image_id)
+    if (list === undefined) usages.set(row.image_id, [usage])
+    else list.push(usage)
   }
 
   return usages
@@ -174,6 +173,27 @@ export const readAdminImageLibrary = cache(async (): Promise<AdminImage[]> => {
 
   return (data ?? []).map((row) => toAdminImage(row, usages))
 })
+
+/**
+ * Does this image exist, for this caller? The picker actions ask before writing a
+ * selection into a draft or a news row (phase 10C-1, brief §6): draft JSON has no
+ * foreign key, so an id that names nothing must be refused here rather than
+ * stored — and for news the FK would refuse anyway, but a sentence beats a
+ * constraint violation.
+ */
+export async function imageExists(id: string): Promise<boolean> {
+  const supabase = await createSupabaseServerClient()
+
+  const { data, error } = await supabase
+    .from('images')
+    .select('id')
+    .eq('id', id)
+    .maybeSingle<{ id: string }>()
+
+  assertNoQueryError('the selected image', error)
+
+  return data !== null
+}
 
 /** One image by id, or `null` when it does not exist or RLS hides it. */
 export async function readAdminImage(id: string): Promise<AdminImage | null> {

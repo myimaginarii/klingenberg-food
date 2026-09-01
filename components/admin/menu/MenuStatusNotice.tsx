@@ -69,6 +69,20 @@ const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
     text: 'Tapaslisten er gemt som kladde. Hjemmesiden viser stadig den gamle liste.',
   },
   ikke_tapas: { tone: 'error', text: 'Den ret har ingen tapasliste.' },
+  // The image slot (phase 10C-1). A selection is a draft like any other field, and
+  // the removal sentence says the §10 distinction out loud: nothing left the library.
+  billede_gemt: {
+    tone: 'success',
+    text: 'Billedet er gemt som kladde. Hjemmesiden er uændret, indtil du trykker Offentliggør.',
+  },
+  billede_fjernet: {
+    tone: 'success',
+    text: 'Billedet er fjernet i kladden — det bliver i billedbiblioteket. Hjemmesiden er uændret, indtil du trykker Offentliggør.',
+  },
+  billede_findes_ikke: {
+    tone: 'error',
+    text: 'Billedet findes ikke længere i biblioteket. Intet blev gemt — vælg et andet billede.',
+  },
   invalid: { tone: 'error', text: 'Ret det, der er markeret herunder, og gem igen.' },
   invalid_category: { tone: 'error', text: 'Retten kan ikke ligge i den sektion.' },
   forbidden: { tone: 'error', text: 'Du har ikke adgang til at rette menuen.' },

@@ -40,6 +40,12 @@ export const MONTHLY_PARAM = {
    * still refuses without an explicit `bekraeft` field in the submitted form.
    */
   confirmExpired: 'udloebet',
+  /**
+   * The image picker (phase 10C-1). Present only as `'1'` — opening it is a
+   * navigation, nothing has happened yet, and the choices it offers are rendered
+   * from the library the server just read.
+   */
+  chooseImage: 'vaelg_billede',
 } as const
 
 /**
@@ -62,11 +68,21 @@ export const EDITOR_ANCHOR = 'maanedens-burger'
 export const PUBLISH_BUTTON_ANCHOR = 'offentliggoer-knap'
 export const PUBLISH_DIALOG_ANCHOR = 'offentliggoer-bekraeft'
 
+/**
+ * The photo slot's control and its picker (phase 10C-1). Cancelling the picker —
+ * or coming back from a selection — navigates to `#vaelg-billede`, the control it
+ * was opened from, exactly as the publish confirmation returns to its button.
+ */
+export const IMAGE_SLOT_ANCHOR = 'vaelg-billede'
+export const IMAGE_DIALOG_ANCHOR = 'vaelg-billede-dialog'
+
 export type MonthlyLocation = {
   /** A save, publish or availability outcome, from the closed set each action defines. */
   readonly status?: string | null
-  /** Come back to the editor card. */
-  readonly focus?: boolean
+  /** Come back to the editor card, or to the photo slot's own control. */
+  readonly focus?: boolean | 'image'
+  /** Open the image picker (10C-1). Nothing has happened yet. */
+  readonly chooseImage?: boolean
   /** The Fortryd offer for an availability change that just went live (§6). */
   readonly undo?: {
     readonly version: string
@@ -92,6 +108,7 @@ export function monthlyHref(
 
   if (location.status) parameters.set(MONTHLY_PARAM.status, location.status)
   if (location.confirmExpired === true) parameters.set(MONTHLY_PARAM.confirmExpired, '1')
+  if (location.chooseImage === true) parameters.set(MONTHLY_PARAM.chooseImage, '1')
 
   if (location.undo) {
     parameters.set(MONTHLY_PARAM.undoVersion, location.undo.version)
@@ -109,9 +126,13 @@ export function monthlyHref(
   const anchor =
     location.confirmExpired === true
       ? PUBLISH_DIALOG_ANCHOR
-      : location.focus === true
-        ? EDITOR_ANCHOR
-        : null
+      : location.chooseImage === true
+        ? IMAGE_DIALOG_ANCHOR
+        : location.focus === 'image'
+          ? IMAGE_SLOT_ANCHOR
+          : location.focus === true
+            ? EDITOR_ANCHOR
+            : null
 
   return `${MONTHLY_PATH}${query.length > 0 ? `?${query}` : ''}${anchor === null ? '' : `#${anchor}`}`
 }

@@ -5,12 +5,19 @@ import { NewsConfirmDialog } from '@/components/admin/news/NewsConfirmDialog'
 import { NewsEditorForm } from '@/components/admin/news/NewsEditorForm'
 import { NewsStateBadge } from '@/components/admin/news/NewsStateBadge'
 import { NewsStatusNotice } from '@/components/admin/news/NewsStatusNotice'
+import { ImagePickerDialog } from '@/components/admin/images/ImagePickerDialog'
+import { ImagePickerField } from '@/components/admin/images/ImagePickerField'
 import { requireStaff } from '@/lib/auth/guards'
+import {
+  readAdminImage,
+  readAdminImageLibrary,
+} from '@/lib/content/images-admin'
 import {
   readAdminArticle,
   readAdminNewsList,
   type AdminNewsArticle,
 } from '@/lib/content/news-admin'
+import { imageAccessibleName } from '@/lib/images/library'
 import {
   describeArticleAddress,
   describeDelete,
@@ -37,12 +44,15 @@ import {
 } from './article-form'
 import { autosaveArticle } from './autosave-actions'
 import { deleteArticle } from './delete-actions'
+import { saveNewsImage } from './image-actions'
 import { publishArticle, unpublishArticle } from './publish-actions'
 import {
   DELETE_BUTTON_ANCHOR,
   DELETE_DIALOG_ANCHOR,
   EDITOR_ANCHOR,
   EDITOR_FORM_ID,
+  IMAGE_DIALOG_ANCHOR,
+  IMAGE_SLOT_ANCHOR,
   NEWS_PARAM,
   NEWS_PATH,
   newsHref,
@@ -60,9 +70,9 @@ import { createArticle, saveArticle } from './save-actions'
  * SCOPE. The list, creating an article, editing one, publishing it per item through
  * 1s's confirmation, §7f's "Fjern fra hjemmesiden", and 1s's Slet with the 1r rule
  * (it always asks) — plus, since 9B, the B/Link body editor and the autosave
- * controller in the bar (the `NewsArticle` JSON-LD lives on the public page).
- * Images are phase 10 — the editor renders the approved non-functional slot and
- * nothing else.
+ * controller in the bar (the `NewsArticle` JSON-LD lives on the public page), and,
+ * since 10C-1, the real image slot: `ImagePickerField` over the article's own
+ * `image_id`, choosing from the library through the one news save path.
  *
  * THE MODEL, ON ONE SCREEN
  *
@@ -207,6 +217,17 @@ export default async function NewsAdminPage({
     </>
   )
 
+  /*
+   * The photo slot and its picker (phase 10C-1). Only an existing article has one:
+   * a new article has no row and no version token to select against, so the slot
+   * says so instead of offering a control that could only fail. The library is
+   * read only while the picker is open.
+   */
+  const choosingImage = editing !== null && one(params[NEWS_PARAM.chooseImage]) === '1'
+  const articleImage =
+    editing === null || editing.imageId === null ? null : await readAdminImage(editing.imageId)
+  const pickerImages = choosingImage ? await readAdminImageLibrary() : null
+
   if (editorOpen) {
     const heading = editing === null ? 'Ny nyhed' : 'Rediger nyhed'
     const todayIso = copenhagenDateOf(new Date())
@@ -245,6 +266,14 @@ export default async function NewsAdminPage({
               fieldNames={NEWS_FORM}
               formId={EDITOR_FORM_ID}
               heading={heading}
+              imageSlot={
+                <ImagePickerField
+                  anchorId={IMAGE_SLOT_ANCHOR}
+                  chooseHref={null}
+                  disabledNote="Billedet kan vælges, når nyheden er gemt første gang."
+                  selection={null}
+                />
+              }
               saveLabel="Gem kladde"
               values={echoed ?? emptyNewsForm(todayIso)}
             />
@@ -262,6 +291,38 @@ export default async function NewsAdminPage({
                 fieldNames={NEWS_FORM}
                 formId={EDITOR_FORM_ID}
                 heading={heading}
+                imageSlot={
+                  <ImagePickerField
+                    anchorId={IMAGE_SLOT_ANCHOR}
+                    chooseHref={newsHref({ article: editing.id, chooseImage: true })}
+                    hint={
+                      editing.status === 'published'
+                        ? 'Billedet vises på hjemmesiden, så snart det er gemt.'
+                        : 'Nyheden kan sagtens offentliggøres uden billede.'
+                    }
+                    removeForm={
+                      articleImage === null
+                        ? undefined
+                        : {
+                            action: saveNewsImage,
+                            hidden: [{ name: NEWS_FORM.articleId, value: editing.id }],
+                            version: editing.updatedAt,
+                          }
+                    }
+                    selection={
+                      articleImage === null
+                        ? null
+                        : {
+                            thumbnail: articleImage.thumbnail,
+                            name: imageAccessibleName(
+                              articleImage.altText,
+                              articleImage.originalFilename,
+                            ),
+                            altText: articleImage.altText,
+                          }
+                    }
+                  />
+                }
                 saveLabel={editing.status === 'published' ? 'Gem ændringer' : 'Gem kladde'}
                 values={echoed ?? newsFormValues(editing)}
                 version={editing.updatedAt}
@@ -314,6 +375,27 @@ export default async function NewsAdminPage({
           )}
 
           {dialogs}
+
+          {/*
+            The image picker (10C-1). A `<dialog>` like the three confirmations:
+            modal with JavaScript, an ordinary block the opening link's fragment
+            scrolls to without it, and the choice itself is a form somebody has to
+            submit.
+          */}
+          {pickerImages === null || editing === null ? null : (
+            <ImagePickerDialog
+              anchorId={IMAGE_DIALOG_ANCHOR}
+              cancelHref={newsHref({ article: editing.id, focus: 'image' })}
+              form={{
+                action: saveNewsImage,
+                hidden: [{ name: NEWS_FORM.articleId, value: editing.id }],
+                version: editing.updatedAt,
+              }}
+              images={pickerImages}
+              libraryHref="/admin/billeder"
+              selectedId={editing.imageId}
+            />
+          )}
         </main>
       </>
     )

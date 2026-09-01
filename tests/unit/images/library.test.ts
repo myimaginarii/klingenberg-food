@@ -24,9 +24,9 @@ import {
 
 const STORAGE_PATH = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1/original.jpg'
 
-const dish = (name: string): ImageUsage => ({ kind: 'dish', name })
-const WEEKLY: ImageUsage = { kind: 'weekly', name: 'Ugens ret' }
-const NEWS: ImageUsage = { kind: 'news', name: 'Nyheden “Lukket i påsken”' }
+const dish = (name: string, pending = false): ImageUsage => ({ kind: 'dish', name, pending })
+const WEEKLY: ImageUsage = { kind: 'weekly', name: 'Ugens ret', pending: false }
+const NEWS: ImageUsage = { kind: 'news', name: 'Nyheden “Lukket i påsken”', pending: false }
 
 describe('usageLabel — 1w\'s captions', () => {
   it('an unused image reads exactly the frame\'s muted state', () => {
@@ -42,6 +42,25 @@ describe('usageLabel — 1w\'s captions', () => {
     expect(usageLabel([dish('Odin'), WEEKLY, NEWS])).toBe(
       'Bruges på: Odin · Ugens ret · Nyheden “Lukket i påsken”',
     )
+  })
+
+  // Phase 10C-1: pending draft references, in simple Danish (brief §12).
+  it('a reference that exists only in a draft is marked (kladde)', () => {
+    expect(usageLabel([dish('Odin', true)])).toBe('Bruges på: Odin (kladde)')
+  })
+
+  it('one place with both a live and a pending reference is named once, unmarked', () => {
+    expect(usageLabel([dish('Odin'), dish('Odin', true)])).toBe('Bruges på: Odin')
+  })
+
+  it('live and pending places mix without confusing each other', () => {
+    expect(
+      usageLabel([
+        dish('Odin'),
+        { kind: 'weekly', name: 'Ugens ret', pending: true },
+        NEWS,
+      ]),
+    ).toBe('Bruges på: Odin · Ugens ret (kladde) · Nyheden “Lukket i påsken”')
   })
 })
 
@@ -183,6 +202,17 @@ describe('describeImageDeletion — 1w\'s warning (brief §14)', () => {
     expect(prompt.consequence).toContain('Billedet bruges på: Odin · Ugens ret.')
     expect(prompt.consequence).toContain('forsvinder det også der')
     expect(prompt.consequence).toContain('fjernes fra alle de nævnte steder')
+    expect(prompt.consequence).toContain('kladder medregnet')
+    expect(prompt.consequence).toContain('kan ikke fortrydes')
+  })
+
+  // Phase 10C-1: an image referenced only by a pending draft still warns, with the
+  // same kladde marker the library caption uses — the count and the caption read
+  // the same trusted reference set.
+  it('a draft-only reference warns with its (kladde) marker', () => {
+    const prompt = describeImageDeletion([dish('Odin', true)])
+
+    expect(prompt.consequence).toContain('Billedet bruges på: Odin (kladde).')
     expect(prompt.consequence).toContain('kan ikke fortrydes')
   })
 })

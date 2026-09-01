@@ -13,9 +13,16 @@ import {
   MonthlyStateBadge,
   MonthlyStateBanner,
 } from '@/components/admin/monthly/MonthlyStateBanner'
+import { ImagePickerDialog } from '@/components/admin/images/ImagePickerDialog'
+import { ImagePickerField } from '@/components/admin/images/ImagePickerField'
 import { requireStaff } from '@/lib/auth/guards'
 import { readOpeningHours } from '@/lib/content/hours'
+import {
+  readAdminImage,
+  readAdminImageLibrary,
+} from '@/lib/content/images-admin'
 import { readAdminMonthlyBurger } from '@/lib/content/monthly-admin'
+import { imageAccessibleName } from '@/lib/images/library'
 import { describeAvailability } from '@/lib/menu/admin'
 import {
   describeExpiredPublishWarning,
@@ -40,10 +47,13 @@ import {
   readMonthlyForm,
   type MonthlyErrorField,
 } from './forms'
+import { saveMonthlyImage } from './image-actions'
 import { publishMonthlyBurger } from './publish-actions'
 import { saveMonthlyBurgerDraft } from './save-actions'
 import {
   EDITOR_ANCHOR,
+  IMAGE_DIALOG_ANCHOR,
+  IMAGE_SLOT_ANCHOR,
   MONTHLY_PARAM,
   monthlyHref,
   PUBLISH_BUTTON_ANCHOR,
@@ -215,6 +225,18 @@ export default async function MonthlyBurgerAdminPage({
 
   const confirmingExpired = one(params[MONTHLY_PARAM.confirmExpired]) === '1'
 
+  /*
+   * The photo slot and its picker (phase 10C-1). The slot shows the *current*
+   * selection — live with the draft over it — and the library is read only while
+   * the picker is open. A pending selection whose image was meanwhile deleted
+   * cannot exist (delete_image() detaches drafts), so a null read renders the
+   * empty slot.
+   */
+  const choosingImage = one(params[MONTHLY_PARAM.chooseImage]) === '1'
+  const currentImage =
+    burger.current.image_id === null ? null : await readAdminImage(burger.current.image_id)
+  const pickerImages = choosingImage ? await readAdminImageLibrary() : null
+
   return (
     <>
       <AdminSectionBar
@@ -278,6 +300,34 @@ export default async function MonthlyBurgerAdminPage({
           pending={pending}
           values={values}
           version={burger.updatedAt}
+          imageSlot={
+            <ImagePickerField
+              anchorId={IMAGE_SLOT_ANCHOR}
+              chooseHref={monthlyHref({ chooseImage: true })}
+              hint="Uden billede vises burgeren som ren tekst."
+              removeForm={
+                currentImage === null
+                  ? undefined
+                  : {
+                      action: saveMonthlyImage,
+                      hidden: [],
+                      version: burger.updatedAt,
+                    }
+              }
+              selection={
+                currentImage === null
+                  ? null
+                  : {
+                      thumbnail: currentImage.thumbnail,
+                      name: imageAccessibleName(
+                        currentImage.altText,
+                        currentImage.originalFilename,
+                      ),
+                      altText: currentImage.altText,
+                    }
+              }
+            />
+          }
         />
 
         {/*
@@ -297,6 +347,22 @@ export default async function MonthlyBurgerAdminPage({
             warning={describeExpiredPublishWarning(burger.current, now)}
           />
         ) : null}
+
+        {/*
+          The image picker (10C-1). A `<dialog>` like the publish confirmation: modal
+          with JavaScript, an ordinary block the opening link's fragment scrolls to
+          without it, and the choice itself is a form somebody has to submit.
+        */}
+        {pickerImages === null ? null : (
+          <ImagePickerDialog
+            anchorId={IMAGE_DIALOG_ANCHOR}
+            cancelHref={monthlyHref({ focus: 'image' })}
+            form={{ action: saveMonthlyImage, hidden: [], version: burger.updatedAt }}
+            images={pickerImages}
+            libraryHref="/admin/billeder"
+            selectedId={burger.current.image_id}
+          />
+        )}
       </main>
     </>
   )

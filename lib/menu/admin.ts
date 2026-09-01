@@ -67,7 +67,7 @@ const DISH_EDITOR_FIELD_SET: Record<keyof DishDraftValues, true> = {
  *
  * `dishDraft` has nine fields; the panel renders six. The other three belong to other
  * interactions: `sort_order` to the reorder controls (phase 5E), `details` to the Tapas
- * list editor, `image_id` to the image library. A save from the panel must therefore
+ * list editor, `image_id` to the photo slot (phase 10C-1). A save from the panel must therefore
  * say *"these six are mine, and any of mine that no longer differ from the published
  * values should leave the draft"* — and say nothing at all about the other three.
  *
@@ -113,6 +113,17 @@ export type AdminDish = {
   readonly tapas: TapasDetails | null
   /** The **published** Tapas document. What a guest sees right now (phase 5F). */
   readonly liveTapas: TapasDetails | null
+  /**
+   * The image selection the administration shows — the draft's, when it carries
+   * one (phase 10C-1). Kept beside the other fields rather than inside `live` for
+   * the same reason `sortOrder` and `tapas` are: the dish panel does not submit an
+   * image, so it must not appear in that panel's delta. The photo slot is the only
+   * editor that writes it, and it needs both values — the one on screen, and the
+   * published one to measure a real change against (`imageDraftWrite`).
+   */
+  readonly imageId: string | null
+  /** The **published** image. What a guest's next request would render (10C-2). */
+  readonly liveImageId: string | null
   /** Display only in phase 5B; the Udsolgt action itself is phase 5C (§6). */
   readonly soldOutOn: string | null
   /** True while the dish has never been published and is invisible to guests (§4). */

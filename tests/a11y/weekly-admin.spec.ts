@@ -76,6 +76,26 @@ test('the confirmation is a real modal dialog, named by its own heading (1ae)', 
   await expect(dialog.getByRole('link', { name: 'Behold min kladde' })).toBeFocused()
 })
 
+test('the image picker has no accessibility violations, and focus opens on the safe way out', async () => {
+  // Phase 10C-1's picker, reachable from the address. The seed's library is empty,
+  // so this is the read-only state; the populated grid, the selected marker and the
+  // keyboard path are scanned inside `tests/e2e/editor-images.spec.ts`, where the
+  // images they need can be produced honestly.
+  await page.goto(`${WEEKLY_PATH}?vaelg_billede=1`)
+
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toBeVisible()
+  await expect(dialog).toHaveAccessibleName('Vælg billede')
+  await expect(dialog).toContainText('Der er ingen billeder i biblioteket endnu.')
+  // The way to upload is the library, linked — a chooser never grows its own upload.
+  await expect(
+    dialog.getByRole('link', { name: 'Upload eller administrér billeder' }),
+  ).toHaveAttribute('href', '/admin/billeder')
+  await expect(dialog.getByRole('link', { name: 'Annuller' })).toBeFocused()
+
+  expect(await violations(page)).toEqual([])
+})
+
 test('every field has a real label, and the week dropdown says what changing it does', async () => {
   await page.goto(WEEKLY_PATH)
 

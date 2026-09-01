@@ -13,9 +13,16 @@ import {
   WeeklyStatusNotice,
 } from '@/components/admin/weekly/WeeklyNotices'
 import { WeeklyDishEditor } from '@/components/admin/weekly/WeeklyDishEditor'
+import { ImagePickerDialog } from '@/components/admin/images/ImagePickerDialog'
+import { ImagePickerField } from '@/components/admin/images/ImagePickerField'
 import { requireStaff } from '@/lib/auth/guards'
 import { readOpeningHours } from '@/lib/content/hours'
+import {
+  readAdminImage,
+  readAdminImageLibrary,
+} from '@/lib/content/images-admin'
 import { readAdminWeeklySpecial } from '@/lib/content/weekly-admin'
+import { imageAccessibleName } from '@/lib/images/library'
 import { describeAvailability } from '@/lib/menu/admin'
 import {
   copyDestinationWeek,
@@ -51,10 +58,13 @@ import {
   WEEKLY_ERROR_MESSAGES,
   type WeeklyErrorField,
 } from './forms'
+import { saveWeeklyImage } from './image-actions'
 import { publishWeeklySpecial } from './publish-actions'
 import {
   COPY_BUTTON_ANCHOR,
   COPY_DIALOG_ANCHOR,
+  IMAGE_DIALOG_ANCHOR,
+  IMAGE_SLOT_ANCHOR,
   SATURDAY_ANCHOR,
   WEEK_ANCHOR,
   WEEKLY_PARAM,
@@ -255,6 +265,19 @@ export default async function WeeklySpecialAdminPage({
   const copyAvailable = hasCopyableWeeklyContent(weekly.live)
   const confirmingCopy = one(params[WEEKLY_PARAM.confirmCopy]) === '1'
 
+  /*
+   * The photo slot and its picker (phase 10C-1). The slot shows the *current*
+   * selection — live with the draft over it, the same overlay everything else on
+   * this screen shows — and the library is read only while the picker is open.
+   * A pending selection whose image was meanwhile deleted cannot exist
+   * (delete_image() detaches drafts), so a null read here simply renders the
+   * empty slot.
+   */
+  const choosingImage = one(params[WEEKLY_PARAM.chooseImage]) === '1'
+  const currentImage =
+    weekly.current.image_id === null ? null : await readAdminImage(weekly.current.image_id)
+  const pickerImages = choosingImage ? await readAdminImageLibrary() : null
+
   // The Fortryd offer, entirely from the URL the action redirected to. A target outside
   // the closed set, or a missing version, produces no strip at all.
   const undoTarget = toTarget(one(params[WEEKLY_PARAM.undoTarget]))
@@ -321,6 +344,34 @@ export default async function WeeklySpecialAdminPage({
           values={weekValues}
           version={weekly.updatedAt}
           weekOptions={isoWeekOptions(thisWeek, selectedWeek)}
+          imageSlot={
+            <ImagePickerField
+              anchorId={IMAGE_SLOT_ANCHOR}
+              chooseHref={weeklyHref({ chooseImage: true })}
+              hint="Uden billede vises retten som ren tekst."
+              removeForm={
+                currentImage === null
+                  ? undefined
+                  : {
+                      action: saveWeeklyImage,
+                      hidden: [],
+                      version: weekly.updatedAt,
+                    }
+              }
+              selection={
+                currentImage === null
+                  ? null
+                  : {
+                      thumbnail: currentImage.thumbnail,
+                      name: imageAccessibleName(
+                        currentImage.altText,
+                        currentImage.originalFilename,
+                      ),
+                      altText: currentImage.altText,
+                    }
+              }
+            />
+          }
         />
 
         <SaturdayMenuEditor
@@ -352,6 +403,22 @@ export default async function WeeklySpecialAdminPage({
             version={weekly.updatedAt}
           />
         ) : null}
+
+        {/*
+          The image picker (10C-1). A `<dialog>` like the copy confirmation: modal
+          with JavaScript, an ordinary block the opening link's fragment scrolls to
+          without it, and the choice itself is a form somebody has to submit.
+        */}
+        {pickerImages === null ? null : (
+          <ImagePickerDialog
+            anchorId={IMAGE_DIALOG_ANCHOR}
+            cancelHref={weeklyHref({ focus: 'image' })}
+            form={{ action: saveWeeklyImage, hidden: [], version: weekly.updatedAt }}
+            images={pickerImages}
+            libraryHref="/admin/billeder"
+            selectedId={weekly.current.image_id}
+          />
+        )}
       </main>
     </>
   )

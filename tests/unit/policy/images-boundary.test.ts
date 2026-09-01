@@ -17,9 +17,12 @@ import { describe, expect, it, vi } from 'vitest'
  *      import it; a browser bundle with an image decoder in it is a build error
  *      waiting to be misread.
  *   3. **No client component reaches the image server modules.**
- *   4. **`image_id` is still owned by no editor** (§0b–§0s, §15): not in any
- *      editor field list, and no form control anywhere submits it. Phase 10C is
- *      the phase that changes this, deliberately.
+ *   4. **`image_id` is owned by exactly the 10C-1 selection paths** (§15, phase
+ *      brief §29). The old rule — absent from every content form — was replaced
+ *      deliberately in 10C-1 by the narrower truth asserted below: the id may
+ *      travel only through the shared picker components and the four image
+ *      Server Actions, it stays outside every content editor's field list, and
+ *      it can never carry storage metadata.
  *
  * Raw storage URLs are also pinned: exactly one module may compose a
  * `/storage/v1/` path, so a hand-built storage address elsewhere fails a test
@@ -189,8 +192,25 @@ describe('the service-role boundary', () => {
   })
 })
 
-describe('image_id stays unowned until 10C', () => {
-  it('is in no editor field list', async () => {
+describe('image_id is owned by exactly the 10C-1 selection paths (§29)', () => {
+  /**
+   * The shared picker pair — the only components that render an image-selection
+   * control — and the four Server Actions that parse one, one per approved editor.
+   * A fifth entry in either list is a decision, not an accident.
+   */
+  const PICKER_COMPONENTS = [
+    'components/admin/images/ImagePickerDialog.tsx',
+    'components/admin/images/ImagePickerField.tsx',
+  ]
+
+  const SELECTION_ACTIONS = [
+    'app/(admin)/admin/menu/image-actions.ts',
+    'app/(admin)/admin/menu/maanedens-burger/image-actions.ts',
+    'app/(admin)/admin/menu/ugens-ret/image-actions.ts',
+    'app/(admin)/admin/nyheder/image-actions.ts',
+  ]
+
+  it('stays outside every content editor field list — the picker owns it', async () => {
     const { DISH_EDITOR_FIELDS } = await import('@/lib/menu/admin')
     const { WEEK_EDITOR_FIELDS, SATURDAY_EDITOR_FIELDS } = await import('@/lib/menu/weekly')
     const { MONTHLY_EDITOR_FIELDS } = await import('@/lib/menu/monthly')
@@ -205,16 +225,45 @@ describe('image_id stays unowned until 10C', () => {
     }
   })
 
-  it('is in no news input shape', async () => {
+  it('is in the news input shape — the one news save path restates it (10C-1)', async () => {
     const { newsArticleInput } = await import('@/lib/schemas/news')
-    expect(Object.keys(newsArticleInput.shape)).not.toContain('image_id')
+    expect(Object.keys(newsArticleInput.shape)).toContain('image_id')
   })
 
-  it('is submitted by no form control anywhere', () => {
+  it('is submitted by no literally-named form control anywhere', () => {
     const offenders = sourceFiles
       .filter((file) => /name=["']image_id["']/.test(codeOf(file.source)))
       .map((file) => file.path)
 
     expect(offenders).toEqual([])
+  })
+
+  it('the selection control is rendered only by the shared picker components', () => {
+    const renderers = sourceFiles
+      .filter((file) => /name=\{IMAGE_SELECT_FORM\.image\}/.test(codeOf(file.source)))
+      .map((file) => file.path)
+      .sort()
+
+    expect(renderers).toEqual(PICKER_COMPONENTS)
+  })
+
+  it('a selection is parsed only by the four approved image actions', () => {
+    const parsers = sourceFiles
+      .filter((file) => /readImageSelectionForm\(/.test(codeOf(file.source)))
+      .filter((file) => file.path !== 'lib/images/selection.ts')
+      .map((file) => file.path)
+      .sort()
+
+    expect(parsers).toEqual(SELECTION_ACTIONS)
+  })
+
+  it('every image action verifies existence before writing (brief §6)', () => {
+    for (const path of SELECTION_ACTIONS) {
+      const action = sourceFiles.find((file) => file.path === path)
+      expect(action, path).toBeDefined()
+      expect(codeOf(action!.source), `${path} must existence-check the id`).toContain(
+        'imageExists',
+      )
+    }
   })
 })

@@ -80,12 +80,10 @@ export type MonthlyField = keyof MonthlyBurgerValues
  * {@link MonthlyBurgerValues} has to be placed here or left out deliberately — a
  * compiler error rather than a field that silently belongs to nobody.
  *
- * **`image_id` is not in the list**, and that is a phase boundary rather than an
- * omission. 1ah draws "Billede (valgfrit)" with a "Vælg billede" button; the image
- * library is phase 10 (§0b), exactly as 1r's `FOTO` frame was a phase-10 slot rather
- * than a phase-5 gap. A field no editor owns must not be *cleared* by one either, so
- * leaving it out of this list is what stops somebody saving a price from wiping a value
- * phase 10 eventually writes.
+ * **`image_id` is not in the list**, deliberately, and since 10C-1 it has its owner:
+ * the photo slot is its own partial editor (`lib/images/selection.ts`, the screen's
+ * image action). Leaving it out of this list is what stops somebody saving a price
+ * from wiping a pending selection.
  */
 const MONTHLY_EDITOR_FIELD_SET = {
   name: true,
@@ -103,9 +101,9 @@ export const MONTHLY_EDITOR_FIELDS = Object.keys(
 /**
  * Every field the stored draft may carry, from the schema itself.
  *
- * `image_id` is in this list and not in the one above: a draft *may* hold one — phase 10
- * will write it — and the pending band must be able to name it. What the editor owns and
- * what the column may contain are two different questions.
+ * `image_id` is in this list and not in the one above: a draft may hold one — the
+ * photo slot writes it (10C-1) — and the pending band must be able to name it. What
+ * the Gem form owns and what the column may contain are two different questions.
  */
 export const MONTHLY_DRAFT_FIELDS: readonly string[] = monthlyBurgerDraft.fields
 
@@ -147,9 +145,9 @@ export function monthlyDraftDelta(
  * `merge` plus an explicit `clear`, never `replace`. There is one editor on this screen
  * today, so `replace` would happen to work — and that is exactly the reasoning phase 5E
  * had to undo once already (`lib/publishing/drafts.ts` records it). A `replace` claims
- * "these values *are* the draft", which stops being true the moment a second control
- * touches this row: phase 10's image picker is already scheduled to be that control, and
- * `image_id` is a field this editor deliberately does not own.
+ * "these values *are* the draft", which stopped being true in 10C-1: the photo slot is
+ * the second control on this row, and `image_id` is a field this editor deliberately
+ * does not own — a `replace` here would delete a pending selection on every price save.
  *
  * So the save merges the delta and clears only the fields of **its own list** that no
  * longer differ from the published values. A field outside the list is never mentioned

@@ -35,6 +35,13 @@ export const NEWS_PARAM = {
   confirmUnpublish: 'fjern',
   /** The article whose deletion is being confirmed. Slet spørger altid (1s, 1r). */
   confirmDelete: 'slet',
+  /**
+   * The image picker (phase 10C-1). Present only as `'1'`, and only meaningful
+   * while an existing article's editor is open — opening it is a navigation,
+   * nothing has happened yet, and the choices are rendered from the library the
+   * server read.
+   */
+  chooseImage: 'vaelg_billede',
 } as const
 
 /**
@@ -59,6 +66,14 @@ export const UNPUBLISH_DIALOG_ANCHOR = 'fjern-bekraeft'
 export const DELETE_BUTTON_ANCHOR = 'slet-nyhed'
 export const DELETE_DIALOG_ANCHOR = 'slet-bekraeft'
 
+/**
+ * The photo slot's control and its picker (phase 10C-1). Cancelling the picker —
+ * or coming back from a selection — lands on `#vaelg-billede`, the control it was
+ * opened from, exactly as the three confirmations return to their buttons.
+ */
+export const IMAGE_SLOT_ANCHOR = 'vaelg-billede'
+export const IMAGE_DIALOG_ANCHOR = 'vaelg-billede-dialog'
+
 export type NewsLocation = {
   /** The article to open the editor for. */
   readonly article?: string | null
@@ -73,7 +88,9 @@ export type NewsLocation = {
   /** Open the deletion confirmation for this article. Nothing has happened yet. */
   readonly confirmDelete?: string | null
   /** Land on the named footer control instead of the editor — a confirmation's way back. */
-  readonly focus?: 'publish' | 'unpublish' | 'delete' | null
+  readonly focus?: 'publish' | 'unpublish' | 'delete' | 'image' | null
+  /** Open the image picker for the open article (10C-1). Nothing has happened yet. */
+  readonly chooseImage?: boolean
 }
 
 /**
@@ -94,6 +111,7 @@ export function newsHref(location: NewsLocation = {}, extra?: URLSearchParams): 
   if (location.confirmUnpublish)
     parameters.set(NEWS_PARAM.confirmUnpublish, location.confirmUnpublish)
   if (location.confirmDelete) parameters.set(NEWS_PARAM.confirmDelete, location.confirmDelete)
+  if (location.chooseImage === true) parameters.set(NEWS_PARAM.chooseImage, '1')
 
   const editorOpen = Boolean(location.article) || location.creating === true
 
@@ -103,15 +121,19 @@ export function newsHref(location: NewsLocation = {}, extra?: URLSearchParams): 
       ? UNPUBLISH_DIALOG_ANCHOR
       : location.confirmDelete
         ? DELETE_DIALOG_ANCHOR
-        : location.focus === 'publish'
-          ? PUBLISH_BUTTON_ANCHOR
-          : location.focus === 'unpublish'
-            ? UNPUBLISH_BUTTON_ANCHOR
-            : location.focus === 'delete'
-              ? DELETE_BUTTON_ANCHOR
-              : editorOpen
-                ? EDITOR_ANCHOR
-                : null
+        : location.chooseImage === true
+          ? IMAGE_DIALOG_ANCHOR
+          : location.focus === 'publish'
+            ? PUBLISH_BUTTON_ANCHOR
+            : location.focus === 'unpublish'
+              ? UNPUBLISH_BUTTON_ANCHOR
+              : location.focus === 'delete'
+                ? DELETE_BUTTON_ANCHOR
+                : location.focus === 'image'
+                  ? IMAGE_SLOT_ANCHOR
+                  : editorOpen
+                    ? EDITOR_ANCHOR
+                    : null
 
   if (extra !== undefined) {
     for (const [key, value] of extra) parameters.append(key, value)

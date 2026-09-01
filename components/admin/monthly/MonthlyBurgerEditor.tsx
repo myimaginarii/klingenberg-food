@@ -26,12 +26,11 @@ import {
  * Månedens burger among the things the restaurant has not supplied, and it stays that
  * way until they type one.
  *
- * **The image control is not here**, and that is a phase boundary rather than an
- * omission. 1ah draws "Billede (valgfrit)" with a "Vælg billede" button; the image
- * library is phase 10 (§0b), exactly as 1r's `FOTO` frame was a phase-10 slot rather
- * than a phase-5 gap. `image_id` is therefore owned by no editor yet, and — importantly
- * — is not in this editor's field list, so a value phase 10 eventually writes cannot be
- * wiped by somebody saving a price.
+ * **The image slot arrived in phase 10C-1**, as `imageSlot` below — the shared
+ * `ImagePickerField` over 1ah's "Billede (valgfrit)". It is deliberately not a field
+ * of this form: the selection is its own draft write with its own action, so
+ * `image_id` remains outside {@link MONTHLY_EDITOR_FIELDS} and a Gem here still
+ * cannot wipe a pending photo, exactly as before the slot existed.
  *
  * THE TWO THINGS THAT ARE NOT PART OF THIS FORM, AND WHY
  *
@@ -92,6 +91,7 @@ export function MonthlyBurgerEditor({
   clearForm,
   errorFor,
   pending,
+  imageSlot,
 }: {
   anchorId: string
   action: (formData: FormData) => Promise<void>
@@ -106,6 +106,13 @@ export function MonthlyBurgerEditor({
   errorFor: (field: 'navn' | 'beskrivelse' | 'pris' | 'start' | 'slut') => string | undefined
   /** The Kladde line for this card, or null when nothing is pending. */
   pending: string | null
+  /**
+   * 1ah's "Billede (valgfrit)" slot (phase 10C-1) — `ImagePickerField`, rendered by
+   * the page. A sibling of the Gem form, not a field inside it: its removal control
+   * is a form of its own, forms cannot nest, and the selection is its own draft
+   * write — so a Gem here can never clear a pending photo.
+   */
+  imageSlot?: React.ReactNode
 }) {
   const headingId = `${anchorId}-titel`
   const homepageToggleId = `${anchorId}-forside`
@@ -158,9 +165,10 @@ export function MonthlyBurgerEditor({
         />
 
         {/*
-          1ah puts the price beside the image slot at a fixed 150 px. The image slot is
-          phase 10, so the price keeps its width from `md` up and is full width on a
-          phone, where a 150 px field beside nothing would only look like a mistake.
+          1ah puts the price beside the image slot at a fixed 150 px. The slot exists
+          since 10C-1 but is a sibling of this form (its removal control is a form of
+          its own, and forms cannot nest), so the price keeps its width from `md` up
+          and is full width on a phone — recorded as a 10C-1 layout departure.
         */}
         <div className="md:w-40">
           <TextField
@@ -259,6 +267,8 @@ export function MonthlyBurgerEditor({
           Gem laver en kladde. Hjemmesiden ændrer sig først, når du trykker Offentliggør.
         </p>
       </form>
+
+      {imageSlot === undefined ? null : <div className="mt-4">{imageSlot}</div>}
 
       {/*
         1ah's footer control, as its own form — see the note at the top of this file.

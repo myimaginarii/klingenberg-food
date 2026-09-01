@@ -26,8 +26,8 @@ import { assertNoQueryError } from './source'
  *     say which articles are on the hjemmeside and which are not.
  *
  * There is no draft to merge: news has no `draft` column (§4), so the row *is* the
- * article, in both states. `image_id` is deliberately not selected — phase 10 owns it,
- * and an editor that never reads it cannot render it, echo it, or write it back.
+ * article, in both states — `image_id` included since phase 10C-1: the article's
+ * photo slot shows it, and the one news save path restates it on every write.
  *
  * `cache()` deduplicates within one render pass and expires with the request — that
  * is memoisation, not caching.
@@ -46,6 +46,7 @@ type NewsRow = NewsListRow & {
   body: unknown
   category: string | null
   display_date: string | null
+  image_id: string | null
 }
 
 /** One row of the administration's list (1z): the title, the state, the dates. */
@@ -64,10 +65,12 @@ export type AdminNewsArticle = AdminNewsListItem & {
   readonly body: NewsBody
   readonly category: string | null
   readonly displayDate: string | null
+  /** The article's photo (phase 10C-1) — a library reference, never a copy (§22). */
+  readonly imageId: string | null
 }
 
 const LIST_COLUMNS = 'id, title, slug, status, published_at, updated_at'
-const ARTICLE_COLUMNS = `${LIST_COLUMNS}, body, category, display_date`
+const ARTICLE_COLUMNS = `${LIST_COLUMNS}, body, category, display_date, image_id`
 
 /**
  * Every article, most recently touched first — the working order for a person, where
@@ -117,6 +120,7 @@ export async function readAdminArticle(id: string): Promise<AdminNewsArticle | n
     body: readNewsBody(data.body),
     category: data.category,
     displayDate: data.display_date,
+    imageId: data.image_id,
   }
 }
 

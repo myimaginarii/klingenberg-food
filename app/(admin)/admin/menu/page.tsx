@@ -12,14 +12,21 @@ import { MenuPendingNotice } from '@/components/admin/menu/MenuPendingNotice'
 import { MenuStatusNotice } from '@/components/admin/menu/MenuStatusNotice'
 import { MonthlyBurgerNotice } from '@/components/admin/menu/MonthlyBurgerNotice'
 import { WeeklySpecialNotice } from '@/components/admin/menu/WeeklySpecialNotice'
+import { ImagePickerDialog } from '@/components/admin/images/ImagePickerDialog'
+import { ImagePickerField } from '@/components/admin/images/ImagePickerField'
 import { requireStaff } from '@/lib/auth/guards'
 import { readOpeningHours } from '@/lib/content/hours'
+import {
+  readAdminImage,
+  readAdminImageLibrary,
+} from '@/lib/content/images-admin'
 import { readAdminMonthlyBurger } from '@/lib/content/monthly-admin'
 import {
   readAdminMenuContent,
   readDeletedDish,
   readHomeFeaturedDishIds,
 } from '@/lib/content/menu-admin'
+import { imageAccessibleName } from '@/lib/images/library'
 import {
   assignableCategories,
   describeAvailability,
@@ -52,6 +59,7 @@ import {
   readDishForm,
   type DishErrorField,
 } from './dish-form'
+import { saveDishImage } from './image-actions'
 import { publishMenuChanges } from './publish-actions'
 import { moveDishInSection } from './reorder-actions'
 import { REORDER_FORM } from './reorder-form'
@@ -59,6 +67,8 @@ import {
   DELETE_BUTTON_ANCHOR,
   DELETE_DIALOG_ANCHOR,
   EDITOR_ANCHOR,
+  IMAGE_DIALOG_ANCHOR,
+  IMAGE_SLOT_ANCHOR,
   MENU_PARAM,
   menuHref,
   TAPAS_ANCHOR,
@@ -283,6 +293,29 @@ export default async function MenuAdminPage({
   const undoDeleteVersion = one(params[MENU_PARAM.undoDeleteVersion])
   const deletedDish = undoDeleteId === undefined ? null : await readDeletedDish(undoDeleteId)
 
+  /*
+   * The photo slot and its picker (phase 10C-1), for the open dish. The slot shows
+   * the *current* selection — live with the draft over it, the same overlay every
+   * other value in the panel shows — and the library is read only while the picker
+   * is open. A new dish has no slot: there is no version token to select against
+   * until the row exists.
+   */
+  const choosingImage = editing !== undefined && one(params[MENU_PARAM.chooseImage]) === '1'
+  const editingImage =
+    editing === undefined || editing.imageId === null
+      ? null
+      : await readAdminImage(editing.imageId)
+  const pickerImages = choosingImage ? await readAdminImageLibrary() : null
+
+  // The picker's identifying fields: the dish, and the chip to reopen (navigation).
+  const imageContext =
+    editing === undefined
+      ? []
+      : [
+          { name: DISH_FORM.dishId, value: editing.id },
+          { name: 'sektion', value: activeSection.category.slug },
+        ]
+
   return (
     <>
       <AdminSectionBar backHref="/admin" title="Rediger menu">
@@ -447,6 +480,38 @@ export default async function MenuAdminPage({
                   section={activeSection.category.slug}
                   values={echoed ?? dishFormValues(editing)}
                   version={editing.updatedAt}
+                  imageSlot={
+                    <ImagePickerField
+                      anchorId={IMAGE_SLOT_ANCHOR}
+                      chooseHref={menuHref({
+                        section: activeSection.category.slug,
+                        dish: editing.id,
+                        chooseImage: true,
+                      })}
+                      hint="Uden foto vises retten som en ren linje med navn, beskrivelse og pris."
+                      removeForm={
+                        editingImage === null
+                          ? undefined
+                          : {
+                              action: saveDishImage,
+                              hidden: imageContext,
+                              version: editing.updatedAt,
+                            }
+                      }
+                      selection={
+                        editingImage === null
+                          ? null
+                          : {
+                              thumbnail: editingImage.thumbnail,
+                              name: imageAccessibleName(
+                                editingImage.altText,
+                                editingImage.originalFilename,
+                              ),
+                              altText: editingImage.altText,
+                            }
+                      }
+                    />
+                  }
                 />
               )}
 
@@ -500,6 +565,30 @@ export default async function MenuAdminPage({
             })}
             section={activeSection.category.slug}
             version={confirming.updatedAt}
+          />
+        )}
+
+        {/*
+          The image picker (10C-1). A `<dialog>` like the delete confirmation: modal
+          with JavaScript, an ordinary block the opening link's fragment scrolls to
+          without it, and the choice itself is a form somebody has to submit.
+        */}
+        {pickerImages === null || editing === undefined ? null : (
+          <ImagePickerDialog
+            anchorId={IMAGE_DIALOG_ANCHOR}
+            cancelHref={menuHref({
+              section: activeSection.category.slug,
+              dish: editing.id,
+              focusImage: true,
+            })}
+            form={{
+              action: saveDishImage,
+              hidden: imageContext,
+              version: editing.updatedAt,
+            }}
+            images={pickerImages}
+            libraryHref="/admin/billeder"
+            selectedId={editing.imageId}
           />
         )}
       </main>

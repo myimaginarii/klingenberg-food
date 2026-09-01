@@ -35,9 +35,10 @@ import {
  * pending price on Ugens ret, and the reverse. Each save therefore merges its own
  * fields and clears only its own (see `saveWeeklyDraft` / `saveSaturdayDraft`).
  *
- * `image_id` is in neither list. The image library is phase 10 (§0b), so 1ag's "Vælg
- * billede" is a phase-10 slot exactly as 1r's `FOTO` frame was a phase-5 one — and a
- * field no editor owns must not be cleared by either of them.
+ * `image_id` is in neither list, and stays out deliberately since 10C-1 gave it an
+ * owner: the photo slot is its own partial editor (`lib/images/selection.ts`, the
+ * screen's image action), so 1ag's "Vælg billede" writes the field through its own
+ * door and neither card's Gem can clear a pending photo.
  *
  * NEITHER SOLD-OUT FIELD IS HERE EITHER
  *
@@ -252,7 +253,9 @@ export function weeklyDraftWrite(
  *     after week, and an empty answer is not more correct than last week's — it is
  *     merely more typing. The public card's day line (1af) is drawn beside the week
  *     badge for exactly that reason.
- *   * **It does not blank the image.** No editor owns `image_id` before phase 10.
+ *   * **It does not blank the image.** `image_id` belongs to the photo slot's own
+ *     editor (10C-1), and this card's rollover names only its own four content
+ *     fields — a chosen photo survives a week change, like the serving days do.
  *
  * So "blank" means the four fields somebody types about the food: the name, the
  * description and the two portion prices ({@link WEEK_CONTENT_FIELDS}).
@@ -420,8 +423,8 @@ export function pendingParts(changedFields: readonly string[]): WeeklyPendingPar
   const changed = new Set(changedFields)
 
   return {
-    // `image_id` belongs to neither editor yet, so a draft that somehow carried one
-    // still counts as a pending change to the weekly dish rather than to nothing.
+    // `image_id` belongs to the photo slot (10C-1), which lives on the weekly card,
+    // so a pending selection counts as a pending change to the weekly dish.
     week: [...WEEK_EDITOR_FIELDS, 'image_id'].some((field) => changed.has(field)),
     saturday: SATURDAY_EDITOR_FIELDS.some((field) => changed.has(field)),
   }

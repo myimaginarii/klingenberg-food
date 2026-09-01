@@ -44,6 +44,20 @@ const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
     tone: 'success',
     text: 'Felterne er ryddet i kladden. Hjemmesiden viser stadig den burger, der er offentliggjort.',
   },
+  // The image slot (phase 10C-1). A selection is a draft like any other field, and
+  // the removal sentence says the §10 distinction out loud: nothing left the library.
+  billede_gemt: {
+    tone: 'success',
+    text: 'Billedet er gemt som kladde. Hjemmesiden er uændret, indtil du trykker Offentliggør.',
+  },
+  billede_fjernet: {
+    tone: 'success',
+    text: 'Billedet er fjernet i kladden — det bliver i billedbiblioteket. Hjemmesiden er uændret, indtil du trykker Offentliggør.',
+  },
+  billede_findes_ikke: {
+    tone: 'error',
+    text: 'Billedet findes ikke længere i biblioteket. Intet blev gemt — vælg et andet billede.',
+  },
   offentliggjort: {
     tone: 'success',
     text: 'Månedens burger er opdateret på hjemmesiden.',

@@ -109,11 +109,18 @@ test('the menu screen leads to the editor, from the section a guest meets it in'
 test('the editor works against an unconfigured singleton, with no placeholder row', async () => {
   await openMonthlyAdmin(staffPage)
 
-  // 1ah's own fields, and no others. The image control is phase 10 (§0b).
+  // 1ah's own fields, and no others. The photo slot exists since 10C-1 as its own
+  // sibling control — a link that opens the picker, never a field of this form —
+  // and with nothing selected no image field is submitted by anything.
   for (const label of ['Navn', 'Beskrivelse', 'Pris (kr.)', 'Startdato', 'Slutdato']) {
     await expect(monthlyForm(staffPage).getByLabel(label, { exact: true })).toBeVisible()
   }
-  await expect(staffPage.getByText('Vælg billede')).toHaveCount(0)
+  await expect(staffPage.getByRole('link', { name: 'Vælg billede' })).toBeVisible()
+  const fieldNames = await staffPage
+    .locator('main input, main select, main textarea')
+    .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('name')))
+  expect(fieldNames).not.toContain('billede')
+  expect(fieldNames).not.toContain('image_id')
 
   // Every field is empty, and nothing had to be seeded to make that true.
   for (const label of ['Navn', 'Beskrivelse', 'Pris (kr.)', 'Startdato', 'Slutdato']) {

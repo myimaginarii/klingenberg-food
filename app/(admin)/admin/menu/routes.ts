@@ -88,6 +88,12 @@ export const MENU_PARAM = {
    * anchors for why it is a parameter and not only a fragment.
    */
   tapasFocus: 'tapas_fokus',
+  /**
+   * The image picker (phase 10C-1). Present only as `'1'`, and only meaningful
+   * while a dish's editor is open — opening it is a navigation, nothing has
+   * happened yet, and the choices are rendered from the library the server read.
+   */
+  chooseImage: 'vaelg_billede',
 } as const
 
 /**
@@ -143,6 +149,14 @@ export const DELETE_DIALOG_ANCHOR = 'slet-bekraeft'
  */
 export const TAPAS_ANCHOR = 'tapas-indhold'
 
+/**
+ * The photo slot's control and its picker (phase 10C-1). Cancelling the picker —
+ * or coming back from a selection — lands on `#vaelg-billede`, the control it was
+ * opened from, exactly as the delete confirmation returns to `#slet-ret`.
+ */
+export const IMAGE_SLOT_ANCHOR = 'vaelg-billede'
+export const IMAGE_DIALOG_ANCHOR = 'vaelg-billede-dialog'
+
 export function tapasGroupAnchor(groupId: string): string {
   return `tapas-${groupId}`
 }
@@ -192,6 +206,10 @@ export type MenuLocation = {
    * anchors for why both.
    */
   readonly tapasFocus?: string | null
+  /** Open the image picker for the open dish (10C-1). Nothing has happened yet. */
+  readonly chooseImage?: boolean
+  /** Land on the photo slot's own control — the picker's way back. */
+  readonly focusImage?: boolean
 }
 
 /**
@@ -218,6 +236,7 @@ export function menuHref(location: MenuLocation = {}, extra?: URLSearchParams): 
   if (location.confirmDelete) parameters.set(MENU_PARAM.confirmDelete, location.confirmDelete)
   if (location.movedDish) parameters.set(MENU_PARAM.movedDish, location.movedDish)
   if (location.tapasFocus) parameters.set(MENU_PARAM.tapasFocus, location.tapasFocus)
+  if (location.chooseImage === true) parameters.set(MENU_PARAM.chooseImage, '1')
 
   if (location.undoDelete) {
     parameters.set(MENU_PARAM.undoDeleteDish, location.undoDelete.dishId)
@@ -235,13 +254,17 @@ export function menuHref(location: MenuLocation = {}, extra?: URLSearchParams): 
   // back from one should land on the control rather than at the top of the panel.
   const anchor = location.confirmDelete
     ? DELETE_DIALOG_ANCHOR
-    : location.focusDelete === true
-      ? DELETE_BUTTON_ANCHOR
-      : location.tapasFocus
-        ? location.tapasFocus
-        : editorOpen
-          ? EDITOR_ANCHOR
-          : null
+    : location.chooseImage === true
+      ? IMAGE_DIALOG_ANCHOR
+      : location.focusImage === true
+        ? IMAGE_SLOT_ANCHOR
+        : location.focusDelete === true
+          ? DELETE_BUTTON_ANCHOR
+          : location.tapasFocus
+            ? location.tapasFocus
+            : editorOpen
+              ? EDITOR_ANCHOR
+              : null
 
   return `${MENU_PATH}${query.length > 0 ? `?${query}` : ''}${anchor === null ? '' : `#${anchor}`}`
 }

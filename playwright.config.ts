@@ -89,6 +89,10 @@ export default defineConfig({
         // projects at the end of the chain. `--list` check: the file appears under
         // exactly `image-library-mobile` and `image-library`.
         'e2e/image-library.spec.ts',
+        // The editor image-selection suite (phase 10C-1) — owned by its two
+        // dedicated projects at the end of the chain. `--list` check: the file
+        // appears under exactly `editor-images-mobile` and `editor-images`.
+        'e2e/editor-images.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -109,10 +113,11 @@ export default defineConfig({
         'e2e/opening-hours.spec.ts',
         'e2e/opening-hours-override.spec.ts',
         'e2e/public-cache.spec.ts',
-        // See the desktop project's entry for why these three must exist.
+        // See the desktop project's entry for why these four must exist.
         'e2e/opening-hours-announcement.spec.ts',
         'e2e/news-admin.spec.ts',
         'e2e/image-library.spec.ts',
+        'e2e/editor-images.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -498,6 +503,27 @@ export default defineConfig({
       name: 'image-library',
       testMatch: 'e2e/image-library.spec.ts',
       dependencies: ['image-library-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    /*
+     * Editor image selection (phase 10C-1), at both widths, and the new tail of
+     * the chain. It uploads real images, threads one draft selection through four
+     * editors, publishes and detaches them again, and drives the library's
+     * draft-aware delete and replacement — so it owns the library and every
+     * image_id column while it runs, and follows the image-library pair for the
+     * same reason that pair follows the news suite. Mobile runs first and hands
+     * its state (an empty library, nothing referenced) to the desktop project.
+     */
+    {
+      name: 'editor-images-mobile',
+      testMatch: 'e2e/editor-images.spec.ts',
+      dependencies: ['image-library'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    {
+      name: 'editor-images',
+      testMatch: 'e2e/editor-images.spec.ts',
+      dependencies: ['editor-images-mobile'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],

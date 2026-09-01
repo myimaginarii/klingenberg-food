@@ -3,6 +3,43 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 10C-1 — no dependencies added (2026-09-01)
+
+**Editor image selection and the draft-aware reference model** (technical plan
+§0v) — the shared picker in four editors, the `image_references` view, and the
+draft-aware `delete_image()`/`replace_image()` — adds **no package**.
+`package.json` and the lockfile are byte-identical to the phase-10B state. The
+refusals worth recording:
+
+**A media-picker / gallery component.** The picker is a server-rendered
+`<dialog>` (the administration's existing `ModalDialog`) whose choices are
+submit buttons over the 10B thumbnails — one form, no client state, operable
+with scripting off. A gallery library is where search, filters and cropping
+come from, and the phase brief forbids all three by name.
+
+**A JSON-patch/diff library for the draft transitions.** The reference
+transitions name exactly one typed key: `draft - 'image_id'` and
+`jsonb_set(draft, '{image_id}', …)` in SQL, `imageDraftWrite` (a one-field §4
+delta) in TypeScript. A patch format is a general document mechanism, and a
+draft transition that can express "any change" is precisely what §16 forbids —
+the point is that nothing else in the draft *can* move.
+
+### One migration, and what it does not contain
+
+`20260901180000_image_draft_references.sql`: the `image_references` SECURITY
+INVOKER view (the one definition of "referenced" — four live columns, three
+draft keys), and `delete_image()`/`replace_image()` replaced with draft-aware
+bodies behind a `FOR UPDATE` version check. No table, no index, no policy
+change, no trigger change, no grant change on any existing object, no SECURITY
+DEFINER, and no change to any publish function.
+
+### `npm audit --audit-level=high` — clean
+
+Run from a clean `npm ci` as part of the phase-10C-1 regression: **0
+vulnerabilities** over the unchanged resolved tree.
+
+---
+
 ## Phase 10B — no dependencies added (2026-09-01)
 
 **The image library** (technical plan §0u) — the 1w screen, the mounted upload

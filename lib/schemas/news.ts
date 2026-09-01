@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 import { NEWS_SLUG_PATTERN } from '@/lib/news/slug'
 
-import { optionalIsoDate, requiredText } from './primitives'
+import { optionalIsoDate, optionalRowId, requiredText } from './primitives'
 
 /**
  * News — the write-side schema (§4, §7f; phase 9A).
@@ -17,9 +17,13 @@ import { optionalIsoDate, requiredText } from './primitives'
  * form could produce — a forged POST, an older tab — is refused before it reaches a
  * query, and the database's CHECK constraints stay the final authority.
  *
- * `status`, `published_at` and `image_id` are deliberately absent. The first two move
- * only through the trusted transitions (`publish_news`, `unpublish_news`), and the
- * third is phase 10's column — an editor that cannot name it cannot clear it.
+ * `status` and `published_at` are deliberately absent: they move only through the
+ * trusted transitions (`publish_news`, `unpublish_news`). `image_id` joined the
+ * shape in phase 10C-1 — the article's photo is content, saved through the one
+ * news save path like every other field. It is a **required key with a nullable
+ * value**: every save restates the whole selection, so a caller that forgot it
+ * is refused rather than silently clearing (or keeping) a photo. Its value is
+ * only ever a library reference; alt text stays the library's (§22).
  */
 
 /**
@@ -70,6 +74,7 @@ export const newsArticleInput = z.strictObject({
   body: newsBodySchema,
   category: z.union([z.enum(NEWS_CATEGORIES, { error: 'Ukendt kategori.' }), z.null()]),
   display_date: optionalIsoDate('Datoen'),
+  image_id: optionalRowId('Billedet'),
 })
 
 export type NewsArticleInput = z.infer<typeof newsArticleInput>

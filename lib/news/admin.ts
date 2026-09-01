@@ -36,8 +36,11 @@ import { createSupabaseServerClient } from '@/lib/supabase/server'
  *   1. asks the §5 matrix first (`mayChangeEntity('news', …)` — Staff and Owner), so a
  *      refusal is a sentence rather than a silent no-op from RLS;
  *   2. re-parses the values against `newsArticleInput`, strictly — an unknown key is a
- *      refusal, and `status`, `published_at` and `image_id` are not in the shape at
- *      all, so no caller of this module can move them;
+ *      refusal, and `status` and `published_at` are not in the shape at all, so no
+ *      caller of this module can move them. `image_id` is in the shape since 10C-1:
+ *      the browser's content form never carries it — the actions restate the row's
+ *      own value, and only the picker action submits a new one, existence-checked
+ *      first;
  *   3. goes to the database through the caller's own JWT, so RLS re-decides (§5);
  *   4. re-checks the version token inside the write itself (§6).
  */
@@ -101,6 +104,7 @@ export async function createNewsArticle(
       body: input.body,
       category: input.category,
       display_date: input.display_date,
+      image_id: input.image_id,
       // The one column that makes this a draft a guest cannot see rather than a publish.
       status: 'draft',
     })
@@ -173,6 +177,7 @@ export type SaveArticleRequest = {
     readonly body: unknown
     readonly category: string | null
     readonly displayDate: string | null
+    readonly imageId: string | null
     readonly status: 'draft' | 'published'
   }
 }
@@ -214,6 +219,7 @@ export async function saveNewsArticle(
       body: input.body,
       category: input.category,
       display_date: input.display_date,
+      image_id: input.image_id,
     })
     .eq('id', request.articleId)
     .eq('updated_at', request.expectedUpdatedAt)
@@ -258,6 +264,7 @@ export async function saveNewsArticle(
         body: request.before.body,
         category: request.before.category,
         display_date: request.before.displayDate,
+        image_id: request.before.imageId,
       },
       p_after: articleAuditShape(input),
     })
@@ -282,6 +289,7 @@ function articleAuditShape(input: NewsArticleInput): Record<string, unknown> {
     body: input.body,
     category: input.category,
     display_date: input.display_date,
+    image_id: input.image_id,
   }
 }
 

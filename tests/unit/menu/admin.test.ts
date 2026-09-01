@@ -56,6 +56,8 @@ function dish(overrides: Partial<AdminDish> & Pick<AdminDish, 'id' | 'name'>): A
     liveSortOrder: 1,
     tapas: null,
     liveTapas: null,
+    imageId: null,
+    liveImageId: null,
     soldOutOn: null,
     isNewDraft: false,
     hasDraft: false,

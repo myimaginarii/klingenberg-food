@@ -84,7 +84,9 @@ export async function createArticle(formData: FormData): Promise<void> {
       ? resolveSlugCollision(mapped.slug.base, taken)
       : mapped.slug.slug
 
-  const created = await createNewsArticle(profile, { ...mapped.values, slug })
+  // A new article starts with no photo: the picker attaches one only once the row
+  // exists, so there is nothing the browser could say about it here (10C-1).
+  const created = await createNewsArticle(profile, { ...mapped.values, slug, image_id: null })
 
   if (created.status !== 'saved') {
     redirect(
@@ -142,13 +144,17 @@ export async function saveArticle(formData: FormData): Promise<void> {
   const saved = await saveNewsArticle(profile, {
     articleId: article.id,
     expectedUpdatedAt: version,
-    values: { ...mapped.values, slug },
+    // The photo is restated from the server's own read, never from the form: a
+    // content save neither clears nor chooses an image (10C-1) — the picker action
+    // is the one place a selection is decided.
+    values: { ...mapped.values, slug, image_id: article.imageId },
     before: {
       title: article.title,
       slug: article.slug,
       body: article.body,
       category: article.category,
       displayDate: article.displayDate,
+      imageId: article.imageId,
       status: article.status,
     },
   })

@@ -63,6 +63,7 @@ export function DishEditorPanel({
   isNewDraft,
   deleteHref,
   deleteAnchorId,
+  imageSlot,
 }: {
   anchorId: string
   heading: string
@@ -105,6 +106,15 @@ export function DishEditorPanel({
   deleteHref?: string
   /** The anchor the confirmation's Behold-knap comes back to. */
   deleteAnchorId?: string
+  /**
+   * 1r's "Billede (valgfrit)" slot (phase 10C-1) — `ImagePickerField`, rendered by
+   * the page, and only for a dish that exists (a new dish has no version token to
+   * select against). A sibling of the Gem form, not a field inside it: its removal
+   * control is a form of its own, forms cannot nest, and the selection is its own
+   * draft write exactly as reordering is — so Gem can never clear a pending photo,
+   * and choosing a photo can never overwrite a half-typed description.
+   */
+  imageSlot?: React.ReactNode
 }) {
   // A dish that does not exist yet has nothing to delete, so the row is drawn without
   // the control rather than with a disabled one.
@@ -273,6 +283,8 @@ export function DishEditorPanel({
           ændringer.
         </p>
       </form>
+
+      {imageSlot === undefined ? null : <div className="mt-4">{imageSlot}</div>}
     </section>
   )
 }

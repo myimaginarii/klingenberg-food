@@ -14,6 +14,7 @@ const VALID = {
   body: { blocks: [{ type: 'paragraph', spans: [{ text: 'Første afsnit.' }] }] },
   category: 'Ny burger',
   display_date: '2026-09-01',
+  image_id: null,
 }
 
 describe('newsArticleInput', () => {
@@ -27,8 +28,26 @@ describe('newsArticleInput', () => {
     ).toBe(true)
   })
 
+  // Phase 10C-1: the photo is content, saved through the one news save path. A
+  // required key with a nullable value — a caller that forgot it is refused — and
+  // only ever a library reference by uuid.
+  it('accepts an image reference by uuid, and its absence as null', () => {
+    expect(
+      newsArticleInput.safeParse({
+        ...VALID,
+        image_id: '11111111-1111-4111-8111-111111111111',
+      }).success,
+    ).toBe(true)
+  })
+
+  it('refuses a save that does not state the image key at all', () => {
+    const withoutImage: Record<string, unknown> = { ...VALID }
+    delete withoutImage.image_id
+    expect(newsArticleInput.safeParse(withoutImage).success).toBe(false)
+  })
+
   it.each([
-    ['an unknown key', { ...VALID, image_id: '11111111-1111-4111-8111-111111111111' }],
+    ['an image reference that is not a uuid', { ...VALID, image_id: 'stien/original.jpg' }],
     ['a smuggled status', { ...VALID, status: 'published' }],
     ['a smuggled published_at', { ...VALID, published_at: '2026-09-01T00:00:00Z' }],
     ['a blank title', { ...VALID, title: '   ' }],

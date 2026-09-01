@@ -201,9 +201,29 @@ Staff still see no file sizes, formats or pixel measurements anywhere, exactly a
 the integration suite (two-hour SDK-fixed lifetime; a same-path replay cannot
 overwrite, before or after finalize), and a 29.7-megapixel original is driven
 through the real pipeline on every integration run (~2 s locally; the route
-carries `maxDuration = 60`). No editor offers an image yet — `image_id` stays out
-of every content form until 10C, and the policy suite still asserts it.
-Technical plan §0u records the phase.
+carries `maxDuration = 60`). Technical plan §0u records the phase.
+
+**Phase 10C-1** is finished: images are a real content field in the four approved
+editors. Every photo slot — the dish panel's (1r), Ugens ret's (1ag), Månedens
+burger's (1ah) and the news editor's (1s) — is one shared pair: `ImagePickerField`
+(the slot, empty or chosen, with "Vælg billede" / "Skift billede" /
+"Fjern billede") and `ImagePickerDialog` (the library's thumbnails as one
+server-rendered modal form; uploading stays on `/admin/billeder`, which it links
+to). For the three draft entities a selection is an ordinary draft change: the
+guest keeps the published photo until Offentliggør, "Fjern billede" is a pending
+removal that never touches the library, and the phase-4 publish merge moves the
+field live. News follows its own accepted model — a draft article's photo stays
+invisible; a published article's photo change is live when saved, through the one
+news save path. Because a pending draft can now hold an image id, the reference
+model was made whole: `public.image_references` (one SECURITY INVOKER view — four
+live columns, three draft keys) is the single definition of "referenced" for the
+library's captions ("Bruges på: Odin", "Odin (kladde)" for a draft-only usage)
+and for `delete_image()`'s refusal count, a confirmed delete clears exactly the
+`image_id` key out of every draft naming the image (every other pending field
+byte-identical), and `replace_image()` moves draft selections old→new alongside
+the live columns. pgTAP `022` proves every live/draft combination; nothing public
+renders an image yet — that, with the read-model projection and the image-write
+cache coupling, is 10C-2. Technical plan §0v records the phase.
 
 ## Requirements
 
@@ -515,11 +535,12 @@ cookies**.
 The things the **menu administration** deliberately does not do, and the phase that owns
 each, are listed in technical plan §0b. The Ugens ret / Lørdagsmenu editor
 (`/admin/menu/ugens-ret`) and the Månedens burger editor
-(`/admin/menu/maanedens-burger`) have since been built by phase 6, and the image
-library itself by phase 10B. What remains is **image selection** (10C): every dish,
-the weekly card and the monthly burger still render the reserved photo frame rather
-than a photo, and `image_id` is owned by no editor yet — deliberately, so that no
-editor can clear it.
+(`/admin/menu/maanedens-burger`) have since been built by phase 6, the image
+library by phase 10B, and image **selection** by phase 10C-1 — every approved
+editor now owns its photo slot through the shared picker. What remains is public
+**rendering** (10C-2): every dish, the weekly card and the monthly burger still
+render the reserved photo frame rather than a photo, deliberately, until the
+responsive `<img srcset>` implementation and its cache coupling arrive together.
 
 One thing is deferred with **no phase** at all: there is no editor for a menu *category's own*
 content — its name, intro, note or order. The chips navigate between sections and a dish

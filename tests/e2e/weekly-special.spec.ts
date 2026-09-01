@@ -120,17 +120,23 @@ test('both parts of the week are on the one screen, as 1ag draws them', async ()
   ).toHaveCount(0)
 })
 
-test('the image control is absent — it belongs to the image library, phase 10', async () => {
+test('the image slot offers exactly a selection — never storage metadata (10C-1)', async () => {
   await openWeeklyAdmin(staffPage)
 
-  await expect(staffPage.getByRole('button', { name: 'Vælg billede' })).toHaveCount(0)
+  // The 10C-1 slot: an empty library and no selection draw the dashed frame with
+  // 1ag's own control. It is a link — opening the picker is a navigation.
+  await expect(staffPage.getByRole('link', { name: 'Vælg billede' })).toBeVisible()
 
   const names = await staffPage
     .locator('main input, main select, main textarea')
     .evaluateAll((nodes) => nodes.map((node) => node.getAttribute('name')))
 
+  // With nothing selected there is no removal form, so no image field is on the
+  // page at all — and no field for a path, a MIME type or a dimension ever is
+  // (the picker's whole vocabulary is `version` + `billede`, policy-tested).
   expect(names).not.toContain('billede')
   expect(names).not.toContain('image_id')
+  expect(names).not.toContain('storage_path')
   // Nor is there any way to submit a sold-out date: §7b's "today, in Copenhagen" is the
   // server's to decide.
   expect(names).not.toContain('sold_out_on')

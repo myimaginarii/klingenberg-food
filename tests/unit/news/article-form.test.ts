@@ -164,6 +164,7 @@ describe('the form’s two starting points', () => {
       updatedAt: '2026-08-20T08:00:00.000Z',
       category: 'Ny burger',
       displayDate: '2026-08-20',
+      imageId: null,
       body: {
         blocks: [
           { type: 'paragraph', spans: [{ text: 'Første afsnit.' }] },
@@ -274,6 +275,7 @@ describe('articleBodyState — the hasMarks guard, load-bearing (9B)', () => {
     updatedAt: '2026-09-01T10:00:00.000Z',
     category: null,
     displayDate: null,
+    imageId: null,
   }
 
   it('hands a plain body to the textarea dialect', () => {

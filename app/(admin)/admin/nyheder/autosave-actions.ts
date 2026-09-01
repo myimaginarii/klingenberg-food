@@ -86,7 +86,9 @@ export async function autosaveArticle(formData: FormData): Promise<NewsAutosaveR
         ? resolveSlugCollision(mapped.slug.base, taken)
         : mapped.slug.slug
 
-    const created = await createNewsArticle(profile, { ...mapped.values, slug })
+    // A new article starts with no photo (10C-1): the picker attaches one only once
+    // the row exists.
+    const created = await createNewsArticle(profile, { ...mapped.values, slug, image_id: null })
 
     if (created.status !== 'saved' || created.articleId === null || created.updatedAt === null) {
       // A lost slug race or a refused insert: nothing exists, nothing is claimed.
@@ -125,13 +127,16 @@ export async function autosaveArticle(formData: FormData): Promise<NewsAutosaveR
   const saved = await saveNewsArticle(profile, {
     articleId: article.id,
     expectedUpdatedAt: rawVersion,
-    values: { ...mapped.values, slug },
+    // The photo is restated from the server's own read, never from the form — an
+    // autosave neither clears nor chooses an image (10C-1).
+    values: { ...mapped.values, slug, image_id: article.imageId },
     before: {
       title: article.title,
       slug: article.slug,
       body: article.body,
       category: article.category,
       displayDate: article.displayDate,
+      imageId: article.imageId,
       status: article.status,
     },
   })
