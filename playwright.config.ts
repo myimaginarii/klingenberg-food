@@ -85,6 +85,10 @@ export default defineConfig({
         // end of the chain, for the same reason as its neighbour above. `--list` check:
         // the file appears under exactly `news-admin-mobile` and `news-admin`.
         'e2e/news-admin.spec.ts',
+        // The image-library write suite (phase 10B) — owned by its two dedicated
+        // projects at the end of the chain. `--list` check: the file appears under
+        // exactly `image-library-mobile` and `image-library`.
+        'e2e/image-library.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -105,9 +109,10 @@ export default defineConfig({
         'e2e/opening-hours.spec.ts',
         'e2e/opening-hours-override.spec.ts',
         'e2e/public-cache.spec.ts',
-        // See the desktop project's entry for why these two must exist.
+        // See the desktop project's entry for why these three must exist.
         'e2e/opening-hours-announcement.spec.ts',
         'e2e/news-admin.spec.ts',
+        'e2e/image-library.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -465,6 +470,34 @@ export default defineConfig({
       name: 'news-admin',
       testMatch: 'e2e/news-admin.spec.ts',
       dependencies: ['news-admin-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    /*
+     * The image library (phase 10B), at both widths, and the new tail of the chain.
+     * Chained for the reason every write suite is chained — it creates and deletes
+     * database rows other suites could otherwise race — plus one of its own: it
+     * writes and removes REAL storage objects, and its usage fixture points Thor at
+     * an image, so running beside any menu suite would make "Thor is untouched" a
+     * coin toss. It expires no cache tag (creating or deleting an unreferenced
+     * image changes no public page until 10C), which is why it can run after the
+     * cache suites without disturbing what they measured.
+     *
+     * Two widths, because 1w is drawn at desktop and the phone has no dedicated
+     * frame: the mobile run asserts the established stacking rules — no sideways
+     * scrolling, 44 px targets — as their own promises, not the desktop's at a
+     * smaller size. Mobile runs first and hands its state (an empty library, Thor
+     * unreferenced) to the desktop project, as the other write pairs do.
+     */
+    {
+      name: 'image-library-mobile',
+      testMatch: 'e2e/image-library.spec.ts',
+      dependencies: ['news-admin'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    {
+      name: 'image-library',
+      testMatch: 'e2e/image-library.spec.ts',
+      dependencies: ['image-library-mobile'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],

@@ -8,8 +8,9 @@ Two sources of truth, and they do not overlap:
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
 **Status: phases 0–9 complete and locked; phase 10A (the image storage foundation)
-built and green.** Phase 9's completion pass (2026-09-01) is recorded in technical
-plan §0s, and phase 10A in §0t. The public site renders from the database;
+and phase 10B (the image library) built and green.** Phase 9's completion pass
+(2026-09-01) is recorded in technical plan §0s, phase 10A in §0t, and phase 10B
+in §0u. The public site renders from the database;
 the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
@@ -180,6 +181,30 @@ and a new integration suite (`npm run test:integration`, in CI's database job) r
 the pipeline end to end against the real local stack. Technical plan §0t records
 the phase, including what it deliberately does not contain.
 
+**Phase 10B** is finished: **Billeder** (`/admin/billeder`) is frame 1w's library —
+Staff and Owner alike. The 10A pipeline is mounted for real: choose a photo, the
+browser downscales it to at most 2560 px, one signed PUT carries it to the private
+bucket, and an authenticated finalize validates the bytes and renders the public
+derivatives — with honest Danish states the whole way (forberedes, uploader,
+behandles, and refusals that keep the filename and the reason on screen; no
+invented percentages). The library shows the smallest public derivative as each
+thumbnail, says where every image is used ("Bruges på: Odin" — derived from the
+four `image_id` relationships by id, never from text), and offers the three
+manageable things: the **description** (`alt_text`, the one directly writable
+column), **Slet** (1w's warning names every usage; a confirmed delete removes the
+row, nulls every reference atomically through `delete_image()`, and then removes
+the files), and **Erstat** (the new image uploads completely first, then
+`replace_image()` — the phase's one migration — repoints every reference and
+removes the old row in one transaction, and only then do the old files go).
+Staff still see no file sizes, formats or pixel measurements anywhere, exactly as
+1w promises. The signed-upload token's real behaviour is measured and pinned by
+the integration suite (two-hour SDK-fixed lifetime; a same-path replay cannot
+overwrite, before or after finalize), and a 29.7-megapixel original is driven
+through the real pipeline on every integration run (~2 s locally; the route
+carries `maxDuration = 60`). No editor offers an image yet — `image_id` stays out
+of every content form until 10C, and the policy suite still asserts it.
+Technical plan §0u records the phase.
+
 ## Requirements
 
 - Node 24 (`.nvmrc`)
@@ -301,6 +326,10 @@ app/
     nyheder/          Nyheder (phase 9A) — the list and the article editor on one URL-driven
                       page; save/create, publish, unpublish and delete are four vocabularies
                       in four action files, and the slug is generated, never typed (§7f)
+    billeder/         Billeder (phase 10B) — frame 1w's library on one URL-driven page;
+                      upload request/finalize, alt text, delete and replace are four
+                      vocabularies in four action files, and the browser never names a
+                      storage path, a dimension or an image id for creation
     indhold/ login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
   api/preview/        start and stop Draft Mode — staff session required
 proxy.ts              session refresh + unauthenticated redirect. Authorizes nothing.
@@ -323,6 +352,11 @@ components/
                       change card, and this screen's
                       notices. Zero client components: a closed row hides its two
                       dropdowns with a sibling selector, not with a script.
+  admin/images/       Billeder (phase 10B). The grid, the thumbnail <picture>, the detail
+                      panel, the delete confirmation — and the one client component the
+                      upload needs (a signed PUT cannot be a form post). No business rules
+                      here: the library's are lib/images/library.ts, the upload states'
+                      are lib/images/upload-flow.ts.
   site/announcement/  the public bar, its labelled aria-live region, and the expiry
                       guard — the only client component phase 7 adds (§7c)
 lib/
@@ -359,13 +393,18 @@ lib/
                       `admin.ts` the writes — creation, the direct edit the draft machinery
                       cannot do for an entity with no draft column, and the two trusted
                       transitions
-  images/             the image pipeline (phase 10A, §0t). `rules.ts` and
-                      `derivatives.ts` are the pure half — limits, accepted types,
-                      the path grammar, the AVIF+WebP ladder, the Danish refusals;
-                      `processing.ts` is the one sharp boundary; `storage.ts` the one
-                      service-role boundary; `signed-upload.ts`/`finalize.ts` the two
-                      flow halves the 10B actions will call; `client-upload.ts` the
-                      browser downscale-and-PUT half, unmounted until 10B.
+  images/             the image pipeline (phase 10A, §0t) and library (10B, §0u).
+                      `rules.ts` and `derivatives.ts` are the pure half — limits,
+                      accepted types, the path grammar, the AVIF+WebP ladder, the
+                      Danish refusals; `processing.ts` is the one sharp boundary;
+                      `storage.ts` the one service-role boundary;
+                      `signed-upload.ts`/`finalize.ts` the two flow halves the 10B
+                      upload actions call; `client-upload.ts` the browser
+                      downscale-and-PUT half; `library.ts` the 1w view model (usage
+                      labels, thumbnail selection, alt rules, the confirmation
+                      sentences); `upload-flow.ts` the pure upload state machine;
+                      `admin.ts` the write wrappers over alt_text, delete_image()
+                      and replace_image().
   hours/ time/        the pure time engines
   schemas/            the Zod shapes every write is re-parsed against
 scripts/
@@ -378,15 +417,18 @@ supabase/
                     delete, the weekly-special admin, the monthly-burger admin, the
                     announcement admin, the one-off override admin, the announcement
                     replacement mechanism, its column-level write guard, generated-
-                    announcement ownership, the news admin (unpublish + delete), and
-                    the image storage foundation (buckets + the trusted image doors)
+                    announcement ownership, the news admin (unpublish + delete),
+                    the image storage foundation (buckets + the trusted image doors),
+                    and the image replacement transition (10B)
   seed.sql          the confirmed contact, opening-hours and menu facts
   templates/        Danish auth emails, versioned and applied through config.toml
   tests/            pgTAP — the §5 permission matrix, the owner invariant, and every
                     write path phases 4–10A added
 tests/
   unit/             the pure rules, under Vitest
-  integration/      the image pipeline against the real local stack (phase 10A) —
+  integration/      the image pipeline against the real local stack (phase 10A),
+                    plus the signed-token lifetime/reuse contract and the
+                    near-maximum large-image runtime (10B) —
                     `npm run test:integration`, needs Docker like pgTAP
   e2e/ a11y/        Playwright, against a production build; axe at 375 and 1440
 ```
@@ -441,9 +483,9 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-The rest of phase 10 — 10B's 1w library screen (list, alt text, usage labels,
-replace/delete confirmations, the upload UI) and 10C's image selection in the editors,
-public rendering and cache coupling — plus everything in §15 from phase 11 onward, and:
+The rest of phase 10 — 10C's image selection in the editors, public rendering
+with `<img srcset>` and the per-entity cache coupling — plus everything in §15
+from phase 11 onward, and:
 the weekly off-platform backup workflow (phase 13, §10f) and Sentry (phase 13).
 `docs/dependencies.md` records which package arrives in which phase. Phase 6 is
 **complete and locked** — 6A (Ugens ret and
@@ -452,8 +494,8 @@ Lørdagsmenu, §0c), 6B (Månedens burger, §0d), and the completion pass over b
 over both halves (§0h). Phase 8 is **complete and locked** — 8A (§0i), 8B (§0j), 8C-1
 (§0k) and its hardening pass (§0l), 8C-2 (§0m), 8C-3A (§0n), 8C-3B (§0o), and the
 completion pass over all seven (§0p). Phase 9 is **complete and locked** — 9A (§0q),
-9B (§0r), and the completion pass over both (§0s). Phase 10A is **built and green**
-(§0t) but phase 10 stays open until 10B and 10C land.
+9B (§0r), and the completion pass over both (§0s). Phases 10A and 10B are **built and green**
+(§0t, §0u) but phase 10 stays open until 10C lands.
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published
@@ -473,10 +515,11 @@ cookies**.
 The things the **menu administration** deliberately does not do, and the phase that owns
 each, are listed in technical plan §0b. The Ugens ret / Lørdagsmenu editor
 (`/admin/menu/ugens-ret`) and the Månedens burger editor
-(`/admin/menu/maanedens-burger`) have since been built by phase 6. What remains is the
-image library and upload (phase 10): every dish, the weekly card and the monthly burger
-therefore still render the reserved photo frame rather than a photo, and `image_id` is
-owned by no editor yet — deliberately, so that no editor can clear it.
+(`/admin/menu/maanedens-burger`) have since been built by phase 6, and the image
+library itself by phase 10B. What remains is **image selection** (10C): every dish,
+the weekly card and the monthly burger still render the reserved photo frame rather
+than a photo, and `image_id` is owned by no editor yet — deliberately, so that no
+editor can clear it.
 
 One thing is deferred with **no phase** at all: there is no editor for a menu *category's own*
 content — its name, intro, note or order. The chips navigate between sections and a dish

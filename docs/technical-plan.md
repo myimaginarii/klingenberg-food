@@ -2354,6 +2354,144 @@ headroom).
 
 ---
 
+## §0u. Phase 10B — the image library (2026-09-01)
+
+The 1w screen is built on the 10A foundation: `/admin/billeder` exists for Staff
+**and** Owner (§5's "dish photos, and all image upload / replace / delete" row),
+the 10A client downscale and signed-PUT pipeline is mounted for real, and the
+library manages what it holds — the description edit, usage labels, 1w's Slet with
+its in-use warning, and 1w's Erstat as a trusted one-transaction transition.
+**Phase 10 is not locked**: 10C — image selection in the editors, public rendering
+with `<img srcset>`, and the per-entity cache coupling — is not started, and no
+`image_id` form field exists anywhere.
+
+### What phase 10B contains
+
+| Capability | Where it lives |
+|---|---|
+| The 1w screen — bar, dropzone, grid with usage captions, detail panel, all state in the URL | `app/(admin)/admin/billeder/`, `components/admin/images/` |
+| The upload flow — choose → client downscale (`<canvas>`, max 2560 px) → request signed URL → direct PUT → authenticated finalize → the library | `ImageUploader.tsx` over `lib/images/client-upload.ts`, `upload-actions.ts` over the 10A flows |
+| The upload states — forberedes / uploader / behandles / færdig / afvist / fejlet, one Danish sentence each, one polite status region, **no invented percentages** | `lib/images/upload-flow.ts` (a pure reducer), `ImageUploader.tsx` |
+| Upload concurrency — one image at a time, the chooser disabled in flight, stale completions inert by attempt number | the same reducer; pinned in `tests/unit/images/upload-flow.test.ts` |
+| The library read model — thumbnail derivative URLs, alt text, display filename, timestamp, usage, version token; **no private-original URL, no uploader identity, no pixel/byte/format display** | `lib/content/images-admin.ts`, `lib/images/library.ts` |
+| Usage labels — "Bruges på: Odin", derived per request from the four `image_id` relationships by id, never from text; soft-deleted dishes included so the label agrees with `delete_image()`'s count | `readImageUsages()`, `usageLabel()` |
+| Alt-text editing — the one direct column write (§0t's `alt_text` grant), version-checked in the UPDATE's own WHERE, blank stored as absent, refusals echo the typed text | `lib/images/admin.ts` (`saveImageAltText`), `alt-actions.ts` |
+| Deletion — 1w's warning with the real usage list, "Slet spørger altid", the confirmation bit for an in-use delete, `delete_image()`'s atomic reference-nulling, then trusted file cleanup | `ImageDeleteDialog.tsx`, `delete-actions.ts`, `deleteLibraryImage()` |
+| Replacement — upload the new image completely, then `replace_image()` repoints every reference and removes the old row in one transaction, then the old files go | `20260901160000_image_replacement.sql`, `replace-actions.ts`, `replaceLibraryImage()` |
+| Thumbnails — the smallest public derivative pair in a `<picture>` (AVIF source, WebP img), explicit width/height, plain `<img>` — no `next/image`, so no remote-host configuration exists at all | `planThumbnail()`, `ImageThumbnail.tsx` |
+| `maxDuration = 60` on the library route, from a measurement rather than a guess | `page.tsx`, `tests/integration/images-large.test.ts` |
+
+**One migration, one function.** `20260901160000_image_replacement.sql` adds
+`replace_image(p_old_id, p_expected_updated_at, p_new_id)` — SECURITY INVOKER,
+`search_path` pinned, version-checked behind a `FOR UPDATE` lock, audited once as
+`'replace'` with both storage paths in the before/after pair, returning the old
+path for trusted cleanup. It changes no policy, no grant, no table and no other
+function; the old row leaves through the same guarded door `delete_image()` uses,
+and pgTAP `021` (38 assertions) proves the transition, its refusals, all four
+relationships moving together, and the untouched draft on a repointed dish, from
+real Staff, Owner and anonymous JWTs.
+
+### The readings this phase had to settle
+
+| # | Question | The answer |
+|---|---|---|
+| A | **What does 1w's "Erstat" mean?** | The new image is uploaded and processed **completely first**, through the ordinary pipeline — by the time the transition runs it is a finished library row. `replace_image()` then repoints every `image_id` reference and removes the old row in one transaction, and only after that commit are the old files removed. The current image is never destroyed in the hope a replacement will arrive; a failure at any step leaves it untouched (the screen says so, and says where the already-uploaded new image ended up: in the library, deletable like any other). The new image inherits **no alt text** — the picture changed, so the old sentence about it may be false. |
+| B | **Is usage a SQL view, as §4 sketched?** | **No — a read-layer derivation, same rule, no migration.** §4's point was that usage is *derived from the four known reference columns, never stored*; the admin read module runs the same four reads a view would run, through the caller's own JWT, fresh per request. A view would have added a migration and pgTAP surface to carry identical semantics. If 10C's cache coupling wants the database's own answer, a view can still be introduced beside the references it serves. |
+| C | **Where does the alt-text edit live, when 1w does not draw one?** | In the detail panel, with the existing field tokens — an infrastructure-required departure (§24 of the phase brief): `alt_text` is the one person-authored column, 10A narrowed the direct grant to exactly it for "10B's ordinary edit", and a library with no way to describe a picture cannot keep the accessibility promises 10C's public rendering will need. Plain Danish ("Beskrivelse af billedet"), blank allowed and stored as `null`, no AI generation, no SEO coaching — final copy passes stay later work. |
+| D | **What may the browser say?** | The closed vocabularies of §21: an upload request is a declared type, a declared size and a display filename; a finalize is the server-minted path handed back; the alt form is an id, a version token and the sentence; the delete form is an id, a version token and the one confirmation bit; a replace is the old id, its version token and the id finalize just answered. Every programmatic action parses a `z.strictObject`; every form reads only its named fields. **No field exists for a storage path, a dimension, a MIME type, a derivative, a bucket, an uploader or a created id** — asserted by the images-boundary policy suite. |
+| E | **How does a delete confirmation survive its own race?** | The confirmation bit records *which question was answered*: a dialog rendered over an unused image submits no bit, so if a reference appears while it is open, `delete_image()` answers `in_use`, nothing is deleted, and the screen reopens the confirmation over the fresh usage list. Walked end to end in the E2E suite by creating the reference while the dialog is open. |
+
+### Signed-token findings (brief §7 and §8) — measured, pinned, and accepted
+
+- **Lifetime: 7 200 s (two hours), SDK-fixed.** `createSignedUploadUrl` exposes no
+  expiry option; the token's own `exp − iat` is asserted in
+  `tests/integration/images-token.test.ts`, so an SDK upgrade that changes the
+  contract fails a test. Long for one PUT, but the token authorizes one path in
+  the **private** bucket, travels over TLS to the authenticated staff member who
+  asked for it, and nothing becomes public or recorded until an authenticated
+  finalize revalidates the actual bytes.
+- **Same-path replay cannot overwrite.** Once an object exists, a second PUT with
+  the same valid token is refused (HTTP 400, "resource already exists" — upsert
+  was pinned false at mint time), and a client-supplied `x-upsert: true` header
+  cannot widen the token. So a replay before finalize is refused, a replay after
+  finalize cannot corrupt the original out from under the derivatives, and the
+  only window left — two PUTs racing before the object exists — is a race between
+  two requests by the same authorized person, settled by finalize validating
+  whatever won, whole. **No mitigation needed beyond what 10A built**; the
+  session-unbound-token note from §0t stands as accepted, unchanged.
+- **A PUT with no finalize stays a private orphan**: no row, nothing public —
+  re-verified from the outside.
+
+### Large-image runtime (brief §9) — measured
+
+A 29.7-megapixel (6900×4300) JPEG generated at run time was driven through the
+real pipeline against the local stack: **finalize — download, sniff, decode,
+eight derivative encodes, eight uploads, `create_image()` — completed in ~1.9 s**,
+and a 30.8-megapixel original was refused whole with the original removed again.
+Both are permanent integration tests (`images-large.test.ts`), so the number is
+re-measured on every run rather than remembered. `maxDuration = 60` on
+`/admin/billeder` gives roughly thirty-fold headroom for a slower production
+vCPU, a cold start and real storage round-trips — generous, as §0t asked, and
+justified by the measurement rather than by hope.
+
+### Departures from frame 1w, and why
+
+| Where | What ships |
+|---|---|
+| 1w's chooser line reads "JPG og PNG" | **"JPG, PNG og WebP"** — the pipeline accepts WebP (§0t), and the sentence must not refuse in words what the server accepts in fact. |
+| 1w draws no alt-text field | Added in the detail panel (reading C above) — existing tokens, no new design language. |
+| 1w draws no way back from the detail panel, and no upload feedback | "‹ Alle billeder", the status notices and the one `role="status"` upload sentence — infrastructure-required states, drawn in the administration's established vocabulary. |
+| 1w's grid captions include "Forsiden", "Om os", "Udmærkelse" | Those are `pages`-document references that exist only from phase 11's editors onward; 10B's captions state the four real relationships (dishes by name, Ugens ret, Månedens burger, news by title) and 1w's "Bruges ikke endnu" for the rest. Not a conflict — the frame illustrates the eventual full system. |
+| The frame's grid is four columns at 700 px | Four from `lg`, three from `md`, two at 375 — the phone has no dedicated Billeder frame (1x draws only the dashboard tile), so the established mobile stacking rules apply. |
+
+### What phase 10B deliberately does not contain
+
+| | Owner |
+|---|---|
+| **Image selection in any editor** — dish, weekly, monthly, news, forsiden. `image_id` is in no field list and no form control; the policy suite still asserts it. | **10C** |
+| **Public rendering** — every public page keeps its placeholder; the admin library is the only browser-visible image rendering 10B introduces. | **10C** |
+| **Cache coupling** — no image write expires any public tag: creating, describing, deleting or replacing an image changes no byte a guest is served before 10C wires the references into rendering. | **10C** |
+| Folders, tags, galleries, search, filters, bulk upload, bulk delete, drag sorting, cropping, image analytics | **never** — this is a small restaurant's media library (phase brief §1). |
+| An orphan-sweep job, an upload queue, a background worker | **never** (§7a's no-cron rule; the measured runtime needs none). |
+
+### Recorded for the FINAL SECURITY AUDIT (phase 13)
+
+- The §0t recordings stand unchanged (unfinalized originals as private orphans;
+  the token not bound to the requesting session). 10B adds the measured token
+  facts above — two-hour lifetime, no overwrite within it — as the evidence the
+  audit should start from.
+- `replace_image()` accepts **any** existing image as the successor, not only a
+  fresh upload. A staff member pointing it at an already-referenced image
+  performs a repointing their direct `image_id` privileges already allow, so no
+  authority is widened — recorded so the audit re-weighs it deliberately.
+- Storage cleanup after a committed delete/replace is best-effort: a failed
+  removal is server-logged and leaves orphaned bytes (private original at an
+  unguessable path; public derivatives at an unpublished-after-deletion path).
+  The audit row names the storage path, and every derivative path derives from
+  it, so manual recovery is one listing away. Database integrity never depends
+  on the files.
+
+### The regression
+
+From a clean tree: `npm ci`, `npm run db:reset:full`, a fresh production build.
+Typecheck, lint and the source policy clean; **2,262 unit tests in 81 files**
+(+65 in 3 new files plus the extended policy suite); **1,366 pgTAP assertions in
+21 files** (+38 in `021`), from real anonymous, Staff and Owner JWTs; **12
+integration tests in 3 files** (the 10A suite kept, plus the token and
+large-image suites); `npm audit --audit-level=high` clean (0 vulnerabilities);
+`npx playwright test --list` collecting **1,039 tests in 27 files**, with
+`e2e/image-library.spec.ts` under exactly `image-library-mobile` and
+`image-library` (the §29 check); and the full Playwright matrix at
+`--retries=0`: **1,032 passed, 7 deliberately skipped (width/device guards),
+zero failed and zero flaky.** Phases 5–9 ran green behind it, unchanged.
+
+**Phase 10B is complete and green. Phase 10 is not locked** — 10C (entity image
+selection, public `<img srcset>` rendering, per-entity cache invalidation, and
+the draft-reference revisit `delete_image()`'s comment reserves) remains, and the
+phase-10 lock pass after it.
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -3354,7 +3492,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (done):** the immediate path — "Vis besked" off and back on, "Fjern beskeden nu", immediate public removal and its ~10 s Fortryd. *Replacing an active announcement, `previous`/`replaced_at` and 1ae's conflict sheet moved to **phase 8**, where the generated message they belong to lives* | 7A: E2E 4 passes, including the no-network assertion — see §0f. 7B: `tests/e2e/announcement-remove.spec.ts` passes at 1440 and 375 — see §0g. **Complete and locked** by the completion pass of 2026-08-30 — see §0h |
 | 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3A (done):** generated-announcement **ownership** — `announcement.source_override_id`, the pairing CHECK, the ninth snapshot key, the ownership-aware write guard, and `apply_generated_announcement()`, the §7e item 8 coordinator that decides the conflict server-side and delegates the atomic write. `announcement_created` is **dropped**; no UI. **8C-3B (done):** the workflow — 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, the ~10 s Fortryd strip, §7e item 6's removal consequence with its atomic two-table transaction, the BEFORE DELETE guard that closes the direct-DELETE bypass, and the deletion of the 8C-1 harness | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. 8C-3A: `supabase/tests/017_generated_announcement.test.sql` passes — see §0n. 8C-3B: `tests/e2e/opening-hours-announcement.spec.ts` passes at 1440 and 375, and `supabase/tests/018_override_removal.test.sql` asserts the removal lifecycle and refuses a direct DELETE from real Staff and Owner JWTs — see §0o. E2E 5 is complete |
 | 9 | News | **9A (done, §0q):** the list, the editor with the structured body (textarea form), per-item publish/unpublish behind confirmations, delete, the §7f slug policy end to end, the per-article Draft Mode preview target, and the public list/detail integration incl. unpublish → 404 — proven by `tests/e2e/news-admin.spec.ts` at 375 and 1440 and `supabase/tests/019`. **9B (done, §0r):** the B/Link structured editor, autosave, the `NewsArticle` JSON-LD, canonical/article metadata and the sitemap. The forside teaser has rendered since phase 3 and is verified against the news lifecycle | E2E 6 passes, incl. unpublish → 404 — **complete and locked** by the completion pass of 2026-09-01, recorded in §0s |
-| 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B:** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline. **10C:** image selection in the dish/weekly/monthly/news editors, public rendering with `<img srcset>`, per-entity cache invalidation | E2E 7 passes |
+| 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C:** image selection in the dish/weekly/monthly/news editors, public rendering with `<img srcset>`, per-entity cache invalidation | E2E 7's library half passes (`tests/e2e/image-library.spec.ts` — upload → library → used on a dish → delete warns → references nulled); the editor-selection half is 10C's |
 | 11 | Remaining editors | Forsiden, Mad ud af huset (incl. the visibility toggle hiding the nav item), Kontaktoplysninger, **`/admin/brugere`** | E2E 8 passes; the owner can invite and deactivate a staff user |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device | Full menu-edit and news flows completed on a 375 px viewport |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project |
@@ -3363,8 +3501,9 @@ Each phase ends in something deployable and testable. No phase begins until the 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
 **Status, 2026-09-01: phases 0–9 are complete and locked; phase 10A (the image
-storage foundation) is built and green, recorded in §0t** — phase 10 itself stays
-open until 10B and 10C land. Phase 8's lock pass is
+storage foundation) is built and green, recorded in §0t, and phase 10B (the 1w
+image library) is built and green, recorded in §0u** — phase 10 itself stays
+open until 10C lands. Phase 8's lock pass is
 recorded in §0p, and **phase 9's in §0s**: 9A (the news administration's core, §0q) and
 9B (the B/Link body editor, autosave, the `NewsArticle` JSON-LD, canonical metadata and
 the sitemap, §0r) were read as one system, walked as Owner, Staff and guest against a

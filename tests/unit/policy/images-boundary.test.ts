@@ -49,6 +49,18 @@ const SERVER_ONLY_IMAGE_MODULES = [
   '@/lib/images/processing',
   '@/lib/images/finalize',
   '@/lib/images/signed-upload',
+  '@/lib/images/admin',
+  '@/lib/content/images-admin',
+]
+
+/** The one module that may PUT bytes to a signed upload URL (phase 10B, §31). */
+const UPLOAD_PUT_MODULE = 'lib/images/client-upload.ts'
+
+/** The modules that may remove storage objects — always server-side (§31). */
+const STORAGE_REMOVAL_MODULES = [
+  'lib/images/admin.ts',
+  'lib/images/finalize.ts',
+  'lib/images/storage.ts',
 ]
 
 function* walk(directory: string): Generator<string> {
@@ -121,6 +133,59 @@ describe('the service-role boundary', () => {
         expect(file.source, `${file.path} imports ${specifier}`).not.toContain(specifier)
       }
     }
+  })
+
+  it('the upload PUT lives in exactly one module (phase 10B, §31)', () => {
+    // The one fetch that carries image bytes. Everything else the uploader does
+    // goes through Server Actions, so a second raw upload request anywhere is a
+    // failing test rather than a review finding.
+    const putters = sourceFiles
+      .filter((file) => /method:\s*'PUT'/.test(codeOf(file.source)))
+      .map((file) => file.path)
+
+    expect(putters).toEqual([UPLOAD_PUT_MODULE])
+  })
+
+  it('privileged storage removal happens only in the server image modules', () => {
+    const removers = sourceFiles
+      .filter((file) => /removeOriginal|removeDerivatives/.test(codeOf(file.source)))
+      .map((file) => file.path)
+      .sort()
+
+    expect(removers).toEqual(STORAGE_REMOVAL_MODULES)
+  })
+
+  it('the delete action derives storage paths from the server, never the form', () => {
+    const action = sourceFiles.find(
+      (file) => file.path === 'app/(admin)/admin/billeder/delete-actions.ts',
+    )
+
+    expect(action).toBeDefined()
+    const code = codeOf(action!.source)
+    // The trusted derivation is read server-side…
+    expect(code).toContain('readImageStorageFacts')
+    // …and no storage identity has a form field or a parse anywhere in the file.
+    expect(code).not.toContain('storage_path')
+    expect(code).not.toContain('storagePath')
+  })
+
+  it('no form control anywhere submits a storage path', () => {
+    const offenders = sourceFiles
+      .filter((file) => /name=["'](storage_path|storagePath|sti)["']/.test(codeOf(file.source)))
+      .map((file) => file.path)
+
+    expect(offenders).toEqual([])
+  })
+
+  it('the image form vocabulary is exactly its four fields (§21)', async () => {
+    const { IMAGES_FORM } = await import('@/app/(admin)/admin/billeder/image-form')
+
+    expect(Object.values(IMAGES_FORM).sort()).toEqual([
+      'bekraeftet',
+      'beskrivelse',
+      'billede',
+      'version',
+    ])
   })
 })
 

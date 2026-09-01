@@ -3,6 +3,46 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 10B — no dependencies added (2026-09-01)
+
+**The image library** (technical plan §0u) — the 1w screen, the mounted upload
+flow, alt-text editing, usage labels, deletion and replacement — adds **no
+package**. `package.json` and the lockfile are byte-identical to the phase-10A
+state. The library screen is the phase people expect to arrive with an upload
+widget's luggage, so the refusals are recorded with what was built instead.
+
+**An upload/dropzone library** (`react-dropzone`, `uppy`, `filepond`). The whole
+browser half is a `<label>` wrapping one file input, two drag handlers
+(`dragover`/`drop`), and the 10A `prepareImageForUpload` + one `fetch` PUT that
+already existed. An upload framework's actual features — queues, retry policies,
+progress bars, multi-file batches — are exactly what the phase brief forbids
+(one image at a time, no fake percentages, no queue framework).
+
+**A client state library for the upload states.** The six states the brief names
+are a pure reducer of ~100 lines (`lib/images/upload-flow.ts`), pinned by the
+unit suite, with one component running it. The duplicate-submit and
+stale-completion rules are reducer properties, which is precisely what makes them
+testable without a browser.
+
+**A JWT library to read the signed-upload token's lifetime.** The integration
+suite decodes the token's payload with `Buffer.from(…, 'base64url')` — reading
+two claims from a token we never verify (the storage service does that) needs no
+verifier dependency.
+
+### One migration, and what it does not contain
+
+`20260901160000_image_replacement.sql`: `replace_image()`, SECURITY INVOKER with
+`search_path` pinned, the trusted one-transaction transition behind 1w's
+"Erstat". No table, no view, no index, no policy change, no grant change, no
+SECURITY DEFINER, and no change to any existing function.
+
+### `npm audit --audit-level=high` — clean
+
+Run from a clean `npm ci` as part of the phase-10B regression: **0
+vulnerabilities** over the unchanged resolved tree.
+
+---
+
 ## Advisory check — 2026-09-01 (phase 10A addition)
 
 One runtime dependency was added for phase 10A (the image storage foundation,

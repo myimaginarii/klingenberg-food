@@ -9,6 +9,7 @@ import { PublishSummary } from '@/components/admin/PublishSummary'
 import { signOut } from './actions'
 import { OPENING_HOURS_PATH } from './aabningstider/routes'
 import { ANNOUNCEMENT_PATH } from './besked/routes'
+import { IMAGES_PATH } from './billeder/routes'
 import { NEWS_PATH } from './nyheder/routes'
 import { publishSelectedChanges } from './publish-actions'
 import { AdminShell, Card, Notice, SubmitButton } from './ui'
@@ -161,6 +162,20 @@ export default async function AdminDashboard({
         <p className="mt-1">
           <Link className={STANDALONE_LINK} href={NEWS_PATH}>
             Åbn nyhederne
+          </Link>
+        </p>
+      </Card>
+
+      {/* Billeder — design 1w / 1x's tile, phase 10B. Staff and Owner alike (§5). */}
+      <Card>
+        <h2 className="text-heading font-semibold">Billeder</h2>
+        <p className="text-ink-2 text-meta mt-2">
+          Upload og erstat billeder til hjemmesiden. De tilpasses og komprimeres
+          automatisk.
+        </p>
+        <p className="mt-1">
+          <Link className={STANDALONE_LINK} href={IMAGES_PATH}>
+            Åbn billederne
           </Link>
         </p>
       </Card>
