@@ -119,6 +119,7 @@ describe('the public site and the administration share one window rule', () => {
       endsOn: '2026-09-30' as IsoDate,
       soldOutOn: null,
       showOnHomepage: true,
+      image: null,
       ...overrides,
     }
   }
@@ -235,6 +236,7 @@ describe('monthlyAdminState keeps three questions apart', () => {
       endsOn: '2026-09-30' as IsoDate,
       soldOutOn: null,
       showOnHomepage: true,
+      image: null,
       soldOut: false,
     }
 

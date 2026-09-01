@@ -1,4 +1,5 @@
 import type { AnnouncementLink } from '@/lib/announcements/link'
+import type { PublicImage } from '@/lib/images/public'
 import type { IsoDate } from '@/lib/time/calendar'
 
 /**
@@ -63,6 +64,8 @@ export type Dish = {
   tapas: TapasDetails | null
   /** Copenhagen-local date the item was marked sold out. `null` = available (§7b). */
   soldOutOn: IsoDate | null
+  /** The dish's library photo as the public site renders it, or `null` (phase 10C-2). */
+  image: PublicImage | null
 }
 
 /** `menu_categories.kind` — an ordinary list of dishes, or the Ugens ret section. */
@@ -90,6 +93,8 @@ export type WeeklySpecial = {
   priceSmallOre: number | null
   priceLargeOre: number | null
   soldOutOn: IsoDate | null
+  /** Ugens ret's photo, resolved from the library (phase 10C-2). The Saturday menu has none (1af). */
+  image: PublicImage | null
   saturday: {
     enabled: boolean
     name: string | null
@@ -109,6 +114,8 @@ export type MonthlyBurger = {
   endsOn: IsoDate | null
   soldOutOn: IsoDate | null
   showOnHomepage: boolean
+  /** The burger's photo, resolved from the library (phase 10C-2). */
+  image: PublicImage | null
 }
 
 /**
@@ -163,6 +170,8 @@ export type NewsArticle = {
    *  sitemap's `lastModified` (§7f), so both always state actual data. */
   updatedAt: string
   body: NewsBody
+  /** The article's photo, resolved from the library — null for an article without one (phase 10C-2). */
+  image: PublicImage | null
 }
 
 /** `pages.published` for `home` (§4, "Document shapes"). */

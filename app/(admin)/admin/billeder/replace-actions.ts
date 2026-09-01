@@ -3,6 +3,7 @@
 import { z } from 'zod'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { readImageStorageFacts } from '@/lib/content/images-admin'
 import { replaceLibraryImage } from '@/lib/images/admin'
 import { createImageStorage } from '@/lib/images/storage'
@@ -33,6 +34,12 @@ const replaceSchema = z.strictObject({
   newId: z.uuid(),
 })
 
+/*
+ * A replacement repoints every live reference at once (phase 10C-2): the wrapper
+ * expires the tags of the live references `replace_image()` itself reports having
+ * moved — after the commit, before the old files go — through the one invalidation
+ * door this action hands it, so the first guest request renders the successor (§20).
+ */
 export async function replaceUploadedImage(input: unknown): Promise<UploadReplaceReply> {
   const profile = await requireStaff()
 
@@ -46,10 +53,18 @@ export async function replaceUploadedImage(input: unknown): Promise<UploadReplac
 
   const supabase = await createSupabaseServerClient()
 
-  return replaceLibraryImage(supabase, createImageStorage(), profile, {
-    oldImageId: parsed.data.oldId,
-    expectedUpdatedAt: parsed.data.oldVersion,
-    newImageId: parsed.data.newId,
-    derivativePaths: facts.derivativePaths,
-  })
+  const result = await replaceLibraryImage(
+    supabase,
+    createImageStorage(),
+    profile,
+    {
+      oldImageId: parsed.data.oldId,
+      expectedUpdatedAt: parsed.data.oldVersion,
+      newImageId: parsed.data.newId,
+      derivativePaths: facts.derivativePaths,
+    },
+    { expireTags: expirePublicCacheTags },
+  )
+
+  return { status: result.status }
 }

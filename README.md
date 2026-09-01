@@ -7,10 +7,10 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–9 complete and locked; phase 10A (the image storage foundation)
-and phase 10B (the image library) built and green.** Phase 9's completion pass
-(2026-09-01) is recorded in technical plan §0s, phase 10A in §0t, and phase 10B
-in §0u. The public site renders from the database;
+**Status: phases 0–9 complete and locked; phase 10 built and green in all four
+increments (10A–10C-2), its lock pass pending.** Phase 9's completion pass
+(2026-09-01) is recorded in technical plan §0s, phase 10A in §0t, phase 10B in
+§0u, phase 10C-1 in §0v/§0w and phase 10C-2 in §0x. The public site renders from the database;
 the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
@@ -237,6 +237,28 @@ replacement stays atomic. `delete_image()` now detaches the three guarded
 columns itself before its DELETE; news is deliberately unguarded (its
 direct-edit model is phase 9's). pgTAP `023` proves the door from every JWT and
 the hygiene of the marker. Technical plan §0w records it.
+
+**Phase 10C-2** is finished: the public site renders the selected photos. Every
+approved entity slot — the menu's dish cards and Månedens burger card, the
+Forside's three featured burgers and its Månedens burger feature, Ugens ret,
+the news list, the Forside teaser and the article page — renders the library
+image through one server component (`SiteImage`): a `<picture>` with an AVIF
+source and a WebP `<img>` over the processed 480/960/1440/2160 ladder, `sizes`
+from the slot's real width, intrinsic `width`/`height` inside the same
+aspect-ratio box the placeholder reserved, the library's `alt_text` (or
+`alt=""` when none is authored), lazy below the fold, no JavaScript, no
+`next/image`, no proxy, and never the private original. A Draft Mode preview
+renders the pending selection through the same model; the guest keeps the
+published one. A published article's image is its `og:image` and its
+`NewsArticle` JSON-LD `image` (one derivative, one row); an article without one
+carries neither. The library is now coupled to the public cache: the alt edit
+expires the tags of the image's live usages, and `delete_image()` /
+`replace_image()` return the live references they themselves moved (migration
+`20260901220000`, pgTAP `024`) so the Server Actions expire exactly those tags
+after the commit and before the files go — the first guest request after every
+public-changing image operation carries the new state, and draft-only usages
+expire nothing. `tests/e2e/public-images.spec.ts` walks all of it at 375 and
+1440. Technical plan §0x records the phase; the phase-10 lock pass is next.
 
 ## Requirements
 

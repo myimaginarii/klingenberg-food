@@ -26,6 +26,7 @@ function burger(overrides: Partial<MonthlyBurgerView> = {}): MonthlyBurgerView {
     startsOn: '2026-09-01',
     endsOn: '2026-09-30',
     soldOutOn: null,
+    image: null,
     showOnHomepage: true,
     soldOut: false,
     ...overrides,

@@ -8,7 +8,7 @@ import {
   type ImageUsage,
   type ThumbnailPlan,
 } from '@/lib/images/library'
-import { derivativePathsFor, derivativePublicUrlPath } from '@/lib/images/derivatives'
+import { derivativePathsFor, derivativePublicUrl } from '@/lib/images/derivatives'
 import { getSupabaseUrl } from '@/lib/supabase/config'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
@@ -82,7 +82,7 @@ export type AdminImage = {
 }
 
 function publicUrl(path: string): string {
-  return `${getSupabaseUrl()}${derivativePublicUrlPath(path)}`
+  return derivativePublicUrl(getSupabaseUrl(), path)
 }
 
 function thumbnailOf(row: ImageRow): AdminImageThumbnail | null {

@@ -138,9 +138,15 @@ test('the weekly card can express nothing but the week', async () => {
    *
    * The one-off card's own boundary, including everything phase 8C owns, is asserted in
    * `tests/e2e/opening-hours-override.spec.ts`.
+   *
+   * Scoped to the weekly form, deliberately: the one-off card beside it may legitimately
+   * offer "Vis også som besked" for a fresh one-off change, and whether it does depends
+   * on today's weekday (a closure of an open day composes a message; of a seeded closed
+   * day it does not). Asserting page-wide here was a Monday/Tuesday-only blind spot,
+   * found the first time the chain ran on a Wednesday (phase 10C-2).
    */
-  await expect(ownerPage.getByText(/Erstat med den nye besked/i)).toHaveCount(0)
-  await expect(ownerPage.getByText(/Vis også som besked/i)).toHaveCount(0)
+  await expect(hoursForm(ownerPage).getByText(/Erstat med den nye besked/i)).toHaveCount(0)
+  await expect(hoursForm(ownerPage).getByText(/Vis også som besked/i)).toHaveCount(0)
 
   // No field the *weekly* form could smuggle a date or an announcement through.
   // `$ACTION_ID` is Next.js's own hidden field naming the Server Action; it carries no
@@ -517,7 +523,13 @@ test.describe('as a staff member', () => {
 
     // §5: an Owner-only area is absent rather than shown and disabled.
     await expect(hoursForm(staffPage)).toHaveCount(0)
-    await expect(staffPage.getByRole('checkbox')).toHaveCount(0)
+    // The seven day switches go with the form. The only checkbox a staff member may
+    // meet here is the one-off card's own "Vis også som besked" — offered on a weekday
+    // where a fresh closure composes a message (phase 8C-3B), which is why a page-wide
+    // "no checkbox" claim held on the seeded closed days and broke on a Wednesday.
+    for (const box of await staffPage.getByRole('checkbox').all()) {
+      await expect(box).toHaveAccessibleName(/Vis også som besked/)
+    }
     await expect(
       staffPage.getByRole('banner').getByRole('button', { name: 'Offentliggør' }),
     ).toHaveCount(0)

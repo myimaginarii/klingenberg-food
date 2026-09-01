@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { saveImageAltText } from '@/lib/images/admin'
 import { rowId } from '@/lib/schemas/primitives'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
@@ -19,6 +20,12 @@ import { imagesHref } from './routes'
  * Danish sentence — a refusal echoes what was typed, so nothing is lost while the
  * person corrects it. The action cannot move any other column: the grant refuses
  * every one of them regardless of what this file does.
+ */
+/*
+ * A saved description is rendered into every live usage's public HTML (phase
+ * 10C-2), so the tags the wrapper reports — the live references' own, draft-only
+ * usages excluded — are expired here, after the write and only for `saved`
+ * (§20, brief §19).
  */
 export async function saveAltText(formData: FormData): Promise<void> {
   const profile = await requireStaff()
@@ -41,6 +48,8 @@ export async function saveAltText(formData: FormData): Promise<void> {
 
   switch (saved.status) {
     case 'saved':
+      // Only now, and only for what a guest can already see.
+      expirePublicCacheTags(saved.cacheTags)
       redirect(imagesHref({ image: id.data, status: 'tekst_gemt' }))
       break
     case 'invalid':

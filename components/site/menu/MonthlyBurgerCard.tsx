@@ -1,6 +1,7 @@
 import type { MonthlyBurgerView } from '@/lib/menu/view'
 
 import { MediaPlaceholder } from '../MediaPlaceholder'
+import { SiteImage } from '../SiteImage'
 import { DishLabelBadge, SoldOutBadge } from './DishBadge'
 import { DishPrice } from './DishPrice'
 
@@ -16,7 +17,9 @@ import { DishPrice } from './DishPrice'
  *    chip. Whether today falls inside the window is decided by `buildMenuView` from the
  *    published dates (§7d) — a read-time comparison, never a scheduled job.
  *
- * The editor that fills it in is phase 6.
+ * The editor that fills it in is phase 6; its photograph (phase 10C-2) is the row's
+ * library image in the same 4:3 / 1:1 frame the dish cards use, and the empty state
+ * keeps the reserved frame — an unconfigured burger has no image to show.
  */
 const EMPTY_STATE_TEXT =
   'Denne måneds burger er ikke oplyst endnu. Feltet står tomt, indtil restauranten udfylder navn, beskrivelse og pris — og hele kortet forsvinder fra menuen uden for perioden.'
@@ -53,9 +56,11 @@ export function MonthlyBurgerCard({ burger }: { burger: MonthlyBurgerView | null
         burger.soldOut ? 'bg-surface-muted' : 'bg-surface'
       }`}
     >
-      <MediaPlaceholder
+      <SiteImage
+        image={burger.image}
         ratio="square"
-        label="Månedens burger"
+        sizes="dishCard"
+        placeholder={{ label: 'Månedens burger' }}
         className={`w-24 shrink-0 self-start rounded-[0.5rem] md:aspect-card md:w-[9.375rem] md:self-center ${
           burger.soldOut ? 'opacity-70 grayscale' : ''
         }`}

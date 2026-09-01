@@ -30,6 +30,7 @@ function dish(overrides: Partial<Dish> = {}): Dish {
     labels: [],
     tapas: null,
     soldOutOn: null,
+    image: null,
     ...overrides,
   }
 }
@@ -57,6 +58,7 @@ function weeklySpecial(overrides: Partial<WeeklySpecial> = {}): WeeklySpecial {
     priceSmallOre: null,
     priceLargeOre: null,
     soldOutOn: null,
+    image: null,
     saturday: {
       enabled: false,
       name: null,
@@ -77,6 +79,7 @@ function monthlyBurger(overrides: Partial<MonthlyBurger> = {}): MonthlyBurger {
     startsOn: '2026-09-01',
     endsOn: '2026-09-30',
     soldOutOn: null,
+    image: null,
     showOnHomepage: false,
     ...overrides,
   }

@@ -27,6 +27,14 @@ import { describe, expect, it, vi } from 'vitest'
  * Raw storage URLs are also pinned: exactly one module may compose a
  * `/storage/v1/` path, so a hand-built storage address elsewhere fails a test
  * instead of shipping.
+ *
+ *   5. **Public rendering is derivative-only and has one renderer** (phase
+ *      10C-2, brief §39). The private bucket's name lives in the rules module
+ *      alone; every `<picture>`/`srcSet` on the public site is written by
+ *      `components/site/SiteImage.tsx`; the public image model is composed only
+ *      by `lib/images/public.ts` over the central path builder; no entity schema
+ *      carries an alt-text field of its own; and no image proxy, optimizer or
+ *      request-time transformation exists.
  */
 
 vi.mock('@/lib/supabase/server', () => ({
@@ -45,6 +53,18 @@ const SHARP_IMPORTERS = ['lib/images/processing.ts']
 
 /** The one module that may compose a raw storage URL path. */
 const STORAGE_URL_COMPOSERS = ['lib/images/derivatives.ts']
+
+/** The one module that may name the private bucket (phase 10C-2, brief §39). */
+const PRIVATE_BUCKET_NAMERS = ['lib/images/rules.ts']
+
+/** The two renderers of a library image: the public site's, and the admin thumbnail. */
+const PICTURE_RENDERERS = [
+  'components/admin/images/ImageThumbnail.tsx',
+  'components/site/SiteImage.tsx',
+]
+
+/** The one module that composes the public image model from a stored row. */
+const PUBLIC_IMAGE_COMPOSERS = ['lib/images/public.ts']
 
 /** The image modules that must never reach a client bundle. */
 const SERVER_ONLY_IMAGE_MODULES = [
@@ -284,5 +304,119 @@ describe('image_id is owned by exactly the 10C-1 selection paths (§29)', () => 
         'imageExists',
       )
     }
+  })
+})
+
+describe('public rendering is derivative-only, through one renderer (phase 10C-2, §39)', () => {
+  it('the private bucket is named in the rules module and nowhere else', () => {
+    const namers = sourceFiles
+      .filter((file) => codeOf(file.source).includes('media-originals'))
+      .map((file) => file.path)
+      .sort()
+
+    expect(namers).toEqual(PRIVATE_BUCKET_NAMERS)
+  })
+
+  it('no public or client module reaches the private bucket constant', () => {
+    const reachers = sourceFiles
+      .filter((file) => /\bORIGINALS_BUCKET\b/.test(codeOf(file.source)))
+      .filter((file) => file.path !== 'lib/images/rules.ts')
+      .map((file) => file.path)
+      .sort()
+
+    // Only the trusted storage module (service role, server-only) may name it.
+    expect(reachers).toEqual(['lib/images/storage.ts'])
+    for (const file of clientFiles) {
+      expect(codeOf(file.source), file.path).not.toContain('ORIGINALS_BUCKET')
+    }
+  })
+
+  it('a <picture> with a srcset is written by exactly the two renderers', () => {
+    const renderers = sourceFiles
+      .filter((file) => /<picture\b/.test(codeOf(file.source)) || /\bsrcSet=/.test(codeOf(file.source)))
+      .map((file) => file.path)
+      .sort()
+
+    expect(renderers).toEqual(PICTURE_RENDERERS)
+  })
+
+  it('no public component renders a raw <img> of its own', () => {
+    // The public site's photographs go through SiteImage; the only other <img> on
+    // the public site is the static map (§7g), which is not a library image.
+    const rawImages = sourceFiles
+      .filter((file) => file.path.startsWith('components/site/') || file.path.startsWith('app/(site)/'))
+      .filter((file) => file.path !== 'components/site/SiteImage.tsx')
+      .filter((file) => /<img\b/.test(codeOf(file.source)))
+      .map((file) => file.path)
+      .sort()
+
+    expect(rawImages).toEqual(['components/site/StaticMap.tsx'])
+  })
+
+  it('the public image model is composed in one module, over the central path builder', () => {
+    const composers = sourceFiles
+      .filter((file) => /\bbuildPublicImage\(/.test(codeOf(file.source)))
+      .filter((file) => file.path !== 'lib/content/images.ts')
+      .map((file) => file.path)
+      .sort()
+
+    expect(composers).toEqual(PUBLIC_IMAGE_COMPOSERS)
+
+    // …and the model reaches the pages only through the read layer's projection.
+    const projectors = sourceFiles
+      .filter((file) => /\breadPublicImages\(/.test(codeOf(file.source)))
+      .filter((file) => file.path !== 'lib/content/images.ts')
+      .map((file) => file.path)
+      .sort()
+
+    expect(projectors).toEqual(['lib/content/menu.ts', 'lib/content/news.ts'])
+  })
+
+  it('derivative paths are derived in the derivatives module only — no component builds one', () => {
+    const builders = sourceFiles
+      .filter((file) => /\bderivativePath\(/.test(codeOf(file.source)))
+      .map((file) => file.path)
+      .sort()
+
+    // The pipeline names the paths it writes; the two view models name the paths
+    // they render. No page, component or action is on the list.
+    expect(builders).toEqual([
+      'lib/images/derivatives.ts',
+      'lib/images/finalize.ts',
+      'lib/images/library.ts',
+      'lib/images/public.ts',
+    ])
+  })
+
+  it('no entity schema carries an alt text of its own — the library is the single owner (§22)', async () => {
+    const { dishDraft } = await import('@/lib/schemas/menu')
+    const { weeklySpecialDraft, monthlyBurgerDraft } = await import('@/lib/schemas/specials')
+    const { newsArticleInput } = await import('@/lib/schemas/news')
+
+    for (const fields of [
+      dishDraft.fields,
+      weeklySpecialDraft.fields,
+      monthlyBurgerDraft.fields,
+      Object.keys(newsArticleInput.shape),
+    ]) {
+      for (const field of fields) {
+        expect(field).not.toMatch(/alt/i)
+      }
+    }
+  })
+
+  it('no image proxy, optimizer or request-time transformation exists', () => {
+    const offenders = sourceFiles
+      .filter((file) =>
+        /from 'next\/image'|\/_next\/image|imgproxy|\/render\/image\/|getPublicUrl\(/.test(
+          codeOf(file.source),
+        ),
+      )
+      .map((file) => file.path)
+
+    expect(offenders).toEqual([])
+
+    const nextConfig = readFileSync(join(ROOT, 'next.config.ts'), 'utf8')
+    expect(nextConfig).not.toMatch(/\bimages\s*:/)
   })
 })

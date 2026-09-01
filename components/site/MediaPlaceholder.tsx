@@ -17,11 +17,18 @@
  *
  * 1ab lists the outstanding photography. Nothing here fetches a third-party image and
  * no stock photograph is substituted.
+ *
+ * Since phase 10C-2 the entity slots (dish, Ugens ret, Månedens burger, news) render a
+ * real library photograph through `SiteImage` when one is selected, and this frame
+ * when none is — or when a stored record cannot be rendered safely. The frames the
+ * restaurant has not supplied an editor for yet (hero, award, team) still render
+ * this directly.
  */
 
 export type MediaRatio = 'hero' | 'card' | 'square' | 'portrait' | 'team'
 
-const RATIO_CLASSES: Record<MediaRatio, string> = {
+/** The aspect-ratio box per frame (1aa) — shared with `SiteImage`, which fills the same box. */
+export const RATIO_CLASSES: Record<MediaRatio, string> = {
   hero: 'aspect-hero',
   card: 'aspect-card',
   square: 'aspect-square',

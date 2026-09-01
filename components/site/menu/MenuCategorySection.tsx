@@ -29,10 +29,13 @@ export function MenuCategorySection({
   category,
   weeklySpecial,
   monthlyBurger,
+  first = false,
 }: {
   category: MenuCategoryView
   weeklySpecial: WeeklySpecialView | null
   monthlyBurger: MonthlyBurgerView | null
+  /** The page's first section: its first photo is above the fold and loads eagerly. */
+  first?: boolean
 }) {
   return (
     <MenuSection
@@ -45,6 +48,7 @@ export function MenuCategorySection({
         category={category}
         weeklySpecial={weeklySpecial}
         monthlyBurger={monthlyBurger}
+        first={first}
       />
     </MenuSection>
   )
@@ -54,10 +58,12 @@ function CategoryBody({
   category,
   weeklySpecial,
   monthlyBurger,
+  first,
 }: {
   category: MenuCategoryView
   weeklySpecial: WeeklySpecialView | null
   monthlyBurger: MonthlyBurgerView | null
+  first: boolean
 }) {
   if (category.kind === 'weekly_special') {
     return weeklySpecial === null ? null : <WeeklySpecial weekly={weeklySpecial} />
@@ -72,8 +78,8 @@ function CategoryBody({
   if (asCards) {
     return (
       <div className="flex flex-col gap-3.5">
-        {category.dishes.map((dish) => (
-          <DishCard key={dish.id} dish={dish} />
+        {category.dishes.map((dish, index) => (
+          <DishCard key={dish.id} dish={dish} loading={first && index === 0 ? 'eager' : 'lazy'} />
         ))}
         {showsMonthlyBurger ? <MonthlyBurgerCard burger={monthlyBurger} /> : null}
       </div>

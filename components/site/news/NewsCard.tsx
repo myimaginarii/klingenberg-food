@@ -2,28 +2,40 @@ import Link from 'next/link'
 
 import type { NewsArticle } from '@/lib/content/types'
 
-import { MediaPlaceholder } from '../MediaPlaceholder'
+import { SiteImage } from '../SiteImage'
 import { NewsMeta } from './NewsMeta'
 
 /**
  * A news item in the list — design 1j (desktop) and 1n (mobile).
  *
  * The design draws two variants: an article with a photograph, and an article without
- * one, which gets a date circle instead so "layoutet falder ikke sammen" (1j). Which
- * variant an article gets depends on whether it has an image, and images arrive with the
- * upload pipeline in phase 10 — so today every card shows the reserved photo frame, and
- * the date-circle variant is built in the phase that can tell the two apart.
+ * one, which gets a date circle instead so "layoutet falder ikke sammen" (1j). Since
+ * phase 10C-2 an article with a selected library image renders it in 1j/1n's 3:2
+ * frame; an article without one still shows the reserved frame — the date-circle
+ * variant is a separate visual treatment the phase-10 lock pass decides on, because
+ * building it changes the no-image card rather than filling the image slot.
  *
  * The Forside's smaller teaser is a different card, not a prop on this one; see
  * `components/site/home/NewsTeaserCard.tsx`.
  */
-export function NewsCard({ article, excerpt }: { article: NewsArticle; excerpt: string | null }) {
+export function NewsCard({
+  article,
+  excerpt,
+  loading = 'lazy',
+}: {
+  article: NewsArticle
+  excerpt: string | null
+  /** `eager` for the first card, which is above the fold on the list. */
+  loading?: 'lazy' | 'eager'
+}) {
   return (
     <article className="bg-surface border-border rounded-card-lg flex flex-col gap-4 border p-3.5 md:flex-row md:gap-5 md:p-4.5">
-      <MediaPlaceholder
+      <SiteImage
+        image={article.image}
         ratio="hero"
-        label="Nyhedsfoto"
-        detail="3:2 · valgfrit"
+        sizes="newsCard"
+        loading={loading}
+        placeholder={{ label: 'Nyhedsfoto', detail: '3:2 · valgfrit' }}
         className="rounded-card w-full shrink-0 self-start md:w-65"
       />
 

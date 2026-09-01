@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-import { MediaPlaceholder } from '@/components/site/MediaPlaceholder'
+import { SiteImage } from '@/components/site/SiteImage'
 import { NewsMeta } from '@/components/site/news/NewsMeta'
 import type { NewsArticle } from '@/lib/content/types'
 
@@ -11,6 +11,10 @@ import type { NewsArticle } from '@/lib/content/types'
  * shares a row with the "Om os" excerpt, so it carries a compact photograph and two
  * lines of text. The headline is the link, because the design gives the teaser no
  * separate "Læs mere" action — that lives on the list.
+ *
+ * The photograph (phase 10C-2) is the article's library image in 1g's 4:3 frame —
+ * 1l draws it full width above the text on a phone — or the reserved frame for an
+ * article without one. The headline stays the link and the accessible name.
  */
 export function NewsTeaserCard({
   article,
@@ -21,10 +25,11 @@ export function NewsTeaserCard({
 }) {
   return (
     <article className="bg-surface border-border rounded-card-lg flex flex-col gap-3.5 border p-3.5 md:flex-row md:gap-4">
-      <MediaPlaceholder
+      <SiteImage
+        image={article.image}
         ratio="card"
-        label="Foto"
-        detail="valgfrit"
+        sizes="newsTeaser"
+        placeholder={{ label: 'Foto', detail: 'valgfrit' }}
         className="rounded-card w-full shrink-0 self-start md:w-32.5"
       />
 

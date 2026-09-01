@@ -3,6 +3,43 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 10C-2 — no dependencies added (2026-09-01)
+
+**Public image rendering, the cache coupling and the news image metadata**
+(technical plan §0x) adds **no package**. `package.json` and the lockfile are
+byte-identical to the phase-10C-1 state. The refusals worth recording:
+
+**`next/image` / an image CDN or proxy.** §1 adjustment 3 rules the optimizer
+out: the derivatives are pre-rendered at upload, and the public site serves a
+plain `<picture>` with `srcset`/`sizes` over them. No `images` block exists in
+`next.config.ts`, so no remote-host allow-list can widen, and no request-time
+transformation service can reach the private bucket.
+
+**A responsive-image or lazy-loading library.** The browser's own `<picture>`,
+`srcset`, `sizes`, `loading="lazy"` and `decoding="async"` are the whole of it,
+in one ~40-line server component; a library would add JavaScript to a public
+site that ships none for images, and the telemetry the phase brief forbids.
+
+**A JSON-LD / Open Graph helper.** The `image` object and the `og:image` entry
+are a few lines over the same derivative pick (`seoImageOf`), rendered by the
+existing serializer and Next's own metadata API.
+
+### One migration, and what it does not contain
+
+`20260901220000_image_mutation_cache_impact.sql`: `delete_image()` and
+`replace_image()` restated to return `affected` — the per-kind live/draft
+counts of the rows their own statements moved — with the three guarded live
+UPDATEs as counted data-modifying CTEs and an explicit, counted news detach.
+No table, view, index, grant, policy or trigger change, no SECURITY DEFINER,
+no change to the guard or its marker, and every existing reply key unchanged.
+
+### `npm audit --audit-level=high` — clean
+
+Run from a clean `npm ci` as part of the phase-10C-2 regression: **0
+vulnerabilities** over the unchanged resolved tree.
+
+---
+
 ## Phase 10C-1 — no dependencies added (2026-09-01)
 
 **Editor image selection and the draft-aware reference model** (technical plan

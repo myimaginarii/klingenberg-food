@@ -1,7 +1,7 @@
 import { NO_SATURDAY_MENU } from '@/lib/menu/weekly'
 import type { WeeklySpecialView } from '@/lib/menu/view'
 
-import { MediaPlaceholder } from '../MediaPlaceholder'
+import { SiteImage } from '../SiteImage'
 import { SoldOutBadge } from './DishBadge'
 import { DishPrice } from './DishPrice'
 
@@ -20,6 +20,11 @@ import { DishPrice } from './DishPrice'
  * administration promises it word for word — 1ag's toggle reads *"Slå fra, og der står
  * 'Ingen lørdagsmenu denne uge'"*. Two copies of an approved sentence is one copy too
  * many, so it is stated once in `lib/menu/weekly.ts` and read by both sides.
+ *
+ * The week's photograph (phase 10C-2) is the row's library image in 1h/1af's 4:3
+ * frame — full width above the text on a phone (1m), a column beside it from `md` —
+ * or the reserved frame when the kitchen selected none. The Saturday menu has no
+ * photo slot in any frame, and none is invented.
  */
 
 export function WeeklySpecial({ weekly }: { weekly: WeeklySpecialView }) {
@@ -38,10 +43,11 @@ function WeekDishCard({ weekly }: { weekly: WeeklySpecialView }) {
         weekly.soldOut ? 'bg-surface-muted' : 'bg-surface'
       }`}
     >
-      <MediaPlaceholder
+      <SiteImage
+        image={weekly.image}
         ratio="card"
-        label="Foto"
-        detail="valgfrit"
+        sizes="weeklyCard"
+        placeholder={{ label: 'Foto', detail: 'valgfrit' }}
         className={`border-border w-full shrink-0 border-0 border-b md:w-50 md:border-r md:border-b-0 ${
           weekly.soldOut ? 'opacity-70 grayscale' : ''
         }`}

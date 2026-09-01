@@ -473,8 +473,10 @@ test.describe('1t’s generated-announcement option', () => {
     // §3: the option defaults ON when the generator returns something.
     await expect(announcementOption(staffPage)).toBeChecked()
 
-    // The wording is the generator's, not the browser's idea of it.
-    await expect(announcementMessage(staffPage)).toHaveValue(/^Ændrede åbningstider \w+ · 17:00–19:00$/)
+    // The wording is the generator's, not the browser's idea of it. `\p{L}` rather than
+    // `\w`: a Danish weekday may be "lørdag" or "søndag", and `\w` matched only the
+    // ASCII ones — a blind spot that held while today+3 was never a weekend day.
+    await expect(announcementMessage(staffPage)).toHaveValue(/^Ændrede åbningstider \p{L}+ · 17:00–19:00$/u)
 
     // 1t's expiry helper, computed from the *later* of the two closings (§0m).
     await expect(overrideForm(staffPage).getByText(/Udløber automatisk/)).toBeVisible()

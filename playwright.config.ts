@@ -93,6 +93,10 @@ export default defineConfig({
         // dedicated projects at the end of the chain. `--list` check: the file
         // appears under exactly `editor-images-mobile` and `editor-images`.
         'e2e/editor-images.spec.ts',
+        // The public image rendering suite (phase 10C-2) — owned by its two
+        // dedicated projects at the very end of the chain. `--list` check: the
+        // file appears under exactly `public-images-mobile` and `public-images`.
+        'e2e/public-images.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -113,11 +117,12 @@ export default defineConfig({
         'e2e/opening-hours.spec.ts',
         'e2e/opening-hours-override.spec.ts',
         'e2e/public-cache.spec.ts',
-        // See the desktop project's entry for why these four must exist.
+        // See the desktop project's entry for why these five must exist.
         'e2e/opening-hours-announcement.spec.ts',
         'e2e/news-admin.spec.ts',
         'e2e/image-library.spec.ts',
         'e2e/editor-images.spec.ts',
+        'e2e/public-images.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -524,6 +529,30 @@ export default defineConfig({
       name: 'editor-images',
       testMatch: 'e2e/editor-images.spec.ts',
       dependencies: ['editor-images-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    /*
+     * Public image rendering and the cache coupling (phase 10C-2), at both widths,
+     * and the new tail of the chain. It publishes a dish, the week, the burger and
+     * an article with real photos, edits, replaces and deletes them in the library,
+     * and asserts the FIRST guest request after each — so it expires the `menu`,
+     * `weekly`, `monthly` and `news` tags and owns every image_id column while it
+     * runs, and follows the editor-images pair for the same reason that pair
+     * follows the library suite. Two widths because the frames draw different
+     * slots (1:1 thumbnails on a phone, 4:3 / 3:2 columns from md) and `sizes` must
+     * pick a different rung at each. Mobile runs first and hands its state (an
+     * empty library, nothing referenced) to the desktop project.
+     */
+    {
+      name: 'public-images-mobile',
+      testMatch: 'e2e/public-images.spec.ts',
+      dependencies: ['editor-images'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    {
+      name: 'public-images',
+      testMatch: 'e2e/public-images.spec.ts',
+      dependencies: ['public-images-mobile'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],

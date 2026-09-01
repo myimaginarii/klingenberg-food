@@ -31,9 +31,13 @@ export default async function NyhederPage() {
         <p className="text-ink-2 mt-6">{EMPTY_STATE}</p>
       ) : (
         <ul className="mt-6 flex flex-col gap-4.5">
-          {articles.map((article) => (
+          {articles.map((article, index) => (
             <li key={article.id}>
-              <NewsCard article={article} excerpt={articleExcerpt(article)} />
+              <NewsCard
+                article={article}
+                excerpt={articleExcerpt(article)}
+                loading={index === 0 ? 'eager' : 'lazy'}
+              />
             </li>
           ))}
         </ul>

@@ -2846,6 +2846,252 @@ module boundary appeared exactly as before.
 
 ---
 
+## §0x. Phase 10C-2 — public image rendering, the cache coupling and the news image metadata (2026-09-01)
+
+The image relationships 10C-1 secured are now visible: every approved public
+image slot renders the selected library photograph from the processed derivative
+ladder alone, the Draft Mode preview renders the pending selection through the
+same model, a published news article names its image in `og:image` and its
+`NewsArticle` JSON-LD, and every image-library mutation that changes what a guest
+sees expires exactly the public cache tags whose HTML changed. **Phase 10 is not
+locked**: the lock pass — reading 10A, 10B, 10C-1 and 10C-2 as one system — is the
+next step, recorded at the end of this section.
+
+### The public image surfaces — the frames' own list (brief §1)
+
+Only the placeholders the approved frames draw for an *entity* image are
+replaced; the hero, award, team and map frames belong to phase 11's `pages`
+editors and phase 14's assets and still render `MediaPlaceholder` directly.
+
+| Entity | Public surface | Frame and slot | Source |
+|---|---|---|---|
+| dish | `/menu` card (`DishCard`) | 1h 4:3 at 9.375rem from `md`; 1m 1:1 at 6rem | `dishes.image_id` |
+| dish | Forside "Tre fra menuen" (`FeaturedDishCard`) | 1g 3:2 across the card's top; 1l 1:1 at 6rem | the same `image_id` |
+| weekly_special | `/menu` Ugens ret (`WeeklySpecial`) | 1h/1af 4:3 at 12.5rem; 1m full width | `weekly_special.image_id` (the Saturday menu has no slot) |
+| monthly_burger | `/menu` Burgere card (`MonthlyBurgerCard`) | 1h 4:3 / 1m 1:1, as a dish | `monthly_burger.image_id` |
+| monthly_burger | Forside feature (`MonthlyBurgerFeature`, §0d) | 4:3 column, 17.5rem from `md`, 21.25rem from `lg`; full width on a phone | the same `image_id` |
+| news | `/nyheder` card (`NewsCard`) | 1j 3:2 at 16.25rem; 1n full width | `news.image_id` |
+| news | Forside teaser (`NewsTeaserCard`) | 1g 4:3 at 8.125rem; 1l full width | the same `image_id` |
+| news | `/nyheder/[slug]` (§7f) | 3:2, the article's 62ch measure | the same `image_id` |
+
+No image → the reserved frame, exactly as before. Two frame details are recorded
+rather than built, because both change the *no-image* card and not the slot: 1j's
+date-circle variant for an article without a photo, and 1af's "uden foto" weekly
+card whose text runs to the edge. Both are phase-10 lock-pass decisions.
+
+### One public image model, one renderer
+
+- **`lib/images/public.ts`** (pure) — `buildPublicImage(origin, row)` turns the
+  three stored facts a public read may see (`storage_path`, `alt_text`,
+  `derivatives`) into `PublicImage`: the ascending candidates (AVIF and WebP URL
+  per measured rung, through the central `derivativePath` and the new
+  `derivativePublicUrl`), the two `srcset` strings, a WebP `src` fallback (the
+  smallest rung at or above 960 px, never the 2160 rung), the intrinsic
+  `width`/`height` of the largest rung, and `alt`. A storage path the upload flow
+  could not have minted or a derivative record outside the validated shape yields
+  `null` — the placeholder, never a guessed URL and never the original (brief
+  §4). No rung is ever referenced that the record does not carry; nothing is
+  upscaled. `seoImageOf()` picks the one derivative every SEO surface names, and
+  `IMAGE_SIZES` states each slot's real rendered width per breakpoint (brief §7).
+- **`lib/content/images.ts`** (server-only) — `readPublicImages(access, ids)`,
+  called *inside* each tagged read (`menu-sections`, `weekly-special`,
+  `monthly-burger`, `news-list`, `news-article`) with the **overlaid** ids, so
+  the image data is part of the entity's cache entry and a preview resolves the
+  pending selection through the same projection. Only `id, storage_path,
+  alt_text, derivatives` are selected: no filename, no uploader, no bytes, no
+  MIME, no private bucket. `Dish`, `WeeklySpecial`, `MonthlyBurger` and
+  `NewsArticle` carry `image: PublicImage | null`.
+- **`components/site/SiteImage.tsx`** — the one public renderer:
+  `<picture class="aspect-…"><source type="image/avif" srcset sizes><img src
+  srcset sizes width height alt loading decoding></picture>`, over the same
+  `RATIO_CLASSES` box the placeholder reserved, `object-cover` inside it (the
+  browser crops within the frame; nothing on disk is cropped), the placeholder
+  when the model is `null`. Plain server HTML; no `next/image`, no proxy, no
+  request-time transformation, no JavaScript. `loading="lazy"` everywhere except
+  the article's own image and the first card on `/menu` and `/nyheder`.
+
+### Alt semantics (brief §8, §28)
+
+The library owns `alt_text`; entities store only `image_id`. The current
+description renders on every surface; a null or blank description renders
+`alt=""` — every slot sits beside the text that names the thing, so an
+undescribed photo is decorative repetition for a screen reader, and copying the
+dish's name into `alt` would be the duplicate verbose text the accepted model
+refuses. No name, filename or keyword is ever copied into a description. axe
+(WCAG 2.2 A/AA) passes on `/`, `/menu`, `/nyheder` and the article at 375 and
+1440 with real photos in place.
+
+### AVIF, WebP and the browsers (brief §6)
+
+AVIF is offered through `<source>`, WebP is the `<img>`; a browser that decodes
+neither gets the placeholder's box with the alt text, never the private
+original. Every browser the project supports (current Chromium, Firefox and
+Safari lines) decodes WebP; there is no JPEG derivative by design (§0t), so the
+same holds for the Open Graph image, which is WebP. Recorded for the final SEO
+pass to re-weigh against crawler support at launch.
+
+### Candidate selection, measured (brief §41)
+
+At 375 and at 1440 the dish card, the featured card and the monthly card fetch
+exactly one candidate — the 480 rung — for a 2560 px source that carries all four;
+the article fetches 480 on a phone and 960 on a desktop; no request names the
+2160 rung for a card, the private bucket, or the same image twice (asserted in
+`public-images.spec.ts` from the browser's own request log).
+
+### Draft Mode (brief §9)
+
+By construction: the overlay runs before the projection, so live A + draft B
+previews B while the guest keeps A; live A + pending removal previews the
+placeholder while the guest keeps A; live null + draft B previews B. No separate
+preview image logic exists. A draft article previews its row's current image and
+carries no `og:image` and no JSON-LD (§7f).
+
+### News metadata (brief §14–§16)
+
+A published article with a valid image carries `og:image` (with `og:image:width`,
+`og:image:height` and, when authored, `og:image:alt`) and a `NewsArticle`
+`image` `ImageObject` — both from `seoImageOf()`: the smallest WebP rung at or
+above 1200 px, or the largest available, on the storage origin (the site's own
+URLs still resolve through `lib/config/site.ts`). The visible image, the
+`og:image` and the JSON-LD name the same row. An article without an image
+carries **no** `og:image` and no `image`: §11's branded fallback card is still
+not supplied, so it is omitted, not invented. The sitemap is unchanged —
+membership is publication, never an image.
+
+### The cache coupling (brief §17–§24) — one mapping, the database's own set
+
+- **Reference kind → tags** lives in `lib/images/cache-impact.ts` and is read
+  from the publishing registry: `dish → menu` (the Forside's featured cards come
+  from the same `menu`-tagged read), `weekly → weekly`, `monthly → monthly`,
+  `news → news` (list, article, teaser, metadata, sitemap). Nothing is
+  invalidated globally; contact, hours and the page documents are never touched.
+- **Delete and replace** (migration `20260901220000`) — `delete_image()` and
+  `replace_image()` now return `affected`: per-kind counts of the rows their own
+  live statements moved (`RETURNING` inside the one transaction, behind the FOR
+  UPDATE lock), split into `live` (a published dish that is not soft-deleted,
+  the singletons, a published article) and `draft` (draft keys, a soft-deleted
+  dish, an unpublished article). Under READ COMMITTED an UPDATE re-evaluates on
+  the newest committed row, so a reference a concurrent publish made live is
+  counted by the statement that moved it — the race a pre-read in another
+  transaction could lose (brief §22). `delete_image()` detaches `news.image_id`
+  explicitly (the FK had done it as the owner, uncounted). Refused transitions
+  carry no `affected` key. SECURITY INVOKER kept; the 023 guard, its marker and
+  every grant and policy unchanged; every existing reply key unchanged, so pgTAP
+  020–023 pass as they were.
+- **Alt edit** — the description stays the one direct column write (§0t's
+  grant), so `saveImageAltText` reads `image_references` *after* its successful
+  UPDATE and reports the live kinds' tags; a reference published later is
+  rendered by the publish that makes it live. A failed post-write read falls
+  back to the four entity tags — bounded, never global.
+- **Order** — the wrappers expire after the commit and **before** the storage
+  cleanup (through an injected `PublicCacheEffects` door the Server Action hands
+  them), so the first guest request after a replacement never meets cached HTML
+  whose derivative URLs are about to 404. Draft-only references expire nothing.
+- **Publish** — unchanged: the entity's own tags carry the image live. News:
+  the published-save `news` expiry 10C-1 wired carries an image change.
+- **Undo** — replacement has no Fortryd (10B); nothing to couple.
+
+### Private originals (brief §25, §40)
+
+`media-originals` is named in `lib/images/rules.ts` alone and reached only by
+the server storage module; the public model cannot compose an original's URL;
+the guest HTML of every surface, the Draft Mode preview and the news metadata
+contain only `media` derivative URLs — asserted in the policy suite, the unit
+suites and every E2E story.
+
+### Tests
+
+- **Unit** (+68 in 5 new files, plus the extended policy, admin, SEO and fixture
+  suites): the model and its refusals, the srcsets, the fallback, the
+  dimensions, the alt rule, the sizes map, the reference-kind mapping, live vs
+  pending, the affected-set schema, the OG image and its omission, the JSON-LD
+  image, the same-asset rule, the Draft Mode projection, the renderer's markup,
+  and the wrappers' expiry order. The policy suite now pins the private bucket's
+  one namer, the two `<picture>` renderers, the one model composer, no raw
+  public `<img>` beyond the static map, no entity-owned alt field and no image
+  proxy.
+- **pgTAP** `024_image_cache_impact.test.sql` (49 assertions): both transitions'
+  `affected` replies from real Staff, Owner and anonymous JWTs — the refused
+  transitions carry none; a confirmed delete over a live dish, a soft-deleted
+  dish, the weekly singleton, a monthly draft, a published and a draft article
+  reports exactly what a guest could see; draft-only and unreferenced images
+  report live zeros; a multi-entity replacement reports its counts and moves
+  every reference; the 023 guard still refuses Staff and Owner afterwards;
+  unrelated content is byte-identical.
+- **Integration**: the 12 tests kept; the pipeline test now also proves the
+  public model over the real row names only URLs that serve, in both formats.
+- **E2E** `public-images.spec.ts` under exactly `public-images-mobile` and
+  `public-images` (14 stories each): the dish draft → placeholder → preview →
+  publish on the first request → one candidate fetched → no-JS → alt edit →
+  global replacement → weekly (pending, published, pending removal) → monthly
+  (menu card and Forside feature) → news (draft 404 + preview without claims,
+  publish with `og:image` = JSON-LD image, list and teaser, published image
+  change, unpublish) → confirmed deletion → the seed restored. The 10C-1
+  boundary test now asserts the preview renders the pending photo.
+
+### Recorded for the FINAL SECURITY AUDIT (phase 13) — carried forward
+
+The signed-upload token's lifetime and session-unboundness (§0t, §0u); the
+service-role boundary; never-finalized private originals; best-effort storage
+cleanup; `replace_image()` accepting any successor; the published-image guard
+architecture (§0w). New from this phase: the alt-edit expiry rests on a
+post-write read rather than a transition (the bounded fallback above); the
+`affected` counts include a soft-deleted dish under `draft` and treat any
+published article as live; and a public derivative that 404s (a cleanup that
+raced a cached page inside the five-minute net) shows the alt text in a stable
+box — there is no client retry, by design.
+
+### What phase 10C-2 deliberately does not contain
+
+A JPEG fallback or any public original; an image proxy, `next/image` or a
+request-time transform; an image sitemap extension; the date-circle news card
+and the "uden foto" weekly card (lock pass); crop controls; a second alt store;
+a generic responsive-image framework; any `pages`-document image (phase 11).
+
+### The regression
+
+From a clean tree: `npm ci`, `npm run db:reset:full` (the new migration applies
+cleanly), a fresh production build from an emptied `.next`. Typecheck, lint and
+the source policy clean; **2,368 unit tests in 88 files** (+68 in 5 new files,
+plus the extended policy, admin, SEO and fixture suites); **1,643 pgTAP
+assertions in 24 files** (+49 in `024`), from real anonymous, Staff and Owner
+JWTs; **12 integration tests in 3 files**, one extended; `npm audit
+--audit-level=high` clean (0 vulnerabilities); `npx playwright test --list`
+collecting **1,101 tests in 29 files**, with `e2e/public-images.spec.ts` under
+exactly `public-images-mobile` and `public-images` (the §29 check); and the
+full Playwright matrix at `--retries=0`, run as the chunked chain (the
+read-only trio together, every write project in its own invocation, in config
+order, against one detached production server): **1,094 passed, 7 deliberately skipped (width/device guards), zero failed and zero flaky** on the final run of every project.
+
+Recorded honestly: the chain was the first ever to run on a **Wednesday**, and
+seven assertions in four locked suites (`opening-hours`,
+`opening-hours-override`, `opening-hours-announcement` and the a11y
+`hours-admin`) turned out to hold only on the seeded closed weekdays. None was
+a product defect: a fresh one-off change for an *open* day composes a message,
+so 1t's "Vis også som besked" option and its suggestion stand on the one-off
+card exactly as 8C-3B designed — and six page-wide "no checkbox / exactly
+seven checkboxes / no such text" claims about the *weekly* card had been
+reading the whole screen; the seventh was a `\w+` that cannot match "lørdag". Each is now scoped to the form it
+is about, opened on a seeded closed day where the 8B-era claim is the honest
+one, or written with `\p{L}`; nothing in the product changed. The affected
+projects were re-run green in place, and the read-only trio was re-run at the
+end of the chain, after Copenhagen midnight, so every result reported above
+comes from the same calendar day. Phases 5–10C-1 ran green behind it,
+unchanged; the public cache is still 5m/5m, no tracking cookie and no browser
+Supabase client appeared, and no private-original URL reached any public
+surface.
+
+### Remaining phase-10 lock-pass scope
+
+Read 10A–10C-2 as one system; walk upload → select → preview → publish →
+describe → replace → delete as Owner, Staff and guest against a production
+build; decide the two no-image frame variants above; re-check 1w/1r/1ag/1ah/1s
+and the public frames at 375/768/1440 once more; review the four SQL
+transitions and the two markers as a set; then record §0y and mark phase 10
+locked.
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -3848,7 +4094,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (done):** the immediate path — "Vis besked" off and back on, "Fjern beskeden nu", immediate public removal and its ~10 s Fortryd. *Replacing an active announcement, `previous`/`replaced_at` and 1ae's conflict sheet moved to **phase 8**, where the generated message they belong to lives* | 7A: E2E 4 passes, including the no-network assertion — see §0f. 7B: `tests/e2e/announcement-remove.spec.ts` passes at 1440 and 375 — see §0g. **Complete and locked** by the completion pass of 2026-08-30 — see §0h |
 | 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3A (done):** generated-announcement **ownership** — `announcement.source_override_id`, the pairing CHECK, the ninth snapshot key, the ownership-aware write guard, and `apply_generated_announcement()`, the §7e item 8 coordinator that decides the conflict server-side and delegates the atomic write. `announcement_created` is **dropped**; no UI. **8C-3B (done):** the workflow — 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, the ~10 s Fortryd strip, §7e item 6's removal consequence with its atomic two-table transaction, the BEFORE DELETE guard that closes the direct-DELETE bypass, and the deletion of the 8C-1 harness | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. 8C-3A: `supabase/tests/017_generated_announcement.test.sql` passes — see §0n. 8C-3B: `tests/e2e/opening-hours-announcement.spec.ts` passes at 1440 and 375, and `supabase/tests/018_override_removal.test.sql` asserts the removal lifecycle and refuses a direct DELETE from real Staff and Owner JWTs — see §0o. E2E 5 is complete |
 | 9 | News | **9A (done, §0q):** the list, the editor with the structured body (textarea form), per-item publish/unpublish behind confirmations, delete, the §7f slug policy end to end, the per-article Draft Mode preview target, and the public list/detail integration incl. unpublish → 404 — proven by `tests/e2e/news-admin.spec.ts` at 375 and 1440 and `supabase/tests/019`. **9B (done, §0r):** the B/Link structured editor, autosave, the `NewsArticle` JSON-LD, canonical/article metadata and the sitemap. The forside teaser has rendered since phase 3 and is verified against the news lifecycle | E2E 6 passes, incl. unpublish → 404 — **complete and locked** by the completion pass of 2026-09-01, recorded in §0s |
-| 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C-1 (done, §0v; hardened, §0w):** image selection in the dish/weekly/monthly/news editors through one shared picker pair, `image_references` as the one definition of "referenced", the draft-aware `delete_image()`/`replace_image()`, and the published `image_id` of the three draft entities guarded in the database — direct PostgREST writes refused, only publish/replace/detach move it (pgTAP `022`, `023`). **10C-2:** public rendering with `<img srcset>`, the public read-model projection, per-entity cache invalidation | E2E 7's library half passes (`tests/e2e/image-library.spec.ts` — upload → library → used on a dish → delete warns → references nulled); the editor-selection half is 10C's |
+| 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C-1 (done, §0v; hardened, §0w):** image selection in the dish/weekly/monthly/news editors through one shared picker pair, `image_references` as the one definition of "referenced", the draft-aware `delete_image()`/`replace_image()`, and the published `image_id` of the three draft entities guarded in the database — direct PostgREST writes refused, only publish/replace/detach move it (pgTAP `022`, `023`). **10C-2 (done, §0x):** the public `<picture>`/`srcset` rendering on the eight approved surfaces, the public read-model projection inside the tagged reads, the Draft Mode preview of pending images, the news `og:image` and JSON-LD `image`, and the per-entity cache coupling — `delete_image()`/`replace_image()` report the live references they moved (pgTAP `024`), the alt edit expires its live usages, and the first guest request after every public-changing image operation carries the new state (`tests/e2e/public-images.spec.ts`). **Lock pass pending** | E2E 7 passes whole: `image-library`, `editor-images` and `public-images` at 375 and 1440 |
 | 11 | Remaining editors | Forsiden, Mad ud af huset (incl. the visibility toggle hiding the nav item), Kontaktoplysninger, **`/admin/brugere`** | E2E 8 passes; the owner can invite and deactivate a staff user |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device | Full menu-edit and news flows completed on a 375 px viewport |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project |
@@ -3856,10 +4102,9 @@ Each phase ends in something deployable and testable. No phase begins until the 
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-09-01: phases 0–9 are complete and locked; phase 10A (the image
-storage foundation) is built and green, recorded in §0t, and phase 10B (the 1w
-image library) is built and green, recorded in §0u** — phase 10 itself stays
-open until 10C lands. Phase 8's lock pass is
+**Status, 2026-09-01: phases 0–9 are complete and locked; phase 10 is built
+and green in all four increments — 10A (§0t), 10B (§0u), 10C-1 (§0v, hardened
+in §0w) and 10C-2 (§0x)** — and stays open until its lock pass closes it. Phase 8's lock pass is
 recorded in §0p, and **phase 9's in §0s**: 9A (the news administration's core, §0q) and
 9B (the B/Link body editor, autosave, the `NewsArticle` JSON-LD, canonical metadata and
 the sitemap, §0r) were read as one system, walked as Owner, Staff and guest against a

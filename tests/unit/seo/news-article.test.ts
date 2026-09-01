@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
+import { buildPublicImage } from '@/lib/images/public'
 import { newsArticleJsonLd, serializeJsonLd } from '@/lib/seo/news-article'
 
 /**
- * The NewsArticle JSON-LD block — §7f, §11; phase 9B. The shape is a value, so the
- * three rules are assertions: every field restates stored data, a value the data
- * does not carry is absent rather than invented, and the serialised form is valid
- * JSON that cannot close a <script> element early.
+ * The NewsArticle JSON-LD block — §7f, §11; phase 9B, image since 10C-2. The shape
+ * is a value, so the rules are assertions: every field restates stored data, a
+ * value the data does not carry is absent rather than invented, the `image` names
+ * the same processed derivative the page's `og:image` names, and the serialised
+ * form is valid JSON that cannot close a <script> element early.
  */
 
 const ARTICLE = {
@@ -14,7 +16,24 @@ const ARTICLE = {
   slug: 'ny-burger-i-oktober',
   displayDate: '2026-10-01' as const,
   updatedAt: '2026-09-01T10:00:00.000Z',
+  image: null,
 }
+
+const ORIGIN = 'http://localhost:54321'
+const UPLOAD = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
+
+const IMAGE = buildPublicImage(ORIGIN, {
+  storage_path: `${UPLOAD}/original.jpg`,
+  alt_text: 'Burgeren fra siden.',
+  derivatives: {
+    formats: ['avif', 'webp'],
+    widths: [
+      { width: 480, height: 320 },
+      { width: 960, height: 640 },
+      { width: 1440, height: 960 },
+    ],
+  },
+})!
 
 describe('newsArticleJsonLd', () => {
   it('builds §11’s block from the stored values, and only those', () => {
@@ -36,12 +55,27 @@ describe('newsArticleJsonLd', () => {
     expect(block.dateModified).toBe(ARTICLE.updatedAt)
   })
 
-  it('invents no image, no author and no publisher logo (§11: nothing invented)', () => {
+  it('invents no image, no author and no publisher logo for an article without a photo (§11)', () => {
     const block = newsArticleJsonLd(ARTICLE) as Record<string, unknown>
 
     expect(block.image).toBeUndefined()
+    expect('image' in block).toBe(false)
     expect(block.author).toBeUndefined()
     expect((block.publisher as Record<string, unknown>).logo).toBeUndefined()
+  })
+
+  it('names the selected image as an ImageObject over one public derivative, with its real dimensions (10C-2)', () => {
+    const block = newsArticleJsonLd({ ...ARTICLE, image: IMAGE })
+
+    expect(block.image).toEqual({
+      '@type': 'ImageObject',
+      // The rung at or above 1200 px — the ladder's 1440 — in WebP, from the public
+      // `media` bucket. Never the private original, never a guessed size.
+      url: `${ORIGIN}/storage/v1/object/public/media/${UPLOAD}/1440.webp`,
+      width: 1440,
+      height: 960,
+    })
+    expect(JSON.stringify(block)).not.toContain('media-originals')
   })
 
   it('uses the frozen slug under the configured origin — never a hard-coded domain', () => {
@@ -53,7 +87,7 @@ describe('newsArticleJsonLd', () => {
 
 describe('serializeJsonLd', () => {
   it('round-trips through JSON.parse unchanged', () => {
-    const block = newsArticleJsonLd(ARTICLE)
+    const block = newsArticleJsonLd({ ...ARTICLE, image: IMAGE })
 
     expect(JSON.parse(serializeJsonLd(block))).toEqual(block)
   })

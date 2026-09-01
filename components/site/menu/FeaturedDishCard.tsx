@@ -1,6 +1,6 @@
 import type { DishView } from '@/lib/menu/view'
 
-import { MediaPlaceholder } from '../MediaPlaceholder'
+import { SiteImage } from '../SiteImage'
 import { DishLabelBadge, SoldOutBadge } from './DishBadge'
 import { DishPrice } from './DishPrice'
 
@@ -12,6 +12,10 @@ import { DishPrice } from './DishPrice'
  * because the Forside is showing a selection rather than listing a section. What the two
  * share — the price format, the label chips, the sold-out treatment — is shared as
  * components rather than copied.
+ *
+ * The photograph is the same library image the menu card shows (one `image_id`, one
+ * model), in 1g's 3:2 frame across the card's top on a wide screen and 1l's 1:1
+ * thumbnail beside the text on a phone (phase 10C-2).
  */
 export function FeaturedDishCard({ dish }: { dish: DishView }) {
   return (
@@ -20,9 +24,11 @@ export function FeaturedDishCard({ dish }: { dish: DishView }) {
         dish.soldOut ? 'bg-surface-muted' : 'bg-surface'
       }`}
     >
-      <MediaPlaceholder
+      <SiteImage
+        image={dish.image}
         ratio="square"
-        label="Retfoto"
+        sizes="featuredDish"
+        placeholder={{ label: 'Retfoto' }}
         className={`border-border w-24 shrink-0 self-start border-0 md:aspect-hero md:w-full md:border-b ${
           dish.soldOut ? 'opacity-70 grayscale' : ''
         }`}

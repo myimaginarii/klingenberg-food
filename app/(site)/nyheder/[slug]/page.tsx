@@ -5,11 +5,12 @@ import { notFound } from 'next/navigation'
 
 import { readSiteContact } from '@/lib/content/contact'
 import { articleExcerpt, readPublishedArticle } from '@/lib/content/news'
+import { seoImageOf } from '@/lib/images/public'
 import { newsArticlePath } from '@/lib/news/slug'
 import { newsArticleMetadata, pageMetadata } from '@/lib/seo/metadata'
 import { newsArticleJsonLd, serializeJsonLd } from '@/lib/seo/news-article'
 
-import { MediaPlaceholder } from '@/components/site/MediaPlaceholder'
+import { SiteImage } from '@/components/site/SiteImage'
 import { NewsBody } from '@/components/site/news/NewsBody'
 import { NewsMeta } from '@/components/site/news/NewsMeta'
 import { PageContainer } from '@/components/site/PageContainer'
@@ -30,6 +31,11 @@ import { PhoneAction } from '@/components/site/PhoneAction'
  * The layout follows the approved system rather than introducing a new design (§7f):
  * title, category, date, image frame, body, a link back to the list, and the phone call
  * to action the whole site carries.
+ *
+ * The image frame (phase 10C-2) holds the article's library photograph — the page's
+ * primary image, loaded eagerly — and the same selected asset is the article's
+ * `og:image` and its `NewsArticle` JSON-LD `image`, on the public path only: a
+ * Draft Mode preview renders the row's current image but claims nothing (§7f).
  */
 type ArticleParams = { params: Promise<{ slug: string }> }
 
@@ -52,6 +58,7 @@ export async function generateMetadata({ params }: ArticleParams): Promise<Metad
     path: newsArticlePath(article.slug),
     publishedDate: article.displayDate,
     modifiedAt: article.updatedAt,
+    image: article.image === null ? null : seoImageOf(article.image),
   })
 }
 
@@ -85,10 +92,12 @@ export default async function NyhedPage({ params }: ArticleParams) {
           {article.title}
         </h1>
 
-        <MediaPlaceholder
+        <SiteImage
+          image={article.image}
           ratio="hero"
-          label="Nyhedsfoto"
-          detail="3:2 · valgfrit"
+          sizes="newsArticle"
+          loading="eager"
+          placeholder={{ label: 'Nyhedsfoto', detail: '3:2 · valgfrit' }}
           className="rounded-card-lg mt-5 w-full"
         />
 

@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import type { Profile } from '@/lib/auth/session'
 import { derivativePathsFor, derivativePublicUrlPath } from '@/lib/images/derivatives'
 import { finalizeImageUpload } from '@/lib/images/finalize'
+import { buildPublicImage, seoImageOf } from '@/lib/images/public'
 import { requestImageUpload } from '@/lib/images/signed-upload'
 import { createImageStorage, type ImageStorage } from '@/lib/images/storage'
 
@@ -174,6 +175,23 @@ describe('the full pipeline as staff', () => {
       `${SUPABASE_URL}/storage/v1/object/public/media-originals/${granted.target.path}`,
     )
     expect(original.ok).toBe(false)
+
+    // The public model (phase 10C-2) over this real row names only URLs that
+    // actually serve, in both formats, and its SEO candidate is one of them.
+    const model = buildPublicImage(SUPABASE_URL!, row)
+    expect(model).not.toBeNull()
+    for (const candidate of model!.candidates) {
+      for (const url of [candidate.avifUrl, candidate.webpUrl]) {
+        const response = await fetch(url)
+        expect(response.ok, `public candidate ${url}`).toBe(true)
+        expect(response.headers.get('content-type')).toBe(
+          url.endsWith('.avif') ? 'image/avif' : 'image/webp',
+        )
+      }
+    }
+    expect((await fetch(model!.src)).ok).toBe(true)
+    expect((await fetch(seoImageOf(model!).url)).ok).toBe(true)
+    expect(JSON.stringify(model)).not.toContain('media-originals')
 
     // A replayed finalize converges on the same row instead of duplicating it.
     const replay = await finalizeImageUpload({ storage, database: staffClient }, staffProfile, {

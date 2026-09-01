@@ -1,9 +1,11 @@
 import 'server-only'
 
 import { CACHE_TAGS } from '@/lib/cache/tags'
+import type { PublicImage } from '@/lib/images/public'
 import type { IsoDate } from '@/lib/time/calendar'
 
 import { booleanField, field, objectArrayField, stringField } from './document'
+import { imageFor, readPublicImages } from './images'
 import { assertNoQueryError, definePublicRead, type ContentAccess } from './source'
 import type { NewsArticle, NewsBody, NewsParagraph, NewsSpan } from './types'
 
@@ -20,6 +22,11 @@ import type { NewsArticle, NewsBody, NewsParagraph, NewsSpan } from './types'
  * The body is structured JSON, never HTML (§8). It is read into typed nodes here and
  * rendered by our own components, so there is no HTML parsing anywhere on the public
  * site and no sanitizer to get wrong.
+ *
+ * The article's photo (phase 10C-2) is resolved from `image_id` inside the same
+ * tagged read (`lib/content/images.ts`), so the `news` tag covers the list, the
+ * article, the Forside teaser, the article's metadata and the sitemap's read alike —
+ * and a library edit that touches a published article's image expires exactly it.
  */
 
 type NewsRow = {
@@ -30,9 +37,10 @@ type NewsRow = {
   display_date: string | null
   updated_at: string
   body: unknown
+  image_id: string | null
 }
 
-const COLUMNS = 'id, title, slug, category, display_date, updated_at, body'
+const COLUMNS = 'id, title, slug, category, display_date, updated_at, body, image_id'
 
 function readSpan(raw: unknown): NewsSpan | null {
   // The text is verbatim, never trimmed: a span legitimately begins or ends with the
@@ -82,7 +90,7 @@ export function readNewsBody(raw: unknown): NewsBody {
   return { blocks }
 }
 
-function toArticle(row: NewsRow): NewsArticle {
+function toArticle(row: NewsRow, images: ReadonlyMap<string, PublicImage>): NewsArticle {
   return {
     id: row.id,
     title: row.title,
@@ -91,6 +99,7 @@ function toArticle(row: NewsRow): NewsArticle {
     displayDate: row.display_date as IsoDate | null,
     updatedAt: row.updated_at,
     body: readNewsBody(row.body),
+    image: imageFor(images, row.image_id),
   }
 }
 
@@ -114,7 +123,10 @@ const readNewsList = definePublicRead(
     const { data, error } = await query.returns<NewsRow[]>()
     assertNoQueryError('the news articles', error)
 
-    return (data ?? []).map(toArticle)
+    const rows = data ?? []
+    const images = await readPublicImages(access, rows.map((row) => row.image_id))
+
+    return rows.map((row) => toArticle(row, images))
   },
 )
 
@@ -129,8 +141,11 @@ const readArticleBySlug = definePublicRead(
       .maybeSingle<NewsRow>()
 
     assertNoQueryError('the news article', error)
+    if (data === null) return null
 
-    return data ? toArticle(data) : null
+    const images = await readPublicImages(access, [data.image_id])
+
+    return toArticle(data, images)
   },
 )
 

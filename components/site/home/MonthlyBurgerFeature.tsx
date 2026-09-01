@@ -1,8 +1,8 @@
 import { Eyebrow } from '@/components/site/Eyebrow'
 import { InlineLink } from '@/components/site/InlineLink'
-import { MediaPlaceholder } from '@/components/site/MediaPlaceholder'
 import { PhoneAction } from '@/components/site/PhoneAction'
 import { Section } from '@/components/site/Section'
+import { SiteImage } from '@/components/site/SiteImage'
 import { SoldOutBadge } from '@/components/site/menu/DishBadge'
 import { DishPrice } from '@/components/site/menu/DishPrice'
 import { formatDatePeriod } from '@/lib/format/danish'
@@ -36,6 +36,10 @@ import type { MonthlyBurgerView } from '@/lib/menu/view'
  * rule in `lib/menu/availability.ts` (§7b). A `null` burger renders nothing, which is
  * what hides the section: a guest is never shown a placeholder for a burger that does
  * not exist. That sentence belongs in the administration.
+ *
+ * The photograph (phase 10C-2) is the burger's one library image — the same model the
+ * menu card renders — in the 4:3 frame this section reserved: full width above the
+ * text on a phone, the column down the card's side from `md`.
  */
 const HEADING_ID = 'maanedens-burger-titel'
 
@@ -58,10 +62,11 @@ export function MonthlyBurgerFeature({
           soldOut ? 'bg-surface-muted' : 'bg-surface'
         }`}
       >
-        <MediaPlaceholder
+        <SiteImage
+          image={burger.image}
           ratio="card"
-          label="Månedens burger"
-          detail="4:3 · afventer"
+          sizes="monthlyFeature"
+          placeholder={{ label: 'Månedens burger', detail: '4:3 · afventer' }}
           className={`border-border w-full shrink-0 border-0 border-b md:w-[17.5rem] md:border-r md:border-b-0 lg:w-[21.25rem] ${
             soldOut ? 'opacity-70 grayscale' : ''
           }`}

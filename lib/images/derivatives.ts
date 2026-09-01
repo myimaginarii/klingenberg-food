@@ -102,3 +102,13 @@ export function derivativePathsFor(
 export function derivativePublicUrlPath(derivative: string): string {
   return `/storage/v1/object/public/${DERIVATIVES_BUCKET}/${derivative}`
 }
+
+/**
+ * The absolute public URL of one derivative — the Supabase origin plus the path
+ * above. The one place an absolute storage address is composed (phase 10C-2): the
+ * admin thumbnails and the public read model both call this, so no component and
+ * no loader ever assembles a storage URL of its own.
+ */
+export function derivativePublicUrl(origin: string, derivative: string): string {
+  return `${origin}${derivativePublicUrlPath(derivative)}`
+}

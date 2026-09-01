@@ -64,12 +64,13 @@ export default async function MenuPage() {
       <MenuCategoryNav categories={view.categories} />
 
       <PageContainer className="pb-8">
-        {view.categories.map((category) => (
+        {view.categories.map((category, index) => (
           <MenuCategorySection
             key={category.id}
             category={category}
             weeklySpecial={view.weeklySpecial}
             monthlyBurger={view.monthlyBurger}
+            first={index === 0}
           />
         ))}
       </PageContainer>

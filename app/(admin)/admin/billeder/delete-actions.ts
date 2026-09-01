@@ -3,6 +3,7 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { readImageStorageFacts } from '@/lib/content/images-admin'
 import { deleteLibraryImage } from '@/lib/images/admin'
 import { createImageStorage } from '@/lib/images/storage'
@@ -28,6 +29,12 @@ import { imagesHref } from './routes'
  * screen reopens the confirmation over the fresh usage list, so the person decides
  * about the image as it is, never as it was.
  */
+/*
+ * A confirmed delete takes the image off every public surface that rendered it
+ * (phase 10C-2): the wrapper expires the tags of the live references
+ * `delete_image()` itself reports having detached — after the commit, before the
+ * files go — through the one invalidation door this action hands it (§20).
+ */
 export async function deleteImage(formData: FormData): Promise<void> {
   const profile = await requireStaff()
 
@@ -48,12 +55,18 @@ export async function deleteImage(formData: FormData): Promise<void> {
   }
 
   const supabase = await createSupabaseServerClient()
-  const result = await deleteLibraryImage(supabase, createImageStorage(), profile, {
-    imageId: id.data,
-    expectedUpdatedAt: version,
-    confirmed,
-    derivativePaths: facts.derivativePaths,
-  })
+  const result = await deleteLibraryImage(
+    supabase,
+    createImageStorage(),
+    profile,
+    {
+      imageId: id.data,
+      expectedUpdatedAt: version,
+      confirmed,
+      derivativePaths: facts.derivativePaths,
+    },
+    { expireTags: expirePublicCacheTags },
+  )
 
   switch (result.status) {
     case 'deleted':

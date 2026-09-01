@@ -134,8 +134,13 @@ test('the normal week is not editable by a staff member, and says who can', asyn
 
   // §5: an Owner-only area is **absent** for staff rather than shown and disabled. There
   // is no weekly form, no weekday switch and no weekly Offentliggør anywhere on the page.
+  // The one checkbox a staff member may meet is the one-off card's own "Vis også som
+  // besked" (phase 8C-3B), offered on a weekday where a fresh closure composes a message
+  // — which is why a page-wide "no checkbox" claim held on the seeded closed days only.
   await expect(hoursForm(staffPage)).toHaveCount(0)
-  await expect(staffPage.getByRole('checkbox')).toHaveCount(0)
+  for (const box of await staffPage.getByRole('checkbox').all()) {
+    await expect(box).toHaveAccessibleName(/Vis også som besked/)
+  }
   await expect(staffPage.getByRole('banner').getByRole('button', { name: 'Offentliggør' })).toHaveCount(0)
 
   for (const weekday of ['Mandag', 'Onsdag', 'Søndag']) {
@@ -149,8 +154,12 @@ test('the normal week is not editable by a staff member, and says who can', asyn
   await expect(staffPage.getByText('kan kun ejeren rette')).toBeVisible()
 })
 
-test('the card contains nothing of phase 8C', async () => {
-  await openOverrideCard(staffPage)
+test('the card offers nothing of phase 8C for a date whose closure says nothing', async () => {
+  // A seeded closed day: closing it composes no message (§0m's `no_effect`), so the
+  // 8C-3B option is not offered and the card is exactly 8B's. Opened on today's date
+  // this held on Mondays and Tuesdays only — the first Wednesday run showed the
+  // checkbox and the suggestion, as 8C-3B designed them for an open day.
+  await openOverrideCard(staffPage, firstNormallyClosedDay(TODAY))
 
   // Each is asserted by name rather than by a count, so a future phase that adds one has
   // to change this line rather than slip past it.

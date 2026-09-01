@@ -1,6 +1,6 @@
 import type { DishView } from '@/lib/menu/view'
 
-import { MediaPlaceholder } from '../MediaPlaceholder'
+import { SiteImage } from '../SiteImage'
 import { DishLabelBadge, SoldOutBadge } from './DishBadge'
 import { DishPrice } from './DishPrice'
 
@@ -14,17 +14,33 @@ import { DishPrice } from './DishPrice'
  *
  * A sold-out dish is dimmed and struck through rather than removed (1af), and the badge
  * says so in words.
+ *
+ * The photograph (phase 10C-2) is the dish's library image in 1h's 4:3 / 1m's 1:1
+ * frame — `SiteImage` over the same box the placeholder reserved, greyed with the
+ * card when the dish is sold out — or the reserved frame when none is selected. The
+ * name, the price, the description and the badges are text beside it either way; the
+ * photo carries nothing a guest cannot read.
  */
-export function DishCard({ dish }: { dish: DishView }) {
+export function DishCard({
+  dish,
+  loading = 'lazy',
+}: {
+  dish: DishView
+  /** `eager` for the first card on the menu, which is above the fold (brief §27). */
+  loading?: 'lazy' | 'eager'
+}) {
   return (
     <article
       className={`rounded-card md:rounded-card-lg border-border flex gap-3 border p-2.5 md:gap-5 md:p-4 ${
         dish.soldOut ? 'bg-surface-muted' : 'bg-surface'
       }`}
     >
-      <MediaPlaceholder
+      <SiteImage
+        image={dish.image}
         ratio="square"
-        label="Retfoto"
+        sizes="dishCard"
+        loading={loading}
+        placeholder={{ label: 'Retfoto' }}
         className={`w-24 shrink-0 self-start rounded-[0.5rem] md:aspect-card md:w-[9.375rem] md:self-center ${
           dish.soldOut ? 'opacity-70 grayscale' : ''
         }`}

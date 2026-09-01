@@ -4,12 +4,16 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { signIn, STAFF } from './support/admin'
 import {
+  choose,
+  chooseLink,
   confirmDelete,
   deleteImageNamed,
   gridCard,
   jpegFixture,
   openDeleteDialog,
   openImagesAdmin,
+  pickerDialog,
+  removeSelection,
   replaceInput,
   staffRestClient,
   uploadViaUi,
@@ -43,15 +47,14 @@ import { openWeeklyAdmin, publishWeek } from './support/weekly-admin'
  * the draft-aware delete, and the draft-aware replacement — is driven from
  * `/admin/billeder`.
  *
- * WHERE "PREVIEW RESOLVES THE IMAGE" IS ASSERTED. Public image rendering is
- * deliberately phase 10C-2, so no page — guest or preview — draws an `<img>` from
- * the media bucket yet, and this suite asserts that boundary explicitly. The
- * resolution of a pending image is therefore proved on the surfaces that DO
- * render it: the editor's own slot (which shows the overlaid, drafts-included
- * value) and the library's usage captions (which read the same trusted reference
- * set the delete refusal counts). The overlay itself — the function Draft Mode
- * previews resolve through — is pinned per entity in
- * `tests/unit/drafts/image-preview.test.ts`, and the reference truth in pgTAP 022.
+ * WHERE THE PUBLIC RENDERING IS ASSERTED. Since phase 10C-2 the guest pages and
+ * the Draft Mode preview render the resolved image from the public derivative
+ * ladder; the full public story — placeholder until publish, preview of the
+ * pending selection, first-request rendering after publish, alt edit, global
+ * replacement, deletion, the news metadata — is `public-images.spec.ts`. This
+ * suite keeps the editor's own promises (the slot, the captions, the draft-aware
+ * library lifecycle) and asserts the 10C-2 boundary once, below: a draft
+ * selection reaches the preview and not the guest.
  *
  * Serial, like every write suite: state flows from test to test, and the run
  * restores the seed's image-free menu, week, burger and news list at the end.
@@ -78,28 +81,6 @@ async function violations(page: Page) {
     impact: violation.impact,
     nodes: violation.nodes.map((node) => node.target.join(' ')),
   }))
-}
-
-/** The picker dialog, by its stable element id (its heading names it for people). */
-function pickerDialog(page: Page): Locator {
-  return page.locator('#vaelg-billede-dialog')
-}
-
-/** The slot's way in — 1ag/1ah/1s's "Vælg billede", or 1r's chosen-state sibling. */
-function chooseLink(page: Page): Locator {
-  return page.getByRole('link', { name: /^(Vælg billede|Skift billede)/ })
-}
-
-async function choose(page: Page, imageName: RegExp): Promise<void> {
-  await chooseLink(page).click()
-  await expect(pickerDialog(page)).toBeVisible()
-  await pickerDialog(page).getByRole('button', { name: imageName }).click()
-  await page.waitForURL(/status=billede_gemt/)
-}
-
-async function removeSelection(page: Page): Promise<void> {
-  await page.getByRole('button', { name: 'Fjern billede' }).click()
-  await page.waitForURL(/status=billede_fjernet/)
 }
 
 /** The usage caption under a library card — rendered twice (visible + spoken). */
@@ -199,11 +180,11 @@ test('the picker lists the library, chooses one image as a draft, and says so', 
   await expect(staffPage.getByRole('button', { name: 'Fjern billede' })).toBeVisible()
 })
 
-test('the guest menu is byte-uninvolved: no media derivative renders anywhere yet', async ({
+test('the draft selection reaches the Draft Mode preview and not the guest (10C-2)', async ({
   browser,
 }) => {
-  // 10C-2 owns public rendering; 10C-1 must not half-ship it. The draft selection
-  // above must leave the guest's page without a single storage-served image.
+  // The guest's page carries no derivative for Thor — a pending selection is
+  // invisible until Offentliggør — while the staff member's preview renders it.
   await asGuest(browser, async (guest) => {
     await guest.goto('/menu')
     await waitForPublicShell(guest)
@@ -212,6 +193,17 @@ test('the guest menu is byte-uninvolved: no media derivative renders anywhere ye
 
   const { data } = await rest.from('dishes').select('image_id').eq('name', 'Thor').single()
   expect((data as { image_id: string | null }).image_id, 'the live column is untouched').toBeNull()
+
+  await staffPage.goto('/api/preview/start?maal=menu')
+  await staffPage.waitForURL(/\/menu/)
+  const thor = staffPage
+    .locator('article')
+    .filter({ has: staffPage.getByRole('heading', { name: 'Thor', exact: true }) })
+    .first()
+  await expect(thor.locator('img[src*="/storage/v1/object/public/media/"]')).toHaveCount(1)
+  expect(await staffPage.content()).not.toContain('media-originals')
+  await staffPage.goto('/api/preview/stop')
+  await staffPage.waitForURL(/\/admin/)
 })
 
 test('the library caption reads the pending truth: Thor, as a kladde', async () => {

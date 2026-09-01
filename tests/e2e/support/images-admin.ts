@@ -164,3 +164,31 @@ export async function deleteImageNamed(page: Page, name: string | RegExp): Promi
   await openDeleteDialog(page)
   await confirmDelete(page)
 }
+
+// ---------------------------------------------------------------------------
+// The editors' picker (phase 10C-1) — shared by the editor and public-image suites
+// ---------------------------------------------------------------------------
+
+/** The picker dialog, by its stable element id (its heading names it for people). */
+export function pickerDialog(page: Page): Locator {
+  return page.locator('#vaelg-billede-dialog')
+}
+
+/** The slot's way in — 1ag/1ah/1s's "Vælg billede", or 1r's chosen-state sibling. */
+export function chooseLink(page: Page): Locator {
+  return page.getByRole('link', { name: /^(Vælg billede|Skift billede)/ })
+}
+
+/** Open the picker on the current editor and choose the image whose button matches. */
+export async function choose(page: Page, imageName: RegExp): Promise<void> {
+  await chooseLink(page).click()
+  await expect(pickerDialog(page)).toBeVisible()
+  await pickerDialog(page).getByRole('button', { name: imageName }).click()
+  await page.waitForURL(/status=billede_gemt/)
+}
+
+/** "Fjern billede" on the current editor — a pending removal, never a deletion. */
+export async function removeSelection(page: Page): Promise<void> {
+  await page.getByRole('button', { name: 'Fjern billede' }).click()
+  await page.waitForURL(/status=billede_fjernet/)
+}

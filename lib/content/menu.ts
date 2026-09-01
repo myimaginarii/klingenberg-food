@@ -7,8 +7,10 @@ import { overlayDraft } from '@/lib/drafts/overlay'
 import { readTapasDocument } from '@/lib/menu/tapas'
 import { dishDraft, menuCategoryDraft } from '@/lib/schemas/menu'
 import { monthlyBurgerDraft, weeklySpecialDraft } from '@/lib/schemas/specials'
+import type { PublicImage } from '@/lib/images/public'
 import type { IsoDate } from '@/lib/time/calendar'
 
+import { imageFor, readPublicImages } from './images'
 import { assertNoQueryError, columns, definePublicRead, type ContentAccess } from './source'
 import type {
   Dish,
@@ -40,6 +42,13 @@ import type {
  * No decision about display is made here. Whether an item is currently sold out, and
  * whether the monthly burger falls inside its window today, are resolved by the pure
  * functions in `lib/menu` from the same hours engine the rest of the site uses.
+ *
+ * IMAGES (phase 10C-2). Each read resolves its rows' `image_id` — the overlaid value,
+ * so a Draft Mode preview resolves the pending selection and the published path the
+ * live column, through the same projection — into the public image model *inside*
+ * its own tagged read (`lib/content/images.ts`). The image data is therefore part of
+ * the `menu`, `weekly` or `monthly` cache entry, and an alt edit, a replacement or a
+ * deletion that touches a live reference expires exactly that tag (§20).
  */
 
 type CategoryRow = {
@@ -64,6 +73,7 @@ type DishRow = {
   details: unknown
   sold_out_on: string | null
   sort_order: number
+  image_id: string | null
   draft?: unknown
 }
 
@@ -82,6 +92,7 @@ type WeeklySpecialRow = {
   sat_price_ore: number | null
   sat_deadline: string | null
   sat_sold_out_on: string | null
+  image_id: string | null
   draft?: unknown
 }
 
@@ -93,6 +104,7 @@ type MonthlyBurgerRow = {
   ends_on: string | null
   sold_out_on: string | null
   show_on_homepage: boolean
+  image_id: string | null
   draft?: unknown
 }
 
@@ -105,11 +117,11 @@ export type MenuContent = {
 
 const CATEGORY_COLUMNS = 'id, slug, name, intro, note, kind, sort_order'
 const DISH_COLUMNS =
-  'id, category_id, name, description, secondary_note, price_ore, labels, details, sold_out_on, sort_order'
+  'id, category_id, name, description, secondary_note, price_ore, labels, details, sold_out_on, sort_order, image_id'
 const WEEKLY_COLUMNS =
-  'iso_year, iso_week, days, name, description, price_small_ore, price_large_ore, sold_out_on, sat_enabled, sat_name, sat_description, sat_price_ore, sat_deadline, sat_sold_out_on'
+  'iso_year, iso_week, days, name, description, price_small_ore, price_large_ore, sold_out_on, sat_enabled, sat_name, sat_description, sat_price_ore, sat_deadline, sat_sold_out_on, image_id'
 const MONTHLY_COLUMNS =
-  'name, description, price_ore, starts_on, ends_on, sold_out_on, show_on_homepage'
+  'name, description, price_ore, starts_on, ends_on, sold_out_on, show_on_homepage, image_id'
 
 /*
  * The Tapas document is read by `readTapasDocument` (`lib/menu/tapas.ts`), which the
@@ -122,7 +134,7 @@ const MONTHLY_COLUMNS =
  * entry then renders as an ordinary dish rather than throwing on a visitor.
  */
 
-function toDish(row: DishRow): Dish {
+function toDish(row: DishRow, images: ReadonlyMap<string, PublicImage>): Dish {
   return {
     id: row.id,
     name: row.name,
@@ -132,6 +144,7 @@ function toDish(row: DishRow): Dish {
     labels: row.labels ?? [],
     tapas: readTapasDocument(row.details),
     soldOutOn: row.sold_out_on as IsoDate | null,
+    image: imageFor(images, row.image_id),
   }
 }
 
@@ -168,12 +181,16 @@ function byPosition(a: { sort_order: number; name: string }, b: { sort_order: nu
   return a.sort_order - b.sort_order || a.name.localeCompare(b.name, 'da-DK')
 }
 
-function groupDishesByCategory(rows: DishRow[], includeDrafts: boolean): Map<string, Dish[]> {
+/**
+ * The overlaid dish rows, grouped and positioned. The overlay is applied *before*
+ * anything else is decided: a draft may move the dish to another section, to another
+ * position, or to another photo, and all three are answered by the merged row — which
+ * is also why the image ids handed to the projection are the overlaid ones.
+ */
+function groupDishesByCategory(rows: DishRow[], includeDrafts: boolean): Map<string, DishRow[]> {
   const byCategory = new Map<string, DishRow[]>()
 
   for (const raw of rows) {
-    // Overlay first, group second: a draft may move the dish to another section as well
-    // as to another position, and both are answered by the merged row.
     const { row } = overlayDraft<DishRow>(raw, includeDrafts ? raw.draft : null, dishDraft)
     const dishes = byCategory.get(row.category_id)
 
@@ -185,10 +202,7 @@ function groupDishesByCategory(rows: DishRow[], includeDrafts: boolean): Map<str
   }
 
   return new Map(
-    [...byCategory].map(([categoryId, dishes]) => [
-      categoryId,
-      [...dishes].sort(byPosition).map(toDish),
-    ]),
+    [...byCategory].map(([categoryId, dishes]) => [categoryId, [...dishes].sort(byPosition)]),
   )
 }
 
@@ -212,6 +226,13 @@ const readMenuSections = definePublicRead(
 
     const dishesByCategory = groupDishesByCategory(dishesResult.data ?? [], access.includeDrafts)
 
+    // One read for every photo on the menu, inside this tagged entry (see the module
+    // note): the overlaid ids, so a preview resolves the pending selection.
+    const images = await readPublicImages(
+      access,
+      [...dishesByCategory.values()].flatMap((dishes) => dishes.map((dish) => dish.image_id)),
+    )
+
     const categories = (categoriesResult.data ?? []).map(
       (raw) =>
         overlayDraft<CategoryRow>(raw, access.includeDrafts ? raw.draft : null, menuCategoryDraft)
@@ -231,7 +252,7 @@ const readMenuSections = definePublicRead(
         intro: row.intro,
         note: row.note,
         kind: row.kind,
-        dishes: dishesByCategory.get(row.id) ?? [],
+        dishes: (dishesByCategory.get(row.id) ?? []).map((dish) => toDish(dish, images)),
       }
     })
   },
@@ -256,6 +277,8 @@ const readWeeklySpecial = definePublicRead(
       weeklySpecialDraft,
     )
 
+    const images = await readPublicImages(access, [row.image_id])
+
     return {
       isoYear: row.iso_year,
       isoWeek: row.iso_week,
@@ -265,6 +288,7 @@ const readWeeklySpecial = definePublicRead(
       priceSmallOre: row.price_small_ore,
       priceLargeOre: row.price_large_ore,
       soldOutOn: row.sold_out_on as IsoDate | null,
+      image: imageFor(images, row.image_id),
       saturday: {
         enabled: row.sat_enabled,
         name: row.sat_name,
@@ -300,6 +324,8 @@ const readMonthlyBurger = definePublicRead(
     // time, by `lib/menu/view.ts` (§7d).
     if (row.name === null) return null
 
+    const images = await readPublicImages(access, [row.image_id])
+
     return {
       name: row.name,
       description: row.description,
@@ -308,6 +334,7 @@ const readMonthlyBurger = definePublicRead(
       endsOn: row.ends_on as IsoDate | null,
       soldOutOn: row.sold_out_on as IsoDate | null,
       showOnHomepage: row.show_on_homepage,
+      image: imageFor(images, row.image_id),
     }
   },
 )

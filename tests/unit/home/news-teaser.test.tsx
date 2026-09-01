@@ -32,6 +32,7 @@ function article(overrides: Partial<NewsArticle> = {}): NewsArticle {
     displayDate: '2026-10-01' as IsoDate,
     updatedAt: '2026-09-01T10:00:00.000Z',
     body: { blocks: [{ type: 'paragraph', spans: [{ text: 'Første afsnit.' }] }] },
+    image: null,
     ...overrides,
   }
 }

@@ -178,7 +178,9 @@ test('the open/closed control has a name that says which day it is', async () =>
   // still a sentence somebody can act on.
   await expect(page.getByRole('checkbox', { name: 'Åbent om onsdagen' })).toBeVisible()
 
-  expect(await page.getByRole('checkbox').count()).toBe(7)
+  // The seven day switches, by the name they share — the one-off card beside them may
+  // offer its own "Vis også som besked" checkbox on an open weekday (phase 8C-3B).
+  expect(await page.getByRole('checkbox', { name: /^Åbent om / }).count()).toBe(7)
 })
 
 test('every time field is associated with its weekday', async () => {
@@ -517,7 +519,11 @@ test.describe('a staff member’s view of the same screen', () => {
     await expect(
       staffPage.getByRole('form', { name: 'Normale åbningstider', exact: true }),
     ).toHaveCount(0)
-    await expect(staffPage.getByRole('checkbox')).toHaveCount(0)
+    // The week's seven switches go with the form; the one-off card's own "Vis også som
+    // besked" (phase 8C-3B) may stand on a weekday where a closure composes a message.
+    for (const box of await staffPage.getByRole('checkbox').all()) {
+      await expect(box).toHaveAccessibleName(/Vis også som besked/)
+    }
   })
 
   test('keeps its 44 px targets and does not scroll sideways at this width', async () => {
