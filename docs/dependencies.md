@@ -3,6 +3,23 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 9 completion pass — no dependencies added (2026-09-01)
+
+The lock pass over 9A and 9B (technical plan §0s) changed no dependency and no
+lockfile byte. Its one product fix — the read layer returning span text verbatim
+instead of trimmed (`lib/content/news.ts`) — removed a call to a helper rather than
+adding anything, and the regression suite it added
+(`tests/unit/content/news-read.test.ts`) uses the toolchain already present. Nothing
+here re-opened the 9A/9B refusals (editor engine, sanitizer, slugify, client state,
+JSON-LD helper, sitemap generator); the defect the pass caught was in eleven characters
+of our own projection code, which is exactly where a dependency would not have helped.
+
+### `npm audit --audit-level=high` — clean
+
+Run against the unchanged lockfile: **0 vulnerabilities**.
+
+---
+
 ## Phase 9B — no dependencies added (2026-09-01)
 
 **The rest of phase 9** — the B/Link body editor, autosave with 1s's "Gemt for lidt

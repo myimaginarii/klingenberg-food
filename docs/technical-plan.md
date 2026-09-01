@@ -2048,12 +2048,125 @@ no sitewide canonicals, no robots.ts, no OG images.
 ### The regression
 
 From the state above: typecheck, lint and the source policy clean; the full unit
-suite green (**2,182 tests in 74 files** — +84 in 4 new files and 3 extended for 9B);
+suite green (**2,182 tests in 74 files** — +84 in 4 new files and 3 extended for 9B)
+*(corrected by the phase-9 lock pass, §0s: the suite at this commit was **2,098 tests
+in 70 files** — 9B added 5 new files and 77 tests over 9A's 2,021 in 65; the figures
+recorded here were a miscount, not a later regression)*;
 pgTAP unchanged and green (**1,256 assertions in 19 files**); `next build` clean with
 `/sitemap.xml` on the 5m/5m contract; `npx playwright test --list` collecting **991
 tests in 25 files** with the news write spec under exactly `news-admin-mobile` and
 `news-admin` (the §22 check); the full Playwright matrix green at `--retries=0`; and
 `npm audit --audit-level=high` clean on the unchanged lockfile.
+
+---
+
+## §0s. Phase 9 — complete and locked (2026-09-01)
+
+Phase 9 (News, §15) was built in two increments — **9A**, the administration's core
+(§0q), and **9B**, the structured editor, autosave and the article's public claims
+(§0r) — and closed by a completion pass on 2026-09-01. The two records above stay
+exactly as written; the one statement in them that was wrong (§0r's unit-suite count)
+is corrected in place. **This section is the statement of the CURRENT truth**, so a
+later reader does not have to replay two increments to know what stands.
+
+### What "phase 9" is, in force today
+
+| Rule | Where it is enforced |
+|---|---|
+| **News is Staff and Owner** (§5) — never Owner-only. `requireStaff()` in the page and in every action, `mayChangeEntity('news', …)`, and RLS through the caller's own JWT, asserted from real Staff and Owner JWTs. | `app/(admin)/admin/nyheder/*`, `supabase/tests/019` |
+| **Status-based persistence, no draft column.** An article is pending while `status='draft'`; an edit writes the row itself; **a published article's save — Gem or autosave — is on the hjemmesiden on the first guest request**, and the editor says so beside the button that commits it (`describeSaveConsequence`). | `lib/news/admin.ts`, §4 |
+| **The slug is §7f letter for letter**: generated from the title (æ→ae, ø→oe, å→aa, other accents folded to their base letter), collision-suffixed `-2`, `-3`…, never typed, shown under the title, frozen at first publish by the phase-1 trigger, kept through unpublish, reused by republish — no redirect machinery, because the URL never moves. A lost race is `adresse_optaget`, a Danish sentence. | `lib/news/slug.ts`, `019` |
+| **The body is structured JSON with exactly B and Link** — `{blocks:[{type:'paragraph', spans:[{text, bold?, href?}]}]}`, no HTML in either direction, no `dangerouslySetInnerHTML`, no sanitizer to get wrong. Three layers agree on links: the panel, `newsBodySchema` and the public renderer each accept absolute `https:` only and refuse `http:`, `javascript:`, `data:`, protocol-relative and unknown keys. Paste is plain text, drop is refused, and every `format*` input except bold is cancelled. | `lib/news/editor-model.ts`, `lib/schemas/news.ts`, `NewsBody.tsx` |
+| **Span text is verbatim through every projection.** The read layer returns the stored spans byte for byte — the boundary spaces between a plain run and a marked one included — and blankness is decided per paragraph, where the write path enforces it. (The lock pass's one product fix; see below.) | `lib/content/news.ts`, `tests/unit/content/news-read.test.ts` |
+| **Autosave is one machine and one save path**: a 2 s debounce restarted by typing, one save in flight, a pause with unchanged content writes nothing and expires nothing, edits during a save reschedule from the *response*, a stale response can never carry content into the form, conflict and deleted-underneath are terminal stops with the person's text kept on screen, no false "Gemt", and a Gem pressed mid-flight waits for the fresh token. The write is `autosaveArticle` → the same `toNewsArticleValues`/`saveNewsArticle` path Gem posts to — there is no second save system. | `lib/news/autosave.ts`, `NewsAutosave.tsx`, `autosave-actions.ts` |
+| **No JavaScript, no lies**: the public pages work whole; a markless body edits as the 9A textarea (create, edit, publish, unpublish and delete all work scripting-free, walked end to end by the lock pass); a body with marks is shown read-only with the reason, rides back byte for byte in the hidden field, and the other fields stay editable. Nothing fakes rich text. | `NewsBodyField.tsx`, the `hasMarks` guard |
+| **Audit under autosave keeps the 9A two-statement model** — content UPDATE, then `log_audit`, an audit failure logged server-side rather than rolling back the committed write. Kept deliberately (§0r's argument: news has no snapshot column a forged write could poison, the audit is operational history rather than a trusted authority, and RLS grants make the failure mode practically unreachable for the same caller) — **and recorded below for the final security audit to revisit.** The debounce means one row per settled save, never per keystroke. | `lib/news/admin.ts`, §0r |
+| **The Forside teaser is `readPublishedNews(1)`** — nothing hard-coded; publish, published edit, unpublish and delete all move it on the first request; no published article renders no section at all. | `app/(site)/page.tsx`, `tests/unit/home/news-teaser.test.tsx` |
+| **The article's public claims restate stored values and invent nothing**: one `NewsArticle` JSON-LD block (headline, `datePublished` from `display_date` when set, `dateModified`, `mainEntityOfPage`, publisher by name — no image, no logo, no author), self-canonical at the frozen slug, `og:type=article`, `og:locale=da_DK`, published/modified times. A Draft Mode preview renders no block and no canonical; unknown and unpublished slugs 404 first. | `lib/seo/news-article.ts`, `lib/seo/metadata.ts` |
+| **The sitemap is the six public pages plus published articles** at their frozen slugs with `lastModified` from `updated_at`, on the same tagged read and the same five-minute contract; unpublish removes the entry on the first request, republish restores the same URL; with nothing published it is exactly the six static pages. | `lib/seo/sitemap.ts`, `app/sitemap.ts` |
+| **The cache contract is Revalidate 5m / Expire 5m**, sitemap included, with no stale-while-revalidate tail (`expireTime`). Only a write a guest could notice expires the `news` tag, only after its transaction reported success; creation, draft saves (auto or explicit) and draft deletes expire nothing. | §20, `tests/e2e/news-admin.spec.ts`, `public-cache.spec.ts` |
+| **`image_id` is owned by no editor** — never read, echoed or written; it survives every transition byte-identical. Images are phase 10. | `019`, `lib/schemas/news.ts` |
+| **There is no per-article preview link on the list — by decision, not omission.** Frame 1z draws none (the rows, `‹ Tilbage` and `+ Ny` are the list's only controls), the technical plan never asks for one, and §0r recorded that review did not either. The editor's Forhåndsvis is the preview path. | 1z, §0q, §0r |
+
+### What the completion pass changed
+
+The walkthroughs (Owner, Staff, guest, no-JS), the 1s/1z screenshot audit at
+375/768/1440, the keyboard passes and the targeted axe scans (the draft editor, the
+open link panel and the autosave-failure state, which the standing suites do not
+scan) found **one product defect**, and it was material:
+
+- **The read layer was trimming every span's text.** `readSpan` read through the
+  document helper `stringField`, whose contract is "blank is absent" — with a trim.
+  Harmless while every paragraph held one span (all of 9A), it destroyed the boundary
+  spaces between spans the moment 9B stored a marked paragraph: *"Et afsnit med
+  **fed skrift** og…"* came back — in the editor after a reload and on the public page
+  alike — as *"Et afsnit med**fed skrift**og…"*, while the database row stayed
+  correct. The fix reads span text verbatim and moves the blank-is-absent decision to
+  the paragraph, where the write path enforces it; `tests/unit/content/news-read.test.ts`
+  (new, 5 tests) pins the projection, and the editor → save → reload → public-render
+  round trip was re-proven byte-exact against the rebuilt production server. The e2e
+  suite had not caught it because its mark assertions matched elements and substrings,
+  never a full paragraph across a mark boundary.
+- **Two stale phase-pointer comments corrected** — `app/(admin)/admin/nyheder/page.tsx`
+  and `app/(site)/nyheder/[slug]/page.tsx` still described the B/Link editor, autosave
+  and the JSON-LD as future 9B work; both now describe what shipped (the §0p precedent).
+- **§0r's regression figures corrected in place** — the suite at the 9B commit was
+  2,098 unit tests in 70 files, not "2,182 in 74"; git shows 9B added five new unit
+  files and 77 tests. A miscount in the record, not a regression in the code.
+
+Deliberate departures re-confirmed against the frames rather than "fixed": the Gem
+button (1s draws none; it is the whole of no-JS saving and the explicit fallback), the
+§7f address line under the title (the plan requires it; the frame does not draw it),
+the honest phase-10 image slot (1s draws a functional-looking dropzone), "Ingen
+kategori" as the sixth chip (a radio group must be clearable without JavaScript), and
+the full field set at 375 px where 1z's mobile artboard omits the date field and two
+category chips — the implementation carries the same fields at every width, as
+accepted at 9A.
+
+### Recorded for the FINAL SECURITY AUDIT (phase 13)
+
+- **The audit-insert tolerance**: a news content UPDATE commits even if the following
+  `log_audit` INSERT fails (the failure is server-logged). Accepted for News's
+  ordinary content-edit architecture — the audit is operational history here, not a
+  security-critical trusted snapshot — but `/security-review` and the manual pass must
+  weigh it once more before launch.
+- **`og:image` and the publisher logo** are absent because no asset exists in the
+  repository yet, not because they were forgotten; both land in `lib/seo/metadata.ts` /
+  `lib/seo/news-article.ts` when supplied (phase-10 photos / the branded card).
+- **External Google Rich Results validation** of the `NewsArticle` markup stays with
+  the final SEO/hardening phase; 9B and this pass verified the rendered block locally
+  (one block, valid JSON, the §11 fields, nothing invented).
+
+### The final regression
+
+From a clean tree: `npm ci`, `npm run db:reset:full`, a fresh production build, no
+stale server. Typecheck, lint and the source policy clean; **2,103 unit tests in 71
+files** (the lock pass added the 5-test projection suite); **1,256 pgTAP assertions in
+19 files**, green from real anonymous, Staff and Owner JWTs; `npm audit
+--audit-level=high` clean (0 vulnerabilities); `npx playwright test --list` collecting
+**991 tests in 25 files across 30 project registrations**, with `e2e/news-admin.spec.ts`
+under exactly `news-admin-mobile` and `news-admin` and the generated-announcement
+suite under exactly its two (the §22 check); and the full Playwright matrix at
+`--retries=0`: **984 passed, 7 deliberately skipped (width/device guards), zero failed
+and zero flaky**. The walkthroughs and the regression together re-verified phases 5–8
+behind phase 9: dishes, sold-out, delete/restore, reorder and Tapas; the weekly
+special, Saturday menu and monthly burger; manual announcements; the weekly hours,
+overrides and generated announcements; the public-cache contract; zero public
+cookies; and no browser Supabase client.
+
+One environmental note from the run, recorded because it will be met again: the
+chunked matrix reuses one production build across a database reset, and
+`db:cache:clear` removes only the *data* cache — the ISR **page** cache survives, so a
+public page revalidated just before the reset can be served for up to five minutes
+after it. The canonical `npm run test:e2e` never sees this (its web server builds
+after the reset), and the five-minute contract self-healed it exactly as designed; one
+`no-javascript` test met the stale window and the project passed 10/10 rerun against
+the expired cache.
+
+**Phase 9 is complete and locked.** What §15 lists from phase 10 onward is untouched:
+no upload path, no image editor, no client image code, `image_id` owned by nothing;
+no Om os/Forside editors beyond phase 4's; and the menu-category content editor still
+has no phase (§0b).
 
 ---
 
@@ -3054,7 +3167,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 6 | Weekly + monthly | **6A (done):** Ugens ret / Lørdagsmenu editor + all public states from 1af, **"Kopiér sidste uge"**, both immediate Udsolgt paths. **6B (done):** Månedens burger with its date window, its computed admin state, "Vis på forsiden" as a normal draft field and its own immediate Udsolgt path | 6A: E2E 9 passes and "Ingen lørdagsmenu denne uge" renders — see §0c. 6B: E2E 11 passes — see §0d. **Complete and locked** by the completion pass of 2026-08-30 — see §0e |
 | 7 | Announcements | **7A (done):** bar in the public layout, **client expiry guard**, admin editor with required expiry and suggestion chips, the live "sådan ser den ud" panel, Kladde → Forhåndsvis → Offentliggør. **7B (done):** the immediate path — "Vis besked" off and back on, "Fjern beskeden nu", immediate public removal and its ~10 s Fortryd. *Replacing an active announcement, `previous`/`replaced_at` and 1ae's conflict sheet moved to **phase 8**, where the generated message they belong to lives* | 7A: E2E 4 passes, including the no-network assertion — see §0f. 7B: `tests/e2e/announcement-remove.spec.ts` passes at 1440 and 375 — see §0g. **Complete and locked** by the completion pass of 2026-08-30 — see §0h |
 | 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3A (done):** generated-announcement **ownership** — `announcement.source_override_id`, the pairing CHECK, the ninth snapshot key, the ownership-aware write guard, and `apply_generated_announcement()`, the §7e item 8 coordinator that decides the conflict server-side and delegates the atomic write. `announcement_created` is **dropped**; no UI. **8C-3B (done):** the workflow — 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, the ~10 s Fortryd strip, §7e item 6's removal consequence with its atomic two-table transaction, the BEFORE DELETE guard that closes the direct-DELETE bypass, and the deletion of the 8C-1 harness | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. 8C-3A: `supabase/tests/017_generated_announcement.test.sql` passes — see §0n. 8C-3B: `tests/e2e/opening-hours-announcement.spec.ts` passes at 1440 and 375, and `supabase/tests/018_override_removal.test.sql` asserts the removal lifecycle and refuses a direct DELETE from real Staff and Owner JWTs — see §0o. E2E 5 is complete |
-| 9 | News | **9A (done, §0q):** the list, the editor with the structured body (textarea form), per-item publish/unpublish behind confirmations, delete, the §7f slug policy end to end, the per-article Draft Mode preview target, and the public list/detail integration incl. unpublish → 404 — proven by `tests/e2e/news-admin.spec.ts` at 375 and 1440 and `supabase/tests/019`. **9B (remaining):** the B/Link toolbar, autosave, `NewsArticle` JSON-LD. The forside teaser has rendered since phase 3 | E2E 6 passes, incl. unpublish → 404 |
+| 9 | News | **9A (done, §0q):** the list, the editor with the structured body (textarea form), per-item publish/unpublish behind confirmations, delete, the §7f slug policy end to end, the per-article Draft Mode preview target, and the public list/detail integration incl. unpublish → 404 — proven by `tests/e2e/news-admin.spec.ts` at 375 and 1440 and `supabase/tests/019`. **9B (done, §0r):** the B/Link structured editor, autosave, the `NewsArticle` JSON-LD, canonical/article metadata and the sitemap. The forside teaser has rendered since phase 3 and is verified against the news lifecycle | E2E 6 passes, incl. unpublish → 404 — **complete and locked** by the completion pass of 2026-09-01, recorded in §0s |
 | 10 | Images | Signed upload, client downscale, sharp derivatives, library with usage labels, replace/delete warnings | E2E 7 passes |
 | 11 | Remaining editors | Forsiden, Mad ud af huset (incl. the visibility toggle hiding the nav item), Kontaktoplysninger, **`/admin/brugere`** | E2E 8 passes; the owner can invite and deactivate a staff user |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device | Full menu-edit and news flows completed on a 375 px viewport |
@@ -3063,10 +3176,12 @@ Each phase ends in something deployable and testable. No phase begins until the 
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-09-01: phases 0–8 are complete and locked** — phase 8's lock pass is
-recorded in §0p — **and phase 9A, the news administration's core, is complete and green
-(§0q). Phase 9 is not locked**: 9B (the B/Link body toolbar, autosave, the `NewsArticle`
-JSON-LD) is the remaining phase-9 work. Phase 5 was closed by a completion
+**Status, 2026-09-01: phases 0–9 are complete and locked** — phase 8's lock pass is
+recorded in §0p, and **phase 9's in §0s**: 9A (the news administration's core, §0q) and
+9B (the B/Link body editor, autosave, the `NewsArticle` JSON-LD, canonical metadata and
+the sitemap, §0r) were read as one system, walked as Owner, Staff and guest against a
+production build, audited against frames 1s/1z at 375/768/1440, and closed by the
+completion pass of 2026-09-01. Phase 5 was closed by a completion
 pass and is recorded in full in §0b, including the five capabilities it delivered and the five
 things that are deliberately outside it. Phase 6 was then built in two increments that share
 nothing but a table row: **6A — Ugens ret and Lørdagsmenu — is recorded in §0c**, and **6B —

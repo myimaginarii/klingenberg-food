@@ -3,7 +3,7 @@ import 'server-only'
 import { CACHE_TAGS } from '@/lib/cache/tags'
 import type { IsoDate } from '@/lib/time/calendar'
 
-import { booleanField, objectArrayField, stringField } from './document'
+import { booleanField, field, objectArrayField, stringField } from './document'
 import { assertNoQueryError, definePublicRead, type ContentAccess } from './source'
 import type { NewsArticle, NewsBody, NewsParagraph, NewsSpan } from './types'
 
@@ -35,8 +35,13 @@ type NewsRow = {
 const COLUMNS = 'id, title, slug, category, display_date, updated_at, body'
 
 function readSpan(raw: unknown): NewsSpan | null {
-  const text = stringField(raw, 'text')
-  if (text === null) return null
+  // The text is verbatim, never trimmed: a span legitimately begins or ends with the
+  // space that separates it from its neighbour ("…med ", "fed skrift", " og…"), and a
+  // trimming read destroys exactly those boundary spaces the moment a paragraph holds
+  // more than one span (the 9B editor's whole output). Blankness is a *paragraph*
+  // question, answered below over the joined text — where the write path enforces it.
+  const text = field(raw, 'text')
+  if (typeof text !== 'string' || text.length === 0) return null
 
   const span: NewsSpan = { text }
   if (booleanField(raw, 'bold')) span.bold = true
@@ -65,7 +70,13 @@ export function readNewsBody(raw: unknown): NewsBody {
       .map(readSpan)
       .filter((span): span is NewsSpan => span !== null)
 
-    if (spans.length > 0) blocks.push({ type: 'paragraph', spans })
+    // Blank is absent, decided over the whole paragraph: the write path never stores
+    // a whitespace-only paragraph, and a degenerate document's one must not render as
+    // an empty <p> — while an interior span of one space stays exactly what it is.
+    const joined = spans.map((span) => span.text).join('')
+    if (spans.length > 0 && joined.trim().length > 0) {
+      blocks.push({ type: 'paragraph', spans })
+    }
   }
 
   return { blocks }

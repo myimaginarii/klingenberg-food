@@ -7,8 +7,8 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–8 complete and locked; phases 9A and 9B (the whole of the news
-functionality) are complete and green — phase 9 is not locked: its lock pass remains.** The public site renders from the database;
+**Status: phases 0–9 complete and locked.** Phase 9's completion pass (2026-09-01) is
+recorded in technical plan §0s. The public site renders from the database;
 the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
@@ -148,7 +148,19 @@ and one `NewsArticle` JSON-LD block built from published values only (no image �
 photos are phase 10; nothing invented), and `/sitemap.xml` exists: the six public
 pages plus published articles, where unpublishing removes the entry on the first
 request and republishing restores the same address. Technical plan §0r records the
-phase; images stay phase 10, and the phase 9 lock pass is still owed.
+phase; images stay phase 10.
+
+**Phase 9 is complete and locked** — the completion pass of 2026-09-01 is recorded in
+technical plan §0s, which is the statement of what "phase 9" is in force today. It read
+9A and 9B as one News system, walked Owner, Staff, guest and no-JavaScript flows
+against a production build, audited frames 1s/1z at 375/768/1440, and carried **one
+product fix**: the read layer's string helper was trimming span text, which destroyed
+the boundary spaces around bold and linked runs on every projection of a marked body —
+span text is now returned verbatim, pinned by a new unit suite. The accepted
+audit-log caveat (an audit INSERT failure is logged rather than rolling back the
+committed content UPDATE), the missing `og:image`/publisher logo (assets not yet
+supplied), and the external Rich Results validation are all recorded in §0s for the
+final security/SEO passes.
 
 ## Requirements
 
@@ -400,14 +412,15 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 9 onward, plus: the weekly off-platform backup workflow
+Everything in §15 from phase 10 onward, plus: the weekly off-platform backup workflow
 (phase 13, §10f) and Sentry (phase 13). `docs/dependencies.md` records which package
 arrives in which phase. Phase 6 is **complete and locked** — 6A (Ugens ret and
 Lørdagsmenu, §0c), 6B (Månedens burger, §0d), and the completion pass over both halves
 (§0e). Phase 7 is **complete and locked** — 7A (§0f), 7B (§0g), and the completion pass
 over both halves (§0h). Phase 8 is **complete and locked** — 8A (§0i), 8B (§0j), 8C-1
 (§0k) and its hardening pass (§0l), 8C-2 (§0m), 8C-3A (§0n), 8C-3B (§0o), and the
-completion pass over all seven (§0p).
+completion pass over all seven (§0p). Phase 9 is **complete and locked** — 9A (§0q),
+9B (§0r), and the completion pass over both (§0s).
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published

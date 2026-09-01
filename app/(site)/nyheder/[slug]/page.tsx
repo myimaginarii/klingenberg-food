@@ -20,11 +20,12 @@ import { PhoneAction } from '@/components/site/PhoneAction'
  *
  * **Scope.** This is the smallest read-only page that keeps the approved "Læs mere"
  * action from pointing at nothing. The news *system* lives elsewhere: the editor, the
- * slug generation, publish and unpublish are `/admin/nyheder` (phase 9A, §0q), and the
- * `NewsArticle` JSON-LD and the sitemap entry are phase 9B. What is here is a loader
- * that can only see published rows — which in Draft Mode reads through the staff
- * member's own JWT, so Forhåndsvis opens an unpublished article at its real address
- * (§6) — a renderer for the structured body, and a 404 for everything else.
+ * slug generation, publish and unpublish are `/admin/nyheder` (phases 9A + 9B, §0q,
+ * §0r). What is here is a loader that can only see published rows — which in Draft
+ * Mode reads through the staff member's own JWT, so Forhåndsvis opens an unpublished
+ * article at its real address (§6) — a renderer for the structured body, the
+ * `NewsArticle` JSON-LD and §7f's canonical/article metadata (9B, published articles
+ * only), and a 404 for everything else.
  *
  * The layout follows the approved system rather than introducing a new design (§7f):
  * title, category, date, image frame, body, a link back to the list, and the phone call

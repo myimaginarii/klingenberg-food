@@ -59,9 +59,10 @@ import { createArticle, saveArticle } from './save-actions'
  *
  * SCOPE. The list, creating an article, editing one, publishing it per item through
  * 1s's confirmation, §7f's "Fjern fra hjemmesiden", and 1s's Slet with the 1r rule
- * (it always asks). Images are phase 10 — the editor renders the approved
- * non-functional slot and nothing else. The B/Link toolbar, autosave and the
- * `NewsArticle` JSON-LD are phase 9B.
+ * (it always asks) — plus, since 9B, the B/Link body editor and the autosave
+ * controller in the bar (the `NewsArticle` JSON-LD lives on the public page).
+ * Images are phase 10 — the editor renders the approved non-functional slot and
+ * nothing else.
  *
  * THE MODEL, ON ONE SCREEN
  *
