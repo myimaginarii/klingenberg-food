@@ -102,7 +102,7 @@ function thumbnailOf(row: ImageRow): AdminImageThumbnail | null {
 
 type ImageReferenceRow = {
   image_id: string
-  kind: 'dish' | 'weekly' | 'monthly' | 'news'
+  kind: 'dish' | 'weekly' | 'monthly' | 'news' | 'page:home'
   name: string
   pending: boolean
 }

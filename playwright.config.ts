@@ -97,6 +97,10 @@ export default defineConfig({
         // dedicated projects at the very end of the chain. `--list` check: the
         // file appears under exactly `public-images-mobile` and `public-images`.
         'e2e/public-images.spec.ts',
+        // The Forsiden administration suite (phase 11A) — owned by its two
+        // dedicated projects at the very end of the chain. `--list` check: the
+        // file appears under exactly `homepage-admin-mobile` and `homepage-admin`.
+        'e2e/homepage-admin.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -123,6 +127,7 @@ export default defineConfig({
         'e2e/image-library.spec.ts',
         'e2e/editor-images.spec.ts',
         'e2e/public-images.spec.ts',
+        'e2e/homepage-admin.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -553,6 +558,30 @@ export default defineConfig({
       name: 'public-images',
       testMatch: 'e2e/public-images.spec.ts',
       dependencies: ['public-images-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    /*
+     * The Forsiden administration (phase 11A), at both widths, and the new tail of
+     * the chain. It publishes the Forside document, expires the `page:home` tag,
+     * uploads, replaces and deletes real library images, and asserts the FIRST guest
+     * request after each — so it owns the Forside, the library and the featured
+     * dish ids while it runs, and follows the public-images pair for the same reason
+     * that pair follows the editor-images pair. Two widths because 1u is drawn at
+     * desktop and the phone is the primary admin device (§15): the mobile run asserts
+     * the stacking rules — 44 px targets, no sideways scrolling — as its own
+     * promises. Mobile runs first and hands its state (the seeded Forside, an empty
+     * library) to the desktop project.
+     */
+    {
+      name: 'homepage-admin-mobile',
+      testMatch: 'e2e/homepage-admin.spec.ts',
+      dependencies: ['public-images'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    {
+      name: 'homepage-admin',
+      testMatch: 'e2e/homepage-admin.spec.ts',
+      dependencies: ['homepage-admin-mobile'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],

@@ -5,6 +5,7 @@ import { mayChangeEntity } from '@/lib/publishing/authorize'
 import { readEditableEntity, type EditableEntity } from '@/lib/publishing/editable'
 import { previewTargetForEntity } from '@/lib/drafts/targets'
 
+import { HOME_ADMIN_PATH } from '../forsiden/routes'
 import { AdminShell, Card, Notice, SubmitButton } from '../ui'
 import { saveContentDraft } from './actions'
 import { CONTENT_EDITORS, type ContentEditor } from './editors'
@@ -49,6 +50,17 @@ export default async function ContentPage({
         </Link>
         .
       </p>
+
+      {/* Forsiden has its own screen since phase 11A (1u); it is the Owner's (§5). */}
+      {profile.role === 'owner' ? (
+        <p className="text-ink-2 text-meta">
+          Forsiden rettes på sin egen side:{' '}
+          <Link className="text-brand-700 underline" href={HOME_ADMIN_PATH}>
+            Rediger forsiden
+          </Link>
+          .
+        </p>
+      ) : null}
 
       {loaded.map(({ editor, entity }) => (
         <EntityEditor

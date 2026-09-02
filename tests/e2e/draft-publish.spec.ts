@@ -245,15 +245,20 @@ test('a preview cannot be aimed at an address outside this site', async () => {
 test('staff cannot publish the owner-only Forsiden, even by submitting it directly', async ({
   browser,
 }) => {
-  // The owner leaves a pending change on the Forsiden by re-saving it unchanged, so
-  // the live page is identical either way and this test cannot alter what a guest sees.
+  // The owner leaves a pending change on the Forsiden — a draft heading in the
+  // approved editor (1u, phase 11A) — and takes it back at the end, so the live page
+  // is identical throughout and this test cannot alter what a guest sees.
   const ownerContext = await browser.newContext()
   const ownerPage = await ownerContext.newPage()
   await signIn(ownerPage, OWNER)
 
-  await ownerPage.goto('/admin/indhold')
-  await editorForm(ownerPage, 'Forsiden').getByRole('button', { name: 'Gem kladde' }).click()
-  await expect(ownerPage.getByRole('status')).toContainText('Kladden er gemt')
+  await ownerPage.goto('/admin/forsiden')
+  const heroForm = ownerPage.getByRole('form', { name: 'Øverst på siden', exact: true })
+  const heroHeading = heroForm.getByLabel('Overskrift', { exact: true })
+  const liveHeading = await heroHeading.inputValue()
+  await heroHeading.fill(`${liveHeading} (kladde)`)
+  await heroForm.getByRole('button', { name: 'Gem' }).click()
+  await ownerPage.waitForURL(/status=gemt/)
 
   // Staff sees it, and sees that it is not theirs to publish.
   await staffPage.goto('/admin')
@@ -285,9 +290,24 @@ test('staff cannot publish the owner-only Forsiden, even by submitting it direct
     staffPage.getByRole('form', { name: 'Ændringer der venter' }).getByText(HOME_PENDING),
   ).toBeVisible()
 
-  // The owner clears it, so the dashboard is left as it was found.
-  await publishOnly(ownerPage, [HOME_PENDING])
-  await expect(ownerPage.getByRole('status').first()).toContainText('offentliggjort')
+  // The owner takes the change back: saving the section as the hjemmeside already
+  // has it removes it from the draft (the §4 delta rule), so nothing is published and
+  // the dashboard is left as it was found.
+  await ownerPage.goto('/admin/forsiden')
+  await ownerPage
+    .getByRole('form', { name: 'Øverst på siden', exact: true })
+    .getByLabel('Overskrift', { exact: true })
+    .fill(liveHeading)
+  await ownerPage
+    .getByRole('form', { name: 'Øverst på siden', exact: true })
+    .getByRole('button', { name: 'Gem' })
+    .click()
+  await ownerPage.waitForURL(/status=uaendret/)
+
+  await ownerPage.goto('/admin')
+  await expect(
+    ownerPage.getByRole('form', { name: 'Ændringer der venter' }).getByText(HOME_PENDING),
+  ).toHaveCount(0)
 
   await ownerContext.close()
 })

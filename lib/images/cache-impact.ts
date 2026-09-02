@@ -21,7 +21,9 @@ import { publishableEntity, type EntityKey } from '@/lib/publishing/entities'
  * a dish's image appears wherever a dish appears (the menu and the Forside's
  * featured cards read the same `menu`-tagged read), so `dish → menu` is the
  * registry's own answer, not this module's guess. If a loader ever reads an
- * entity under a new tag, the registry changes and this mapping follows.
+ * entity under a new tag, the registry changes and this mapping follows. The
+ * Forside document's own three photographs (phase 11A) are a fifth kind,
+ * `page:home`, rendered under the `page:home` tag alone.
  *
  * THE AFFECTED SET IS THE DATABASE'S. `delete_image()` and `replace_image()`
  * return `affected` — per-kind counts of the rows their own live statements
@@ -34,7 +36,7 @@ import { publishableEntity, type EntityKey } from '@/lib/publishing/entities'
  * that makes it live, which expires its own tags.
  */
 
-export const REFERENCE_KINDS = ['dish', 'weekly', 'monthly', 'news'] as const
+export const REFERENCE_KINDS = ['dish', 'weekly', 'monthly', 'news', 'page:home'] as const
 
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
 
@@ -44,6 +46,9 @@ const ENTITY_OF_KIND: Record<ReferenceKind, EntityKey> = {
   weekly: 'weekly_special',
   monthly: 'monthly_burger',
   news: 'news',
+  // The Forside document (phase 11A): its three image paths are rendered into the
+  // `page:home`-tagged read, and nowhere else.
+  'page:home': 'page:home',
 }
 
 const countsSchema = z.object({
@@ -51,6 +56,7 @@ const countsSchema = z.object({
   weekly: z.number().int().min(0),
   monthly: z.number().int().min(0),
   news: z.number().int().min(0),
+  'page:home': z.number().int().min(0),
 })
 
 /**

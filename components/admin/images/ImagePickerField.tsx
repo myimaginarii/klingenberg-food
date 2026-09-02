@@ -57,9 +57,16 @@ export function ImagePickerField({
   removeForm,
   hint,
   disabledNote,
+  label = IMAGE_SLOT_LABEL,
 }: {
   /** The choose/change control's own id — where a closed picker returns focus. */
   anchorId: string
+  /**
+   * The slot's visible label. The four 10C-1 editors draw "Billede (valgfrit)"; the
+   * Forside editor (1u, phase 11A) names its three slots — "Hovedbillede",
+   * "Udmærkelsesfoto", "Holdfoto" — so a screen with three slots has three names.
+   */
+  label?: string
   /** Opens the picker dialog. `null` renders the slot without a way in. */
   chooseHref: string | null
   /** The current selection, or `null` for the empty slot. */
@@ -73,7 +80,9 @@ export function ImagePickerField({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="text-meta text-neutral-ink font-medium">{IMAGE_SLOT_LABEL}</p>
+      <p className="text-meta text-neutral-ink font-medium" id={`${anchorId}-etiket`}>
+        {label}
+      </p>
 
       {selection === null ? (
         <div className="border-field-border bg-field-bg rounded-card flex min-h-24 flex-col items-center justify-center gap-2 border-[1.5px] border-dashed p-4 text-center">

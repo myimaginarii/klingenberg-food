@@ -163,6 +163,7 @@ export type UploadReplaceReply = {
     | 'not_found'
     | 'invalid_replacement'
     | 'missing_replacement'
+    | 'owner_only'
     | 'forbidden'
     | 'failed'
 }

@@ -224,6 +224,8 @@ describe('image_id is owned by exactly the 10C-1 selection paths (§29)', () => 
   ]
 
   const SELECTION_ACTIONS = [
+    // Phase 11A: the Forside's three slots, one action, Owner only.
+    'app/(admin)/admin/forsiden/image-actions.ts',
     'app/(admin)/admin/menu/image-actions.ts',
     'app/(admin)/admin/menu/maanedens-burger/image-actions.ts',
     'app/(admin)/admin/menu/ugens-ret/image-actions.ts',
@@ -369,7 +371,8 @@ describe('public rendering is derivative-only, through one renderer (phase 10C-2
       .map((file) => file.path)
       .sort()
 
-    expect(projectors).toEqual(['lib/content/menu.ts', 'lib/content/news.ts'])
+    // The Forside document's three photographs (phase 11A) join the two entity reads.
+    expect(projectors).toEqual(['lib/content/menu.ts', 'lib/content/news.ts', 'lib/content/pages.ts'])
   })
 
   it('derivative paths are derived in the derivatives module only — no component builds one', () => {

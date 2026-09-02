@@ -167,6 +167,8 @@ export async function saveImageAltText(
 export type DeleteImageStatus =
   | 'deleted'
   | 'in_use'
+  /** The Forside names the image and the caller is not an owner (phase 11A, §5). */
+  | 'owner_only'
   | 'conflict'
   | 'not_found'
   | 'forbidden'
@@ -174,7 +176,7 @@ export type DeleteImageStatus =
 
 const deleteResultSchema = z.union([
   z.object({ status: z.enum(['not_found', 'conflict']) }),
-  z.object({ status: z.literal('in_use'), references: z.number().int() }),
+  z.object({ status: z.enum(['in_use', 'owner_only']), references: z.number().int() }),
   z.object({
     status: z.literal('deleted'),
     references: z.number().int(),
@@ -232,8 +234,8 @@ export async function deleteLibraryImage(
     return { status: 'failed', cacheTags: [] }
   }
 
-  if (parsed.data.status === 'in_use') {
-    return { status: 'in_use', references: parsed.data.references, cacheTags: [] }
+  if (parsed.data.status === 'in_use' || parsed.data.status === 'owner_only') {
+    return { status: parsed.data.status, references: parsed.data.references, cacheTags: [] }
   }
   if (parsed.data.status !== 'deleted') {
     return { status: parsed.data.status, cacheTags: [] }
@@ -252,6 +254,8 @@ export async function deleteLibraryImage(
 
 export type ReplaceImageStatus =
   | 'replaced'
+  /** The Forside names the image and the caller is not an owner (phase 11A, §5). */
+  | 'owner_only'
   | 'conflict'
   | 'not_found'
   | 'invalid_replacement'
@@ -260,7 +264,15 @@ export type ReplaceImageStatus =
   | 'failed'
 
 const replaceResultSchema = z.union([
-  z.object({ status: z.enum(['not_found', 'conflict', 'invalid_replacement', 'missing_replacement']) }),
+  z.object({
+    status: z.enum([
+      'not_found',
+      'conflict',
+      'invalid_replacement',
+      'missing_replacement',
+      'owner_only',
+    ]),
+  }),
   z.object({
     status: z.literal('replaced'),
     references: z.number().int(),

@@ -19,8 +19,10 @@ import { VisitPanel } from '@/components/site/home/VisitPanel'
  * Forside — design 1g (desktop) and 1l (mobile).
  *
  * The page reads and composes; every section is its own component. The award wording is
- * the confirmed competition result (1ab) with a sensible fallback, because the Forsiden
- * editor that lets the owner reword it does not exist until phase 11.
+ * the confirmed competition result (1ab) with a sensible fallback for a document that
+ * carries none; since phase 11A the owner rewords it — and chooses the hero, award and
+ * team photographs — in the Forsiden editor (1u), and this page renders whatever the
+ * published document says.
  *
  * The section order alternates the two approved page surfaces — cream hero, burgundy
  * award, beige Månedens burger, cream Tre fra menuen, beige Seneste nyt, cream Besøg.
@@ -33,7 +35,7 @@ export const metadata = homeMetadata(
   'Burgerbaren i Carl Nielsen Hallen i Nørre Lyndelse. Vinder af Fyn & Øer ved Danmarks Bedste Burger 2026. Bestilling på telefon.',
 )
 
-/** Used until the Forsiden editor exists; the confirmed result, nothing invented (1ab). */
+/** The confirmed result (1ab), for a document whose award section is empty. Nothing invented. */
 const AWARD_FALLBACK = {
   title: 'Vinder af Fyn & Øer — og nr. 4 i Danmark',
   text: 'Danmarks Bedste Burger 2026. Restauranten står på konkurrencens liste som Carl Nielsen Caféen, Årslev.',
@@ -66,12 +68,14 @@ export default async function ForsidePage() {
         overrides={hours.overrides}
         primaryPhone={contact.primaryPhone}
         directionsHref={address === null ? null : directionsUrl(address)}
+        image={home?.hero.image ?? null}
       />
 
       <AwardBand
         headingId="udmaerkelse-titel"
         title={home?.award.title ?? AWARD_FALLBACK.title}
         text={home?.award.text ?? AWARD_FALLBACK.text}
+        image={home?.award.image ?? null}
       />
 
       <MonthlyBurgerFeature burger={monthlyBurger} primaryPhone={contact.primaryPhone} />
@@ -83,6 +87,7 @@ export default async function ForsidePage() {
         latestExcerpt={latestArticle === null ? null : articleExcerpt(latestArticle)}
         aboutHeading={home?.aboutExcerpt.heading ?? null}
         aboutText={home?.aboutExcerpt.text ?? null}
+        aboutImage={home?.aboutExcerpt.image ?? null}
       />
 
       <VisitPanel

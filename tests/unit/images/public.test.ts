@@ -209,7 +209,7 @@ describe('seoImageOf — the one derivative every SEO surface names (brief §14�
 })
 
 describe('IMAGE_SIZES — one sizes string per approved slot (brief §7)', () => {
-  it('names exactly the eight public surfaces the frames draw an entity image in', () => {
+  it('names exactly the public surfaces the frames draw an image in — the entity slots and the Forside\'s three (11A)', () => {
     expect(Object.keys(IMAGE_SIZES).sort()).toEqual(
       [
         'dishCard',
@@ -219,13 +219,18 @@ describe('IMAGE_SIZES — one sizes string per approved slot (brief §7)', () =>
         'newsCard',
         'newsTeaser',
         'weeklyCard',
+        'homeHero',
+        'homeAward',
+        'homeTeam',
       ].sort(),
     )
   })
 
-  it('writes 100vw nowhere — every slot states its real rendered width', () => {
+  it('writes 100vw nowhere but the hero — every slot states its real rendered width', () => {
     for (const [slot, sizes] of Object.entries(IMAGE_SIZES)) {
-      expect(sizes, slot).not.toMatch(/(^|[\s,])100vw\s*$/)
+      // 1l draws the hero photograph bleeding to both edges of the phone, with no
+      // gutter (HomeHero's column has none), so the full viewport IS its width.
+      if (slot !== 'homeHero') expect(sizes, slot).not.toMatch(/(^|[\s,])100vw\s*$/)
       expect(sizes, slot).toMatch(/\(min-width: 48rem\)/)
     }
   })

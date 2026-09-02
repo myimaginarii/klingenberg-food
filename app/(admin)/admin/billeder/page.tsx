@@ -5,8 +5,13 @@ import { ImageLibraryGrid } from '@/components/admin/images/ImageLibraryGrid'
 import { ImagesStatusNotice } from '@/components/admin/images/ImagesStatusNotice'
 import { ImageUploader } from '@/components/admin/images/ImageUploader'
 import { requireStaff } from '@/lib/auth/guards'
+import { isActiveOwner } from '@/lib/auth/session'
 import { readAdminImageLibrary, type AdminImage } from '@/lib/content/images-admin'
-import { describeImageReplacement } from '@/lib/images/library'
+import {
+  describeImageReplacement,
+  HOMEPAGE_OWNER_ONLY_NOTE,
+  usesHomepage,
+} from '@/lib/images/library'
 import { formatDanishDate } from '@/lib/format/danish'
 import { copenhagenDateOf } from '@/lib/time/copenhagen'
 
@@ -77,9 +82,19 @@ export default async function ImagesAdminPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
-  await requireStaff()
+  const profile = await requireStaff()
 
   const [params, images] = await Promise.all([searchParams, readAdminImageLibrary()])
+
+  /*
+   * The Forside is the Owner's (§5). An image it names cannot be deleted or replaced
+   * by a Staff member — `delete_image()` and `replace_image()` refuse with
+   * `owner_only` rather than leave the Owner-only document holding a dangling id
+   * (phase 11A) — so the screen says so where the two controls would otherwise be.
+   * A courtesy, never the enforcement: the transitions decide again on the server.
+   */
+  const homepageOwnerOnly = (image: AdminImage): boolean =>
+    !isActiveOwner(profile) && usesHomepage(image.usages)
 
   const status = one(params[IMAGES_PARAM.status])
   const selectedId = one(params[IMAGES_PARAM.image])
@@ -162,18 +177,24 @@ export default async function ImagesAdminPage({
             <h2 className="text-heading font-sans font-semibold" id={`${REPLACE_PANEL_ANCHOR}-titel`}>
               Erstat billedet
             </h2>
-            <p className="text-ink-2 text-meta mt-1">
-              {describeImageReplacement(replacing.usages)}
-            </p>
+            {homepageOwnerOnly(replacing) ? (
+              <p className="text-ink-2 text-meta mt-1">{HOMEPAGE_OWNER_ONLY_NOTE}</p>
+            ) : (
+              <>
+                <p className="text-ink-2 text-meta mt-1">
+                  {describeImageReplacement(replacing.usages)}
+                </p>
 
-            <div className="mt-4">
-              <ImageUploader
-                {...uploaderWiring}
-                inputId="erstat-upload"
-                replace={{ oldId: replacing.id, oldVersion: replacing.updatedAt }}
-                replaceAction={replaceUploadedImage}
-              />
-            </div>
+                <div className="mt-4">
+                  <ImageUploader
+                    {...uploaderWiring}
+                    inputId="erstat-upload"
+                    replace={{ oldId: replacing.id, oldVersion: replacing.updatedAt }}
+                    replaceAction={replaceUploadedImage}
+                  />
+                </div>
+              </>
+            )}
 
             <p className="mt-3">
               <a
@@ -194,6 +215,7 @@ export default async function ImagesAdminPage({
             closeHref={imagesHref()}
             deleteButtonId={DELETE_BUTTON_ANCHOR}
             deleteHref={imagesHref({ image: selected.id, confirmDelete: selected.id })}
+            homepageOwnerOnly={homepageOwnerOnly(selected)}
             image={selected}
             replaceButtonId={REPLACE_BUTTON_ANCHOR}
             replaceHref={imagesHref({ image: selected.id, replace: selected.id })}
@@ -207,6 +229,7 @@ export default async function ImagesAdminPage({
             anchorId={DELETE_DIALOG_ANCHOR}
             cancelHref={imagesHref({ image: confirmingDelete.id, focus: 'delete' })}
             fieldNames={IMAGES_FORM}
+            homepageOwnerOnly={homepageOwnerOnly(confirmingDelete)}
             image={confirmingDelete}
           />
         )}

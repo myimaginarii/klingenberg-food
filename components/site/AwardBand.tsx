@@ -1,7 +1,9 @@
+import type { PublicImage } from '@/lib/images/public'
+
 import { AwardSeal } from './AwardSeal'
 import { Eyebrow } from './Eyebrow'
-import { MediaPlaceholder } from './MediaPlaceholder'
 import { Section } from './Section'
+import { SiteImage } from './SiteImage'
 
 /**
  * The burgundy award band — design 1g (Forside) and 1i (Om os).
@@ -13,17 +15,24 @@ import { Section } from './Section'
  *
  * The Forside puts the photograph first and the seal last; Om os mirrors it. That is
  * the only difference between the two, so it is a prop rather than a second component.
+ *
+ * The photograph (phase 11A) is the Forside document's award image — 1u's
+ * "Udmærkelsesfoto (valgfrit)" — in the 4:3 frame the band reserved; `null` is the
+ * reserved frame as before. Om os passes nothing yet: its document carries no image
+ * until phase 11C, so it draws the frame it always drew.
  */
 export function AwardBand({
   title,
   text,
   headingId,
   sealFirst = false,
+  image = null,
 }: {
   title: string
   text: string
   headingId: string
   sealFirst?: boolean
+  image?: PublicImage | null
 }) {
   // 1l drops the seal on a phone, where the photograph and the wording already carry
   // the award and a 132 px circle would be a third telling of the same thing.
@@ -33,11 +42,11 @@ export function AwardBand({
     </div>
   )
   const photo = (
-    <MediaPlaceholder
+    <SiteImage
+      image={image}
       ratio="card"
-      label="Udmærkelse"
-      detail="diplom eller pokal · afventer"
-      tone="inverse"
+      sizes="homeAward"
+      placeholder={{ label: 'Udmærkelse', detail: 'diplom eller pokal · afventer', tone: 'inverse' }}
       className="rounded-card w-full shrink-0 md:w-[13.75rem]"
     />
   )

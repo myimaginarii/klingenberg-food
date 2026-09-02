@@ -174,12 +174,19 @@ export type NewsArticle = {
   image: PublicImage | null
 }
 
-/** `pages.published` for `home` (§4, "Document shapes"). */
+/**
+ * `pages.published` for `home` (§4, "Document shapes").
+ *
+ * The three photographs (phase 11A) are the Forside's own library images — the hero,
+ * the award band's picture and the "Om os" excerpt's team photo — resolved through the
+ * same public projection every entity image uses, inside the `page:home`-tagged read.
+ * `null` renders the reserved frame the page has always drawn.
+ */
 export type HomeDocument = {
-  hero: { heading: string | null; intro: string | null }
-  award: { title: string | null; text: string | null }
+  hero: { heading: string | null; intro: string | null; image: PublicImage | null }
+  award: { title: string | null; text: string | null; image: PublicImage | null }
   featuredDishIds: string[]
-  aboutExcerpt: { heading: string | null; text: string | null }
+  aboutExcerpt: { heading: string | null; text: string | null; image: PublicImage | null }
 }
 
 /** One free text section on Mad ud af huset. The page has no fixed list of packages. */

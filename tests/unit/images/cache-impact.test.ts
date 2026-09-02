@@ -19,16 +19,18 @@ import { publishableEntity } from '@/lib/publishing/entities'
  * a draft-only usage changes no byte a guest is served, and expires nothing.
  */
 
-const NONE = { dish: 0, weekly: 0, monthly: 0, news: 0 }
+const NONE = { dish: 0, weekly: 0, monthly: 0, news: 0, 'page:home': 0 }
 
 describe('cacheTagsForReferenceKind', () => {
   it('maps every kind of image_references onto its entity’s registry tags', () => {
-    expect(REFERENCE_KINDS).toEqual(['dish', 'weekly', 'monthly', 'news'])
+    expect(REFERENCE_KINDS).toEqual(['dish', 'weekly', 'monthly', 'news', 'page:home'])
 
     expect([...cacheTagsForReferenceKind('dish')]).toEqual([CACHE_TAGS.menu])
     expect([...cacheTagsForReferenceKind('weekly')]).toEqual([CACHE_TAGS.weekly])
     expect([...cacheTagsForReferenceKind('monthly')]).toEqual([CACHE_TAGS.monthly])
     expect([...cacheTagsForReferenceKind('news')]).toEqual([CACHE_TAGS.news])
+    // The Forside document's own photographs (phase 11A) — one tag, the page's.
+    expect([...cacheTagsForReferenceKind('page:home')]).toEqual([CACHE_TAGS.homePage])
   })
 
   it('is the registry’s own answer, not a second list', () => {
@@ -36,6 +38,7 @@ describe('cacheTagsForReferenceKind', () => {
     expect(cacheTagsForReferenceKind('weekly')).toBe(publishableEntity('weekly_special').cacheTags)
     expect(cacheTagsForReferenceKind('monthly')).toBe(publishableEntity('monthly_burger').cacheTags)
     expect(cacheTagsForReferenceKind('news')).toBe(publishableEntity('news').cacheTags)
+    expect(cacheTagsForReferenceKind('page:home')).toBe(publishableEntity('page:home').cacheTags)
   })
 
   it('a dish’s tag covers the Forside’s featured cards as well — one tagged read, one tag', () => {
@@ -48,7 +51,7 @@ describe('cacheTagsForReferenceKind', () => {
 describe('cacheTagsForAffectedReferences — the trusted transition’s own counts', () => {
   it('expires the tags of the kinds with live rows moved, deduplicated', () => {
     const tags = cacheTagsForAffectedReferences({
-      live: { dish: 2, weekly: 0, monthly: 1, news: 0 },
+      live: { ...NONE, dish: 2, monthly: 1 },
       draft: NONE,
     })
 
@@ -57,29 +60,38 @@ describe('cacheTagsForAffectedReferences — the trusted transition’s own coun
 
   it('draft-only movement expires nothing (brief §19–§21)', () => {
     expect(
-      cacheTagsForAffectedReferences({ live: NONE, draft: { dish: 3, weekly: 1, monthly: 1, news: 1 } }),
+      cacheTagsForAffectedReferences({
+        live: NONE,
+        draft: { dish: 3, weekly: 1, monthly: 1, news: 1, 'page:home': 1 },
+      }),
     ).toEqual([])
   })
 
   it('an image with both live and pending usage expires for the live usage only', () => {
     expect(
       cacheTagsForAffectedReferences({
-        live: { dish: 0, weekly: 0, monthly: 0, news: 1 },
-        draft: { dish: 1, weekly: 1, monthly: 0, news: 0 },
+        live: { ...NONE, news: 1 },
+        draft: { ...NONE, dish: 1, weekly: 1, 'page:home': 1 },
       }),
     ).toEqual([CACHE_TAGS.news])
   })
 
-  it('never clears everything: contact, hours and the page documents are not image surfaces', () => {
+  it('a live Forside photograph expires the page:home tag and no other (phase 11A)', () => {
+    expect(
+      cacheTagsForAffectedReferences({ live: { ...NONE, 'page:home': 1 }, draft: NONE }),
+    ).toEqual([CACHE_TAGS.homePage])
+  })
+
+  it('never clears everything: contact, hours and the other page documents are not image surfaces', () => {
     const tags = cacheTagsForAffectedReferences({
-      live: { dish: 9, weekly: 1, monthly: 1, news: 9 },
-      draft: { dish: 9, weekly: 1, monthly: 1, news: 9 },
+      live: { dish: 9, weekly: 1, monthly: 1, news: 9, 'page:home': 1 },
+      draft: { dish: 9, weekly: 1, monthly: 1, news: 9, 'page:home': 1 },
     })
 
     expect(tags.sort()).toEqual(
-      [CACHE_TAGS.menu, CACHE_TAGS.weekly, CACHE_TAGS.monthly, CACHE_TAGS.news].sort(),
+      [CACHE_TAGS.menu, CACHE_TAGS.weekly, CACHE_TAGS.monthly, CACHE_TAGS.news, CACHE_TAGS.homePage].sort(),
     )
-    for (const tag of [CACHE_TAGS.contact, CACHE_TAGS.hours, CACHE_TAGS.homePage, CACHE_TAGS.aboutPage]) {
+    for (const tag of [CACHE_TAGS.contact, CACHE_TAGS.hours, CACHE_TAGS.takeawayPage, CACHE_TAGS.aboutPage]) {
       expect(tags).not.toContain(tag)
     }
   })
@@ -89,10 +101,19 @@ describe('affectedReferencesSchema — the RPC’s affected document', () => {
   it('accepts the shape delete_image() and replace_image() return', () => {
     expect(
       affectedReferencesSchema.safeParse({
-        live: { dish: 1, weekly: 0, monthly: 0, news: 0 },
-        draft: { dish: 0, weekly: 1, monthly: 0, news: 0 },
+        live: { ...NONE, dish: 1 },
+        draft: { ...NONE, weekly: 1 },
       }).success,
     ).toBe(true)
+  })
+
+  it('refuses the pre-11A shape without the page:home count — the SQL and the mapping move together', () => {
+    expect(
+      affectedReferencesSchema.safeParse({
+        live: { dish: 1, weekly: 0, monthly: 0, news: 0 },
+        draft: { dish: 0, weekly: 0, monthly: 0, news: 0 },
+      }).success,
+    ).toBe(false)
   })
 
   it('refuses a missing kind, a negative count and a non-integer', () => {
@@ -114,8 +135,10 @@ describe('cacheTagsForLiveReferences — the alt edit’s post-write read of ima
         { kind: 'dish', pending: true },
         { kind: 'news', pending: true },
         { kind: 'weekly', pending: false },
+        { kind: 'page:home', pending: false },
+        { kind: 'page:home', pending: true },
       ]),
-    ).toEqual([CACHE_TAGS.menu, CACHE_TAGS.weekly])
+    ).toEqual([CACHE_TAGS.menu, CACHE_TAGS.weekly, CACHE_TAGS.homePage])
   })
 
   it('an unreferenced or draft-only image expires nothing', () => {

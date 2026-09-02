@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Browser, type Page } from '@playwright/test'
 
-import { editorForm, OWNER, signIn, STAFF } from './support/admin'
+import { OWNER, signIn, STAFF } from './support/admin'
 import {
   cancelDelete,
   confirmDelete,
@@ -528,20 +528,17 @@ test('a Staff member still cannot edit Forsiden — before or after deleting fro
   // Forsiden features must not become a door into the Owner-only document, and it does
   // not: the deletion never touched `pages.home`, and the Forsiden editor is exactly as
   // closed to this staff member as it was before phase 5D existed.
+  // Since phase 11A the Forside's approved editor is its own screen (1u), and §5's
+  // treatment for an Owner-only area is absence: the address sends a staff member to
+  // the "no access" page, and no form of the Forside's is rendered for them at all.
+  await staffPage.goto('/admin/forsiden')
+  await expect(staffPage).toHaveURL(/\/admin\/ingen-adgang/)
+  await expect(staffPage.getByRole('form', { name: 'Øverst på siden' })).toHaveCount(0)
+  await expect(staffPage.getByRole('form', { name: 'Udvalgte burgere (vælg 3)' })).toHaveCount(0)
+
+  // The phase-4 content screen no longer offers the Forside to anybody.
   await staffPage.goto('/admin/indhold')
-
-  const forsiden = editorForm(staffPage, 'Forsiden')
-  await expect(forsiden).toContainText('Kun ejeren kan rette dette.')
-  await expect(forsiden.getByRole('button', { name: 'Gem kladde' })).toHaveCount(0)
-
-  // And every field on it is disabled — the Forside a stale featured reference lives on
-  // is not editable by this person, before the deletion or after it.
-  const fields = forsiden.locator('input:not([type=hidden]), textarea')
-  await expect(fields).not.toHaveCount(0)
-
-  for (const field of await fields.all()) {
-    await expect(field).toBeDisabled()
-  }
+  await expect(staffPage.getByRole('form', { name: 'Rediger Forsiden' })).toHaveCount(0)
 })
 
 /**

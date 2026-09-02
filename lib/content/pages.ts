@@ -3,6 +3,7 @@ import 'server-only'
 import { CACHE_TAGS, type CacheTag } from '@/lib/cache/tags'
 import { isPlainObject, overlayDraft } from '@/lib/drafts/overlay'
 import type { DraftSpec } from '@/lib/schemas/define'
+import { homeValuesOf } from '@/lib/pages/home'
 import { aboutDraft, homeDraft, takeawayDraft } from '@/lib/schemas/page-documents'
 
 import {
@@ -12,6 +13,7 @@ import {
   stringArrayField,
   stringField,
 } from './document'
+import { imageFor, readPublicImages } from './images'
 import { assertNoQueryError, columns, definePublicRead, type ContentAccess } from './source'
 import type { AboutDocument, HomeDocument, TakeawayDocument } from './types'
 
@@ -66,11 +68,16 @@ async function queryPageDocument(access: ContentAccess, key: PageKey): Promise<u
   return overlayDraft(published, data.draft, PAGE_DRAFTS[key].spec).row
 }
 
-/** One cached, individually tagged read per page. */
-const readPageDocument: Record<PageKey, () => Promise<unknown | null>> = {
-  home: definePublicRead('page-home', [PAGE_DRAFTS.home.tag], (access) =>
-    queryPageDocument(access, 'home'),
-  ),
+/**
+ * One cached, individually tagged read per page.
+ *
+ * The Forside's read maps the document *inside* the tagged entry (phase 11A), because
+ * its three photographs are resolved there: the image rows have to be part of the
+ * `page:home` cache entry for a library edit — a description, a replacement, a
+ * deletion — to be expirable through that one tag (§0x, "The cache coupling"). The
+ * other two pages carry no image yet and keep the raw document.
+ */
+const readPageDocument: Record<Exclude<PageKey, 'home'>, () => Promise<unknown | null>> = {
   takeaway: definePublicRead('page-takeaway', [PAGE_DRAFTS.takeaway.tag], (access) =>
     queryPageDocument(access, 'takeaway'),
   ),
@@ -79,30 +86,44 @@ const readPageDocument: Record<PageKey, () => Promise<unknown | null>> = {
   ),
 }
 
-export async function readHomeDocument(): Promise<HomeDocument | null> {
-  const document = await readPageDocument.home()
-  if (document === null) return null
+/** The Forside document with its three photographs resolved. Tag: `page:home`. */
+export const readHomeDocument = definePublicRead(
+  'page-home',
+  [PAGE_DRAFTS.home.tag],
+  async (access: ContentAccess): Promise<HomeDocument | null> => {
+    const document = await queryPageDocument(access, 'home')
+    if (document === null) return null
 
-  const hero = objectField(document, 'hero')
-  const award = objectField(document, 'award')
-  const aboutExcerpt = objectField(document, 'about_excerpt')
+    // The same normalisation the editor reads (`lib/pages/home.ts`), then the same
+    // projection every entity image uses — over the *overlaid* ids, so a preview
+    // resolves the pending selection (§0x, "Draft Mode").
+    const values = homeValuesOf(document)
+    const images = await readPublicImages(access, [
+      values.hero.image_id,
+      values.award.image_id,
+      values.about_excerpt.image_id,
+    ])
 
-  return {
-    hero: {
-      heading: stringField(hero, 'heading'),
-      intro: stringField(hero, 'intro'),
-    },
-    award: {
-      title: stringField(award, 'title'),
-      text: stringField(award, 'text'),
-    },
-    featuredDishIds: stringArrayField(document, 'featured_dish_ids'),
-    aboutExcerpt: {
-      heading: stringField(aboutExcerpt, 'heading'),
-      text: stringField(aboutExcerpt, 'text'),
-    },
-  }
-}
+    return {
+      hero: {
+        heading: values.hero.heading,
+        intro: values.hero.intro,
+        image: imageFor(images, values.hero.image_id),
+      },
+      award: {
+        title: values.award.title,
+        text: values.award.text,
+        image: imageFor(images, values.award.image_id),
+      },
+      featuredDishIds: [...values.featured_dish_ids],
+      aboutExcerpt: {
+        heading: values.about_excerpt.heading,
+        text: values.about_excerpt.text,
+        image: imageFor(images, values.about_excerpt.image_id),
+      },
+    }
+  },
+)
 
 export async function readTakeawayDocument(): Promise<TakeawayDocument | null> {
   const document = await readPageDocument.takeaway()

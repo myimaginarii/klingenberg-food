@@ -16,7 +16,8 @@ import { uploadIdOfStoragePath } from './rules'
  *
  * USAGE IS IDS, NEVER TEXT (phase-10B brief §3). A usage arrives here because a
  * row in one of the four image_id relationships — dishes, weekly_special,
- * monthly_burger, news — names the image by id. Nothing is ever inferred from a
+ * monthly_burger, news — or the Forside document's three image paths (phase 11A)
+ * names the image by id. Nothing is ever inferred from a
  * filename, an alt text or a path, and there is no stored usage anywhere: the read
  * module derives the list on every request, so it cannot go stale or disagree with
  * the reference-aware refusal `delete_image()` computes from the same four tables.
@@ -24,7 +25,7 @@ import { uploadIdOfStoragePath } from './rules'
 
 /** One place an image is used, derived from one trusted reference record. */
 export type ImageUsage = {
-  readonly kind: 'dish' | 'weekly' | 'monthly' | 'news'
+  readonly kind: 'dish' | 'weekly' | 'monthly' | 'news' | 'page:home'
   /** What the label calls the place: the dish's name, the fixed singleton names, the article's title. */
   readonly name: string
   /**
@@ -56,9 +57,9 @@ export function usageDisplayNames(usages: readonly ImageUsage[]): string[] {
   const places = new Map<string, { name: string; live: boolean }>()
 
   for (const usage of usages) {
-    // The kind is a closed word list with no colon in it, so "kind:name" names one
-    // place unambiguously.
-    const key = `${usage.kind}:${usage.name}`
+    // One place is one (kind, name) pair; the pair is encoded rather than joined
+    // with a separator, because a kind may carry a colon (`page:home`, phase 11A).
+    const key = JSON.stringify([usage.kind, usage.name])
     const existing = places.get(key)
 
     if (existing === undefined) {
@@ -270,3 +271,17 @@ export function describeImageReplacement(usages: readonly ImageUsage[]): string 
     'Det gamle billede slettes først, når det nye er uploadet og klar — går noget galt, sker der ingenting.'
   )
 }
+
+/**
+ * Is the Forside among an image's usages? The Forside is the Owner's (§5), so a
+ * Staff member cannot detach or repoint the reference a delete or a replacement
+ * would have to move — and the trusted transitions refuse them with `owner_only`
+ * rather than leave a dangling id (phase 11A). The screen says so before the press.
+ */
+export function usesHomepage(usages: readonly ImageUsage[]): boolean {
+  return usages.some((usage) => usage.kind === 'page:home')
+}
+
+/** What a Staff member reads where Slet and Erstat would otherwise act (phase 11A). */
+export const HOMEPAGE_OWNER_ONLY_NOTE =
+  'Billedet bruges på forsiden, som kun ejeren kan rette. Bed ejeren om at fjerne det fra forsiden først — eller om at slette eller erstatte billedet.'

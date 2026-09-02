@@ -9,6 +9,11 @@ import type { EntityKey } from '@/lib/publishing/entities'
  * Owner-only entity, a document-shaped draft and a column-shaped one. Every screen
  * below is replaced later, and none of it is a design decision.
  *
+ * **Forsiden left this list in phase 11A.** Its approved editor exists at
+ * `/admin/forsiden` (1u), and two editors for one document would be two saving
+ * conventions for the same draft. The Owner-only entity this list still exercises is
+ * Kontaktoplysninger, until phase 11C gives it 1v.
+ *
  * WHY THE FIELD LISTS ARE WRITTEN OUT
  *
  * A generic "render every field in the schema" editor would be shorter and worse. The
@@ -70,41 +75,6 @@ function sectionValue(
 }
 
 export const CONTENT_EDITORS: readonly ContentEditor[] = [
-  {
-    entity: 'page:home',
-    heading: 'Forsiden',
-    description:
-      'Overskriften og teksten øverst på forsiden, og teksten om udmærkelsen. Kun ejeren kan rette forsiden.',
-    fields: [
-      {
-        name: 'hero_heading',
-        label: 'Overskrift',
-        current: (values) => sectionValue(values, 'hero', 'heading'),
-      },
-      {
-        name: 'hero_intro',
-        label: 'Introtekst',
-        multiline: true,
-        current: (values) => sectionValue(values, 'hero', 'intro'),
-      },
-      {
-        name: 'award_title',
-        label: 'Udmærkelsens titel',
-        current: (values) => sectionValue(values, 'award', 'title'),
-      },
-      {
-        name: 'award_text',
-        label: 'Tekst om udmærkelsen',
-        multiline: true,
-        current: (values) => sectionValue(values, 'award', 'text'),
-      },
-    ],
-    toDraftValues: (form) => ({
-      hero: { heading: text(form, 'hero_heading'), intro: text(form, 'hero_intro') },
-      award: { title: text(form, 'award_title'), text: text(form, 'award_text') },
-    }),
-  },
-
   {
     entity: 'page:takeaway',
     heading: 'Mad ud af huset',

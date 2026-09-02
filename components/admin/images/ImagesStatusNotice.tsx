@@ -30,6 +30,13 @@ const STATUS_NOTICES: Record<string, { tone: NoticeTone; message: string }> = {
       'En kollega har ændret billedet i mellemtiden, så der blev ikke gemt noget. Gennemse den nye version, og prøv igen.',
   },
   findes_ikke: { tone: 'error', message: 'Billedet findes ikke længere.' },
+  // The Forside is the Owner's (§5, phase 11A): a Staff member's delete or
+  // replacement of an image it uses is refused before anything moves.
+  kun_ejer: {
+    tone: 'error',
+    message:
+      'Billedet bruges på forsiden, som kun ejeren kan rette. Der blev ikke ændret noget — bed ejeren om at fjerne det fra forsiden først.',
+  },
   afvist: { tone: 'error', message: 'Du har ikke adgang til at ændre billeder.' },
   fejl: { tone: 'error', message: 'Noget gik galt. Der blev ikke ændret noget — prøv igen.' },
 }

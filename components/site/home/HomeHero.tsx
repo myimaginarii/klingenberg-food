@@ -1,10 +1,11 @@
 import { ActionLink } from '@/components/site/ActionLink'
 import { AwardRibbon } from '@/components/site/AwardRibbon'
-import { MediaPlaceholder } from '@/components/site/MediaPlaceholder'
 import { OpenStatus } from '@/components/site/OpenStatus'
 import { PhoneAction } from '@/components/site/PhoneAction'
+import { SiteImage } from '@/components/site/SiteImage'
 import type { OpenStatusSnapshot } from '@/lib/hours/status'
 import type { OpeningHoursOverride, WeeklySchedule } from '@/lib/hours/types'
+import type { PublicImage } from '@/lib/images/public'
 
 /**
  * The Forside hero — design 1g (text beside the photograph) and 1l (photograph first).
@@ -17,6 +18,12 @@ import type { OpeningHoursOverride, WeeklySchedule } from '@/lib/hours/types'
  * The heading and the introduction come from `pages.home`, which the owner edits
  * (§5). Both are placeholder text today — 1ab lists "Forsidens overskrift og intro"
  * among the things the restaurant still owes us.
+ *
+ * The photograph (phase 11A) is the Forside document's own hero image — 1u's
+ * "Hovedbillede" — rendered by the one public renderer in exactly the box the
+ * placeholder reserved: 4:3 above the text on a phone, the full-height column beside
+ * it from `md`. It is the page's primary image, so it loads eagerly. No image, or an
+ * image the read layer could not render safely, is the reserved frame as before.
  */
 export function HomeHero({
   heading,
@@ -26,9 +33,11 @@ export function HomeHero({
   overrides,
   primaryPhone,
   directionsHref,
+  image,
 }: {
   heading: string
   intro: string | null
+  image: PublicImage | null
   openStatus: OpenStatusSnapshot
   schedule: WeeklySchedule
   overrides: OpeningHoursOverride[]
@@ -94,10 +103,15 @@ export function HomeHero({
           />
         </div>
 
-        <MediaPlaceholder
+        <SiteImage
+          image={image}
           ratio="card"
-          label="Hero-foto"
-          detail="signaturburger, tæt beskåret · min. 2400 × 1600 px"
+          sizes="homeHero"
+          loading="eager"
+          placeholder={{
+            label: 'Hero-foto',
+            detail: 'signaturburger, tæt beskåret · min. 2400 × 1600 px',
+          }}
           className="border-border w-full flex-1 border-0 border-b md:aspect-auto md:min-h-[32.5rem] md:border-b-0 md:border-l lg:flex-[1.05]"
         />
       </div>

@@ -77,6 +77,11 @@ export async function deleteImage(formData: FormData): Promise<void> {
       // the fresh usage list. Nothing was deleted.
       redirect(imagesHref({ image: id.data, confirmDelete: id.data, status: 'i_brug' }))
       break
+    case 'owner_only':
+      // The Forside names the image, and this caller is not the owner (§5, phase
+      // 11A). Nothing was deleted, and the sentence says who can.
+      redirect(imagesHref({ image: id.data, status: 'kun_ejer' }))
+      break
     case 'conflict':
       redirect(imagesHref({ image: id.data, status: 'konflikt' }))
       break

@@ -3,6 +3,7 @@ import { SubmitButton } from '@/components/admin/SubmitButton'
 import type { AdminImage } from '@/lib/content/images-admin'
 import {
   imageDisplayName,
+  HOMEPAGE_OWNER_ONLY_NOTE,
   UNUSED_LABEL,
   ALT_TEXT_MAX_LENGTH,
 } from '@/lib/images/library'
@@ -42,6 +43,7 @@ export function ImageDetailPanel({
   anchorId,
   replaceButtonId,
   deleteButtonId,
+  homepageOwnerOnly = false,
 }: {
   image: AdminImage
   /** "01.09.2026" — derived by the page from the row's Copenhagen-local date. */
@@ -57,6 +59,12 @@ export function ImageDetailPanel({
   anchorId: string
   replaceButtonId: string
   deleteButtonId: string
+  /**
+   * The Forside names this image and the viewer is not the owner (phase 11A, §5):
+   * Erstat and Slet would be refused by the transitions, so the panel says who can
+   * instead of drawing two controls that lead to a refusal.
+   */
+  homepageOwnerOnly?: boolean
 }) {
   const headingId = `${anchorId}-titel`
   const used = image.usages.length > 0
@@ -133,22 +141,29 @@ export function ImageDetailPanel({
             </div>
           </form>
 
-          <div className="flex flex-col gap-2.5 md:flex-row">
-            <a
-              className="rounded-field border-neutral-ink text-neutral-ink hover:bg-section bg-surface inline-flex min-h-tap items-center justify-center border-[1.5px] px-4.5 font-semibold"
-              href={replaceHref}
-              id={replaceButtonId}
-            >
-              Erstat
-            </a>
-            <a
-              className="rounded-field border-error text-error-ink hover:bg-error-surface bg-surface inline-flex min-h-tap items-center justify-center border-[1.5px] px-4.5 font-semibold"
-              href={deleteHref}
-              id={deleteButtonId}
-            >
-              Slet
-            </a>
-          </div>
+          {homepageOwnerOnly ? (
+            <p className="text-ink-2 text-meta" id={`${anchorId}-kun-ejer`}>
+              <span aria-hidden="true">● </span>
+              {HOMEPAGE_OWNER_ONLY_NOTE}
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2.5 md:flex-row">
+              <a
+                className="rounded-field border-neutral-ink text-neutral-ink hover:bg-section bg-surface inline-flex min-h-tap items-center justify-center border-[1.5px] px-4.5 font-semibold"
+                href={replaceHref}
+                id={replaceButtonId}
+              >
+                Erstat
+              </a>
+              <a
+                className="rounded-field border-error text-error-ink hover:bg-error-surface bg-surface inline-flex min-h-tap items-center justify-center border-[1.5px] px-4.5 font-semibold"
+                href={deleteHref}
+                id={deleteButtonId}
+              >
+                Slet
+              </a>
+            </div>
+          )}
         </div>
       </div>
     </section>

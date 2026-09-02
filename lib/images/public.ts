@@ -170,6 +170,16 @@ export const IMAGE_SIZES = {
   newsTeaser: '(min-width: 48rem) 8.125rem, calc(100vw - 3.75rem)',
   /** §7f article: the 62ch measure, roughly 34rem, and the gutters below `md`. */
   newsArticle: '(min-width: 48rem) 34rem, calc(100vw - 2rem)',
+  /**
+   * 1g/1l hero (phase 11A): full width above the text on a phone; from `md` the
+   * photograph is the second of two equal flex columns of the 80rem measure, and
+   * from `lg` the slightly larger one (`flex-[1.05]`).
+   */
+  homeHero: '(min-width: 90rem) 41rem, (min-width: 48rem) 51vw, 100vw',
+  /** 1g/1l award band (phase 11A): full width on a phone, a 13.75rem column from `md`. */
+  homeAward: '(min-width: 48rem) 13.75rem, calc(100vw - 2rem)',
+  /** 1g/1l "Om os" excerpt (phase 11A): full width on a phone, a 9.375rem thumbnail from `md`. */
+  homeTeam: '(min-width: 48rem) 9.375rem, calc(100vw - 2rem)',
 } as const
 
 export type ImageSizesPreset = keyof typeof IMAGE_SIZES

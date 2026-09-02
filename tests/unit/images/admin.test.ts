@@ -129,8 +129,8 @@ function recordingEffects() {
 }
 
 const NO_AFFECTED = {
-  live: { dish: 0, weekly: 0, monthly: 0, news: 0 },
-  draft: { dish: 0, weekly: 0, monthly: 0, news: 0 },
+  live: { dish: 0, weekly: 0, monthly: 0, news: 0, 'page:home': 0 },
+  draft: { dish: 0, weekly: 0, monthly: 0, news: 0, 'page:home': 0 },
 }
 
 /** A supabase fake answering one RPC. */
@@ -202,7 +202,7 @@ describe('saveImageAltText — the one direct column write (brief §10)', () => 
     expect(result.cacheTags).toEqual([])
   })
 
-  it('a failed references read after a successful save falls back to the four entity tags — bounded, never global', async () => {
+  it('a failed references read after a successful save falls back to the five entity tags — bounded, never global', async () => {
     const db = altDatabase({ updated: { id: IMAGE_ID }, referencesError: { message: 'unreachable' } })
 
     const result = await saveImageAltText(db.supabase, STAFF, {
@@ -212,7 +212,7 @@ describe('saveImageAltText — the one direct column write (brief §10)', () => 
     })
 
     expect(result.status).toBe('saved')
-    expect([...result.cacheTags].sort()).toEqual(['menu', 'monthly', 'news', 'weekly'])
+    expect([...result.cacheTags].sort()).toEqual(['menu', 'monthly', 'news', 'page:home', 'weekly'])
   })
 
   it('a blank description is stored as absent, not as an empty string', async () => {
@@ -324,8 +324,8 @@ describe('deleteLibraryImage — the one door out, then the files (brief §14–
         references: 4,
         storage_path: 'u/original.jpg',
         affected: {
-          live: { dish: 1, weekly: 0, monthly: 0, news: 1 },
-          draft: { dish: 0, weekly: 1, monthly: 1, news: 0 },
+          live: { dish: 1, weekly: 0, monthly: 0, news: 1, 'page:home': 0 },
+          draft: { dish: 0, weekly: 1, monthly: 1, news: 0, 'page:home': 0 },
         },
       },
     })
@@ -491,8 +491,8 @@ describe('replaceLibraryImage — the trusted transition (brief §17)', () => {
         new_id: NEW_ID,
         storage_path: 'old/original.jpg',
         affected: {
-          live: { dish: 2, weekly: 1, monthly: 0, news: 0 },
-          draft: { dish: 1, weekly: 0, monthly: 1, news: 0 },
+          live: { dish: 2, weekly: 1, monthly: 0, news: 0, 'page:home': 0 },
+          draft: { dish: 1, weekly: 0, monthly: 1, news: 0, 'page:home': 0 },
         },
       },
     })
@@ -532,7 +532,7 @@ describe('replaceLibraryImage — the trusted transition (brief §17)', () => {
         references: 2,
         new_id: NEW_ID,
         storage_path: 'old/original.jpg',
-        affected: { live: NO_AFFECTED.live, draft: { dish: 1, weekly: 0, monthly: 0, news: 1 } },
+        affected: { live: NO_AFFECTED.live, draft: { dish: 1, weekly: 0, monthly: 0, news: 1, 'page:home': 0 } },
       },
     })
     const { storage } = recordingStorage()

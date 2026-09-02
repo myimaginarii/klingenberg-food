@@ -397,6 +397,11 @@ app/
                       upload request/finalize, alt text, delete and replace are four
                       vocabularies in four action files, and the browser never names a
                       storage path, a dimension or an image id for creation
+    forsiden/         Rediger forsiden (phase 11A) — frame 1u on one URL-driven page,
+                      Owner only; the three text cards, the three photo slots (the
+                      10C-1 picker pair) and the featured list are four vocabularies
+                      in four action files, and the browser never names a dish by
+                      anything but its id
     indhold/ login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
   api/preview/        start and stop Draft Mode — staff session required
 proxy.ts              session refresh + unauthenticated redirect. Authorizes nothing.
@@ -419,6 +424,9 @@ components/
                       change card, and this screen's
                       notices. Zero client components: a closed row hides its two
                       dropdowns with a sibling selector, not with a script.
+  admin/home/         Rediger forsiden (phase 11A). The text card, the featured list,
+                      the dish picker and this screen's notices. No business rules
+                      here: the document's are lib/pages/home.ts.
   admin/images/       Billeder (phase 10B). The grid, the thumbnail <picture>, the detail
                       panel, the delete confirmation — and the one client component the
                       upload needs (a signed PUT cannot be a form post). No business rules
@@ -472,6 +480,8 @@ lib/
                       sentences); `upload-flow.ts` the pure upload state machine;
                       `admin.ts` the write wrappers over alt_text, delete_image()
                       and replace_image().
+  pages/              the Forside document's rules (phase 11A): normalisation, the
+                      per-section delta, the featured-list controls, the sentences
   hours/ time/        the pure time engines
   schemas/            the Zod shapes every write is re-parsed against
 scripts/
@@ -550,8 +560,8 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 11 onward — the remaining editors (Forsiden, Mad ud
-af huset with its visibility toggle, Kontaktoplysninger, `/admin/brugere`) — and:
+Everything in §15 from phase 11B onward — the remaining editors (Mad ud af huset
+with its visibility toggle, Kontaktoplysninger, `/admin/brugere`) — and:
 the weekly off-platform backup workflow (phase 13, §10f) and Sentry (phase 13).
 `docs/dependencies.md` records which package arrives in which phase. Phase 6 is
 **complete and locked** — 6A (Ugens ret and
@@ -562,7 +572,12 @@ over both halves (§0h). Phase 8 is **complete and locked** — 8A (§0i), 8B (�
 completion pass over all seven (§0p). Phase 9 is **complete and locked** — 9A (§0q),
 9B (§0r), and the completion pass over both (§0s). Phase 10 is **complete and locked** —
 10A (§0t), 10B (§0u), 10C-1 (§0v, hardened in §0w), 10C-2 (§0x), and the completion
-pass over all four (§0y).
+pass over all four (§0y). **Phase 11A — the Forsiden editor at `/admin/forsiden` — is
+built and green (§0z)**: the Owner edits 1u's four cards, chooses the hero, award and
+team photographs through the shared picker, and features up to three dishes from the
+menu by id; the Forside's image references live in the same `image_references` view,
+the same delete/replace transitions and the same cache mapping as every other image.
+Phase 11 is **not locked** — 11B and 11C are not started.
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published

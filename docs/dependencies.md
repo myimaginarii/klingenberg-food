@@ -3,6 +3,42 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 11A — no dependencies added (2026-09-02)
+
+**The Forsiden editor** (technical plan §0z) adds **no package**. `package.json` and
+the lockfile are byte-identical to the phase-10 state.
+
+### The three things that would have justified a package, and why none is here
+
+- **A page-builder or block editor.** 1u draws four fixed cards with two text fields
+  each, three photo slots and a three-item list. That is a form, and the
+  administration already has the form primitives (`components/admin/Field.tsx`),
+  the section bar, the notice, the modal dialog and the picker pair.
+- **A drag-and-drop list for the featured slots.** Three items with two move
+  buttons each, the phase-5F precedent (the Tapas groups); no second drag engine.
+- **A JSON-patch or deep-merge helper for the document draft.** The delta is per
+  top-level section and the section is written whole (`lib/pages/home.ts`), which
+  is one `Object.hasOwn` loop — the same rule `lib/drafts/overlay.ts` has stated
+  since phase 4, restated for a document.
+
+### One migration, and what it does not contain
+
+`20260902120000_homepage_image_references.sql`: three immutable SQL helpers over
+the document's three literal image paths, `image_references` re-created with six
+explicit page branches, a BEFORE UPDATE OF `published` guard and the existing
+statement-level marker consumer attached to `pages`, `publish_page()` restated
+under the marker, and `delete_image()` / `replace_image()` restated with the page
+paths and a fifth `affected` count. **No** new table, index, policy, grant or
+SECURITY DEFINER function; no document walker — a later page adds its paths
+explicitly.
+
+### `npm audit --audit-level=high` — clean
+
+Run from a clean `npm ci` as the first step of the phase-11A regression chain:
+**0 vulnerabilities**.
+
+---
+
 ## Phase 10 completion pass — no dependencies added (2026-09-02)
 
 **The phase-10 lock pass** (technical plan §0y) adds **no package**.

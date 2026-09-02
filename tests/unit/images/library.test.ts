@@ -10,7 +10,9 @@ import {
   readDerivativeRecord,
   thumbnailAlt,
   usageLabel,
+  usesHomepage,
   ALT_TEXT_MAX_LENGTH,
+  HOMEPAGE_OWNER_ONLY_NOTE,
   UNUSED_LABEL,
   type ImageUsage,
 } from '@/lib/images/library'
@@ -51,6 +53,16 @@ describe('usageLabel — 1w\'s captions', () => {
 
   it('one place with both a live and a pending reference is named once, unmarked', () => {
     expect(usageLabel([dish('Odin'), dish('Odin', true)])).toBe('Bruges på: Odin')
+  })
+
+  // Phase 11A: the Forside's three slots are one place, however many name the image.
+  it('the Forside is named once, whether one slot or three name the image', () => {
+    const forside = (pending = false) =>
+      ({ kind: 'page:home', name: 'Forsiden', pending }) as const
+
+    expect(usageLabel([forside(), forside(), forside()])).toBe('Bruges på: Forsiden')
+    expect(usageLabel([dish('Odin'), forside(true)])).toBe('Bruges på: Odin · Forsiden (kladde)')
+    expect(usageLabel([forside(true), forside()])).toBe('Bruges på: Forsiden')
   })
 
   it('live and pending places mix without confusing each other', () => {
@@ -185,6 +197,21 @@ describe('parseAltText — brief §10 and §11', () => {
   })
 })
 
+describe('usesHomepage — who may delete or replace (phase 11A, §5)', () => {
+  it('is true exactly when a page:home reference is among the usages, live or pending', () => {
+    expect(usesHomepage([])).toBe(false)
+    expect(usesHomepage([dish('Odin'), WEEKLY, NEWS])).toBe(false)
+    expect(usesHomepage([{ kind: 'page:home', name: 'Forsiden', pending: true }])).toBe(true)
+    expect(usesHomepage([dish('Odin'), { kind: 'page:home', name: 'Forsiden', pending: false }])).toBe(true)
+  })
+
+  it('says who can, in the library\'s own words', () => {
+    expect(HOMEPAGE_OWNER_ONLY_NOTE).toBe(
+      'Billedet bruges på forsiden, som kun ejeren kan rette. Bed ejeren om at fjerne det fra forsiden først — eller om at slette eller erstatte billedet.',
+    )
+  })
+})
+
 describe('describeImageDeletion — 1w\'s warning (brief §14)', () => {
   it('an unused image gets a plain confirmation', () => {
     const prompt = describeImageDeletion([])
@@ -193,6 +220,15 @@ describe('describeImageDeletion — 1w\'s warning (brief §14)', () => {
     expect(prompt.consequence).toContain('kan ikke fortrydes')
     expect(prompt.consequence).not.toContain('Bruges')
     expect(prompt.confirmLabel).toBe('Slet billede')
+  })
+
+  it('an image the Forside uses is warned about with the frame\'s own place name', () => {
+    const prompt = describeImageDeletion([
+      { kind: 'page:home', name: 'Forsiden', pending: false },
+      dish('Odin'),
+    ])
+
+    expect(prompt.consequence).toContain('Billedet bruges på: Forsiden · Odin.')
   })
 
   it('a used image names every place and states the removal explicitly', () => {

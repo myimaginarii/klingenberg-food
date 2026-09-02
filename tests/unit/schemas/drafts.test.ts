@@ -76,10 +76,10 @@ describe('Owner-only fields stay Owner-only', () => {
    * simply is not part of that entity.
    */
   const OWNER_ONLY_HOME_FIELDS = {
-    hero: { heading: 'Overtaget', intro: null },
-    award: { title: 'Overtaget', text: null },
+    hero: { heading: 'Overtaget', intro: null, image_id: null },
+    award: { title: 'Overtaget', text: null, image_id: null },
     featured_dish_ids: ['44444444-4444-4444-8444-444444444444'],
-    about_excerpt: { heading: null, text: 'Overtaget' },
+    about_excerpt: { heading: null, text: 'Overtaget', image_id: null },
   }
 
   it.each(Object.entries(OWNER_ONLY_HOME_FIELDS))(
@@ -146,6 +146,51 @@ describe('immediate-path fields are not draft fields', () => {
   it('a page draft refuses is_visible and published', () => {
     expect(takeawayDraft.input.safeParse({ is_visible: false }).success).toBe(false)
     expect(takeawayDraft.input.safeParse({ published: {} }).success).toBe(false)
+  })
+})
+
+describe('the Forside\'s image slots are part of a whole section (phase 11A)', () => {
+  const IMAGE = '55555555-5555-4555-8555-555555555555'
+
+  it('a section without its image key is refused — the shallow merge would drop the live photo', () => {
+    expect(homeDraft.input.safeParse({ hero: { heading: 'x', intro: null } }).success).toBe(false)
+    expect(homeDraft.input.safeParse({ award: { title: 'x', text: null } }).success).toBe(false)
+    expect(homeDraft.input.safeParse({ about_excerpt: { heading: null, text: 'x' } }).success).toBe(false)
+  })
+
+  it('accepts a uuid or null, and refuses a path, a URL or an object where the id should be', () => {
+    expect(homeDraft.input.safeParse({ hero: { heading: 'x', intro: null, image_id: IMAGE } }).success).toBe(true)
+    expect(homeDraft.input.safeParse({ hero: { heading: 'x', intro: null, image_id: null } }).success).toBe(true)
+
+    for (const value of ['abc/original.jpg', 'https://example.test/foto.webp', { id: IMAGE }, '']) {
+      expect(
+        homeDraft.input.safeParse({ hero: { heading: 'x', intro: null, image_id: value } }).success,
+        JSON.stringify(value),
+      ).toBe(false)
+    }
+  })
+
+  it('stores no storage path, derivative, alt text or filename from a section — a smuggled key is dropped', () => {
+    // The top level is strict (an unknown *section* is a refusal); inside a section
+    // the phase-4 shape strips, so nothing but the id can ever reach the draft.
+    for (const key of ['storage_path', 'alt_text', 'derivatives', 'original_filename', 'url']) {
+      const parsed = homeDraft.input.parse({
+        hero: { heading: 'x', intro: null, image_id: null, [key]: 'x' },
+      })
+      expect(parsed.hero, key).toEqual({ heading: 'x', intro: null, image_id: null })
+    }
+  })
+
+  it('a stored draft written before the image keys existed is malformed rather than half-applied', () => {
+    expect(homeDraft.stored.safeParse({ hero: { heading: 'Gammel', intro: null } }).success).toBe(false)
+  })
+
+  it('refuses the same featured dish twice, and a fourth', () => {
+    const a = '11111111-1111-4111-8111-111111111111'
+    const b = '22222222-2222-4222-8222-222222222222'
+    expect(homeDraft.input.safeParse({ featured_dish_ids: [a, a] }).success).toBe(false)
+    expect(homeDraft.input.safeParse({ featured_dish_ids: [a, b, IMAGE, '44444444-4444-4444-8444-444444444444'] }).success).toBe(false)
+    expect(homeDraft.input.safeParse({ featured_dish_ids: [a, b] }).success).toBe(true)
   })
 })
 
@@ -379,12 +424,14 @@ describe('a page section must be submitted whole', () => {
     expect(homeDraft.input.safeParse({ hero: { heading: 'Ny' } }).success).toBe(false)
   })
 
-  it('accepts a complete hero, including an explicitly empty intro', () => {
-    expect(homeDraft.input.safeParse({ hero: { heading: 'Ny', intro: null } }).success).toBe(true)
+  it('accepts a complete hero, including an explicitly empty intro and no image', () => {
+    expect(
+      homeDraft.input.safeParse({ hero: { heading: 'Ny', intro: null, image_id: null } }).success,
+    ).toBe(true)
   })
 
   it('accepts a draft that carries one section and leaves the others out', () => {
-    const parsed = homeDraft.input.parse({ hero: { heading: 'Ny', intro: null } })
+    const parsed = homeDraft.input.parse({ hero: { heading: 'Ny', intro: null, image_id: null } })
 
     expect(Object.hasOwn(parsed, 'award')).toBe(false)
   })
