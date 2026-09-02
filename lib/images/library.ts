@@ -16,8 +16,8 @@ import { uploadIdOfStoragePath } from './rules'
  *
  * USAGE IS IDS, NEVER TEXT (phase-10B brief §3). A usage arrives here because a
  * row in one of the four image_id relationships — dishes, weekly_special,
- * monthly_burger, news — or the Forside document's three image paths (phase 11A)
- * names the image by id. Nothing is ever inferred from a
+ * monthly_burger, news — or the Forside document's three image paths (phase 11A) or
+ * Mad ud af huset's one (phase 11B) names the image by id. Nothing is ever inferred from a
  * filename, an alt text or a path, and there is no stored usage anywhere: the read
  * module derives the list on every request, so it cannot go stale or disagree with
  * the reference-aware refusal `delete_image()` computes from the same four tables.
@@ -25,7 +25,7 @@ import { uploadIdOfStoragePath } from './rules'
 
 /** One place an image is used, derived from one trusted reference record. */
 export type ImageUsage = {
-  readonly kind: 'dish' | 'weekly' | 'monthly' | 'news' | 'page:home'
+  readonly kind: 'dish' | 'weekly' | 'monthly' | 'news' | 'page:home' | 'page:takeaway'
   /** What the label calls the place: the dish's name, the fixed singleton names, the article's title. */
   readonly name: string
   /**

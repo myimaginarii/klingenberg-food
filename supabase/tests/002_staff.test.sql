@@ -300,9 +300,14 @@ select is(
 select lives_ok(
   $$ update public.pages set published = '{"heading": "Mad ud af huset"}'::jsonb where key = 'takeaway' $$,
   'staff can edit the Mad ud af huset page');
-select lives_ok(
+-- Phase 11B: the switch is published through publish_page() alone. RLS still admits
+-- the row to staff (the guard, not the policy, is what answers), so the refusal is
+-- the guard's 42501 rather than a silent zero rows; 026 proves the door that does
+-- move it.
+select throws_ok(
   $$ update public.pages set is_visible = false where key = 'takeaway' $$,
-  'staff can toggle the Mad ud af huset page off');
+  '42501', null,
+  'staff cannot move the Mad ud af huset switch directly — it goes through publish_page() (phase 11B)');
 select lives_ok(
   $$ update public.pages set published = '{"heading": "Om os"}'::jsonb where key = 'about' $$,
   'staff can edit the Om os page');

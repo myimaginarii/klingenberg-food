@@ -402,6 +402,13 @@ app/
                       10C-1 picker pair) and the featured list are four vocabularies
                       in four action files, and the browser never names a dish by
                       anything but its id
+    mad-ud-af-huset/  Mad ud af huset (phase 11B) — frame 1aj, Staff and Owner; the
+                      switch, the text, the photo slot, the free sections and the
+                      button label are five vocabularies in five action files, and
+                      the switch is a draft that goes live with Offentliggør
+    kontakt/          Kontaktoplysninger (phase 11B) — frame 1v, Owner only; one form
+                      over the phase-1 site_contact row, Kladde → Offentliggør, with
+                      Offentliggør greyed until something waits
     indhold/ login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
   api/preview/        start and stop Draft Mode — staff session required
 proxy.ts              session refresh + unauthenticated redirect. Authorizes nothing.
@@ -427,6 +434,13 @@ components/
   admin/home/         Rediger forsiden (phase 11A). The text card, the featured list,
                       the dish picker and this screen's notices. No business rules
                       here: the document's are lib/pages/home.ts.
+  admin/takeaway/     Mad ud af huset (phase 11B). The visibility card, the text card,
+                      the sections editor, the button card and the notices. The
+                      document's rules are lib/pages/takeaway.ts.
+  admin/contact/      Kontaktoplysninger (phase 11B). One editor and its notices; the
+                      rules are lib/contact/editor.ts.
+  admin/PendingBand   The three pending marks every draft editor draws — the band,
+                      the bar's pill, the card badge — shared since phase 11B.
   admin/images/       Billeder (phase 10B). The grid, the thumbnail <picture>, the detail
                       panel, the delete confirmation — and the one client component the
                       upload needs (a signed PUT cannot be a form post). No business rules
@@ -481,7 +495,11 @@ lib/
                       `admin.ts` the write wrappers over alt_text, delete_image()
                       and replace_image().
   pages/              the Forside document's rules (phase 11A): normalisation, the
-                      per-section delta, the featured-list controls, the sentences
+                      per-section delta, the featured-list controls, the sentences —
+                      and Mad ud af huset's (phase 11B): the per-key delta, the
+                      visibility through the draft, the section controls
+  contact/            the Kontaktoplysninger editor's rules (phase 11B): 1v's seven
+                      fields, the schema's refusals bound per field, the delta
   hours/ time/        the pure time engines
   schemas/            the Zod shapes every write is re-parsed against
 scripts/
@@ -560,8 +578,8 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 11B onward — the remaining editors (Mad ud af huset
-with its visibility toggle, Kontaktoplysninger, `/admin/brugere`) — and:
+Everything in §15 from phase 11C onward — the user administration at
+`/admin/brugere` — and:
 the weekly off-platform backup workflow (phase 13, §10f) and Sentry (phase 13).
 `docs/dependencies.md` records which package arrives in which phase. Phase 6 is
 **complete and locked** — 6A (Ugens ret and
@@ -577,7 +595,18 @@ built and green (§0z)**: the Owner edits 1u's four cards, chooses the hero, awa
 team photographs through the shared picker, and features up to three dishes from the
 menu by id; the Forside's image references live in the same `image_references` view,
 the same delete/replace transitions and the same cache mapping as every other image.
-Phase 11 is **not locked** — 11B and 11C are not started.
+**Phase 11B — Mad ud af huset at `/admin/mad-ud-af-huset` and Kontaktoplysninger
+at `/admin/kontakt` — is built and green (§0aa)**: Staff and Owner edit 1aj's
+switch, words, photograph, free sections and button label, and the switch is a
+draft like everything else on the frame — a guest keeps the page and the menu item
+until Offentliggør, and the FIRST request afterwards loses (or regains) the page,
+the navigation item and the sitemap entry together; the Owner edits 1v's five facts
+over the phase-1 `site_contact` draft row, and a published number reaches every
+Ring control as a derived `tel:` link on the first request. The 11A finding about
+nested keys is closed for the takeaway sections (strict objects, refused at every
+door) and deliberately left open for Om os. Phase 11 is **not locked** — 11C, the
+user administration at `/admin/brugere`, is not started, and the lock pass over
+11A–11C follows it.
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published

@@ -222,6 +222,8 @@ describe('IMAGE_SIZES — one sizes string per approved slot (brief §7)', () =>
         'homeHero',
         'homeAward',
         'homeTeam',
+        // Phase 11B: Mad ud af huset's own photograph (1ai/1aj).
+        'takeawayHero',
       ].sort(),
     )
   })

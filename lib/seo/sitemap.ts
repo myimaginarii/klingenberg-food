@@ -3,6 +3,7 @@ import type { MetadataRoute } from 'next'
 import { absoluteUrl } from '@/lib/config/site'
 import type { NewsArticle } from '@/lib/content/types'
 import { newsArticlePath } from '@/lib/news/slug'
+import { MAIN_NAV, type NavItem } from '@/lib/site/navigation'
 
 /**
  * What the sitemap contains — technical plan §11, §7f; phase 9B.
@@ -35,10 +36,30 @@ export const STATIC_SITEMAP_PATHS = [
   '/mad-ud-af-huset',
 ] as const
 
-export function staticSitemapEntries(): MetadataRoute.Sitemap {
+/**
+ * The six pages, less any the administration has switched off (phase 11B).
+ *
+ * "Slå fra, og både siden og menupunktet forsvinder helt" (1aj): a page that answers
+ * 404 and is in no navigation must not be offered to a crawler either. Which pages
+ * carry a switch, and which route each one is, is `MAIN_NAV`'s knowledge — the same
+ * list the header and the footer filter — so the sitemap cannot disagree with them.
+ * The caller hands in the published hidden keys from the `page:takeaway`-tagged read,
+ * so publishing the switch refires the sitemap exactly as it refires the navigation.
+ */
+export function staticSitemapEntries(
+  hiddenPageKeys: readonly NavItem['pageKey'][] = [],
+): MetadataRoute.Sitemap {
+  const hiddenPaths = new Set(
+    MAIN_NAV.filter(
+      (item) => item.pageKey !== undefined && hiddenPageKeys.includes(item.pageKey),
+    ).map((item) => item.href),
+  )
+
   // No `lastModified`: nothing stored states when a static page's content moved,
   // and §11's rule for a value the data does not carry is omitted, not invented.
-  return STATIC_SITEMAP_PATHS.map((path) => ({ url: absoluteUrl(path) }))
+  return STATIC_SITEMAP_PATHS.filter((path) => !hiddenPaths.has(path)).map((path) => ({
+    url: absoluteUrl(path),
+  }))
 }
 
 export function newsSitemapEntries(

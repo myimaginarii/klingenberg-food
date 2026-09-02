@@ -143,9 +143,20 @@ describe('immediate-path fields are not draft fields', () => {
     expect(menuCategoryDraft.input.safeParse({ visible: false }).success).toBe(false)
   })
 
-  it('a page draft refuses is_visible and published', () => {
-    expect(takeawayDraft.input.safeParse({ is_visible: false }).success).toBe(false)
+  it('a page draft refuses published, and the Forside and Om os refuse is_visible', () => {
     expect(takeawayDraft.input.safeParse({ published: {} }).success).toBe(false)
+    expect(homeDraft.input.safeParse({ is_visible: false }).success).toBe(false)
+    expect(aboutDraft.input.safeParse({ is_visible: false }).success).toBe(false)
+  })
+
+  it('Mad ud af huset carries its switch as a draft field — a boolean, and nothing else (phase 11B)', () => {
+    // 1aj: "alt gemmes som kladde … går først live ved Offentliggør" — the switch
+    // included. It is not an immediate-path field, so it is a draft field.
+    expect(takeawayDraft.input.safeParse({ is_visible: false }).success).toBe(true)
+    expect(takeawayDraft.input.safeParse({ is_visible: true }).success).toBe(true)
+    for (const value of ['false', 0, 1, null, 'ja', { on: true }]) {
+      expect(takeawayDraft.input.safeParse({ is_visible: value }).success, JSON.stringify(value)).toBe(false)
+    }
   })
 })
 
@@ -330,6 +341,93 @@ describe('the Forside\'s sections are strict objects (phase 11A completion pass)
     expect(homeDraft.stored.parse({ noget_helt_andet: { x: 1 }, hero: VALID_SECTIONS.hero })).toEqual({
       hero: VALID_SECTIONS.hero,
     })
+  })
+})
+
+describe("Mad ud af huset's sections are strict objects (phase 11B)", () => {
+  /**
+   * The phase-11A completion pass found `takeawayDraft.sections[]` stripping unknown
+   * nested keys rather than refusing them. Phase 11B owns the schema, so the
+   * sections are `z.strictObject` now, on both parses — a smuggled key is a refusal
+   * on the way in, and `malformed` / `invalid_draft` on the way out. The seed's own
+   * shape (`afsnit-1`, heading, body, sort) is exactly what still parses.
+   */
+  const IMAGE = '55555555-5555-4555-8555-555555555555'
+
+  const SEEDED_SECTIONS = [
+    { id: 'afsnit-1', heading: 'Overskrift på tekstafsnit', body: 'Placeholder ét.', sort: 1 },
+    { id: 'afsnit-2', heading: 'Overskrift på tekstafsnit', body: 'Placeholder to.', sort: 2 },
+  ]
+
+  it('the seeded document, and a document with every field, parse unaltered on both paths', () => {
+    const document = {
+      heading: 'Mad til fester og store selskaber',
+      intro: 'Vi laver mad ud af huset.',
+      image_id: IMAGE,
+      sections: SEEDED_SECTIONS,
+      cta_label: 'Ring og hør mere',
+      is_visible: false,
+    }
+
+    expect(takeawayDraft.input.parse(document)).toEqual(document)
+    expect(takeawayDraft.stored.parse(document)).toEqual(document)
+    expect(takeawayDraft.input.parse({ sections: SEEDED_SECTIONS })).toEqual({ sections: SEEDED_SECTIONS })
+  })
+
+  it.each(['price', 'storage_path', 'alt_text', 'image_id', 'html', 'url', 'minimum'])(
+    'a section carrying "%s" is refused on the way in, naming the section',
+    (key) => {
+      const result = takeawayDraft.input.safeParse({
+        sections: [{ ...SEEDED_SECTIONS[0], [key]: 'x' }],
+      })
+
+      expect(result.success).toBe(false)
+      expect(
+        result.error?.issues.some(
+          (issue) => issue.code === 'unrecognized_keys' && issue.path.join('.') === 'sections.0',
+        ),
+        key,
+      ).toBe(true)
+    },
+  )
+
+  it('a stored section with an unexpected key is malformed, not half-applied', () => {
+    // The read path is what `overlayDraft` (editor, preview) and `storedDraftIsValid`
+    // (publish) parse with. A section written past the application with an extra key
+    // is therefore `malformed` on screen and `invalid_draft` at publish — never merged.
+    expect(
+      takeawayDraft.stored.safeParse({
+        sections: [SEEDED_SECTIONS[0], { ...SEEDED_SECTIONS[1], price_ore: 4900 }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it('a section missing one of its four keys, or with an object where text belongs, is refused', () => {
+    expect(takeawayDraft.input.safeParse({ sections: [{ id: 'a', heading: 'x', body: null }] }).success).toBe(false)
+    expect(
+      takeawayDraft.input.safeParse({ sections: [{ id: 'a', heading: { text: 'x' }, body: null, sort: 1 }] }).success,
+    ).toBe(false)
+    expect(takeawayDraft.input.safeParse({ sections: [{ id: '', heading: null, body: null, sort: 1 }] }).success).toBe(
+      false,
+    )
+  })
+
+  it('refuses a twenty-first section, and keeps the top level strict', () => {
+    const many = Array.from({ length: 21 }, (_, index) => ({ id: `afsnit-${index + 1}`, heading: null, body: null, sort: index + 1 }))
+    expect(takeawayDraft.input.safeParse({ sections: many }).success).toBe(false)
+    expect(takeawayDraft.input.safeParse({ sections: [], packages: [] }).success).toBe(false)
+  })
+
+  it('the image slot accepts a uuid or null and refuses a path, a URL or an object', () => {
+    expect(takeawayDraft.input.safeParse({ image_id: IMAGE }).success).toBe(true)
+    expect(takeawayDraft.input.safeParse({ image_id: null }).success).toBe(true)
+    for (const value of ['abc/original.jpg', 'https://example.test/foto.webp', { id: IMAGE }, '']) {
+      expect(takeawayDraft.input.safeParse({ image_id: value }).success, JSON.stringify(value)).toBe(false)
+    }
+  })
+
+  it('the top-level read path still drops an unknown *key* rather than refusing it', () => {
+    expect(takeawayDraft.stored.parse({ noget_helt_andet: 1, cta_label: 'Ring' })).toEqual({ cta_label: 'Ring' })
   })
 })
 

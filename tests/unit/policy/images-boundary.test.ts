@@ -226,6 +226,8 @@ describe('image_id is owned by exactly the 10C-1 selection paths (§29)', () => 
   const SELECTION_ACTIONS = [
     // Phase 11A: the Forside's three slots, one action, Owner only.
     'app/(admin)/admin/forsiden/image-actions.ts',
+    // Phase 11B: Mad ud af huset's one slot, one action, Staff and Owner.
+    'app/(admin)/admin/mad-ud-af-huset/image-actions.ts',
     'app/(admin)/admin/menu/image-actions.ts',
     'app/(admin)/admin/menu/maanedens-burger/image-actions.ts',
     'app/(admin)/admin/menu/ugens-ret/image-actions.ts',

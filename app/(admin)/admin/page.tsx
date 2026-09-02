@@ -11,6 +11,8 @@ import { OPENING_HOURS_PATH } from './aabningstider/routes'
 import { ANNOUNCEMENT_PATH } from './besked/routes'
 import { IMAGES_PATH } from './billeder/routes'
 import { HOME_ADMIN_PATH } from './forsiden/routes'
+import { CONTACT_ADMIN_PATH } from './kontakt/routes'
+import { TAKEAWAY_ADMIN_PATH } from './mad-ud-af-huset/routes'
 import { NEWS_PATH } from './nyheder/routes'
 import { publishSelectedChanges } from './publish-actions'
 import { AdminShell, Card, Notice, SubmitButton } from './ui'
@@ -199,10 +201,39 @@ export default async function AdminDashboard({
         </Card>
       ) : null}
 
+      {/*
+        Kontaktoplysninger — design 1q / 1x's tile, phase 11B. Owner only (§5), and
+        therefore *absent* for a staff member rather than shown and disabled — §5's own
+        treatment for an Owner-only area. The screen calls `requireOwner()` itself, and
+        so does every action behind it.
+      */}
+      {profile.role === 'owner' ? (
+        <Card>
+          <h2 className="text-heading font-semibold">Kontaktoplysninger</h2>
+          <p className="text-ink-2 text-meta mt-2">Telefon, adresse, Facebook.</p>
+          <p className="mt-1">
+            <Link className={STANDALONE_LINK} href={CONTACT_ADMIN_PATH}>
+              Åbn kontaktoplysningerne
+            </Link>
+          </p>
+        </Card>
+      ) : null}
+
+      {/* Mad ud af huset — design 1q / 1x's tile, phase 11B. Staff and Owner alike (§5). */}
+      <Card>
+        <h2 className="text-heading font-semibold">Mad ud af huset</h2>
+        <p className="text-ink-2 text-meta mt-2">Tekst om fester og store selskaber.</p>
+        <p className="mt-1">
+          <Link className={STANDALONE_LINK} href={TAKEAWAY_ADMIN_PATH}>
+            Åbn mad ud af huset
+          </Link>
+        </p>
+      </Card>
+
       <Card>
         <h2 className="text-heading font-semibold">Rediger indhold</h2>
         <p className="text-ink-2 text-meta mt-2">
-          Sidetekster og kontaktoplysninger.
+          Teksterne om restauranten, holdet og måden I laver burgere på.
         </p>
         <p className="mt-1">
           <Link className={STANDALONE_LINK} href="/admin/indhold">

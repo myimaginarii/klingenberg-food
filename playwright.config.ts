@@ -101,6 +101,11 @@ export default defineConfig({
         // dedicated projects at the very end of the chain. `--list` check: the
         // file appears under exactly `homepage-admin-mobile` and `homepage-admin`.
         'e2e/homepage-admin.spec.ts',
+        // The two phase-11B write suites — owned by their dedicated pairs at the
+        // very end of the chain. `--list` check: each file appears under exactly its
+        // own two projects.
+        'e2e/takeaway-admin.spec.ts',
+        'e2e/contact-admin.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -128,6 +133,8 @@ export default defineConfig({
         'e2e/editor-images.spec.ts',
         'e2e/public-images.spec.ts',
         'e2e/homepage-admin.spec.ts',
+        'e2e/takeaway-admin.spec.ts',
+        'e2e/contact-admin.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -582,6 +589,48 @@ export default defineConfig({
       name: 'homepage-admin',
       testMatch: 'e2e/homepage-admin.spec.ts',
       dependencies: ['homepage-admin-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    /*
+     * Mad ud af huset administration (phase 11B), at both widths, after the Forsiden
+     * pair. It publishes the takeaway document and its switch — expiring the
+     * `page:takeaway` tag, which the navigation read puts on every public page — uploads,
+     * replaces and deletes real library images, and asserts the FIRST guest request
+     * after each, so it owns the page, the library and every public page's navigation
+     * while it runs. Two widths because 1aj is drawn at desktop and the phone is the
+     * primary admin device (§15). Mobile runs first and hands its state (the seeded
+     * page, visible, an empty library) to the desktop project.
+     */
+    {
+      name: 'takeaway-admin-mobile',
+      testMatch: 'e2e/takeaway-admin.spec.ts',
+      dependencies: ['homepage-admin'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    {
+      name: 'takeaway-admin',
+      testMatch: 'e2e/takeaway-admin.spec.ts',
+      dependencies: ['takeaway-admin-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    /*
+     * Kontaktoplysninger (phase 11B), at both widths, and the new tail of the chain.
+     * It publishes the contact facts — expiring the `contact` tag, which is on every
+     * public page — and asserts the FIRST guest request on the header, the footer, the
+     * bottom bar, Find os and Mad ud af huset's button, so it must not run beside any
+     * suite that reads a phone number. Mobile runs first (the bottom bar's "Bestil"),
+     * then desktop (the header's "Ring"); each run restores the seeded facts.
+     */
+    {
+      name: 'contact-admin-mobile',
+      testMatch: 'e2e/contact-admin.spec.ts',
+      dependencies: ['takeaway-admin'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    {
+      name: 'contact-admin',
+      testMatch: 'e2e/contact-admin.spec.ts',
+      dependencies: ['contact-admin-mobile'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],

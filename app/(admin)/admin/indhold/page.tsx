@@ -6,6 +6,8 @@ import { readEditableEntity, type EditableEntity } from '@/lib/publishing/editab
 import { previewTargetForEntity } from '@/lib/drafts/targets'
 
 import { HOME_ADMIN_PATH } from '../forsiden/routes'
+import { CONTACT_ADMIN_PATH } from '../kontakt/routes'
+import { TAKEAWAY_ADMIN_PATH } from '../mad-ud-af-huset/routes'
 import { AdminShell, Card, Notice, SubmitButton } from '../ui'
 import { saveContentDraft } from './actions'
 import { CONTENT_EDITORS, type ContentEditor } from './editors'
@@ -13,10 +15,11 @@ import { CONTENT_EDITORS, type ContentEditor } from './editors'
 /**
  * Rediger indhold — technical plan §6, §15 (phase 4).
  *
- * PHASE 4 SCOPE. Four small forms, one per entity, built to exercise the flow this
- * phase exists to build rather than to be the approved editors: saving to a draft, the
- * Kladde badge, preview, the version token that makes concurrent edits safe, and the
- * Owner-only refusal a Staff member sees rather than a silent no-op.
+ * PHASE 4 SCOPE. Small forms, one per entity still without an approved editor, built to
+ * exercise the flow this phase exists to build rather than to be the approved editors:
+ * saving to a draft, the Kladde badge, preview, and the version token that makes
+ * concurrent edits safe. Since phase 11B only Om os is left here; Forsiden, Mad ud af
+ * huset and Kontaktoplysninger have their own screens.
  *
  * An entity a person may not change is listed and locked rather than hidden, so the
  * administration looks the same to everybody and the difference is explained. The
@@ -51,16 +54,28 @@ export default async function ContentPage({
         .
       </p>
 
-      {/* Forsiden has its own screen since phase 11A (1u); it is the Owner's (§5). */}
+      {/* Forsiden (1u, phase 11A) and Kontaktoplysninger (1v, phase 11B) are the Owner's (§5). */}
       {profile.role === 'owner' ? (
         <p className="text-ink-2 text-meta">
           Forsiden rettes på sin egen side:{' '}
           <Link className="text-brand-700 underline" href={HOME_ADMIN_PATH}>
             Rediger forsiden
           </Link>
+          . Kontaktoplysningerne ligeså:{' '}
+          <Link className="text-brand-700 underline" href={CONTACT_ADMIN_PATH}>
+            Kontaktoplysninger
+          </Link>
           .
         </p>
       ) : null}
+      {/* Mad ud af huset (1aj, phase 11B) has its own screen for Staff and Owner alike. */}
+      <p className="text-ink-2 text-meta">
+        Mad ud af huset rettes på sin egen side:{' '}
+        <Link className="text-brand-700 underline" href={TAKEAWAY_ADMIN_PATH}>
+          Mad ud af huset
+        </Link>
+        .
+      </p>
 
       {loaded.map(({ editor, entity }) => (
         <EntityEditor

@@ -9,17 +9,18 @@ import type { EntityKey } from '@/lib/publishing/entities'
  * Owner-only entity, a document-shaped draft and a column-shaped one. Every screen
  * below is replaced later, and none of it is a design decision.
  *
- * **Forsiden left this list in phase 11A.** Its approved editor exists at
- * `/admin/forsiden` (1u), and two editors for one document would be two saving
- * conventions for the same draft. The Owner-only entity this list still exercises is
- * Kontaktoplysninger, until phase 11C gives it 1v.
+ * **Forsiden left this list in phase 11A**, and **Mad ud af huset and
+ * Kontaktoplysninger left it in phase 11B**: their approved editors exist at
+ * `/admin/forsiden` (1u), `/admin/mad-ud-af-huset` (1aj) and `/admin/kontakt` (1v),
+ * and two editors for one document would be two saving conventions for the same
+ * draft. What remains is Om os, until the phase that gives it 1i's editor.
  *
- * WHY THE FIELD LISTS ARE WRITTEN OUT
+ * WHY THE FIELD LIST IS WRITTEN OUT
  *
  * A generic "render every field in the schema" editor would be shorter and worse. The
  * page-document schemas nest, the fields need Danish labels a schema has no business
- * carrying, and a field list that is generated is a field list nobody reviews. These
- * are four small tables that say exactly what each form may contain.
+ * carrying, and a field list that is generated is a field list nobody reviews. This is
+ * one small table that says exactly what the form may contain.
  *
  * SECTIONS ARE SUBMITTED WHOLE
  *
@@ -76,27 +77,6 @@ function sectionValue(
 
 export const CONTENT_EDITORS: readonly ContentEditor[] = [
   {
-    entity: 'page:takeaway',
-    heading: 'Mad ud af huset',
-    description: 'Overskrift, introtekst og knaptekst på siden om mad ud af huset.',
-    fields: [
-      { name: 'heading', label: 'Overskrift', current: (values) => value(values, 'heading') },
-      {
-        name: 'intro',
-        label: 'Introtekst',
-        multiline: true,
-        current: (values) => value(values, 'intro'),
-      },
-      { name: 'cta_label', label: 'Knaptekst', current: (values) => value(values, 'cta_label') },
-    ],
-    toDraftValues: (form) => ({
-      heading: text(form, 'heading'),
-      intro: text(form, 'intro'),
-      cta_label: text(form, 'cta_label'),
-    }),
-  },
-
-  {
     entity: 'page:about',
     heading: 'Om os',
     description: 'Overskriften på Om os, og afsnittet om hvordan I laver burgere.',
@@ -117,41 +97,6 @@ export const CONTENT_EDITORS: readonly ContentEditor[] = [
     toDraftValues: (form) => ({
       heading: text(form, 'heading'),
       method: { heading: text(form, 'method_heading'), text: text(form, 'method_text') },
-    }),
-  },
-
-  {
-    entity: 'site_contact',
-    heading: 'Kontaktoplysninger',
-    description:
-      'Adresse og telefonnumre. De står på alle sider, så kun ejeren kan rette dem.',
-    fields: [
-      { name: 'venue_name', label: 'Stedets navn', current: (values) => value(values, 'venue_name') },
-      {
-        name: 'address_line1',
-        label: 'Adresse',
-        current: (values) => value(values, 'address_line1'),
-      },
-      { name: 'postal_code', label: 'Postnummer', current: (values) => value(values, 'postal_code') },
-      { name: 'city', label: 'By', current: (values) => value(values, 'city') },
-      {
-        name: 'primary_phone',
-        label: 'Hovednummer',
-        current: (values) => value(values, 'primary_phone'),
-      },
-      {
-        name: 'secondary_phone',
-        label: 'Sekundært nummer',
-        current: (values) => value(values, 'secondary_phone'),
-      },
-    ],
-    toDraftValues: (form) => ({
-      venue_name: text(form, 'venue_name'),
-      address_line1: text(form, 'address_line1'),
-      postal_code: text(form, 'postal_code'),
-      city: text(form, 'city'),
-      primary_phone: text(form, 'primary_phone'),
-      secondary_phone: text(form, 'secondary_phone'),
     }),
   },
 ]

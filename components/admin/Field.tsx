@@ -230,11 +230,13 @@ export function TextAreaField({
   error,
   rows = 4,
   maxLength,
+  labelledBy,
 }: Omit<FieldProps, 'inputMode' | 'autoComplete'> & { rows?: number }) {
   return (
     <FieldShell id={id} label={label} hint={hint} error={error}>
       <textarea
         aria-describedby={describedBy(id, hint, error)}
+        aria-labelledby={labelledBy}
         aria-invalid={error === undefined ? undefined : true}
         className={controlClass(error !== undefined, 'p-3 leading-relaxed')}
         defaultValue={defaultValue}

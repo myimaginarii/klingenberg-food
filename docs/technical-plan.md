@@ -3518,6 +3518,247 @@ private-original URL reached any public surface.
 
 ---
 
+## §0aa. Phase 11B — Mad ud af huset and Kontaktoplysninger administration (2026-09-02)
+
+Staff and Owner can now edit Mad ud af huset through 1aj — the switch, the words,
+the photograph, the free sections, the button label — and the Owner can edit the
+contact facts through 1v, both through the `pages` / `site_contact` draft
+architecture phase 4 built and phase 11A extended. **Phase 11 is still not locked**:
+11C (`/admin/brugere`, the user administration) is not started, and the lock pass
+over 11A–11C is the step after it. The §15 split moved by one screen on the way
+in: §15 had put Kontaktoplysninger with `/admin/brugere` in 11C; the owner's
+brief for this phase put it in 11B, so that the two remaining *content* editors
+land before the security-sensitive account phase. §15's row is corrected in place.
+
+### What phase 11B contains
+
+| Capability | Path | Where it lives |
+|---|---|---|
+| The Mad ud af huset editor at `/admin/mad-ud-af-huset` (1aj): "Vis siden på hjemmesiden", "Tekst" (Overskrift, Intro, Billede), "Tekstafsnit", "Knap nederst" | Kladde → Forhåndsvis → Offentliggør (§6) — **the switch included** | `app/(admin)/admin/mad-ud-af-huset/`, `components/admin/takeaway/`, `lib/pages/takeaway.ts` (pure), `lib/content/takeaway-admin.ts` |
+| The page's photograph through the shared picker pair | draft | `image-actions.ts`, `ImagePickerField` / `ImagePickerDialog` unchanged |
+| The Kontaktoplysninger editor at `/admin/kontakt` (1v): the primary and extra numbers, the address, the e-mail, Facebook | Kladde → Offentliggør over the phase-1 `site_contact` row (§6) | `app/(admin)/admin/kontakt/`, `components/admin/contact/`, `lib/contact/editor.ts` (pure), `lib/content/contact-admin.ts` |
+| The public page rendering the photograph, or the text at full width without one; the sitemap dropping a hidden page | — | `app/(site)/mad-ud-af-huset/page.tsx`, `lib/content/pages.ts` (`readTakeawayDocument`), `lib/seo/sitemap.ts` |
+| `image_references` with the page's two paths; `delete_image()` / `replace_image()` over them; the published-path guard extended to the page and to `is_visible`; `publish_page()` moving the switch; `page_content()` recording it | — | `20260902160000_takeaway_page_admin.sql`, `lib/images/cache-impact.ts` (`page:takeaway`) |
+| The dashboard's "Mad ud af huset" (everybody) and "Kontaktoplysninger" (Owner) tiles; the phase-4 content screen reduced to Om os | — | `app/(admin)/admin/page.tsx`, `indhold/editors.ts` |
+| The three pending marks every draft editor draws, shared | — | `components/admin/PendingBand.tsx` (the Forside screen draws them through it too) |
+
+### The `page:takeaway` model — exact
+
+One row of `pages`, `key = 'takeaway'`, the phase-1 row. `published` is the live
+document, `draft` holds top-level **keys** merged shallowly at publish
+(`published || draft`), `updated_at` is the version token every form submits back,
+`publish_page()` is the one publish function, the tag is `page:takeaway`, and §5's
+matrix row is **Staff and Owner** — enforced three times over: `requireStaff()` in
+the page and in every Server Action, `mayChangeEntity` inside `saveEntityDraft` and
+`publishPendingChange`, and `pages_update_scoped` (`public.is_staff()` for every
+row but `home`) in the database. The document, as `takeawayDraft` states it:
+
+```
+heading      text
+intro        text
+image_id     uuid | null                       (phase 11B; §4 had it, the schema had not)
+sections     [ { id, heading, body, sort } × ≤20 ]  — strict objects
+cta_label    text
+is_visible   boolean                            (a draft key only — never a document key)
+```
+
+Every key is a top-level draft field, so §4's "a draft holds only the changed
+fields" is the per-key rule the column entities use: a save writes the keys that
+differ from the published document and clears the ones that no longer do. The
+sections are one key, written whole with `sort` renumbered from 1 in display
+order; each section's `id` (`afsnit-<n>`, the seed's own shape) is the server's,
+never the browser's — the form addresses sections by position, and a submission
+whose length does not match the server's list is refused outright.
+
+### The nested-schema finding — closed here
+
+The 11A completion pass recorded that `takeawayDraft.sections[]` was an ordinary
+`z.object()` and therefore *stripped* an unknown nested key rather than refusing
+it. Phase 11B owns the schema, so the section is `z.strictObject` on both parses:
+a section carrying `price`, `storage_path`, `image_id` or any key 1aj does not
+draw is `unrecognized_keys` on the way in, `malformed` in the editor and the
+preview, and `invalid_draft` at Offentliggør — proved in the unit suite (write
+parse and stored parse, per key), and end to end with a Staff JWT writing the
+smuggled draft straight to `pages.draft` through PostgREST and meeting every door
+closed. Nothing historical is refused: the seed's four keys are exactly the shape.
+`publish_page()` itself parses nothing (§4: the field-level shape is the
+application's), which is why the refusal lives in `storedDraftIsValid` and is
+stated in pgTAP `026`'s header rather than asserted there.
+
+**The sibling finding stands, deliberately.** `aboutDraft.team` and
+`aboutDraft.method` are still ordinary `z.object()`s. Om os has no approved editor
+yet — the phase-4 placeholder form on `/admin/indhold` is what edits it — and the
+phase that builds 1i's editor owns the strictness of its sections, exactly as 11A
+owned the Forside's and 11B owns Mad ud af huset's. Recorded in
+`lib/schemas/page-documents.ts` beside the shape and carried to the final security
+audit below.
+
+### Readings this phase had to settle
+
+| # | Question | The answer |
+|---|---|---|
+| A | **Is the visibility toggle immediate, or a draft?** Phase 3's read layer had called it "a live switch rather than a draft (§6)"; §4's table says the row is draft/published; §6's immediate-path table lists four operations and this is not one; 1aj draws the switch among the fields with no "ændres straks" mark (compare 1r's Udsolgt and 1ad's "Vis besked") and closes with *"Almindelig tre-trins-proces: **alt** gemmes som kladde, forhåndsvises på den rigtige side og går først live ved Offentliggør."* | **A draft field.** The pending value lives in `draft.is_visible`; the preview reads it (`takeawayVisibility`), so Forhåndsvis shows the 404 and the navigation without the item exactly as publishing would leave them; a guest keeps the published column; `publish_page()` moves the boolean into `is_visible` and strips it from the document merge; the FIRST guest request after the commit sees the page, the navigation item and the sitemap entry gone — or back — together, through the one `page:takeaway` tag the visibility read has always carried. The phase-3 comment was a reading made before the editor existed, and is corrected in place. |
+| B | **Hidden means what?** | **§9 E2E 8 and 1aj's own sentence:** *"Slå fra, og både siden og menupunktet forsvinder helt."* The route answers 404 (RLS returns no row to `anon`), the header, the fullscreen panel and the footer drop the item (`visibleNav`, unchanged), and — new — `/sitemap.xml` drops the URL, because a page that 404s must not be offered to a crawler. The sitemap reads the same tagged hidden-keys read the layout does. |
+| C | **Should a direct write of `is_visible` stay open?** Phase-1 pgTAP `002`/`003` asserted Staff and Owner *could* toggle the column directly. | **No — guarded, narrowly, for §0w's reason.** Publishing decides *when* a change becomes public and carries the version check, the audit row and the cache expiry; a direct write of the switch would hide the page from guests up to five minutes late, unaudited, with every open editor holding a stale token. The 11A guard on `pages` now also fires `BEFORE UPDATE OF is_visible` and refuses `anon`/`authenticated` unless the marker names `publish`; Staff and Owner are refused alike. `002` and `003` are re-pinned to the refusal (`42501`), and `026` proves the one door that moves it. |
+| D | **Does the page have an image slot?** §4's shape carries `image_id`; the phase-4 schema did not; 1aj draws "Billede (valgfrit)" and 1ai the 4:3 frame. | **Yes, one, top-level.** The shared picker pair, a draft change through `imageDraftWrite` (the one-field delta the column entities use — a top-level key needs no whole-section rule). `image_references` gains the page's two rows under a sixth kind, `page:takeaway`, the transitions move them, `affected` counts them, and the cache mapping expires `page:takeaway` when — and only when — the live document changed. Both transitions stay open to **Staff** for this page: `pages_update_scoped` admits the row to `is_staff()`, so the `owner_only` refusal remains the Forside's alone. |
+| E | **The no-image state.** 1ai draws a reserved "FOTO — VALGFRIT" frame; 1aj says *"Uden billede fylder teksten hele bredden."* | **1aj's sentence.** Now that the restaurant can choose a photograph, "no photograph" is a choice rather than a placeholder for photography still owed, and the admin frame states the public consequence in words. The page renders `SiteImage` in 1ai's 4:3 frame when an image is chosen and nothing when none is; the seed therefore renders the text at full width. Recorded as a departure from 1ai's placeholder. |
+| F | **The drag handle 1aj draws on each section.** | **Two move buttons** — the phase-5F/11A precedent for a short fixed list, not a second drag engine. Every control in the card is a submit button that saves the whole list as typed (Tapas' arrangement), so add, remove, move and Gem are one draft write each, with no Fortryd needed. Recorded as a departure. |
+| G | **May a section be blank?** | **Yes in the draft, never on the page.** "+ Tilføj tekstafsnit" appends an empty section to be written into (refusing it would refuse the button), and the public read drops a section with neither a heading nor a text — 1g's "remove a block rather than render an empty one", applied to 1ai. Lengths are refused with the position bound to the field; the twenty-first section is refused. |
+| H | **Which contact fields does 1v draw?** `site_contact` has nine columns. | **Seven.** The primary and extra numbers, the address as its three columns (1v's two lines: street; postal code and city), the e-mail and Facebook — each under 1v's label with 1v's helper beneath it. `venue_name` and `map_attribution` are drawn by no approved frame and stay out of the form and the vocabulary: the venue name is a confirmed business fact the seed carries, the map credit a launch-time configuration for the licensed asset (§7g). Both remain seed/migration-managed and are recorded for the audit. No Instagram, no WhatsApp, no reservation or delivery field — and 1v's own sentence about Instagram is on the card. |
+| I | **Is the contact save immediate, or a draft?** | **A draft, because the row already is one.** `site_contact` has carried `draft`, an Owner-only policy and `publish_site_contact()` since phases 1 and 4, and 1v draws Offentliggør *"nedtonet, indtil der faktisk er noget at offentliggøre"* — the shape of a draft waiting, not of an immediate save. So Gem writes the draft (per field, against the live row), the bar's button is disabled with the reason announced until something waits, the band offers the same publish, and the FIRST guest request after Offentliggør carries the new facts on every page through the `contact` tag. The UX says so on the card and in every status sentence. No second snapshot model was invented. |
+| J | **Forhåndsvis on 1v.** The frame draws none. | **Drawn, to Find os.** It is this administration's convention for every draft editor, it costs the frame nothing, and Find os is the page 1v's helpers name ("står størst på Find os"). `previewTargetForEntity('site_contact')` for the dashboard is unchanged (the Forside). Recorded as a reading. |
+| K | **Where does the number the button rings come from?** 1aj: *"Knappen ringer altid til det primære nummer fra Kontaktoplysninger — +45 63 90 83 00 … Nummeret skrives ikke her, så det kun står ét sted."* | **From `site_contact`, read by the page and handed to the card.** The sentence prints the published primary number; the form has no field for it; the public button derives its `tel:` link from the stored value through the one `telHref` (phase 3), so a new primary number reaches the header, the bottom bar, Find os and this page's button on the first request after the contact publish — proved in the contact suite. |
+
+### Draft → Preview → Publish, and the cache
+
+A save on either screen writes `draft` and expires nothing; a guest keeps the
+published document and the published facts. Forhåndsvis opens the real page
+through Draft Mode: `readTakeawayDocument` overlays the draft *before* projecting
+the image id, so a pending photograph previews from the same derivative ladder the
+guest will get, and `queryPageDocument` / `readHiddenPageKeys` read the pending
+switch, so a page switched off in the draft previews as the 404 it will become,
+without its navigation item. Offentliggør publishes the screen's one entity
+through `publishPendingChanges` (the stored draft re-validated against the strict
+schema first) and expires exactly the registry's tag after the commit:
+`page:takeaway` — which the navigation's visibility read, the page and the sitemap
+all carry — or `contact`, which is on every page. A library alt edit, a replacement
+or a confirmed deletion that touches the **live** takeaway image expires
+`page:takeaway` through the centralized mapping; a pending one expires nothing.
+Nothing is invalidated globally.
+
+### Boundaries kept
+
+- **No packages, prices, minimums, delivery terms or deadlines** anywhere: not in
+  the schema, not in the forms, not in the copy (the E2E suite asserts the editor
+  prints none of the words). The public CTA still reads the stored label or
+  `Ring og hør mere`.
+- **The copy is the document's.** The seed's placeholder Danish is rendered as
+  written; the humanisation pass is later.
+- **No raw HTML, no Markdown, no link field, no arbitrary JSON.** Plain text
+  fields, one image id, one boolean, strict objects.
+- **One picker, one renderer, one reference definition, one cache mapping, one
+  `tel:` derivation, one address builder.** Nothing was duplicated; the three
+  pending marks were *de*-duplicated into `components/admin/PendingBand.tsx`.
+- **Phase 10's and 11A's guards are intact.** `020`–`025` pass unchanged in
+  behaviour (`024`/`025` re-pinned with the sixth `affected` count); no SECURITY
+  DEFINER appeared; no grant or policy changed.
+- **No browser Supabase client, no new public client component, no new
+  dependency.**
+
+### Tests
+
+- **Unit** (+4 files): `tests/unit/pages/takeaway.test.ts` (normalisation, the
+  visibility resolution, the per-key deltas, the four section controls, the ids,
+  the sentences), `takeaway-forms.test.ts` (the five vocabularies, the button
+  grammar, the echoes, the addresses), `tests/unit/contact/editor.test.ts` (1v's
+  seven fields and no other, the schema's own refusals bound per field — the phone
+  grammar, https-only, e-mail — the delta, the `tel:` derivation, the sentences),
+  `contact-forms.test.ts`; the schema suite gains the strict-section block
+  (write parse and stored parse, per smuggled key), the switch as a boolean-only
+  draft field, and the refusal of `is_visible` on the two other pages; the
+  cache-impact, admin, public-image, policy and sitemap suites re-pinned for the
+  sixth kind, the new sizes preset, the sixth image action and the hidden page.
+- **pgTAP** `026_takeaway_page.test.sql` — **98 assertions**, and
+  `027_site_contact_admin.test.sql` — **34 assertions**, from real Owner, Staff
+  and anonymous JWTs: the guard on the switch and the image path (Staff, Owner and
+  anon), the draft → publish of the switch with the audit's before/after and the
+  anonymous read losing and regaining the row, the §19 delete matrix and the
+  replacement for a top-level key operated by **Staff**, a stale publish, audit
+  counts, unrelated documents; the contact draft (Owner writes, Staff zero rows,
+  anon refused), publish (exactly the drafted columns, the audit row attributed
+  from the JWT, the anonymous read), Staff refused, stale refused with no audit,
+  `nothing_to_publish`, the nine-column audit projection. `002`/`003` re-pinned to
+  the refusal of the direct switch write.
+- **E2E** `tests/e2e/takeaway-admin.spec.ts` under exactly `takeaway-admin-mobile`
+  and `takeaway-admin` (24 stories each): the §29 Staff story end to end — draft,
+  unchanged guest, preview, sections added / written / moved / removed, the
+  switch as a draft with the guest keeping page and item, the preview's 404, the
+  publish hiding page, item and sitemap entry on the FIRST request, back on with
+  the new content, the photograph (draft, preview, publish, caption, a Staff
+  replacement, a removal, a draft-only deletion), a stale save, the smuggled
+  nested key, anonymous and direct switch writes refused, the seed restored.
+  `tests/e2e/contact-admin.spec.ts` under exactly `contact-admin-mobile` and
+  `contact-admin` (11 stories each): the greyed Offentliggør, the draft with its
+  badges, the unchanged guest, refused values bound to their fields, the preview,
+  the publish reaching footer / Find os / header / bottom bar / Mad ud af huset's
+  button on the FIRST request with derived `tel:` links, no Facebook anywhere once
+  emptied, the no-JavaScript page, the stale save, the Staff denial (tile,
+  address, forged post, direct writes), the seed restored. `tests/a11y/takeaway-admin.spec.ts`
+  and `tests/a11y/contact-admin.spec.ts` under `desktop` and `mobile`;
+  `admin-pages` gains the new standalone dashboard link.
+
+### Recorded for the FINAL SECURITY AUDIT (phase 13)
+
+- **`aboutDraft.team` / `aboutDraft.method` still strip an unknown nested key.**
+  Owned by the phase that builds 1i's Om os editor; not tightened here.
+- **A Staff JWT may still write `pages.draft` directly** for the two Staff pages
+  (and the Owner for the Forside) — RLS admits the row and the strict schema is
+  the application's door. What holds, and is proved end to end, is that such a
+  draft goes nowhere: `malformed` on screen, ignored in the preview,
+  `invalid_draft` at publish. The published document, the switch and the image
+  paths are guarded in the database; the draft column is not, by the phase-4 model.
+- **`venue_name` and `map_attribution` have no editor**; both are seed/migration
+  facts until a frame draws them.
+- **`site_contact.email` is editable and not rendered publicly** (§11 lists a
+  public e-mail as "omitted until supplied"); it is stored, audited and previewed
+  like every other field and appears nowhere a guest reads.
+- The standing image findings (§0y, §0z) carry forward unchanged, with the sixth
+  reference kind added to every enumeration.
+
+### The regression
+
+From a clean tree: `npm ci`, `npm run db:reset:full` (the new migration applies
+cleanly), `.next` emptied, a fresh production build, no stale server. Typecheck,
+lint and the source policy clean; **2,521 unit tests in 97 files** (+90 in 4 new
+files, plus the extended schema, cache-impact, admin, public-image, policy and
+sitemap suites); **1,877 pgTAP assertions in 27 files** (+98 in `026`, +34 in
+`027`), from real anonymous, Staff and Owner JWTs; **12 integration tests in 3
+files** unchanged; `npm audit --audit-level=high` clean (0 vulnerabilities);
+`npx playwright test --list` collecting **1,249 tests in 35 files across 42
+projects**, with `e2e/takeaway-admin.spec.ts` under exactly `takeaway-admin-mobile`
+and `takeaway-admin`, `e2e/contact-admin.spec.ts` under exactly
+`contact-admin-mobile` and `contact-admin`, and neither under the generic projects;
+and the complete Playwright matrix at `--retries=0`, run as the chunked chain against
+one detached production server (the read-only trio together, every write project in
+its own invocation, in config order): **1,242 passed, 7 deliberately skipped
+(width/device guards), zero failed and zero flaky** on the authoritative run of every
+chunk.
+
+Recorded honestly, in two parts. The first complete chain of the evening (started
+22:57, finished 23:52) was green step for step, but it reached the two
+`opening-hours-override` projects at 23:34, after that locked suite's own
+"tooLateToOpenToday" guard had switched on — an opening cannot cross midnight, so it
+skips its nine "Åbent nu" stories per width after 23:30 — and finished with 25 skips
+rather than 7. Nothing failed; eighteen assertions were simply never executed. That
+is not the complete matrix, so the whole chain was run again from `npm ci` after
+midnight (started 23:53, finished 00:38, the date-arithmetic suites all running on
+the new day), and every count above comes from that second run. Three earlier
+launches stopped at their first red step and were restarted from the top rather than
+resumed: a real host in a pgTAP fixture URL (the source policy; changed to a `.test`
+host), the integration suite's "JWT issued at future" a few seconds after the stack
+reset (a twenty-second settle now follows the reset), and the new dashboard tile's
+words "Om os" colliding with the phase-4 `draft-publish` assertion that no "Om os"
+item is pending (reworded). Phases 5–11A ran green behind it, unchanged; the public
+cache is still 5m/5m, no tracking cookie and no browser Supabase client appeared, no
+user administration and no phase-12 work exists, and no private-original URL reached
+any public surface.
+
+### What remains of phase 11
+
+**11C — user administration** at `/admin/brugere` (§5 "Accounts", decision 11):
+the Owner lists users, invites a Staff or Owner account (name, e-mail, role) through
+`auth.admin.createUser` plus the invite / reset e-mail, changes a role, and
+deactivates (never deletes) an account — `disabled_at` set and refresh tokens
+revoked — with the last-active-owner invariant refused by the database, a real
+Owner / Staff / anonymous JWT matrix in pgTAP, and an E2E story that invites,
+signs in as the invitee, deactivates and is refused. No approved frame draws it;
+it is built in the approved visual language. Then the **phase-11 lock pass** over
+11A–11C: the three screens read as one system, walked as Owner, Staff and guest
+against a production build, audited against 1u / 1aj / 1v at 375 / 768 / 1440, and
+closed by one clean regression chain.
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -3691,7 +3932,7 @@ and the reset is derived, not stored. See §7b.
 | `announcement` | The site announcement bar, one singleton row | `message` (≤90), `link_type`, `link_page`, `link_url`, `link_label`, `expires_at`, `is_visible`, `source` ('manual'/'opening_hours'), **`source_override_id`** (§0n), `previous jsonb`, `replaced_at`, `draft` | public where visible **and** `expires_at > now()` | staff | yes for edits, **no** for hide/remove |
 | `opening_hours` | The normal weekly schedule, one singleton row | `schedule jsonb` (7 × `{closed}` or `{from,to}`), `draft` | public | **owner** | yes |
 | `opening_hours_overrides` | One-off changes | `date` (unique), `kind` ('closed'/'custom'), `opens_at`, `closes_at`, `status` ('draft'/'published'), **`draft`** — *`announcement_created` was dropped by 8C-3A; see §0n* | public, future dates | staff | per-row publish, **plus a draft for an edit to an already-published row** — see §0j |
-| `pages` | Editable page documents | `key` ('home'/'takeaway'/'about'), `published jsonb`, `draft jsonb`, `is_visible` — the `home` document's three `image_id` paths are references (`image_references`, phase 11A) and its published paths are guarded like the image columns (§0z reading F) | public (`published`) | staff (`home`: **owner**) | yes |
+| `pages` | Editable page documents | `key` ('home'/'takeaway'/'about'), `published jsonb`, `draft jsonb`, `is_visible` — the `home` document's three `image_id` paths and the `takeaway` document's one are references (`image_references`, phases 11A/11B) and the published paths are guarded like the image columns (§0z reading F); `is_visible` is the Mad ud af huset switch, carried in the draft and moved by `publish_page()` alone (§0aa readings A and C) | public (`published`, where `is_visible`) | staff (`home`: **owner**) | yes — **the switch included** |
 | `site_contact` | Contact facts used everywhere, one singleton row | `primary_phone`, `secondary_phone`, `address_line1`, `postal_code`, `city`, `venue_name`, `email`, `facebook_url`, `map_attribution`, `draft` | public | **owner** | yes |
 | `images` | Media library | `storage_path`, `alt_text`, `width`, `height`, `bytes`, `mime`, `derivatives jsonb`, `original_filename`, `uploaded_by` | public (published bucket) | staff | no |
 | `audit_log` | Who changed what, and the recovery story | `actor_id`, `action`, `entity`, `entity_id`, `before jsonb`, `after jsonb` | owner | system | no |
@@ -4522,7 +4763,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3A (done):** generated-announcement **ownership** — `announcement.source_override_id`, the pairing CHECK, the ninth snapshot key, the ownership-aware write guard, and `apply_generated_announcement()`, the §7e item 8 coordinator that decides the conflict server-side and delegates the atomic write. `announcement_created` is **dropped**; no UI. **8C-3B (done):** the workflow — 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, the ~10 s Fortryd strip, §7e item 6's removal consequence with its atomic two-table transaction, the BEFORE DELETE guard that closes the direct-DELETE bypass, and the deletion of the 8C-1 harness | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. 8C-3A: `supabase/tests/017_generated_announcement.test.sql` passes — see §0n. 8C-3B: `tests/e2e/opening-hours-announcement.spec.ts` passes at 1440 and 375, and `supabase/tests/018_override_removal.test.sql` asserts the removal lifecycle and refuses a direct DELETE from real Staff and Owner JWTs — see §0o. E2E 5 is complete |
 | 9 | News | **9A (done, §0q):** the list, the editor with the structured body (textarea form), per-item publish/unpublish behind confirmations, delete, the §7f slug policy end to end, the per-article Draft Mode preview target, and the public list/detail integration incl. unpublish → 404 — proven by `tests/e2e/news-admin.spec.ts` at 375 and 1440 and `supabase/tests/019`. **9B (done, §0r):** the B/Link structured editor, autosave, the `NewsArticle` JSON-LD, canonical/article metadata and the sitemap. The forside teaser has rendered since phase 3 and is verified against the news lifecycle | E2E 6 passes, incl. unpublish → 404 — **complete and locked** by the completion pass of 2026-09-01, recorded in §0s |
 | 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C-1 (done, §0v; hardened, §0w):** image selection in the dish/weekly/monthly/news editors through one shared picker pair, `image_references` as the one definition of "referenced", the draft-aware `delete_image()`/`replace_image()`, and the published `image_id` of the three draft entities guarded in the database — direct PostgREST writes refused, only publish/replace/detach move it (pgTAP `022`, `023`). **10C-2 (done, §0x):** the public `<picture>`/`srcset` rendering on the eight approved surfaces, the public read-model projection inside the tagged reads, the Draft Mode preview of pending images, the news `og:image` and JSON-LD `image`, and the per-entity cache coupling — `delete_image()`/`replace_image()` report the live references they moved (pgTAP `024`), the alt edit expires its live usages, and the first guest request after every public-changing image operation carries the new state (`tests/e2e/public-images.spec.ts`). **Complete and locked** by the completion pass of 2026-09-02 — the two no-image frames built, the cache/reference races classified, one clean regression chain — see §0y | E2E 7 passes whole: `image-library`, `editor-images` and `public-images` at 375 and 1440 |
-| 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B:** Mad ud af huset (incl. the visibility toggle hiding the nav item). **11C:** Kontaktoplysninger, **`/admin/brugere`** | E2E 8 passes; the owner can invite and deactivate a staff user |
+| 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C:** **`/admin/brugere`** | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device | Full menu-edit and news flows completed on a 375 px viewport |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project |
 | 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
@@ -4532,7 +4773,8 @@ Phases 5–11 can be reordered to follow whatever the restaurant needs first; ph
 **Status, 2026-09-02: phases 0–10 are complete and locked** — phase 10 as 10A
 (§0t), 10B (§0u), 10C-1 (§0v, hardened in §0w), 10C-2 (§0x) and the completion
 pass over all four (§0y). **Phase 11A — the Forsiden editor — is built and green
-(§0z); phase 11 is not locked**, 11B and 11C are not started. Phase 8's lock pass is
+(§0z), and so is phase 11B — Mad ud af huset and Kontaktoplysninger (§0aa); phase
+11 is not locked**: 11C (`/admin/brugere`) is not started. Phase 8's lock pass is
 recorded in §0p, and **phase 9's in §0s**: 9A (the news administration's core, §0q) and
 9B (the B/Link body editor, autosave, the `NewsArticle` JSON-LD, canonical metadata and
 the sitemap, §0r) were read as one system, walked as Owner, Staff and guest against a

@@ -2,12 +2,13 @@ import { notFound } from 'next/navigation'
 
 import { readSiteContact } from '@/lib/content/contact'
 import { readTakeawayDocument } from '@/lib/content/pages'
+import { TAKEAWAY_DEFAULT_CTA_LABEL } from '@/lib/pages/takeaway'
 import { pageMetadata } from '@/lib/seo/metadata'
 
 import { Eyebrow } from '@/components/site/Eyebrow'
-import { MediaPlaceholder } from '@/components/site/MediaPlaceholder'
 import { PageContainer } from '@/components/site/PageContainer'
 import { PhoneAction } from '@/components/site/PhoneAction'
+import { SiteImage } from '@/components/site/SiteImage'
 import { TakeawayCallToAction } from '@/components/site/takeaway/TakeawayCallToAction'
 import { TakeawaySections } from '@/components/site/takeaway/TakeawaySections'
 
@@ -22,7 +23,13 @@ import { TakeawaySections } from '@/components/site/takeaway/TakeawaySections'
  *
  * The page can be switched off from the administration. When it is, `pages.takeaway` is
  * unreadable to the public — the RLS policy sees to that — so this route 404s and the
- * navigation item disappears, from one rule in one place.
+ * navigation item disappears, from one rule in one place. Since phase 11B the switch is
+ * published like every other field on 1aj, so a guest sees the change on the first
+ * request after Offentliggør and not before.
+ *
+ * The photograph (phase 11B) is 1aj's "Billede (valgfrit)": the page's own library
+ * image in 1ai's 4:3 frame, rendered by the one public renderer. Without one, *"fylder
+ * teksten hele bredden"* (1aj) — no frame is reserved.
  */
 export const metadata = pageMetadata(
   'Mad ud af huset',
@@ -55,7 +62,7 @@ export default async function MadUdAfHusetPage() {
               {contact.primaryPhone ? (
                 <PhoneAction
                   phone={contact.primaryPhone}
-                  label={takeaway.ctaLabel ?? 'Ring og hør mere'}
+                  label={takeaway.ctaLabel ?? TAKEAWAY_DEFAULT_CTA_LABEL}
                   stacked
                   size="large"
                   block
@@ -77,12 +84,16 @@ export default async function MadUdAfHusetPage() {
             <p className="text-ink-3 mt-2.5 text-meta">{NO_FORM_NOTE}</p>
           </div>
 
-          <MediaPlaceholder
-            ratio="card"
-            label="Foto — valgfrit"
-            detail="anretning, buffet eller fad · afventer restauranten"
-            className="rounded-card-lg w-full flex-1"
-          />
+          {takeaway.image === null ? null : (
+            <SiteImage
+              image={takeaway.image}
+              ratio="card"
+              sizes="takeawayHero"
+              loading="eager"
+              placeholder={{ label: 'Foto — valgfrit' }}
+              className="rounded-card-lg w-full flex-1"
+            />
+          )}
         </div>
       </PageContainer>
 

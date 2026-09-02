@@ -196,10 +196,18 @@ export type TakeawaySection = {
   body: string | null
 }
 
-/** `pages.published` for `takeaway`. */
+/**
+ * `pages.published` for `takeaway` (§4, "Document shapes").
+ *
+ * The photograph (phase 11B) is 1aj's "Billede (valgfrit)", resolved through the same
+ * public projection every entity image uses, inside the `page:takeaway`-tagged read.
+ * `null` is the frame's own no-image state: the text takes the whole width (1aj).
+ * Sections with neither a heading nor a text are already left out.
+ */
 export type TakeawayDocument = {
   heading: string | null
   intro: string | null
+  image: PublicImage | null
   sections: TakeawaySection[]
   ctaLabel: string | null
 }

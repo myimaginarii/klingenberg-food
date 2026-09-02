@@ -180,6 +180,12 @@ export const IMAGE_SIZES = {
   homeAward: '(min-width: 48rem) 13.75rem, calc(100vw - 2rem)',
   /** 1g/1l "Om os" excerpt (phase 11A): full width on a phone, a 9.375rem thumbnail from `md`. */
   homeTeam: '(min-width: 48rem) 9.375rem, calc(100vw - 2rem)',
+  /**
+   * 1ai's Mad ud af huset photograph (phase 11B): full width inside the gutters on a
+   * phone; from `md` the second of two flex columns of the page container, the text
+   * column slightly wider from `lg` (`flex-[1.1]`), so just under half the measure.
+   */
+  takeawayHero: '(min-width: 90rem) 36rem, (min-width: 48rem) 46vw, calc(100vw - 2rem)',
 } as const
 
 export type ImageSizesPreset = keyof typeof IMAGE_SIZES

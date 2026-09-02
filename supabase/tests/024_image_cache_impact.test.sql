@@ -279,11 +279,11 @@ select is(
   'and still reports the total reference count, as 10C-1 defined it');
 select is(
   (current_setting('test.del')::jsonb -> 'affected' -> 'live'),
-  '{"dish": 1, "weekly": 1, "monthly": 0, "news": 1, "page:home": 0}'::jsonb,
+  '{"dish": 1, "weekly": 1, "monthly": 0, "news": 1, "page:home": 0, "page:takeaway": 0}'::jsonb,
   'affected.live: Thor, the weekly singleton and the published article — what a guest could see');
 select is(
   (current_setting('test.del')::jsonb -> 'affected' -> 'draft'),
-  '{"dish": 1, "weekly": 0, "monthly": 1, "news": 1, "page:home": 0}'::jsonb,
+  '{"dish": 1, "weekly": 0, "monthly": 1, "news": 1, "page:home": 0, "page:takeaway": 0}'::jsonb,
   'affected.draft: the soft-deleted Odin, the monthly draft and the draft article — what no guest could see');
 
 select is(pg_temp.dish_image('Thor'), null::uuid, 'Thor is detached');
@@ -308,11 +308,11 @@ select set_config('test.del_b',
 
 select is(
   (current_setting('test.del_b')::jsonb -> 'affected' -> 'live'),
-  '{"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0}'::jsonb,
+  '{"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0, "page:takeaway": 0}'::jsonb,
   'a draft-only image reports no live reference — nothing public to expire');
 select is(
   (current_setting('test.del_b')::jsonb -> 'affected' -> 'draft'),
-  '{"dish": 1, "weekly": 0, "monthly": 1, "news": 0, "page:home": 0}'::jsonb,
+  '{"dish": 1, "weekly": 0, "monthly": 1, "news": 0, "page:home": 0, "page:takeaway": 0}'::jsonb,
   'and exactly its two pending references');
 
 -- e) an unreferenced image reports zeros everywhere
@@ -322,8 +322,8 @@ select set_config('test.del_c',
 
 select is(
   (current_setting('test.del_c')::jsonb -> 'affected'),
-  '{"live": {"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0},
-    "draft": {"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0}}'::jsonb,
+  '{"live": {"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0, "page:takeaway": 0},
+    "draft": {"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0, "page:takeaway": 0}}'::jsonb,
   'an unreferenced image reports zeros everywhere');
 
 -- ===========================================================================
@@ -382,11 +382,11 @@ select is(
   'and still reports the total moved count, as 10B defined it');
 select is(
   (current_setting('test.rep')::jsonb -> 'affected' -> 'live'),
-  '{"dish": 2, "weekly": 1, "monthly": 0, "news": 1, "page:home": 0}'::jsonb,
+  '{"dish": 2, "weekly": 1, "monthly": 0, "news": 1, "page:home": 0, "page:takeaway": 0}'::jsonb,
   'affected.live: both dishes, the weekly singleton and the published article');
 select is(
   (current_setting('test.rep')::jsonb -> 'affected' -> 'draft'),
-  '{"dish": 0, "weekly": 0, "monthly": 1, "news": 0, "page:home": 0}'::jsonb,
+  '{"dish": 0, "weekly": 0, "monthly": 1, "news": 0, "page:home": 0, "page:takeaway": 0}'::jsonb,
   'affected.draft: the monthly draft alone');
 
 select is(pg_temp.dish_image('Thor'), pg_temp.img('test.e'), 'Thor now carries E');
@@ -416,8 +416,8 @@ select is(
   'an unreferenced image is replaced');
 select is(
   (current_setting('test.rep_g')::jsonb -> 'affected'),
-  '{"live": {"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0},
-    "draft": {"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0}}'::jsonb,
+  '{"live": {"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0, "page:takeaway": 0},
+    "draft": {"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0, "page:takeaway": 0}}'::jsonb,
   'and reports zeros everywhere — nothing public to expire');
 
 -- d) a draft-only replacement reports live zeros
@@ -432,11 +432,11 @@ select set_config('test.rep_h',
 
 select is(
   (current_setting('test.rep_h')::jsonb -> 'affected' -> 'live'),
-  '{"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0}'::jsonb,
+  '{"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0, "page:takeaway": 0}'::jsonb,
   'a draft-only replacement reports no live reference');
 select is(
   (current_setting('test.rep_h')::jsonb -> 'affected' -> 'draft'),
-  '{"dish": 0, "weekly": 0, "monthly": 1, "news": 0, "page:home": 0}'::jsonb,
+  '{"dish": 0, "weekly": 0, "monthly": 1, "news": 0, "page:home": 0, "page:takeaway": 0}'::jsonb,
   'and exactly the one pending reference it moved');
 
 -- ===========================================================================

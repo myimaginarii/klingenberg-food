@@ -34,6 +34,18 @@ describe('staticSitemapEntries', () => {
       expect(entry.lastModified).toBeUndefined()
     }
   })
+
+  it('leaves Mad ud af huset out while the page is switched off, and nothing else (phase 11B)', () => {
+    const urls = staticSitemapEntries(['takeaway']).map((entry) => entry.url)
+
+    expect(urls).toHaveLength(5)
+    expect(urls).not.toContain('http://localhost:3000/mad-ud-af-huset')
+    expect(urls).toContain('http://localhost:3000/find-os')
+  })
+
+  it('an empty hidden list is the six pages', () => {
+    expect(staticSitemapEntries([])).toEqual(staticSitemapEntries())
+  })
 })
 
 describe('newsSitemapEntries', () => {

@@ -1,6 +1,7 @@
 import type { MetadataRoute } from 'next'
 
 import { readPublishedNews } from '@/lib/content/news'
+import { readHiddenPageKeys } from '@/lib/content/pages'
 import { newsSitemapEntries, staticSitemapEntries } from '@/lib/seo/sitemap'
 
 /**
@@ -20,7 +21,9 @@ import { newsSitemapEntries, staticSitemapEntries } from '@/lib/seo/sitemap'
 export const revalidate = 300
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const articles = await readPublishedNews()
+  // The hidden-page read is the same `page:takeaway`-tagged read the navigation
+  // uses (phase 11B), so publishing Mad ud af huset's switch expires this route too.
+  const [articles, hiddenPageKeys] = await Promise.all([readPublishedNews(), readHiddenPageKeys()])
 
-  return [...staticSitemapEntries(), ...newsSitemapEntries(articles)]
+  return [...staticSitemapEntries(hiddenPageKeys), ...newsSitemapEntries(articles)]
 }

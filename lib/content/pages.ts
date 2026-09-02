@@ -4,15 +4,10 @@ import { CACHE_TAGS, type CacheTag } from '@/lib/cache/tags'
 import { isPlainObject, overlayDraft } from '@/lib/drafts/overlay'
 import type { DraftSpec } from '@/lib/schemas/define'
 import { homeValuesOf } from '@/lib/pages/home'
+import { takeawayValuesOf, takeawayVisibility } from '@/lib/pages/takeaway'
 import { aboutDraft, homeDraft, takeawayDraft } from '@/lib/schemas/page-documents'
 
-import {
-  numberField,
-  objectArrayField,
-  objectField,
-  stringArrayField,
-  stringField,
-} from './document'
+import { objectField, stringArrayField, stringField } from './document'
 import { imageFor, readPublicImages } from './images'
 import { assertNoQueryError, columns, definePublicRead, type ContentAccess } from './source'
 import type { AboutDocument, HomeDocument, TakeawayDocument } from './types'
@@ -30,6 +25,12 @@ import type { AboutDocument, HomeDocument, TakeawayDocument } from './types'
  * "switched off", which is also the answer the navigation needs in order to drop the
  * item (§9, E2E 8). One rule, one place, and a preview that agrees with the live site
  * about what is switched off.
+ *
+ * Since phase 11B the switch is a **draft field** like every other field on 1aj
+ * (`takeawayDraft.is_visible`): a guest keeps the published column until
+ * Offentliggør, and the preview path reads the pending value through
+ * `takeawayVisibility` — so Forhåndsvis shows the page and the navigation exactly as
+ * publishing would leave them, 404 and all.
  *
  * WHY THREE READS RATHER THAN ONE
  *
@@ -58,8 +59,12 @@ async function queryPageDocument(access: ContentAccess, key: PageKey): Promise<u
 
   assertNoQueryError(`the "${key}" page document`, error)
 
-  if (data === null || !data.is_visible) return null
-  if (!access.includeDrafts) return data.published
+  if (data === null) return null
+  if (!access.includeDrafts) return data.is_visible ? data.published : null
+
+  // Only Mad ud af huset carries a switch (§4); its pending value decides the preview.
+  const visible = key === 'takeaway' ? takeawayVisibility(data.is_visible, data.draft) : data.is_visible
+  if (!visible) return null
 
   // The draft holds whole top-level sections, so merging it over the published
   // document is the same allow-listed merge every other entity uses.
@@ -71,20 +76,15 @@ async function queryPageDocument(access: ContentAccess, key: PageKey): Promise<u
 /**
  * One cached, individually tagged read per page.
  *
- * The Forside's read maps the document *inside* the tagged entry (phase 11A), because
- * its three photographs are resolved there: the image rows have to be part of the
- * `page:home` cache entry for a library edit — a description, a replacement, a
- * deletion — to be expirable through that one tag (§0x, "The cache coupling"). The
- * other two pages carry no image yet and keep the raw document.
+ * The Forside's and Mad ud af huset's reads map the document *inside* the tagged
+ * entry (phases 11A and 11B), because their photographs are resolved there: the
+ * image rows have to be part of the page's cache entry for a library edit — a
+ * description, a replacement, a deletion — to be expirable through that one tag
+ * (§0x, "The cache coupling"). Om os carries no image yet and keeps the raw document.
  */
-const readPageDocument: Record<Exclude<PageKey, 'home'>, () => Promise<unknown | null>> = {
-  takeaway: definePublicRead('page-takeaway', [PAGE_DRAFTS.takeaway.tag], (access) =>
-    queryPageDocument(access, 'takeaway'),
-  ),
-  about: definePublicRead('page-about', [PAGE_DRAFTS.about.tag], (access) =>
-    queryPageDocument(access, 'about'),
-  ),
-}
+const readAboutPageDocument = definePublicRead('page-about', [PAGE_DRAFTS.about.tag], (access) =>
+  queryPageDocument(access, 'about'),
+)
 
 /** The Forside document with its three photographs resolved. Tag: `page:home`. */
 export const readHomeDocument = definePublicRead(
@@ -125,30 +125,39 @@ export const readHomeDocument = definePublicRead(
   },
 )
 
-export async function readTakeawayDocument(): Promise<TakeawayDocument | null> {
-  const document = await readPageDocument.takeaway()
-  if (document === null) return null
+/**
+ * Mad ud af huset with its photograph resolved. Tag: `page:takeaway`. `null` when the
+ * page is switched off — the route 404s and the navigation drops the item.
+ */
+export const readTakeawayDocument = definePublicRead(
+  'page-takeaway',
+  [PAGE_DRAFTS.takeaway.tag],
+  async (access: ContentAccess): Promise<TakeawayDocument | null> => {
+    const document = await queryPageDocument(access, 'takeaway')
+    if (document === null) return null
 
-  const sections = objectArrayField(document, 'sections')
-    .map((section, index) => ({
-      id: stringField(section, 'id') ?? `section-${index + 1}`,
-      heading: stringField(section, 'heading'),
-      body: stringField(section, 'body'),
-      sort: numberField(section, 'sort') ?? index,
-    }))
-    .sort((a, b) => a.sort - b.sort)
-    .map(({ id, heading, body }) => ({ id, heading, body }))
+    // The same normalisation the editor reads (`lib/pages/takeaway.ts`), then the
+    // same projection every entity image uses — over the *overlaid* id, so a preview
+    // resolves the pending selection (§0x, "Draft Mode").
+    const values = takeawayValuesOf(document)
+    const images = await readPublicImages(access, [values.image_id])
 
-  return {
-    heading: stringField(document, 'heading'),
-    intro: stringField(document, 'intro'),
-    sections,
-    ctaLabel: stringField(document, 'cta_label'),
-  }
-}
+    return {
+      heading: values.heading,
+      intro: values.intro,
+      image: imageFor(images, values.image_id),
+      // A section with neither a heading nor a text is not content; the page removes
+      // it rather than drawing an empty card (1g's rule, applied to 1ai).
+      sections: values.sections
+        .filter((section) => section.heading !== null || section.body !== null)
+        .map(({ id, heading, body }) => ({ id, heading, body })),
+      ctaLabel: values.cta_label,
+    }
+  },
+)
 
 export async function readAboutDocument(): Promise<AboutDocument | null> {
-  const document = await readPageDocument.about()
+  const document = await readAboutPageDocument()
   if (document === null) return null
 
   const team = objectField(document, 'team')
@@ -172,8 +181,9 @@ export async function readAboutDocument(): Promise<AboutDocument | null> {
  * once and hands the answer to every navigation surface, so the header, the fullscreen
  * mobile panel and the footer can never disagree.
  *
- * Visibility is a live switch rather than a draft (§6), so this read is identical on
- * both paths and needs no overlay.
+ * The switch is a draft field (phase 11B): a guest reads the published column, and a
+ * staff member in Draft Mode reads the pending value, so the navigation in a preview
+ * agrees with the page beside it about what publishing would hide or show.
  */
 export const readHiddenPageKeys = definePublicRead(
   'page-visibility',
@@ -181,12 +191,18 @@ export const readHiddenPageKeys = definePublicRead(
   async (access: ContentAccess): Promise<'takeaway'[]> => {
     const { data, error } = await access.database
       .from('pages')
-      .select('is_visible')
+      .select(columns(access, 'is_visible'))
       .eq('key', 'takeaway')
-      .maybeSingle<{ is_visible: boolean }>()
+      .maybeSingle<{ is_visible: boolean; draft?: unknown }>()
 
     assertNoQueryError('the page visibility settings', error)
 
-    return data !== null && data.is_visible ? [] : ['takeaway']
+    if (data === null) return ['takeaway']
+
+    const visible = access.includeDrafts
+      ? takeawayVisibility(data.is_visible, data.draft)
+      : data.is_visible
+
+    return visible ? [] : ['takeaway']
   },
 )

@@ -3,6 +3,45 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 11B — no dependencies added (2026-09-02)
+
+**The Mad ud af huset and Kontaktoplysninger editors** (technical plan §0aa) add
+**no package**. `package.json` and the lockfile are byte-identical to the phase-11A
+state.
+
+### The three things that would have justified a package, and why none is here
+
+- **A list editor for the free sections.** 1aj draws a short list of two-field
+  blocks with add, remove and move. That is the phase-5F Tapas arrangement — one
+  form, every control a submit button carrying its own value — with no drag engine
+  (1aj's handle ships as two move buttons, recorded as a departure).
+- **A phone-number library.** The stored value is the Danish printed form the
+  phase-1 schema already validates (`optionalPhone`), and the public `tel:` link
+  is the phase-3 `telHref` over it. Nothing international, nothing parsed.
+- **A toggle component.** 1aj's switch is a real checkbox drawn as 1ah's track with
+  `peer-checked`, the same markup the Lørdagsmenu and "Vis på forsiden" switches
+  use.
+
+### One migration, and what it does not contain
+
+`20260902160000_takeaway_page_admin.sql`: one immutable SQL helper over the
+takeaway document's one image path, `image_references` re-created with two
+explicit takeaway branches, the 11A page guard restated to fire on `is_visible`
+as well as `published` (the switch moves only under the `publish` marker),
+`page_content()` recording the switch, `publish_page()` moving a draft's
+`is_visible` into the column and stripping it from the document merge, and
+`delete_image()` / `replace_image()` restated with the takeaway path and a sixth
+`affected` count. **No** new table, column, index, policy, grant or SECURITY
+DEFINER function; no document walker. `site_contact` needed nothing: its draft
+column, Owner-only policy and `publish_site_contact()` are phase 1's and 4's.
+
+### `npm audit --audit-level=high` — clean
+
+Run from a clean `npm ci` as the first step of the phase-11B regression chain:
+**0 vulnerabilities**.
+
+---
+
 ## Phase 11A — no dependencies added (2026-09-02)
 
 **The Forsiden editor** (technical plan §0z) adds **no package**. `package.json` and

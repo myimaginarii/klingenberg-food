@@ -174,9 +174,12 @@ select lives_ok(
   $$ insert into public.opening_hours_overrides (date, kind, status)
      values (current_date + 20, 'closed', 'published') $$,
   'owner can create a one-off override');
-select lives_ok(
+-- Phase 11B: the switch is published through publish_page() alone — the Owner is
+-- refused a direct write exactly as Staff (§0w's rule; 026 proves the door).
+select throws_ok(
   $$ update public.pages set is_visible = false where key = 'takeaway' $$,
-  'owner can toggle the Mad ud af huset page');
+  '42501', null,
+  'owner cannot move the Mad ud af huset switch directly — it goes through publish_page() (phase 11B)');
 -- Phase 10A: created through the trusted door, as for staff in 002.
 select is(
   (select public.create_image(
