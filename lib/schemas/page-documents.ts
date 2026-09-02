@@ -51,10 +51,25 @@ const sectionImage = () => optionalRowId('Billedet')
 /** How many burgers "Tre fra menuen" features (1g). */
 export const FEATURED_DISH_LIMIT = 3
 
-/** Forsiden (Owner only). Design 1g / 1l; editor 1u. */
+/**
+ * Forsiden (Owner only). Design 1g / 1l; editor 1u.
+ *
+ * The three Forside sections are **strict objects**, not merely complete ones.
+ *
+ * `defineDraft` makes the top level strict — an unknown *section* is a refusal — but a
+ * nested `z.object()` strips by default, so until this pass a section could carry
+ * `storage_path`, `alt_text` or any other key and have it silently removed on the way
+ * in. That is not the contract: the document is the Owner's own, and a key the editor
+ * did not draw is a refusal wherever it appears, exactly as it is at the top level.
+ * The same strictness applies on the way out (`stored`), so a section written past
+ * the application — a direct write with an Owner JWT — is `malformed` in the editor and
+ * `invalid_draft` at publish rather than merged with its extra key attached.
+ *
+ * Three literal shapes rather than a helper, so the schema reads as the document does.
+ */
 export const homeDraft = defineDraft({
   hero: z
-    .object({
+    .strictObject({
       heading: optionalText(HEADING_MAX, 'Overskriften'),
       intro: optionalText(INTRO_MAX, 'Introteksten'),
       image_id: sectionImage(),
@@ -62,7 +77,7 @@ export const homeDraft = defineDraft({
     .optional(),
 
   award: z
-    .object({
+    .strictObject({
       title: optionalText(HEADING_MAX, 'Titlen på udmærkelsen'),
       text: optionalText(INTRO_MAX, 'Teksten om udmærkelsen'),
       image_id: sectionImage(),
@@ -82,7 +97,7 @@ export const homeDraft = defineDraft({
     .optional(),
 
   about_excerpt: z
-    .object({
+    .strictObject({
       heading: optionalText(HEADING_MAX, 'Overskriften'),
       text: optionalText(INTRO_MAX, 'Teksten'),
       image_id: sectionImage(),

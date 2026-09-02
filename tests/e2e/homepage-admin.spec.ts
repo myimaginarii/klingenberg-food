@@ -429,6 +429,60 @@ test('a second Owner tab that started from an older version is refused, not over
 })
 
 // ---------------------------------------------------------------------------
+// 13b. The document contract, past the editor (the 11A completion pass)
+// ---------------------------------------------------------------------------
+
+test('a section written past the editor with an unexpected key goes nowhere: unreadable in the editor, absent from the preview, refused at publish', async () => {
+  // The Owner's own JWT may write `pages.draft` directly — RLS scopes the row to the
+  // Owner, and the schema is the application's door, not the database's. What has to
+  // hold is that such a draft goes NOWHERE: the strict section refuses the key on the
+  // way in (unit-tested), and the same strictness on the stored parse makes the editor
+  // call the draft unreadable, the preview show the published words, and Offentliggør
+  // answer `invalid_draft` rather than merge the section with its extra key attached.
+  const before = await storedHome()
+  const liveHero = before.published.hero as { heading: string; intro: string | null }
+  const smuggled = {
+    hero: { heading: 'Smuglet', intro: liveHero.intro, image_id: null, storage_path: 'x/original.jpg' },
+  }
+
+  const written = await rest.from('pages').update({ draft: smuggled }).eq('key', 'home').select('id')
+  expect(written.error).toBeNull()
+  expect(written.data).toHaveLength(1)
+
+  // The editor: the draft is named as unreadable, nothing is pending, the card shows
+  // the published words — not "Smuglet".
+  await openHomeAdmin(ownerPage)
+  await expect(ownerPage.getByText('Den gemte kladde kan ikke læses')).toBeVisible()
+  await expect(pendingBand(ownerPage)).toHaveCount(0)
+  await expect(homeForm(ownerPage, HOME_CARDS.hero).getByLabel('Overskrift', { exact: true })).toHaveValue(
+    liveHero.heading,
+  )
+
+  // The preview: the same overlay, the same refusal.
+  const preview = await previewHome(ownerPage)
+  expect(preview.heading).toBe(liveHero.heading)
+
+  // Offentliggør: the stored draft is re-validated before the merge and refused.
+  await publishHome(ownerPage)
+  await expect(ownerPage).toHaveURL(/status=invalid_draft/)
+  await expect(statusNotice(ownerPage)).toContainText('kan ikke offentliggøres')
+
+  const after = await storedHome()
+  expect(after.published).toEqual(before.published)
+  expect(after.draft).toEqual(smuggled)
+
+  // "Gem afsnittene igen" — the notice's own advice — replaces the unreadable draft:
+  // the section saved as the hjemmeside has it leaves the draft, and the draft is gone.
+  await openHomeAdmin(ownerPage)
+  await saveCard(ownerPage, HOME_CARDS.hero, {
+    Overskrift: liveHero.heading,
+    'Kort tekst under': liveHero.intro ?? '',
+  })
+  await expect(statusNotice(ownerPage)).toContainText('venter ingen ændring')
+  expect((await storedHome()).draft).toBeNull()
+})
+
+// ---------------------------------------------------------------------------
 // 14. The library lifecycle over a Forside image
 // ---------------------------------------------------------------------------
 

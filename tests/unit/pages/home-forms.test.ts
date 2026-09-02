@@ -105,6 +105,38 @@ describe('toHomeSectionSubmission — two words onto the section\'s own keys', (
   it('has no field for an image, an entity, an id or a visibility flag', () => {
     expect(Object.values(HOME_SECTION_FORM).sort()).toEqual(['afsnit', 'overskrift', 'tekst', 'version'])
   })
+
+  it('extra form fields never reach the section — the mapping produces exactly the three keys the strict schema knows', () => {
+    // A crafted POST can carry any field names it likes; the reader takes the two it
+    // was given and the mapper writes the section's own three keys. So a smuggled
+    // `image_id`, `storage_path` or `published` field is not refused here — it is
+    // never read — and what does reach the strict section schema is exactly its shape.
+    const typed = readHomeSectionForm(
+      form({
+        [HOME_SECTION_FORM.heading]: 'Ny',
+        [HOME_SECTION_FORM.text]: 'Tekst',
+        image_id: '55555555-5555-4555-8555-555555555555',
+        storage_path: 'x/original.jpg',
+        published: '{}',
+        unexpected_key: 'x',
+      }),
+    )
+
+    const EXPECTED_KEYS = {
+      hero: ['heading', 'image_id', 'intro'],
+      award: ['image_id', 'text', 'title'],
+      about_excerpt: ['heading', 'image_id', 'text'],
+    } as const
+
+    for (const section of ['hero', 'award', 'about_excerpt'] as const) {
+      const result = toHomeSectionSubmission(section, typed, null)
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(Object.keys(result.values).sort()).toEqual(EXPECTED_KEYS[section])
+      expect(result.values.image_id).toBeNull()
+      expect(homeDraft.input.safeParse({ [section]: result.values }).success).toBe(true)
+    }
+  })
 })
 
 describe('the echo round-trips a refusal', () => {

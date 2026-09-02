@@ -170,14 +170,21 @@ describe('the Forside\'s image slots are part of a whole section (phase 11A)', (
     }
   })
 
-  it('stores no storage path, derivative, alt text or filename from a section — a smuggled key is dropped', () => {
-    // The top level is strict (an unknown *section* is a refusal); inside a section
-    // the phase-4 shape strips, so nothing but the id can ever reach the draft.
+  it('refuses a storage path, derivative, alt text or filename inside a section — a smuggled key is a refusal, not a deletion', () => {
+    // The top level has always been strict (an unknown *section* is a refusal). Since
+    // the 11A completion pass the sections are strict too: nothing but the id can
+    // reach the draft, and a request that tries is told so rather than quietly trimmed.
     for (const key of ['storage_path', 'alt_text', 'derivatives', 'original_filename', 'url']) {
-      const parsed = homeDraft.input.parse({
+      const result = homeDraft.input.safeParse({
         hero: { heading: 'x', intro: null, image_id: null, [key]: 'x' },
       })
-      expect(parsed.hero, key).toEqual({ heading: 'x', intro: null, image_id: null })
+      expect(result.success, key).toBe(false)
+      expect(
+        result.error?.issues.some(
+          (issue) => issue.code === 'unrecognized_keys' && issue.path.join('.') === 'hero',
+        ),
+        key,
+      ).toBe(true)
     }
   })
 
@@ -191,6 +198,138 @@ describe('the Forside\'s image slots are part of a whole section (phase 11A)', (
     expect(homeDraft.input.safeParse({ featured_dish_ids: [a, a] }).success).toBe(false)
     expect(homeDraft.input.safeParse({ featured_dish_ids: [a, b, IMAGE, '44444444-4444-4444-8444-444444444444'] }).success).toBe(false)
     expect(homeDraft.input.safeParse({ featured_dish_ids: [a, b] }).success).toBe(true)
+  })
+})
+
+describe('the Forside\'s sections are strict objects (phase 11A completion pass)', () => {
+  /**
+   * Why this block exists: `defineDraft` makes the top level strict, but a nested
+   * `z.object()` strips unknown keys by default, so until this pass a section could
+   * carry an extra key and lose it silently. The document contract is "refuse", at
+   * every level a browser can write — so every section is asserted here on its own,
+   * on both parses, with the fields the editor actually produces.
+   */
+  const IMAGE = '55555555-5555-4555-8555-555555555555'
+  const DISH_A = '11111111-1111-4111-8111-111111111111'
+  const DISH_B = '22222222-2222-4222-8222-222222222222'
+  const DISH_C = '33333333-3333-4333-8333-333333333333'
+
+  /** One complete, legitimate value per section — exactly what the 1u editor submits. */
+  const VALID_SECTIONS = {
+    hero: { heading: 'Burgeren der vandt Fyn', intro: 'To linjer om stedet.', image_id: IMAGE },
+    award: { title: 'Vinder af Fyn & Øer', text: 'Danmarks Bedste Burger 2026.', image_id: null },
+    about_excerpt: { heading: 'Lokal burgerbar', text: 'Tre linjer om restauranten.', image_id: IMAGE },
+  } as const
+
+  const SECTION_KEYS = Object.keys(VALID_SECTIONS) as (keyof typeof VALID_SECTIONS)[]
+
+  it.each(SECTION_KEYS)('a valid %s plus one unexpected key is refused on the way in', (section) => {
+    const result = homeDraft.input.safeParse({
+      [section]: { ...VALID_SECTIONS[section], unexpected_key: 'x' },
+    })
+
+    expect(result.success).toBe(false)
+    expect(
+      result.error?.issues.some(
+        (issue) => issue.code === 'unrecognized_keys' && issue.path.join('.') === section,
+      ),
+    ).toBe(true)
+  })
+
+  it.each(SECTION_KEYS)('a stored %s with an unexpected key is malformed, not half-applied', (section) => {
+    // The read path is what `overlayDraft` (editor, preview) and `storedDraftIsValid`
+    // (publish) parse with. A section written past the application with an extra key
+    // is therefore `malformed` on screen and `invalid_draft` at publish — never merged.
+    const result = homeDraft.stored.safeParse({
+      [section]: { ...VALID_SECTIONS[section], unexpected_key: 'x' },
+    })
+
+    expect(result.success).toBe(false)
+  })
+
+  it.each(SECTION_KEYS)('%s refuses a smuggled image detail beside its id', (section) => {
+    for (const key of ['storage_path', 'alt_text', 'derivatives', 'original_filename', 'url', 'width']) {
+      expect(
+        homeDraft.input.safeParse({ [section]: { ...VALID_SECTIONS[section], [key]: 'x' } }).success,
+        key,
+      ).toBe(false)
+    }
+  })
+
+  it.each(SECTION_KEYS)('%s refuses a key that belongs to a sibling section', (section) => {
+    // `intro` is the hero's word, `title` is the award's; a section that carries the
+    // other's key is a shape no editor produces.
+    const foreign = section === 'hero' ? 'title' : 'intro'
+
+    expect(
+      homeDraft.input.safeParse({ [section]: { ...VALID_SECTIONS[section], [foreign]: 'x' } }).success,
+    ).toBe(false)
+  })
+
+  it('the featured list has no object of its own: an object where the array belongs, or objects inside it, are refused', () => {
+    expect(homeDraft.input.safeParse({ featured_dish_ids: { ids: [DISH_A] } }).success).toBe(false)
+    expect(homeDraft.input.safeParse({ featured_dish_ids: [{ id: DISH_A }] }).success).toBe(false)
+    expect(
+      homeDraft.input.safeParse({ featured_dish_ids: [DISH_A, { id: DISH_B, name: 'Frigg' }] }).success,
+    ).toBe(false)
+  })
+
+  it('every legitimate field still parses, and a legitimate document comes back unaltered', () => {
+    const document = {
+      ...VALID_SECTIONS,
+      featured_dish_ids: [DISH_A, DISH_B, DISH_C],
+    }
+
+    expect(homeDraft.input.parse(document)).toEqual(document)
+    expect(homeDraft.stored.parse(document)).toEqual(document)
+  })
+
+  it('a document with every text cleared and no images comes back unaltered too', () => {
+    const cleared = {
+      hero: { heading: null, intro: null, image_id: null },
+      award: { title: null, text: null, image_id: null },
+      featured_dish_ids: [],
+      about_excerpt: { heading: null, text: null, image_id: null },
+    }
+
+    expect(homeDraft.input.parse(cleared)).toEqual(cleared)
+    expect(homeDraft.stored.parse(cleared)).toEqual(cleared)
+  })
+
+  it.each(SECTION_KEYS)('%s keeps its image slot: null and a uuid pass, anything else is refused', (section) => {
+    const valid = VALID_SECTIONS[section]
+
+    expect(homeDraft.input.parse({ [section]: { ...valid, image_id: null } })).toEqual({
+      [section]: { ...valid, image_id: null },
+    })
+    expect(homeDraft.input.parse({ [section]: { ...valid, image_id: IMAGE } })).toEqual({
+      [section]: { ...valid, image_id: IMAGE },
+    })
+
+    for (const value of ['abc/original.jpg', '', 42, { id: IMAGE }, [IMAGE]]) {
+      expect(
+        homeDraft.input.safeParse({ [section]: { ...valid, image_id: value } }).success,
+        JSON.stringify(value),
+      ).toBe(false)
+    }
+  })
+
+  it('a single-section draft — the shape every Gem writes — still parses and carries only that section', () => {
+    for (const section of SECTION_KEYS) {
+      const parsed = homeDraft.input.parse({ [section]: VALID_SECTIONS[section] })
+
+      expect(parsed).toEqual({ [section]: VALID_SECTIONS[section] })
+      expect(Object.keys(parsed)).toEqual([section])
+    }
+  })
+
+  it('the top-level read path still drops an unknown *section* rather than refusing it', () => {
+    // Unchanged on purpose: the section list is the phase-4 allow-list, and a stored
+    // draft that names a section this schema has never had is ignored, not thrown at
+    // a staff member. Only the keys *inside* a known section became refusals.
+    expect(homeDraft.stored.parse({ noget_helt_andet: { x: 1 }, hero: VALID_SECTIONS.hero })).toEqual({
+      hero: VALID_SECTIONS.hero,
+    })
   })
 })
 
