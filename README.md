@@ -7,10 +7,10 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–9 complete and locked; phase 10 built and green in all four
-increments (10A–10C-2), its lock pass pending.** Phase 9's completion pass
+**Status: phases 0–10 complete and locked.** Phase 9's completion pass
 (2026-09-01) is recorded in technical plan §0s, phase 10A in §0t, phase 10B in
-§0u, phase 10C-1 in §0v/§0w and phase 10C-2 in §0x. The public site renders from the database;
+§0u, phase 10C-1 in §0v/§0w, phase 10C-2 in §0x, and **phase 10's completion pass
+(2026-09-02) in §0y — the current truth of the whole image system.** The public site renders from the database;
 the Kladde → Forhåndsvis → Offentliggør flow works end to end; **Rediger menu**
 (`/admin/menu`) is finished — dish CRUD as drafts, labels, section assignment, the
 immediate Tilgængelig/Udsolgt path with its ~10-second Fortryd, soft delete with its own
@@ -258,7 +258,19 @@ expires the tags of the image's live usages, and `delete_image()` /
 after the commit and before the files go — the first guest request after every
 public-changing image operation carries the new state, and draft-only usages
 expire nothing. `tests/e2e/public-images.spec.ts` walks all of it at 375 and
-1440. Technical plan §0x records the phase; the phase-10 lock pass is next.
+1440. Technical plan §0x records the phase.
+
+**Phase 10 is complete and locked** (technical plan §0y, 2026-09-02): the four
+increments were read as one system, walked end to end against a production build
+as Owner, Staff and guest, and certified by one clean regression chain. The lock
+pass settled the two no-image frames the design draws — a news item without a
+photo gets 1j/1n's **date circle**, and Ugens ret without a photo leaves **no
+empty image slot** (1af) — classified the alt-edit post-write read as harmless
+(the entity's own publication invalidation covers every interleaving), recorded
+`replace_image()`'s any-successor authority, the never-finalized originals, the
+best-effort storage cleanup and the two-hour session-unbound upload token as the
+carry-forwards for the final security audit, and cleaned one literal NUL byte
+out of the library's usage keys.
 
 ## Requirements
 
@@ -538,9 +550,8 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-The rest of phase 10 — 10C's image selection in the editors, public rendering
-with `<img srcset>` and the per-entity cache coupling — plus everything in §15
-from phase 11 onward, and:
+Everything in §15 from phase 11 onward — the remaining editors (Forsiden, Mad ud
+af huset with its visibility toggle, Kontaktoplysninger, `/admin/brugere`) — and:
 the weekly off-platform backup workflow (phase 13, §10f) and Sentry (phase 13).
 `docs/dependencies.md` records which package arrives in which phase. Phase 6 is
 **complete and locked** — 6A (Ugens ret and
@@ -549,8 +560,9 @@ Lørdagsmenu, §0c), 6B (Månedens burger, §0d), and the completion pass over b
 over both halves (§0h). Phase 8 is **complete and locked** — 8A (§0i), 8B (§0j), 8C-1
 (§0k) and its hardening pass (§0l), 8C-2 (§0m), 8C-3A (§0n), 8C-3B (§0o), and the
 completion pass over all seven (§0p). Phase 9 is **complete and locked** — 9A (§0q),
-9B (§0r), and the completion pass over both (§0s). Phases 10A and 10B are **built and green**
-(§0t, §0u) but phase 10 stays open until 10C lands.
+9B (§0r), and the completion pass over both (§0s). Phase 10 is **complete and locked** —
+10A (§0t), 10B (§0u), 10C-1 (§0v, hardened in §0w), 10C-2 (§0x), and the completion
+pass over all four (§0y).
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published
@@ -571,11 +583,14 @@ The things the **menu administration** deliberately does not do, and the phase t
 each, are listed in technical plan §0b. The Ugens ret / Lørdagsmenu editor
 (`/admin/menu/ugens-ret`) and the Månedens burger editor
 (`/admin/menu/maanedens-burger`) have since been built by phase 6, the image
-library by phase 10B, and image **selection** by phase 10C-1 — every approved
-editor now owns its photo slot through the shared picker. What remains is public
-**rendering** (10C-2): every dish, the weekly card and the monthly burger still
-render the reserved photo frame rather than a photo, deliberately, until the
-responsive `<img srcset>` implementation and its cache coupling arrive together.
+library by phase 10B, image **selection** by phase 10C-1 — every approved
+editor owns its photo slot through the shared picker — and public **rendering**
+by phase 10C-2: every dish, the weekly card, the monthly burger and the news
+surfaces render the selected library photo from the derivative ladder, and the
+no-image states are the ones the frames draw (§0y). One design sentence stays
+open for the photography pass: 1r's "uden foto vises retten som en ren linje"
+for a burger the restaurant leaves without a photo — the public frames draw the
+reserved frame for it today, and that is what ships.
 
 One thing is deferred with **no phase** at all: there is no editor for a menu *category's own*
 content — its name, intro, note or order. The chips navigate between sections and a dish

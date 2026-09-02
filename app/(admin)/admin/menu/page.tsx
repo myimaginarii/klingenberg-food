@@ -488,7 +488,6 @@ export default async function MenuAdminPage({
                         dish: editing.id,
                         chooseImage: true,
                       })}
-                      hint="Uden foto vises retten som en ren linje med navn, beskrivelse og pris."
                       removeForm={
                         editingImage === null
                           ? undefined

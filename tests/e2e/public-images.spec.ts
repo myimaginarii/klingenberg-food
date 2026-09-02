@@ -396,6 +396,8 @@ test('the weekly special: pending B previews, publishes on the first request, an
 
   await guestPage(browser, '/menu', async (guest) => {
     await expect(storageImages(section(guest))).toHaveCount(0)
+    // The seeded week has no photo: 1af's card draws no empty image slot.
+    await expect(section(guest).locator('picture, .media-placeholder')).toHaveCount(0)
   })
 
   await openWeeklyAdmin(staffPage)
@@ -427,16 +429,19 @@ test('the weekly special: pending B previews, publishes on the first request, an
   await guestPage(browser, '/menu', async (guest) => {
     await expect(storageImages(section(guest))).toHaveCount(1)
   })
+  // 1af's "UDEN FOTO" state: no frame is left behind, the text takes the card.
   await preview('/menu', 'menu', async (page) => {
     await expect(storageImages(section(page))).toHaveCount(0)
-    await expect(section(page).locator('.media-placeholder')).toHaveCount(1)
+    await expect(section(page).locator('picture, .media-placeholder')).toHaveCount(0)
+    await expect(section(page)).toContainText('Uge ')
   })
 
   await publishWeek(staffPage)
 
   await guestPage(browser, '/menu', async (guest) => {
     await expect(storageImages(section(guest))).toHaveCount(0)
-    await expect(section(guest).locator('.media-placeholder')).toHaveCount(1)
+    await expect(section(guest).locator('picture, .media-placeholder')).toHaveCount(0)
+    await expect(section(guest)).toContainText('Uge ')
   })
 })
 
@@ -515,6 +520,19 @@ test('a draft article with an image stays a 404 for guests and previews with the
     date: '2026-12-31',
   })
   await saveArticle(staffPage)
+
+  // Before a photo is chosen the list card carries 1j/1n's date circle — the
+  // preview shows the draft article with "31" over "DEC", no frame and no photo.
+  await preview('/nyheder', 'nyheder', async (page) => {
+    const card = page.locator('article').filter({ hasText: ARTICLE_TITLE }).first()
+    await expect(card.locator('picture, .media-placeholder')).toHaveCount(0)
+    await expect(card.locator('.news-date-circle')).toHaveCount(1)
+    await expect(card.locator('.news-date-circle')).toContainText('31')
+    await expect(card.locator('.news-date-circle')).toContainText('DEC')
+    await expect(card.locator('.news-date-circle')).toHaveAttribute('aria-hidden', 'true')
+  })
+
+  await openArticleEditor(staffPage, ARTICLE_TITLE)
   await choose(staffPage, /^billede-b\.jpg/)
 
   await asGuest(browser, async (guest) => {
@@ -572,6 +590,12 @@ test('publishing renders the article image on the first request, and og:image an
     const card = guest.locator('article').filter({ hasText: ARTICLE_TITLE }).first()
     await expect(card.locator('picture img')).toHaveAttribute('src', new RegExp(`${MEDIA}${uploadB}/`))
     await expect(card.locator('picture img')).toHaveAttribute('sizes', /16\.25rem/)
+    await expect(card.locator('.news-date-circle')).toHaveCount(0)
+    // A seeded article without a photo sits beside it with its date circle (1j).
+    const seeded = guest.locator('article').filter({ hasText: 'Overskrift placeholder' }).first()
+    await expect(seeded.locator('picture, .media-placeholder')).toHaveCount(0)
+    await expect(seeded.locator('.news-date-circle')).toContainText('20')
+    await expect(seeded.locator('.news-date-circle')).toContainText('AUG')
     expect(await violations(guest)).toEqual([])
   })
   await guestPage(browser, '/', async (guest) => {

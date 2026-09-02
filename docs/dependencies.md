@@ -3,6 +3,28 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 10 completion pass — no dependencies added (2026-09-02)
+
+**The phase-10 lock pass** (technical plan §0y) adds **no package**.
+`package.json` and the lockfile are byte-identical to the phase-10C-2 state. What
+it touched was code and tests only: the two no-image frame states (1j/1n's date
+circle, 1af's "uden foto" card), a literal NUL byte in a template literal, and one
+untrue editor hint. The refusals that stood in 10A–10C-2 stand: no `next/image`,
+no image CDN or proxy, no responsive-image or lazy-loading library, no JSON-LD or
+Open Graph helper, no queue, no job service, no orphan-sweep cron.
+
+### No migration
+
+The five phase-10 migrations (`20260901140000` … `20260901220000`) are the whole
+of the phase's schema; the lock pass reviewed them as one set and changed nothing.
+
+### `npm audit --audit-level=high` — clean
+
+Run from a clean `npm ci` as the first step of the phase-10 lock-pass regression
+chain: **0 vulnerabilities** over the unchanged resolved tree.
+
+---
+
 ## Phase 10C-2 — no dependencies added (2026-09-01)
 
 **Public image rendering, the cache coupling and the news image metadata**

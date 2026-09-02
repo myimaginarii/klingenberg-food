@@ -22,9 +22,11 @@ import { DishPrice } from './DishPrice'
  * many, so it is stated once in `lib/menu/weekly.ts` and read by both sides.
  *
  * The week's photograph (phase 10C-2) is the row's library image in 1h/1af's 4:3
- * frame — full width above the text on a phone (1m), a column beside it from `md` —
- * or the reserved frame when the kitchen selected none. The Saturday menu has no
- * photo slot in any frame, and none is invented.
+ * frame — full width above the text on a phone (1m), a column beside it from `md`.
+ * Without one there is **no frame at all**: 1af's "UDEN FOTO" state says "Uden foto
+ * flytter teksten helt ud til kanten — der efterlades ikke en tom billedplads", so the
+ * text takes the card's width (built by the phase-10 lock pass). The Saturday menu has
+ * no photo slot in any frame, and none is invented.
  */
 
 export function WeeklySpecial({ weekly }: { weekly: WeeklySpecialView }) {
@@ -43,15 +45,17 @@ function WeekDishCard({ weekly }: { weekly: WeeklySpecialView }) {
         weekly.soldOut ? 'bg-surface-muted' : 'bg-surface'
       }`}
     >
-      <SiteImage
-        image={weekly.image}
-        ratio="card"
-        sizes="weeklyCard"
-        placeholder={{ label: 'Foto', detail: 'valgfrit' }}
-        className={`border-border w-full shrink-0 border-0 border-b md:w-50 md:border-r md:border-b-0 ${
-          weekly.soldOut ? 'opacity-70 grayscale' : ''
-        }`}
-      />
+      {weekly.image === null ? null : (
+        <SiteImage
+          image={weekly.image}
+          ratio="card"
+          sizes="weeklyCard"
+          placeholder={{ label: 'Foto', detail: 'valgfrit' }}
+          className={`border-border w-full shrink-0 border-0 border-b md:w-50 md:border-r md:border-b-0 ${
+            weekly.soldOut ? 'opacity-70 grayscale' : ''
+          }`}
+        />
+      )}
 
       <div className="flex-1 p-4 md:p-5">
         <p className="flex flex-wrap items-center gap-2.5">
