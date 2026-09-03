@@ -3,6 +3,23 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 11 completion pass — no dependencies added (2026-09-03)
+
+**The phase-11 lock pass** (technical plan §0ac) adds **no package**. `package.json`
+and the lockfile are byte-identical to the phase-11C state. The walkthrough harness
+was a temporary Playwright config and three spec files over the existing
+`@axe-core/playwright` and the e2e support helpers, deleted before the chain and
+never committed, as in the phase-10 pass. The pass changed two source files (the
+Find os meta description now derives from `site_contact`; a stale comment in
+`lib/env/server.ts`) and documentation.
+
+### `npm audit --audit-level=high` — clean
+
+Run from a clean `npm ci` as the first step of the phase-11 certification chain
+(2026-09-03): **0 vulnerabilities**.
+
+---
+
 ## Phase 11C — no dependencies added (2026-09-03)
 
 **The user administration** (technical plan §0ab) adds **no package**. `package.json`

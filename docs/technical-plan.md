@@ -4062,7 +4062,285 @@ as `npm run db:users` leaves them after every suite.
 The **phase-11 lock pass** over 11A–11C: the three screens read as one system,
 walked as Owner, Staff and guest against a production build, audited against
 1u / 1aj / 1v — and, for `/admin/brugere`, against the administration's own
-language — at 375 / 768 / 1440, and closed by one clean regression chain.
+language — at 375 / 768 / 1440, and closed by one clean regression chain. **Done — §0ac.**
+
+---
+
+## §0ac. Phase 11 — complete and locked (2026-09-03)
+
+Phase 11 is the administration of everything that is not a menu item, an
+announcement, an opening hour, an article or an image: the Forside (11A, §0z), Mad
+ud af huset and Kontaktoplysninger (11B, §0aa) and the accounts (11C, §0ab). This
+pass read the three increments as one system, walked them as Owner, Staff and guest
+against a production build, audited the four screens at 375 / 768 / 1440 against
+1u, 1aj, 1v and — for `/admin/brugere` — the administration's own language, reviewed
+the account security model once more as a set, and closed the phase with one clean
+regression chain. §0z, §0aa and §0ab are left as written — each increment's own
+account of its decisions — and this section is what "phase 11" means in force today.
+
+### What phase 11 is, stated once
+
+| Screen | Who | Model | Public consequence |
+|---|---|---|---|
+| `/admin/forsiden` (1u) | **Owner** | `pages.home`: `hero`, `award`, `about_excerpt` as whole strict sections, `featured_dish_ids` as ≤3 distinct ids; Kladde → Forhåndsvis → Offentliggør through `publish_page()`; tag `page:home` | the Forside's own words and three photographs |
+| `/admin/mad-ud-af-huset` (1aj) | **Staff and Owner** | `pages.takeaway`: `heading`, `intro`, `image_id`, strict `sections[]`, `cta_label` as top-level draft keys, plus `is_visible` as a draft key `publish_page()` moves into the column; tag `page:takeaway` | the page, its navigation item and its sitemap entry, together |
+| `/admin/kontakt` (1v) | **Owner** | `site_contact`: seven fields over the phase-1 draft row and `publish_site_contact()`; tag `contact` | every phone link, the address, the directions link, the footer, Find os, the bottom bar, the takeaway button, the Find os description |
+| `/admin/brugere` | **Owner** | `auth.users` for the identity, `profiles` for the authorisation, three SECURITY INVOKER transitions under the invariant lock; no public tag | none |
+
+The same rules hold on every screen: `requireOwner()` / `requireStaff()` as the
+first statement of every page and every Server Action; `mayChangeEntity` inside the
+shared draft and publish machinery; RLS in the database as the independent second
+layer; a draft that expires nothing; a publish that expires exactly the registry's
+tag after the commit, so the FIRST guest request afterwards is fresh; a stored draft
+re-validated against its strict schema before the merge (`invalid_draft`, never a
+silent strip); and one confirmation shape for anything that takes something away.
+
+### The lock-pass walkthrough (production build, `next start`)
+
+A temporary Playwright harness (deleted before the chain, as in §0y) drove the real
+screens against a fresh production build, taking screenshots at the three widths,
+running axe at 375 and 1440 on every state, sweeping tap targets at 375 and reading
+the computed focus ring. Everything below is what the harness measured, and the
+seed was restored exactly at the end (drafts null, contact facts as seeded, zero
+images, the two seeded identities, no leftover Auth identity).
+
+**Owner.** Forsiden: a hero draft left the guest's page byte-identical; the picker
+opened as a labelled modal and `Esc` returned focus to the slot link; the preview
+showed the pending words and the pending photograph from the derivative ladder while
+the guest still had neither; Offentliggør put both on the FIRST guest request, with
+Månedens burger, the three featured names, the news teaser, the hours and the badge
+untouched; the words restored and the image removed and published, the guest was
+back to the seed. Mad ud af huset: an over-long heading submitted past `maxlength`
+was refused on the field; words, a photograph and the switch off were one pending
+band ("Synligheden, Tekst og Billedet afventer offentliggørelse"); the guest kept the
+page, the item and the sitemap entry; the preview answered 404 with the item gone;
+the publish took the page (404), the item (header, panel, footer) and the sitemap
+entry away on the FIRST request, and the next publish brought all three back with the
+new words and the photograph; a confirmed delete of the **live** image through the
+library's in-use confirmation detached it, and the first guest request rendered the
+text at full width. Kontaktoplysninger: Offentliggør greyed and announced until a
+draft existed; a bad number and an `http://` Facebook address were refused on their
+fields; a new primary number with the extra number and Facebook emptied previewed on
+Find os and, once published, reached the header's Ring, the footer's number (the
+extra one gone, Følg os gone), Find os, the bottom bar's Bestil, Mad ud af huset's
+button and the Find os description on the FIRST request as `tel:+4511223344`; the
+seed restored the same way. Brugere: the list said role and state in words; the
+only active owner's row explained itself and offered no control; a blank name and a
+malformed address were refused on their fields; a `.test` address was invited, the
+Danish e-mail caught, the row Inviteret, the profile and the `invite` audit row
+written; the invitee followed the link, chose a password, saw no Owner tiles and was
+refused `/admin/brugere`; promoted through the confirmation, their *open* session
+gained the tiles and the screen on its next request; demoted, the seeded Owner was
+the last active owner again — the screen said so, and the database answered
+`last_owner` to both transitions and `42501` to the direct write with the Owner's own
+JWT; deactivated through the destructive confirmation, the invitee's open session
+was sent to the login screen on its next request and their sign-in said
+"deaktiveret"; reactivated, they signed in again as Staff. The account audit read
+`invite, role, role, deactivate, reactivate`.
+
+**Staff.** The dashboard drew no Forsiden, Kontaktoplysninger or Brugere tile and
+did draw Mad ud af huset; the three Owner-only addresses answered
+`/admin/ingen-adgang`; every phase 5–10 area rendered (menu, ugens ret, månedens
+burger, nyheder, billeder, besked, åbningstider). Mad ud af huset took a Staff
+draft, the switch off as a draft and a restore. Forged Server Action POSTs carrying
+the *real* action ids read from the Owner's rendered screens (five on Forsiden, two
+on Kontaktoplysninger, one on Brugere) each ran into `requireOwner()` and answered a
+redirect to `/admin/ingen-adgang`. Through PostgREST with the Staff JWT: the Forside
+draft and published document moved zero rows (RLS); `is_visible` and the takeaway's
+published image path were `42501` (the guard); the contact draft and live columns
+moved zero rows; `role` and `disabled_at` on their own and every other row moved
+zero rows, and an unfiltered UPDATE was refused by PostgREST; `list_accounts()`, the
+three transitions and `revoke_account_sessions()` were `42501`; `publish_page()` on a
+Forside draft the Owner had written answered `forbidden`. Nothing moved.
+
+**Guest.** Six public pages, no `Set-Cookie`, an empty cookie jar, eight scripts all
+under `/_next/`, no request to `/rest`, `/auth`, `/realtime` or any third party
+(storage derivatives only), `Cache-Control: s-maxage=300` on every route. A pending
+Forside draft was absent from the guest HTML, from a request carrying a forged
+`__prerender_bypass` cookie and from the anonymous REST read of `pages.published`;
+`profiles`, `pages.draft`, `site_contact.draft` and `list_accounts()` were `42501`
+for `anon`; no seeded name or address appeared in guest HTML. With JavaScript off at
+375: the Forside, the `<details>` menu with all six items, Mad ud af huset through
+that menu, Find os, the footer address, every `tel:` link and the directions link
+all worked server-side.
+
+### Frame fidelity (375 / 768 / 1440)
+
+1u, 1aj and 1v are matched in hierarchy, card order, field order, labels, helper
+sentences and status treatment; no overflow at any width; the three widths stack as
+the tokens promise. The departures are the recorded ones — explicit Gem per card
+(§0z B), two move buttons for the frames' drag handles (§0z G, §0aa F), the address as
+three fields (§0aa H), a heading on the Om os excerpt (§0z A), the 10C-1 picker slot
+in place of 1u's inline thumbnail + "Erstat billede", 1aj's switch drawn as its own
+card with the state sentence (because it is a draft field, §0aa A), and Forhåndsvis
+on 1v (§0aa J) — plus one recorded here: **1v draws Facebook as a second card**
+("FACEBOOK"); the build keeps the seven fields in one card, Facebook last with 1v's
+helper and the Instagram sentence beneath it. Not changed: the one-card form is the
+shape every other draft editor uses and the field order is 1v's. `/admin/brugere`
+has no frame and was compared against 1z's list of cards, 1aa's pills and this
+administration's one confirmation shape; the dialogs stack at 375 with the safe way
+out first and filled, and the last-owner sentence wraps without overflow at 768.
+
+### Accessibility
+
+axe (WCAG 2.0/2.1/2.2 A+AA) reported zero violations at 375 and 1440 on every state
+walked: Forsiden clean, pending and with the picker open; Mad ud af huset clean, a
+refused heading and pending-hidden; Kontaktoplysninger clean, a refused save and
+pending; Brugere clean, a refused invitation, the role confirmation and the
+deactivation confirmation. The tap-target sweep at 375 found nothing under 44 px on
+any screen (the switch's text label and its `sr-only` input are not targets; the
+track that is the target is 44 px). Keyboard: `Tab` reaches every control; the
+computed ring is `3px solid rgb(180, 116, 26)` at `2px` offset; a confirmation opens
+with focus on the safe way out and `Esc` returns focus to the control it was opened
+from (`bruger-<id>-role`, `vaelg-billede-oeverst-paa-siden`); status is never colour
+alone (pill shape + word); `prefers-reduced-motion` is honoured by the token sheet
+and the no-JavaScript run used it.
+
+### The account security model — reviewed as a set
+
+- **One identity, two owners of two facts.** `auth.users` is the identity (e-mail,
+  password, confirmation, `banned_until`, sessions); `profiles` is the authorisation
+  (name, role, `disabled_at`). No role in JWT metadata, no e-mail in `profiles`; an
+  Auth identity without a profile is nobody (`is_staff()` false, `requireStaff()`
+  refuses, sign-in ends the session).
+- **`is_staff()` / `is_owner()`** read the current row under `disabled_at is null`
+  on every policy evaluation; pgTAP `028` and the integration suite prove an old JWT
+  loses Owner authority the statement after a demotion and every authority the
+  statement after a deactivation. No JWT claim is trusted for a role.
+- **The last-active-owner invariant** is enforced in the database under
+  `owner_invariant_lock()` — by the transitions as a `last_owner` result and by the
+  deferred constraint trigger as `23514` for any other path — and proved through two
+  real sessions. The screen's withheld controls are an explanation.
+- **Direct profile writes** of `role` and `disabled_at`, an INSERT and a DELETE are
+  refused for Staff and Owner alike by the account-write guard; `name` stays directly
+  writable by the Owner (phase-1 `003`), and nothing believes it.
+- **Deactivation** = `disabled_at` + `auth.sessions` rows removed in one transaction
+  (refresh tokens cascade) + the Auth ban from the Server Action. An already-issued
+  access token stays cryptographically valid until it expires (`jwt_expiry = 3600`)
+  and authorises nothing: RLS refuses it, and the Auth server answers
+  `session_not_found` because its session row is gone — which is why a deactivated
+  person's open tab lands on the login screen as "no session" and hears
+  "deaktiveret" on the next sign-in. "Instant logout" is not claimed.
+- **`revoke_account_sessions()`** — the one SECURITY DEFINER write — was reviewed and
+  **accepted**: `auth.sessions` is the Auth server's table and its Admin API has no
+  route that ends another person's sessions; `search_path` is pinned to `''`; it is
+  admitted only under the transaction-local `app.account_sessions = revoke` marker,
+  which only `set_account_active()` raises (PostgREST cannot reach `set_config`),
+  consumes the marker itself, and requires a target whose profile is already
+  deactivated — so an Owner can revoke exactly the sessions of a person they have
+  deactivated through the transition, and nobody can revoke an active account's; a
+  direct RPC is `42501` for Owner, Staff and anon. No secret is exposed and the audit
+  rows carry no session or token data.
+- **`lib/accounts/auth-admin.ts`** exposes invite, look-up-by-e-mail and ban/unban
+  over a service client that never leaves the module; no delete, no password, no
+  metadata, no session listing. `images-boundary` and `accounts-boundary` pin the
+  importer list and the vocabulary.
+- **Invitation** = `inviteUserByEmail` (identity + Danish e-mail in one operation) →
+  `create_account_profile()`; the person chooses their own password behind the
+  one-time `token_hash` on `/admin/bekraeft`; no password is generated, shown, sent
+  or logged. An unconfirmed duplicate is re-sent; a confirmed one is `email_exists`.
+- **Partial failure**: an identity without a profile can do nothing; the same form
+  repairs it (`inviteret` while unconfirmed, `tilknyttet` once confirmed);
+  `create_account_profile()` answers `exists`, so nothing is ever duplicated; a
+  failed Auth step is reported as such (`deaktiveret_login_aabent`,
+  `genaktiveret_login_laast`) and repeated by repeating the action.
+- **The test-only cleanup door** (`tests/support/local-auth-admin.ts`) is a test
+  file outside every bundle, refuses every host but loopback and every address
+  outside `@example.test`, and is the policy script's and eslint's documented second
+  exception beside the seed script. It is not a capability of the application.
+- **The login screen's "deaktiveret"** for a banned identity is a narrow, deliberate
+  enumeration of the restaurant's own former accounts (no password check precedes
+  it). Classified **low**: the address set is the restaurant's own, no access is
+  gained, and the alternative — a generic error for a person the Owner just
+  deactivated — was judged worse. Carried to the final security review, not changed.
+
+### Boundaries re-confirmed
+
+- **The homepage document holds only its static fields and ids.** Månedens burger,
+  the featured names and prices, the news teaser, the announcement and the hours
+  stay entity-owned and read under their own tags; the walkthrough's publish moved
+  the hero and left all of them as they were.
+- **One source of takeaway visibility**: `is_visible` + `draft.is_visible` through
+  `takeawayVisibility`, read by the page, the navigation and the sitemap from the one
+  `page:takeaway`-tagged read; the direct column write is `42501` for everybody.
+- **One contact source**: every public number, address, directions link and
+  Facebook link derives from `site_contact` through `telHref` / `directionsUrl` /
+  `toPostalAddress`. This pass found one remaining literal — the Find os meta
+  description carried the address as text — and made it derive from the same
+  cached, `contact`-tagged read (the one code change of the pass). `venue_name` and
+  `map_attribution` stay seed-managed; no Instagram.
+- **Strict schemas**: `homeDraft`'s three sections and `takeawaySection` are
+  `z.strictObject` on both parses; unknown nested keys are refused on the way in and
+  `malformed` / `invalid_draft` on the way out. `aboutDraft.team` / `.method` stay
+  ordinary objects, owned by the Om os editor phase.
+- **Page image references** are rows of the one `image_references` view under
+  `page:home` and `page:takeaway`, moved by the same two transitions, counted in the
+  same `affected`, mapped by the same `cache-impact.ts`. The walkthrough deleted a
+  live takeaway image through the library's in-use confirmation and the first guest
+  request was fresh; the live A / draft B matrices stay pinned in pgTAP `025` / `026`.
+- **Cache**: `page:home`, `page:takeaway`, `contact`, and the image-driven page
+  expiries expire only on a commit; drafts expire nothing; 5m/5m preserved
+  (`s-maxage=300` measured).
+- **Code quality**, reviewed as one slice: no duplicated editor logic beyond the
+  shared `PendingBand`, no role logic in JSX beyond the dashboard's tile absence, no
+  second visibility or reference definition, two service-client importers, no dead
+  export, no circular import. Two stale comments were corrected (`lib/env/server.ts`
+  named three service-role call sites and carried literal `§` escapes; §10e
+  said three call sites; §5 still said `middleware.ts`).
+
+### Production prerequisites (unchanged, not configured by this repository)
+
+Invitations and password resets in production need the project's custom SMTP
+(Resend, §10c) and the Auth *Site URL* set to the site (§10d), or the link in the
+e-mail points at the wrong host. Neither exists yet; launch readiness is not claimed.
+
+### Recorded for the FINAL SECURITY AUDIT (phase 13) — carried forward, deliberately
+
+- **Images** (§0y): signed-upload TTL and session binding; the service-role storage
+  boundary; private unfinalised originals; best-effort orphan cleanup;
+  `replace_image()` accepting any finished successor; the statement-scoped marker
+  architecture.
+- **News** (§0s): the ordinary autosave's update + audit as two statements.
+- **Accounts** (§0ab, reviewed above): `revoke_account_sessions()` on
+  `auth.sessions` (re-measure at every Auth container upgrade); already-issued
+  access-token semantics; the login screen's "deaktiveret" disclosure; the Owner's
+  direct `name` write; the one-hour invitation link; SMTP / Site URL prerequisites;
+  the test-only Auth cleanup exception.
+- **Pages**: a Staff JWT (Owner for the Forside) may still write `pages.draft`
+  directly — the strict schema is the application's door and such a draft goes
+  nowhere; `aboutDraft.team` / `.method` non-strict until the Om os editor;
+  `site_contact.email` stored and never rendered; `venue_name` / `map_attribution`
+  without an editor.
+- **Test harness** (for the code-quality / test-harness audit, not security): the
+  three `Testret` rows the old menu suites leave behind on a non-reset database are
+  pre-existing residue — a full run starts from `db:reset:full`, and they caused no
+  contamination in this pass.
+
+### The regression
+
+From a clean tree: `npm ci`, `npm run db:reset:full` (every test Auth identity gone,
+the two seeded ones as `npm run db:users` leaves them), a twenty-second settle,
+`.next` emptied, a fresh production build, no stale server. Typecheck, lint and the
+source policy clean; **2,576 unit tests in 100 files**; **2,030 pgTAP assertions in
+28 files**, from real anonymous, Staff and Owner JWTs and two dblink sessions; **25
+integration tests in 4 files** against the real local stack and the mail catcher;
+`npm audit --audit-level=high` clean (0 vulnerabilities); `npx playwright test --list`
+collecting **1,285 tests in 37 files across 44 projects**, with `e2e/homepage-admin`,
+`e2e/takeaway-admin`, `e2e/contact-admin` and `e2e/users-admin` each under exactly
+their own two dedicated projects (24 / 24 / 11 / 12 stories per width), the four
+`a11y/*` files under `desktop` and `mobile` only, and no stale `testIgnore` entry;
+and the complete Playwright matrix at `--retries=0`, run as the chunked chain against
+one detached production server (the read-only trio together, every write project in
+its own `--no-deps` invocation, in config order — 42 invocations): **1,278 passed, 7
+deliberately skipped (the standing width/device guards: three `public-site` stories
+at the other width, three `menu-reorder` pointer/touch stories at the width without
+the input, one override story past its clock guard), zero failed and zero flaky** on
+the first and only launch of every chunk (started 04:29, finished 05:16). No chunk
+was re-run and no result is retry-masked. Phases 5–10 ran green behind phase 11,
+unchanged; the public cache is still 5m/5m, no tracking cookie, no browser Supabase
+client and no service client outside its two boundaries appeared, and no phase-12
+work exists. The three `Testret` rows the locked menu suites leave behind are on the
+database afterwards, as they have been since phase 5; they contaminated nothing.
 
 ---
 
@@ -4315,7 +4593,7 @@ and none is added for the detail page (decision 5).
 
 Route protection is two-layer:
 
-1. `middleware.ts` refreshes the session and redirects unauthenticated `/admin/*` to `/admin/login`. This is **routing convenience, not authorization.**
+1. `proxy.ts` (Next.js 16's name for `middleware.ts`) refreshes the session and redirects unauthenticated `/admin/*` to `/admin/login`. This is **routing convenience, not authorization.**
 2. `requireStaff()` / `requireOwner()` run inside every admin page and every Server Action. These are the real gate. A hidden button is never a permission.
 
 This split is also why the known Next.js middleware authorization-bypass advisory class cannot break
@@ -4903,7 +5181,7 @@ The domain is deferred and is **not** a Phase 0 dependency.
 |---|---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | all | public by design |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | all | public by design; read-only via RLS |
-| `SUPABASE_SERVICE_ROLE_KEY` | server only | never prefixed `NEXT_PUBLIC_`; three call sites |
+| `SUPABASE_SERVICE_ROLE_KEY` | server only | never prefixed `NEXT_PUBLIC_`; four call sites (§8: the image storage boundary, the Auth Admin boundary, migrations and seeding, the owner bootstrap) |
 | `SUPABASE_DB_URL` | CI only, per environment | migrations; passed as env, never as an argument |
 | `SITE_URL` | all | canonical URLs, OG, sitemap, allowed origins — the only place a domain lives |
 | `SENTRY_DSN` | server only | |
@@ -5077,19 +5355,20 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3A (done):** generated-announcement **ownership** — `announcement.source_override_id`, the pairing CHECK, the ninth snapshot key, the ownership-aware write guard, and `apply_generated_announcement()`, the §7e item 8 coordinator that decides the conflict server-side and delegates the atomic write. `announcement_created` is **dropped**; no UI. **8C-3B (done):** the workflow — 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, the ~10 s Fortryd strip, §7e item 6's removal consequence with its atomic two-table transaction, the BEFORE DELETE guard that closes the direct-DELETE bypass, and the deletion of the 8C-1 harness | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. 8C-3A: `supabase/tests/017_generated_announcement.test.sql` passes — see §0n. 8C-3B: `tests/e2e/opening-hours-announcement.spec.ts` passes at 1440 and 375, and `supabase/tests/018_override_removal.test.sql` asserts the removal lifecycle and refuses a direct DELETE from real Staff and Owner JWTs — see §0o. E2E 5 is complete |
 | 9 | News | **9A (done, §0q):** the list, the editor with the structured body (textarea form), per-item publish/unpublish behind confirmations, delete, the §7f slug policy end to end, the per-article Draft Mode preview target, and the public list/detail integration incl. unpublish → 404 — proven by `tests/e2e/news-admin.spec.ts` at 375 and 1440 and `supabase/tests/019`. **9B (done, §0r):** the B/Link structured editor, autosave, the `NewsArticle` JSON-LD, canonical/article metadata and the sitemap. The forside teaser has rendered since phase 3 and is verified against the news lifecycle | E2E 6 passes, incl. unpublish → 404 — **complete and locked** by the completion pass of 2026-09-01, recorded in §0s |
 | 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C-1 (done, §0v; hardened, §0w):** image selection in the dish/weekly/monthly/news editors through one shared picker pair, `image_references` as the one definition of "referenced", the draft-aware `delete_image()`/`replace_image()`, and the published `image_id` of the three draft entities guarded in the database — direct PostgREST writes refused, only publish/replace/detach move it (pgTAP `022`, `023`). **10C-2 (done, §0x):** the public `<picture>`/`srcset` rendering on the eight approved surfaces, the public read-model projection inside the tagged reads, the Draft Mode preview of pending images, the news `og:image` and JSON-LD `image`, and the per-entity cache coupling — `delete_image()`/`replace_image()` report the live references they moved (pgTAP `024`), the alt edit expires its live usages, and the first guest request after every public-changing image operation carries the new state (`tests/e2e/public-images.spec.ts`). **Complete and locked** by the completion pass of 2026-09-02 — the two no-image frames built, the cache/reference races classified, one clean regression chain — see §0y | E2E 7 passes whole: `image-library`, `editor-images` and `public-images` at 375 and 1440 |
-| 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Phase 11 is not locked** |
+| 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Complete and locked** by the completion pass of 2026-09-03 — see §0ac |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device | Full menu-edit and news flows completed on a 375 px viewport |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project |
 | 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-09-02: phases 0–10 are complete and locked** — phase 10 as 10A
+**Status, 2026-09-03: phases 0–11 are complete and locked** — phase 10 as 10A
 (§0t), 10B (§0u), 10C-1 (§0v, hardened in §0w), 10C-2 (§0x) and the completion
-pass over all four (§0y). **Phase 11A — the Forsiden editor — is built and green
-(§0z), phase 11B — Mad ud af huset and Kontaktoplysninger (§0aa) — and phase 11C —
-the user administration at `/admin/brugere` (§0ab); phase 11 is not locked**: the
-lock pass over 11A–11C is next. Phase 8's lock pass is
+pass over all four (§0y); phase 11 as 11A — the Forsiden editor (§0z), 11B — Mad ud
+af huset and Kontaktoplysninger (§0aa), 11C — the user administration at
+`/admin/brugere` (§0ab), and the lock pass over all three (§0ac). Phase 12 — the
+administration on a phone as the primary device (1x, 1y, 1z) — is next and is not
+started. Phase 8's lock pass is
 recorded in §0p, and **phase 9's in §0s**: 9A (the news administration's core, §0q) and
 9B (the B/Link body editor, autosave, the `NewsArticle` JSON-LD, canonical metadata and
 the sitemap, §0r) were read as one system, walked as Owner, Staff and guest against a

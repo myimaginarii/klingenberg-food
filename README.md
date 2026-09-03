@@ -625,8 +625,12 @@ at `/admin/brugere` — is built and green (§0ab)**: the Owner invites by name,
 e-mail and role (the Auth server sends the Danish e-mail; the person chooses their
 own password), changes a role, deactivates — never deletes — and reactivates, with
 the last-active-owner invariant refused under a lock, the sessions of a deactivated
-person revoked in the same transaction, and the identity banned. Phase 11 is **not
-locked** — the lock pass over 11A–11C follows.
+person revoked in the same transaction, and the identity banned. **Phase 11 is
+complete and locked** — the completion pass over 11A–11C (§0ac) read the three as one
+system, walked them as Owner, Staff and guest against a production build, audited
+1u / 1aj / 1v at 375 / 768 / 1440, reviewed the account security model as a set and
+closed the phase with one clean regression chain. Phase 12 (the administration on a
+phone, 1x / 1y / 1z) is next and is not started.
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published
