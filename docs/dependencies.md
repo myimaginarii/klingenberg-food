@@ -3,6 +3,44 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 11C — no dependencies added (2026-09-03)
+
+**The user administration** (technical plan §0ab) adds **no package**. `package.json`
+and the lockfile are byte-identical to the phase-11B state.
+
+### The four things that would have justified a package, and why none is here
+
+- **An e-mail library.** The invitation is sent by the Auth server itself
+  (`auth.admin.inviteUserByEmail`), through the CLI's mail catcher locally and the
+  project's custom SMTP in production (§10c). Nothing in this repository composes or
+  transports an e-mail; the Danish template is a file the Auth container loads.
+- **An e-mail validator.** The address is trimmed, lower-cased and shaped by the
+  Zod primitive the schema layer already uses (`z.email`); the Auth server remains
+  the authority on validity and uniqueness.
+- **A database driver for the concurrency proof.** The two races in pgTAP `028` run
+  through two real sessions with `dblink`, an extension the local Postgres already
+  ships (`create extension` inside the test's own transaction); no Node driver was
+  added to reach a second connection.
+- **A session store or token blacklist.** Deactivation removes the person's
+  `auth.sessions` rows inside the transition and bans the identity; the database's
+  own `disabled_at` is what every request consults.
+
+### One migration, and what it does not contain
+
+`20260903120000_user_administration.sql`: the invariant lock, the phase-1 constraint
+trigger restated under it, the narrowed `profiles` grants, the account-write guard
+and its consumer, `list_accounts()` (SECURITY DEFINER read), the three SECURITY
+INVOKER transitions, and `revoke_account_sessions()` (the one SECURITY DEFINER write,
+on `auth.sessions`, under a single-use marker). **No** new table, column or index; no
+e-mail column on `profiles`; no role in JWT metadata; no new grant to `anon`.
+
+### `npm audit --audit-level=high` — clean
+
+Run from a clean `npm ci` as the first step of the phase-11C certification chain
+(2026-09-03): **0 vulnerabilities**.
+
+---
+
 ## Phase 11B — no dependencies added (2026-09-02)
 
 **The Mad ud af huset and Kontaktoplysninger editors** (technical plan §0aa) add

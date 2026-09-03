@@ -174,9 +174,10 @@ select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef
       and p.proname not in ('is_staff', 'is_owner', 'log_audit', 'editor_name',
-                            'enforce_owner_invariant')),
+                            'enforce_owner_invariant',
+                            'list_accounts', 'revoke_account_sessions')),
   0::bigint,
-  'the only SECURITY DEFINER functions are the five that predate phase 10');
+  'the only SECURITY DEFINER functions are the five that predate phase 10, plus the two phase-11C functions list_accounts() and revoke_account_sessions()');
 
 -- The guard is wired to both operations.
 select has_trigger('public', 'images', 'images_guard_insert',

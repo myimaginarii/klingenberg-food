@@ -15,19 +15,23 @@ import { getSupabaseUrl } from './config'
  * architecture rests on. Admin pages and Server Actions use
  * `createSupabaseServerClient()` instead, which carries the user's own JWT.
  *
- * §8 names three legitimate call sites for the service role across the entire project:
+ * §8 names four legitimate call sites for the service role across the entire project:
  *
  *   1. the image storage boundary                      (lib/images/storage.ts —
  *                                                       signed upload URLs and the
  *                                                       derivative pipeline, §0t)
- *   2. migrations and seeding                          (the Supabase CLI, and
+ *   2. the Auth Admin boundary                         (lib/accounts/auth-admin.ts —
+ *                                                       invite, look up by e-mail,
+ *                                                       ban / unban, phase 11C)
+ *   3. migrations and seeding                          (the Supabase CLI, and
  *                                                       scripts/seed-local-users.mjs)
- *   3. the one-time production owner bootstrap         (phase 14)
+ *   4. the one-time production owner bootstrap         (phase 14)
  *
- * Phase 10A gave it its one runtime caller, `lib/images/storage.ts` — a narrow,
- * capability-shaped module that never exposes this client handle.
- * `tests/unit/policy/images-boundary.test.ts` asserts the import graph stays exactly
- * that, so a second caller is a decision with a failing test, never an accident.
+ * Phase 10A gave it its first runtime caller, `lib/images/storage.ts`, and phase 11C
+ * its second, `lib/accounts/auth-admin.ts` — both narrow, capability-shaped modules
+ * that never expose this client handle. `tests/unit/policy/images-boundary.test.ts`
+ * asserts the import graph stays exactly those two, so a third caller is a decision
+ * with a failing test, never an accident.
  *
  * Two guards keep the key out of the browser:
  *   * `import 'server-only'` at the top of this file and of `lib/env/server.ts`, so a

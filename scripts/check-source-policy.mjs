@@ -108,11 +108,18 @@ const SERVER_SECRETS = [
  * cannot import `lib/env/server.ts` precisely because that module imports
  * `server-only`. It reads the service-role key from the environment directly, and it
  * refuses to run against anything but a loopback Supabase.
+ *
+ * `tests/support/local-auth-admin.ts` (phase 11C) is the second, for the same
+ * reasons: the account suites create real local Auth identities that the
+ * application — by design — cannot delete, so the tests need their own cleanup
+ * door. It runs under Vitest and Playwright in Node, never in a bundle, and it
+ * refuses every host but loopback and every address outside `@example.test`.
  */
 const SECRET_ALLOWED_FILES = new Set(
   [
     'lib/env/server.ts',
     'scripts/seed-local-users.mjs',
+    'tests/support/local-auth-admin.ts',
     'eslint.config.mjs',
     'scripts/check-source-policy.mjs',
     '.env.example',

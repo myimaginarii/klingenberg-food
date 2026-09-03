@@ -101,14 +101,20 @@ select is(
   (select name from public.profiles where user_id = current_setting('test.staff_uid')::uuid),
   'Omdøbt medarbejder',
   'the owner edit to the staff account took effect');
-select lives_ok(
+-- Since phase 11C the role and the active state move only through the account
+-- transitions (set_account_role(), set_account_active() - pgTAP 028): a direct write
+-- of either column is refused by the guard, for the Owner as for Staff. The name
+-- above stays directly writable; nothing believes it.
+select throws_ok(
   $$ update public.profiles set role = 'owner'
       where user_id = current_setting('test.staff_uid')::uuid $$,
-  'owner can promote a staff member to owner');
-select lives_ok(
+  '42501', null,
+  'owner cannot promote a staff member by a direct write - set_account_role() is the door');
+select throws_ok(
   $$ update public.profiles set role = 'staff', disabled_at = now()
       where user_id = current_setting('test.staff_uid')::uuid $$,
-  'owner can demote and deactivate a staff member');
+  '42501', null,
+  'owner cannot deactivate a staff member by a direct write - set_account_active() is the door');
 select is(
   (select count(*) from public.profiles),
   2::bigint,

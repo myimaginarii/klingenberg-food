@@ -3743,19 +3743,326 @@ cache is still 5m/5m, no tracking cookie and no browser Supabase client appeared
 user administration and no phase-12 work exists, and no private-original URL reached
 any public surface.
 
+### What remained of phase 11 after 11B
+
+**11C — user administration** at `/admin/brugere` — built and recorded in §0ab.
+Then the **phase-11 lock pass** over 11A–11C.
+
+---
+
+## §0ab. Phase 11C — user administration (2026-09-03)
+
+The Owner can now administer the accounts at `/admin/brugere`: list them, invite a
+Staff or Owner account by name, e-mail and role, change a role, deactivate an
+account and reactivate it — through Supabase Auth for the identity and through
+`profiles` for the authorisation, with the last-active-owner invariant refused by
+the database under a lock. **Phase 11 is still not locked**: the lock pass over
+11A–11C is the step after this one. No approved frame draws the screen (§5); it is
+built in the approved visual language — 1z's list of cards, 1v's one-card form and
+this administration's one confirmation shape.
+
+### The identity model, inspected before anything was built
+
+One person is two rows in two systems, and neither copies the other:
+
+| Fact | Owner of the fact | Read by | Written by |
+|---|---|---|---|
+| e-mail, password hash, confirmation, `banned_until`, sessions | **Supabase Auth** (`auth.users`, `auth.sessions`) | `list_accounts()` (e-mail, invitation state), `getUser()` per request | the Auth Admin API from the server — `lib/accounts/auth-admin.ts`, and nothing else |
+| name, role (`'owner' \| 'staff'`), `disabled_at` | **`public.profiles`** | `is_staff()` / `is_owner()` on every policy, `requireStaff()` / `requireOwner()` on every request | the three account transitions — and nothing else |
+
+What phase 1 had already settled, and what this phase kept: profiles are created
+by the application (the seed script and now `create_account_profile()`), never by a
+trigger on `auth.users`; the role lives only in `profiles` — no JWT metadata, no
+`app_metadata`, so a role change needs no token to expire; `is_staff()` and
+`is_owner()` have checked `disabled_at` since phase 1, which is why deactivation
+needs no policy edit anywhere and is effective for RLS the moment it commits; an
+Auth user without a profile is nobody — `requireStaff()` turns it away and the
+sign-in action ends its session. Nothing here invented a second identity system.
+
+### What phase 11C contains
+
+| Capability | Path | Where it lives |
+|---|---|---|
+| The list: name, e-mail, role and state in words; the signed-in owner's own row marked; the only active owner's row explaining why it offers no control | read | `app/(admin)/admin/brugere/page.tsx`, `components/admin/users/UserList.tsx`, `list_accounts()` |
+| Invite (name, e-mail, role) | Auth invitation + `create_account_profile()` | `invite-actions.ts`, `lib/accounts/admin.ts`, `lib/accounts/auth-admin.ts`, `components/admin/users/InviteForm.tsx` |
+| Change a role — both directions confirmed | `set_account_role()` | `account-actions.ts`, `components/admin/users/UserConfirmDialog.tsx` |
+| Deactivate — confirmed, destructive tone | `set_account_active(false)` + the Auth ban | the same |
+| Reactivate — confirmed, keeps the role | `set_account_active(true)` + the unban | the same |
+| The dashboard's Owner-only "Brugere" tile; the sign-in screen naming a banned account as deactivated; the Danish invitation e-mail | — | `app/(admin)/admin/page.tsx`, `actions.ts`, `supabase/templates/invite.html` |
+
+Not built, by decision: no password viewing or reset control (the person chooses
+their own through the e-mail link, and "Glemt adgangskode" exists), no metadata
+editor, no delete, no impersonation, no session viewer, no MFA administration, no
+permission matrix, no custom roles, no bulk operation, no name editor (the direct
+`name` write phase-1 `003` pins stays open in the database; no frame draws a form
+for it).
+
+### The account lifecycle — exact
+
+**Invite.** `requireOwner()`; the strict submission (`inviteSubmissionSchema`: a
+name of 1–120 characters, an address trimmed and lower-cased and shaped like one,
+a role from the two-word vocabulary — Danish per field); the directory the Owner
+was looking at, re-read; then, in this order:
+
+1. An address that already has an account is answered from the directory —
+   `findes` — before the Auth server is asked for anything. If that account was
+   invited and has not yet accepted, the Auth server is asked to re-send instead
+   (`inviteret_igen`; the existing name and role are kept, whatever the form said).
+2. `auth.admin.inviteUserByEmail(email, { data: { name } })`. The Auth server
+   creates the identity and hands the invitation to its mailer in one operation, so
+   `inviteret` means *the Auth server accepted the delivery* — never that a person
+   received it, and never a silently created identity when sending fails.
+   Measured (GoTrue v2.196): an unconfirmed existing identity is re-sent under the
+   same id; a confirmed one answers `email_exists`; a malformed address
+   `validation_failed`.
+3. `create_account_profile(user_id, name, role)` through the Owner's own JWT: the
+   profile, the audit row (`invite`, attributed from the JWT), or `exists` /
+   `no_auth_user` / `invalid` as results.
+
+The person follows `{SiteURL}/admin/bekraeft?token_hash=…&type=invite` — the
+phase-1 route already accepted `type=invite` — which establishes a session
+server-side and lands on `/admin/ny-adgangskode`, where they choose their own
+password. No password is generated, shown, sent or stored by anything in this
+repository; the e-mail carries one one-time hash and no `ConfirmationURL`. The link
+expires after an hour (`otp_expiry`); the e-mail says so and says the Owner can
+send a new one.
+
+**Change a role.** `set_account_role(user_id, role, version)`: owner only,
+vocabulary-checked, the invariant lock, the row `FOR UPDATE`, the version token,
+`unchanged`, the last-owner count, the audit row *before* the column moves (the
+actor must still be staff for `log_audit()` — an owner demoting themselves is not,
+one statement later), the one UPDATE under the `role` marker. The browser submits
+the target id, the desired role and the version; the actor is `auth.uid()`.
+
+**Deactivate.** `set_account_active(user_id, false, version)`: the same shape, the
+audit row, `disabled_at = now()` under the `active` marker — and, in the same
+transaction, `revoke_account_sessions()` removes the person's `auth.sessions` rows
+(their refresh tokens cascade). Then, from the Server Action, the Auth ban
+(`ban_duration = '876000h'`). **Reactivate.** `set_account_active(user_id, true,
+version)` clears `disabled_at`, the role untouched; then the unban. Reactivation
+is never a new account and never a new invitation: the person signs in with the
+password they already have. The reading that reactivation is approved: §4's own
+hint on the invariant ("promote or **re-enable** another owner"), §5's "deactivate,
+never delete" (a returning employee without reactivation would need a second
+identity, which is the deletion §5 forbids by another route), and the seed
+script's idempotent re-enable.
+
+**Acting on oneself.** An owner may demote or deactivate themselves while another
+active owner exists — the database allows exactly that, and the confirmation says
+"dig selv". A self-demotion lands on the dashboard with a notice; its next render
+lacks the Owner tiles and every Owner-only screen refuses. A self-deactivation ends
+the very session: the cookie session is signed out and the login screen says why.
+
+### Session and token revocation — the measured truth
+
+Three mechanisms, each measured on the local stack rather than assumed, and what
+each one buys:
+
+| Mechanism | What it does | What it does not do |
+|---|---|---|
+| `profiles.disabled_at` + `is_staff()` / `requireStaff()` | **Immediate** loss of every application authorisation, for whatever JWT the browser still holds: every policy and every request re-reads the row | nothing at the Auth server |
+| `revoke_account_sessions()` inside the deactivation transaction | the Auth server answers `session_not_found` (403) to the person's already-issued access token at `/user` — which every admin request checks — and `refresh_token_not_found` to their refresh token; reactivation brings no session back, so a stale device must sign in afresh | nothing about sign-in |
+| the Auth ban | refuses a new sign-in (`user_banned`), and would refuse the access token and the refresh token of a session that still existed | **it only holds**: a refresh token never presented while banned resumes the session the moment the ban is lifted — which is why the revocation above exists |
+
+The Auth Admin API of this version offers no route that ends another person's
+sessions (`DELETE /admin/users/{id}/sessions` and its neighbours are 404), and
+`auth.admin.signOut()` needs the person's own JWT. `auth.sessions` is the Auth
+server's table; `revoke_account_sessions()` is the phase's one SECURITY DEFINER
+write, touches no application table, and is admitted only under a single-use
+marker the transition raises and a target whose profile is deactivated — a direct
+RPC from Owner, Staff or anonymous is 42501 (pgTAP `028`). If the Auth server's
+session model changes, `tests/integration/accounts.test.ts` fails on the measured
+codes rather than the site silently keeping a session alive.
+
+"Instant logout" is therefore not claimed; what is claimed and proved is: the next
+request from a deactivated person — with or without the ban — is refused by the
+database and, once the session row is gone, by the Auth server too; and no session
+survives a deactivation into a reactivation.
+
+### Direct profile writes — closed narrowly
+
+`authenticated` lost DELETE on `profiles` ("deactivate, never delete" as the
+absence of a privilege) and holds UPDATE on `name`, `role` and `disabled_at` only.
+A BEFORE INSERT OR UPDATE OF `role`, `disabled_at` guard in §0w's shape refuses any
+creation or movement of the two authorisation columns from `anon` or
+`authenticated` unless the statement-scoped `app.account_write` marker names the
+transition — for the Owner as for Staff, because authority to administer accounts
+is not authority to bypass the version check, the last-owner check and the audit
+row. RLS is unchanged otherwise: Staff still sees and reaches only their own row,
+and no policy admits them to a write. Phase-1 `002` and `003` are re-pinned to the
+refusals (`42501`), the six image suites to the two new SECURITY DEFINER functions.
+
+### The last-active-owner invariant — under a lock, proved through two sessions
+
+Phase 1's deferred constraint trigger counted under READ COMMITTED with no
+serialisation: two transactions each demoting one of two owners could both count
+the other's still-uncommitted row, both pass, and both commit. `enforce_owner_
+invariant()` now takes `owner_invariant_lock()` — a transaction-level advisory
+lock — before counting, and the transitions take the same lock first, so a
+concurrent transition answers `last_owner` cleanly rather than failing at commit.
+pgTAP `028` proves both races through two real database sessions (dblink), run
+first in the file because every later transition holds the lock until the file's
+rollback: two direct demotions commit and are refused in turn (`23514`), and a
+transition racing a self-deactivation from a second tab blocks on the lock and
+answers `last_owner`. A mutual demotion ends the same way one step earlier — after
+the first commit the second actor is no longer an owner, RLS shows it no row, and
+it answers `not_found`. The screen's absent controls and its sentence ("Eneste
+aktive ejer…") are an explanation; the database is the enforcement.
+
+### The service-role boundary
+
+`lib/accounts/auth-admin.ts` is the second runtime importer of
+`createSupabaseServiceClient()` (the first is the image storage boundary) and the
+only file in the project that calls `auth.admin.*`. It imports `server-only` and
+returns three capabilities — invite, look up by e-mail, ban / unban — never the
+client, never a delete, never a password or metadata operation.
+`tests/unit/policy/images-boundary.test.ts` holds the importer list to exactly two,
+and `tests/unit/policy/accounts-boundary.test.ts` pins the rest: one `auth.admin`
+caller, both account server modules server-only, no client component under the
+user administration or reaching its server modules, `profiles` read directly in one
+place (the phase-1 session read) and written directly nowhere, the three transitions
+called from one module, the five-name form vocabulary with no password / token /
+actor / ban / metadata field anywhere, the actions taking the actor from the
+session, and `deleteUser` absent from the runtime. §8's "three call sites" is now
+four (the Auth Admin boundary added), corrected in place.
+
+### Audit
+
+`invite`, `role`, `deactivate`, `reactivate` on entity `profile`, `entity_id` the
+account's id, `actor_id` from the JWT, `before` / `after` holding `role` and
+`disabled_at` (and the name on `invite`). No e-mail is written into the row (it is
+the Auth server's fact, resolvable by id), no password, no token, no ban duration —
+pgTAP `028` asserts no secret-shaped key. A refused, stale, unchanged or
+`last_owner` call audits nothing, proved per outcome.
+
+### Readings this phase had to settle
+
+| # | Question | The answer |
+|---|---|---|
+| A | **`createUser` + e-mail, or `inviteUserByEmail`?** §5 says the former. | **`inviteUserByEmail`.** It is the one operation that creates the identity *and* hands the e-mail to the Auth server's mailer, so a delivery the mailer refuses is a refused invitation rather than an identity with no way in; `createUser` + a separate reset e-mail is two operations with a gap between them. The template (`supabase/templates/invite.html`) links to the phase-1 `/admin/bekraeft` route with `type=invite`, which already existed. §5's sentence is corrected in place. |
+| B | **Where does the e-mail live?** | **In `auth.users`, read by `list_accounts()`** — a SECURITY DEFINER read in the family of `is_owner()` (no parameters, `search_path` pinned, raises for anybody but an active owner). Copying it into `profiles` would be a second fact to keep in step; exposing the Auth Admin list to the page would put a service-role read on every render. |
+| C | **Is reactivation in scope?** §5's matrix says "create, change role, deactivate". | **Yes** — see the lifecycle above for the reading. Reactivation keeps the existing role and sends nothing. |
+| D | **May the Owner act on themselves?** No frame, no rule. | **Yes, while another active owner exists** — the database's own condition — with the consequence stated in the confirmation and enforced on the very next request (see "Acting on oneself"). |
+| E | **Which rows show what?** | Name, e-mail, role, and one of three states in words: Aktiv (confirmed, enabled), Inviteret (`email_confirmed_at` null — the link not yet used), Deaktiveret. No last sign-in, no IP, no provider, no token state, no session count. |
+| F | **Does a ban revoke sessions?** | **No — measured.** It holds them; the transition revokes them. See "Session and token revocation". |
+| G | **What if the e-mail goes out and the profile write fails?** | An identity with no profile exists and can do nothing (`is_staff()` false, `requireStaff()` refuses, sign-in ends the session). The screen says so (`profil_fejl`) and the repair is the same form with the same address: an unconfirmed identity is re-sent and given its profile (`inviteret`), a confirmed one is found by address and given its profile with no new e-mail (`tilknyttet`). `create_account_profile()` answers `exists` for an identity that has one, so nothing is ever duplicated. |
+| H | **The Auth step after the database step fails.** | Reported honestly, never as success: `deaktiveret_login_aabent` (the account is refused on every request regardless), `genaktiveret_login_laast` (the person cannot sign in yet — the safe direction). Repeating the action repeats the Auth step (`unchanged` + the step). |
+
+### Boundaries kept
+
+- **No browser Supabase client, no new client component, no new dependency.** The
+  confirmations are the same server-rendered `<dialog>` every screen uses; the
+  whole screen works with JavaScript off.
+- **No SECURITY DEFINER write on any application table.** The one definer write
+  touches `auth.sessions` only, under its marker.
+- **No role anywhere but `profiles.role`; no third role; no JWT metadata.**
+- **The seeded identities are untouched by the suites**: every test identity is a
+  run-unique `@example.test` address, deleted by the suite through a test-only,
+  loopback-only door (`tests/support/local-auth-admin.ts` — the policy script's
+  second deliberate secret exception, beside the seed script), and the seeded pair
+  is restored exactly.
+
+### Tests
+
+- **Unit** (+3 files): `tests/unit/accounts/model.test.ts` (the role vocabulary,
+  the status view model, the controls and the last-owner reason, the strict
+  submission per field, the confirmation wording, the result mapping),
+  `tests/unit/accounts/forms.test.ts` (the five-name vocabulary and what it
+  refuses, the strict target, the echo, the addresses, a sentence for every outcome
+  code), `tests/unit/policy/accounts-boundary.test.ts` (above);
+  `images-boundary.test.ts` re-pinned to two service-client importers.
+- **pgTAP** `028_user_administration.test.sql` — **153 assertions** from real
+  Owner, Staff and anonymous JWTs: the two races through two real sessions; Staff
+  and anonymous refused every transition, the read and every direct write; the
+  Owner's direct writes of `role`, `disabled_at`, an INSERT and a DELETE refused
+  (`42501`) while the phase-1 `name` write still works; the three transitions with
+  `exists` / `no_auth_user` / `invalid` / `stale` / `unchanged` / `not_found` /
+  `last_owner` as results; the invariant's backstop for a superuser; the sessions
+  revoked and the helper refused directly; the helpers answering from the current
+  row for a deactivated, a promoted and a demoted JWT; the audit vocabulary,
+  attribution and hygiene; the content tables byte-identical. `002`/`003`
+  re-pinned; `020`–`023`, `025`, `026` re-pinned for the two new definer functions.
+- **Integration** `tests/integration/accounts.test.ts` — **13 tests** against the
+  real local stack through the two modules the Server Actions use: the invitation
+  and its Danish e-mail in the mail catcher, the re-send, the duplicate, the
+  malformed address, the orphan repair both ways, accepting the invitation through
+  the token and choosing a password, a used token dead, the role change in force
+  for the old token, deactivation refusing the old token in the database and the
+  Auth server with `refresh_token_not_found` for the refresh token, reactivation
+  with the role kept and the old refresh token still dead, and the Staff REST
+  session refused everything.
+- **E2E** `tests/e2e/users-admin.spec.ts` under exactly `users-admin-mobile` and
+  `users-admin` (12 stories each): §31's story end to end, including the
+  invitee's *existing* session gaining and losing the Owner areas and losing the
+  administration, the last-owner refusal at the database with the Owner's own
+  JWT, `Esc` returning focus to the control a confirmation was opened from, the
+  self-deactivation and self-demotion of a second owner, the Staff denial, and the
+  cleanup. `tests/a11y/users-admin.spec.ts` under `desktop` and `mobile`.
+
+### Recorded for the FINAL SECURITY AUDIT (phase 13)
+
+- **`revoke_account_sessions()` deletes from `auth.sessions`**, the Auth server's
+  own table, because its Admin API offers no alternative. Pinned by measurement;
+  to be re-measured at every Auth container upgrade.
+- **An access token already in flight stays cryptographically valid until it
+  expires** (`jwt_expiry = 3600`). Every request it makes is refused by the
+  database and — its session gone — by the Auth server; it authorises nothing. No
+  shorter expiry was introduced.
+- **The sign-in screen says "deaktiveret" for a banned identity** before the
+  password is checked. The address is one the restaurant handed out; recorded as
+  a deliberate, narrow enumeration of the restaurant's own former accounts.
+- **`name` on `profiles` stays directly writable by the Owner** (phase-1 `003`);
+  nothing believes it.
+- **The invitation link expires after an hour** (`otp_expiry`); a fresh
+  invitation from the same form is the recovery. No separate "send again" control.
+- **Deployment prerequisite:** invitations in production go through the project's
+  custom SMTP (Resend, §10c) and the Auth *Site URL* must be the site, or the link
+  in the e-mail points at the wrong host (§10d's cutover runbook). Neither is
+  configured by anything in this repository; until both are, an invitation from
+  production would use the Auth server's built-in sender, which §10c forbids.
+- The standing findings of §0aa carry forward unchanged: `aboutDraft.team` /
+  `aboutDraft.method` belong to the future Om os editor phase.
+
+### The regression
+
+From a clean tree: `npm ci`, `npm run db:reset:full` (the new migration applies
+cleanly; the invitation template loaded into the Auth container), `.next` emptied, a
+fresh production build, no stale server. Typecheck, lint and the source policy clean;
+**2,576 unit tests in 100 files** (+55 in 3 new files: the account model, the form
+vocabulary and the accounts boundary; `images-boundary` re-pinned to two service
+importers); **2,030 pgTAP assertions in 28 files** (+153 in `028`, from real anonymous,
+Staff and Owner JWTs and two dblink sessions; `002`, `003`, `020`–`023`, `025`, `026`
+re-pinned); **25 integration tests in 4 files** (+13 in `accounts.test.ts`, against the
+real Auth server and the mail catcher); `npm audit --audit-level=high` clean
+(0 vulnerabilities); `npx playwright test --list` collecting **1,285 tests in 37 files
+across 44 projects**, with `e2e/users-admin.spec.ts` under exactly `users-admin-mobile`
+and `users-admin` and `a11y/users-admin.spec.ts` under `desktop` and `mobile`, neither
+under any other project; and the complete Playwright matrix at `--retries=0`, run as
+the chunked chain against one detached production server (the read-only trio together,
+every write project in its own invocation, in config order): **1,278 passed, 7
+deliberately skipped (width/device guards), zero failed and zero flaky** on the
+authoritative run of every chunk (started 03:07, finished 03:55).
+
+Recorded honestly: the first complete attempt of the night (started 03:07 minus forty
+minutes, from the same clean install) was green step for step until
+`public-images-mobile`, a locked phase-10C-2 suite, where one guest read of `/menu`
+after a publish found the dish without its picture — the suite's publish helper
+waits for the redirect's address alone, and the guest read landed in the moment
+before the new render. Nothing in phase 11C touches that path; the project passed
+14/14 on its own against a fresh server, and the whole chain was then restarted from
+`npm ci` rather than resumed, which is the run every count above comes from. One
+earlier launch stopped at `npm ci` itself: a `next dev` process not started by the
+phase held a native module, and was stopped. Phases 5–11B ran green behind 11C,
+unchanged; the public cache is still 5m/5m, no tracking cookie and no browser Supabase
+client appeared, no phase-12 work exists, and the two seeded identities are exactly
+as `npm run db:users` leaves them after every suite.
+
 ### What remains of phase 11
 
-**11C — user administration** at `/admin/brugere` (§5 "Accounts", decision 11):
-the Owner lists users, invites a Staff or Owner account (name, e-mail, role) through
-`auth.admin.createUser` plus the invite / reset e-mail, changes a role, and
-deactivates (never deletes) an account — `disabled_at` set and refresh tokens
-revoked — with the last-active-owner invariant refused by the database, a real
-Owner / Staff / anonymous JWT matrix in pgTAP, and an E2E story that invites,
-signs in as the invitee, deactivates and is refused. No approved frame draws it;
-it is built in the approved visual language. Then the **phase-11 lock pass** over
-11A–11C: the three screens read as one system, walked as Owner, Staff and guest
-against a production build, audited against 1u / 1aj / 1v at 375 / 768 / 1440, and
-closed by one clean regression chain.
+The **phase-11 lock pass** over 11A–11C: the three screens read as one system,
+walked as Owner, Staff and guest against a production build, audited against
+1u / 1aj / 1v — and, for `/admin/brugere`, against the administration's own
+language — at 375 / 768 / 1440, and closed by one clean regression chain.
 
 ---
 
@@ -4124,10 +4431,16 @@ a second trusted function then believes.
   service-role script that sets a random password and immediately triggers the reset email. The
   restaurant's owner sets their own password; the developer never knows it. The script lives in
   `supabase/` and refuses to run if an owner already exists.
-- **Invite:** the owner adds a user (name, email, role) → a Server Action uses `auth.admin.createUser`
-  plus an invite/reset email → the person sets their own password.
-- **Deactivate, never delete:** `disabled_at` is set and refresh tokens are revoked, so the person is
-  signed out everywhere while `audit_log` attribution survives.
+- **Invite:** the owner adds a user (name, email, role) → a Server Action uses
+  `auth.admin.inviteUserByEmail` — the identity and its invitation e-mail in one operation
+  (phase 11C, §0ab reading A; §15 had said `createUser` plus a separate e-mail) — then
+  `create_account_profile()` → the person sets their own password from the link.
+- **Deactivate, never delete:** `set_account_active()` sets `disabled_at` and removes the person's
+  Auth sessions in the same transaction; the Server Action then bans the identity. The person is
+  refused on their next request everywhere, cannot sign in again, and `audit_log` attribution
+  survives. **Reactivate** clears `disabled_at` and lifts the ban; the role is kept (§0ab).
+- **Change a role:** `set_account_role()` — both directions confirmed on screen, the last active
+  owner refused under a lock in the database (§0ab).
 - The permanent Owner account belongs to the restaurant. `docs/runbooks/owner-handover.md` records
   the handover steps and the recovery path.
 
@@ -4441,7 +4754,7 @@ No map library. No tile provider called at runtime. No JavaScript. The entire ma
 |---|---|
 | Public site performs an admin write | The public half has no Supabase client, no token, and no mutation endpoint. The anon key's RLS policies grant `SELECT` on published rows only — no `INSERT`/`UPDATE`/`DELETE` policy exists for `anon` on any table. |
 | Authorization by hidden UI | Every Server Action begins with `requireStaff()`/`requireOwner()`; RLS re-checks the same rule with the user's own JWT. Middleware is explicitly documented as routing only — which is also why the middleware-bypass advisory class does not apply here. |
-| Service-role key reaches the browser | The key is not `NEXT_PUBLIC_`-prefixed, lives in `lib/supabase/service.ts` behind `import 'server-only'`, and has exactly three call sites: the phase-10 image storage boundary (`lib/images/storage.ts` — signed upload URLs and the derivative pipeline, §0t), migrations/seed, and the one-time owner bootstrap. `tests/unit/policy/images-boundary.test.ts` holds the runtime import graph to that one module. |
+| Service-role key reaches the browser | The key is not `NEXT_PUBLIC_`-prefixed, lives in `lib/supabase/service.ts` behind `import 'server-only'`, and has exactly four call sites: the phase-10 image storage boundary (`lib/images/storage.ts` — signed upload URLs and the derivative pipeline, §0t), the phase-11C Auth Admin boundary (`lib/accounts/auth-admin.ts` — invite, look up by e-mail, ban / unban, §0ab), migrations/seed, and the one-time owner bootstrap. `tests/unit/policy/images-boundary.test.ts` holds the runtime import graph to those two modules, and `accounts-boundary.test.ts` holds `auth.admin` to the one. |
 | Drafts leak to the public | Draft Mode is enabled only by an authenticated route; the draft cookie is httpOnly and signed. Content loaders read `draft` only when draft mode is on **and** a staff session exists. |
 | Malicious upload | Signed upload URL issued only after a role check; server validates magic bytes (not the declared MIME), caps size, re-encodes with sharp (which discards anything that is not an image and strips EXIF/GPS), stores under a random path. Originals go to a private bucket; only derivatives are publicly readable. |
 | XSS from staff-entered content | News body is structured JSON rendered by our own components — no HTML parsing, no `dangerouslySetInnerHTML` anywhere, including the new detail page. Tapas list items and all other free text are plain strings. |
@@ -4450,7 +4763,8 @@ No map library. No tile provider called at runtime. No JavaScript. The entire ma
 | Credential stuffing | Supabase Auth rate limits plus a login-attempt throttle keyed on email. Password reset via a verified Resend domain. |
 | Admin indexed by search engines | `/admin/*` returns `X-Robots-Tag: noindex, nofollow` and is disallowed in `robots.txt`. Preview deployments additionally sit behind Vercel Deployment Protection (§10). |
 | Silent data loss | Every publish and every immediate change writes to `audit_log` with before/after. Soft-delete for dishes. Daily managed database backups **plus** a weekly off-platform export of database *and* storage (§10f). |
-| System left with no owner | Database constraint trigger on `profiles`; the last active owner cannot be demoted, disabled or deleted. |
+| System left with no owner | Database constraint trigger on `profiles`; the last active owner cannot be demoted, disabled or deleted — and, since phase 11C, the check runs under a transaction-level advisory lock that the account transitions take first, so two concurrent changes cannot both pass it (§0ab, pgTAP `028` through two real sessions). |
+| **An account's role or state is moved outside the transitions** | `authenticated` holds no DELETE on `profiles` and UPDATE on `name`, `role`, `disabled_at` only; a BEFORE INSERT OR UPDATE guard refuses any creation or movement of `role` / `disabled_at` from `anon` or `authenticated` unless the statement-scoped marker names the transition — Owner and Staff alike — so the version check, the last-owner check and the audit row cannot be bypassed (§0ab, `20260903120000`). |
 | **A trusted function is fed forged state through a direct write** | `restore_announcement()` publishes whatever `announcement.previous` holds, so a caller who could write that column could publish content none of the validating paths ever saw. The columns a lifecycle function is the sole author of are therefore not directly writable at all: `authenticated` holds a **column-level** UPDATE grant, and a BEFORE UPDATE guard trigger refuses any movement of the published, visibility, provenance and lifecycle columns that did not come from the function that owns it (§5, `20260831160000_announcement_column_privileges.sql`). The lifecycle functions stay SECURITY INVOKER, so RLS still decides the row. |
 | **A published Forside image is moved outside the workflow** | The Forside document's three `image_id` paths are references too (phase 11A). A BEFORE UPDATE OF `published` guard on `pages` refuses any movement of those paths from `anon`/`authenticated` unless the statement-scoped marker names publish, replace or detach (`20260902120000`); Staff cannot reach the row at all (RLS), and a Staff member's delete or replacement of an image the Forside uses is refused as `owner_only` before any write, so no dangling id can be left in the Owner-only document. |
 | **A published image reference is moved outside the workflow** | `dishes`, `weekly_special` and `monthly_burger` keep their phase-1 UPDATE grant (the SECURITY INVOKER transitions spend it), but a BEFORE INSERT/UPDATE OF `image_id` guard refuses any movement of the live column that did not come from the publish, replace or detach transition, recognised by a statement-scoped marker that an AFTER STATEMENT trigger spends — one statement, however many rows, so a global replacement stays atomic (§0w, `20260901200000_protect_published_image_references.sql`). Direct Staff **and** Owner writes are refused; `news.image_id` is deliberately unguarded (§4, phase 9). |
@@ -4763,7 +5077,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 8 | Opening hours administration | **8A (done):** the normal weekly editor (owner) — 1t's upper card, seven weekday rows, per-day validation, Kladde → Forhåndsvis → Offentliggør through phase 4's machinery, and no migration. **8B (done):** 1t's lower card — one-off overrides for a single date, Staff *and* Owner on the same screen as the Owner-only week, removal, and the §7b integration in both directions. **8C-1 (done):** the announcement **replacement and restore mechanism** — the `previous` / `replaced_at` stash, `source='opening_hours'` as a value a server-side caller may pass, and one-level Fortryd, with **no control anywhere in the administration**. **8C-2 (done):** the **pure generator** — `lib/announcements/generated.ts` composes 1t's message, its link defaults and its corrected expiry (the *later* of the normal and special closings), with no database, no clock, no UI and no caller. **8C-3A (done):** generated-announcement **ownership** — `announcement.source_override_id`, the pairing CHECK, the ninth snapshot key, the ownership-aware write guard, and `apply_generated_announcement()`, the §7e item 8 coordinator that decides the conflict server-side and delegates the atomic write. `announcement_created` is **dropped**; no UI. **8C-3B (done):** the workflow — 1t's checkbox and editable suggestion, **conflict sheet 1ae with both branches**, the ~10 s Fortryd strip, §7e item 6's removal consequence with its atomic two-table transaction, the BEFORE DELETE guard that closes the direct-DELETE bypass, and the deletion of the 8C-1 harness | 8A: `tests/e2e/opening-hours.spec.ts` passes at 1440 and 375, including the §7b integration case — see §0i. 8B: `tests/e2e/opening-hours-override.spec.ts` passes at 1440 and 375, and `supabase/tests/014_opening_hours_overrides.test.sql` asserts the Staff/Owner split from real JWTs — see §0j. 8C-1: `tests/e2e/announcement-replacement.spec.ts` and `supabase/tests/015_announcement_replacement.test.sql` pass — see §0k. 8C-2: `tests/unit/announcements/generated.test.ts` — an unimported pure module needs no browser suite; see §0m. 8C-3A: `supabase/tests/017_generated_announcement.test.sql` passes — see §0n. 8C-3B: `tests/e2e/opening-hours-announcement.spec.ts` passes at 1440 and 375, and `supabase/tests/018_override_removal.test.sql` asserts the removal lifecycle and refuses a direct DELETE from real Staff and Owner JWTs — see §0o. E2E 5 is complete |
 | 9 | News | **9A (done, §0q):** the list, the editor with the structured body (textarea form), per-item publish/unpublish behind confirmations, delete, the §7f slug policy end to end, the per-article Draft Mode preview target, and the public list/detail integration incl. unpublish → 404 — proven by `tests/e2e/news-admin.spec.ts` at 375 and 1440 and `supabase/tests/019`. **9B (done, §0r):** the B/Link structured editor, autosave, the `NewsArticle` JSON-LD, canonical/article metadata and the sitemap. The forside teaser has rendered since phase 3 and is verified against the news lifecycle | E2E 6 passes, incl. unpublish → 404 — **complete and locked** by the completion pass of 2026-09-01, recorded in §0s |
 | 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C-1 (done, §0v; hardened, §0w):** image selection in the dish/weekly/monthly/news editors through one shared picker pair, `image_references` as the one definition of "referenced", the draft-aware `delete_image()`/`replace_image()`, and the published `image_id` of the three draft entities guarded in the database — direct PostgREST writes refused, only publish/replace/detach move it (pgTAP `022`, `023`). **10C-2 (done, §0x):** the public `<picture>`/`srcset` rendering on the eight approved surfaces, the public read-model projection inside the tagged reads, the Draft Mode preview of pending images, the news `og:image` and JSON-LD `image`, and the per-entity cache coupling — `delete_image()`/`replace_image()` report the live references they moved (pgTAP `024`), the alt edit expires its live usages, and the first guest request after every public-changing image operation carries the new state (`tests/e2e/public-images.spec.ts`). **Complete and locked** by the completion pass of 2026-09-02 — the two no-image frames built, the cache/reference races classified, one clean regression chain — see §0y | E2E 7 passes whole: `image-library`, `editor-images` and `public-images` at 375 and 1440 |
-| 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C:** **`/admin/brugere`** | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user |
+| 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Phase 11 is not locked** |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device | Full menu-edit and news flows completed on a 375 px viewport |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project |
 | 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
@@ -4773,8 +5087,9 @@ Phases 5–11 can be reordered to follow whatever the restaurant needs first; ph
 **Status, 2026-09-02: phases 0–10 are complete and locked** — phase 10 as 10A
 (§0t), 10B (§0u), 10C-1 (§0v, hardened in §0w), 10C-2 (§0x) and the completion
 pass over all four (§0y). **Phase 11A — the Forsiden editor — is built and green
-(§0z), and so is phase 11B — Mad ud af huset and Kontaktoplysninger (§0aa); phase
-11 is not locked**: 11C (`/admin/brugere`) is not started. Phase 8's lock pass is
+(§0z), phase 11B — Mad ud af huset and Kontaktoplysninger (§0aa) — and phase 11C —
+the user administration at `/admin/brugere` (§0ab); phase 11 is not locked**: the
+lock pass over 11A–11C is next. Phase 8's lock pass is
 recorded in §0p, and **phase 9's in §0s**: 9A (the news administration's core, §0q) and
 9B (the B/Link body editor, autosave, the `NewsArticle` JSON-LD, canonical metadata and
 the sitemap, §0r) were read as one system, walked as Owner, Staff and guest against a

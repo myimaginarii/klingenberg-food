@@ -13,7 +13,8 @@ import { expect, type Page } from '@playwright/test'
 export const OWNER = { email: 'owner@example.test', password: 'LocalOwner12345' } as const
 export const STAFF = { email: 'staff@example.test', password: 'LocalStaff12345' } as const
 
-export type AdminUser = typeof OWNER | typeof STAFF
+/** A local `.test` identity: the two seeded ones, or one a suite created itself (phase 11C). */
+export type AdminUser = { readonly email: string; readonly password: string }
 
 /** Sign in and land on the dashboard. */
 export async function signIn(page: Page, user: AdminUser): Promise<void> {

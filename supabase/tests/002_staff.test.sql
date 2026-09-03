@@ -377,12 +377,13 @@ select is(
         where user_id = current_setting('test.staff_uid')::uuid $$),
   0::bigint,
   'staff cannot promote themselves to owner');
-select is(
-  pg_temp.rows_affected(
-    $$ delete from public.profiles
-        where user_id = current_setting('test.owner_uid')::uuid $$),
-  0::bigint,
-  'staff cannot delete another account');
+-- Since phase 11C `authenticated` holds no DELETE on profiles at all ("deactivate,
+-- never delete", section 5): the statement is refused outright rather than filtered.
+select throws_ok(
+  $$ delete from public.profiles
+      where user_id = current_setting('test.owner_uid')::uuid $$,
+  '42501', null,
+  'staff cannot delete another account - the privilege does not exist');
 
 -- A staff member sees their own profile and nobody else's.
 select is(

@@ -114,9 +114,14 @@ otp_expiry = 3600
 subject = "Nulstil din adgangskode"
 content_path = "./supabase/templates/recovery.html"
 
-# The invite template arrives with user management in phase 11, together with
-# /admin/brugere. Adding it now would version wording for a flow that cannot yet be
-# triggered or reviewed.
+# The invitation — phase 11C, `/admin/brugere`. Sent by the Auth server when the
+# Owner invites an account (`auth.admin.inviteUserByEmail`); the link lands on the
+# same /admin/bekraeft route as the recovery link, with type=invite. Changing either
+# template requires `supabase stop` + `supabase start` — a `db reset` does not reload
+# the Auth container's configuration.
+[auth.email.template.invite]
+subject = "Du er inviteret til administrationen af Klingenberg Food"
+content_path = "./supabase/templates/invite.html"
 
 [auth.rate_limit]
 # Credential-stuffing and reset-spam protection (§8). Raised slightly above the CLI

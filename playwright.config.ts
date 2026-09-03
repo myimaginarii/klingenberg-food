@@ -106,6 +106,10 @@ export default defineConfig({
         // own two projects.
         'e2e/takeaway-admin.spec.ts',
         'e2e/contact-admin.spec.ts',
+        // The user-administration suite (phase 11C) — creates and deletes a real
+        // Auth identity, so it must never race itself. `--list` check: the file
+        // appears under exactly `users-admin-mobile` and `users-admin`.
+        'e2e/users-admin.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -135,6 +139,7 @@ export default defineConfig({
         'e2e/homepage-admin.spec.ts',
         'e2e/takeaway-admin.spec.ts',
         'e2e/contact-admin.spec.ts',
+        'e2e/users-admin.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -631,6 +636,29 @@ export default defineConfig({
       name: 'contact-admin',
       testMatch: 'e2e/contact-admin.spec.ts',
       dependencies: ['contact-admin-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    /*
+     * User administration (phase 11C), at both widths, and the new tail of the
+     * chain. It creates a real Auth identity through the Owner's screen, signs in
+     * as that person in a second context, changes the role, deactivates and
+     * reactivates — so it owns `profiles`, the Auth server's user set and the
+     * seeded Owner's own row while it runs, and two runs of it must never overlap:
+     * the invariant it exercises is "exactly one active owner", which a parallel
+     * run would move underneath it. Mobile runs first (the stacked rows and the
+     * dialog's footer), then desktop; each run deletes the identity it created and
+     * restores the seeded pair exactly. It expires no public cache tag.
+     */
+    {
+      name: 'users-admin-mobile',
+      testMatch: 'e2e/users-admin.spec.ts',
+      dependencies: ['contact-admin'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    {
+      name: 'users-admin',
+      testMatch: 'e2e/users-admin.spec.ts',
+      dependencies: ['users-admin-mobile'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],

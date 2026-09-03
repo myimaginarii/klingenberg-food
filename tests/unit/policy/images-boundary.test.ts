@@ -45,8 +45,12 @@ vi.mock('@/lib/supabase/server', () => ({
 const ROOT = process.cwd()
 const SOURCE_DIRECTORIES = ['app', 'components', 'lib']
 
-/** The one module that may construct the service client (§8, phase 10A). */
-const SERVICE_CLIENT_IMPORTERS = ['lib/images/storage.ts']
+/**
+ * The two modules that may construct the service client (§8): the image storage
+ * boundary (phase 10A) and the Auth Admin boundary (phase 11C). A third is a
+ * decision, not an accident.
+ */
+const SERVICE_CLIENT_IMPORTERS = ['lib/accounts/auth-admin.ts', 'lib/images/storage.ts']
 
 /** The one module that may import sharp (§1 adjustment 3, §22). */
 const SHARP_IMPORTERS = ['lib/images/processing.ts']
@@ -122,7 +126,7 @@ describe('the service-role boundary', () => {
     expect(sourceFiles.length).toBeGreaterThan(20)
   })
 
-  it('exactly one module imports the service client', () => {
+  it('exactly the two boundary modules import the service client', () => {
     const importers = sourceFiles
       .filter((file) => file.path !== 'lib/supabase/service.ts')
       .filter((file) => /from '@\/lib\/supabase\/service'/.test(codeOf(file.source)))

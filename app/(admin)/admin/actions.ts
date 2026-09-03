@@ -40,6 +40,16 @@ export async function signIn(formData: FormData): Promise<void> {
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
+    // A deactivated account is banned at the Auth server (phase 11C), and the Auth
+    // server says so before it checks the password. The person is told the truth —
+    // they held an account here, and the Owner can reactivate it — which is what the
+    // phase-1 profile check below tells a deactivated person whose sign-in the Auth
+    // server still accepts. It reveals nothing a stranger could use: the address is
+    // one the restaurant itself handed out.
+    if (error.code === 'user_banned') {
+      redirect('/admin/login?fejl=deaktiveret')
+    }
+
     // One message for "no such account" and for "wrong password" alike, so the form
     // cannot be used to discover which addresses exist (§8 — credential stuffing).
     redirect(`/admin/login?fejl=${GENERIC_LOGIN_ERROR}${nextParam(next)}`)

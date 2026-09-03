@@ -190,7 +190,8 @@ select is(
   (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
     where n.nspname = 'public' and p.prosecdef
       and p.proname not in ('is_staff', 'is_owner', 'log_audit', 'editor_name',
-                            'enforce_owner_invariant')),
+                            'enforce_owner_invariant',
+                            'list_accounts', 'revoke_account_sessions')),
   0::bigint,
   'phase 10C-1 adds no SECURITY DEFINER function');
 

@@ -12,6 +12,7 @@ import { ANNOUNCEMENT_PATH } from './besked/routes'
 import { IMAGES_PATH } from './billeder/routes'
 import { HOME_ADMIN_PATH } from './forsiden/routes'
 import { CONTACT_ADMIN_PATH } from './kontakt/routes'
+import { USERS_ADMIN_PATH } from './brugere/routes'
 import { TAKEAWAY_ADMIN_PATH } from './mad-ud-af-huset/routes'
 import { NEWS_PATH } from './nyheder/routes'
 import { publishSelectedChanges } from './publish-actions'
@@ -69,6 +70,13 @@ export default async function AdminDashboard({
     <AdminShell eyebrow="Oversigt" title={`Hej, ${profile.name}`}>
       {query.besked === 'adgangskode-skiftet' ? (
         <Notice tone="success">Din adgangskode er skiftet.</Notice>
+      ) : null}
+
+      {query.besked === 'rolle-skiftet' ? (
+        <Notice tone="warning">
+          Din rolle er nu medarbejder. Ejer-områderne — åbningstider, kontaktoplysninger,
+          forsiden og brugere — er ikke længere tilgængelige for dig.
+        </Notice>
       ) : null}
 
       {query.intet_valgt === '1' ? (
@@ -214,6 +222,28 @@ export default async function AdminDashboard({
           <p className="mt-1">
             <Link className={STANDALONE_LINK} href={CONTACT_ADMIN_PATH}>
               Åbn kontaktoplysningerne
+            </Link>
+          </p>
+        </Card>
+      ) : null}
+
+      {/*
+        Brugere — phase 11C. No approved frame draws this tile; it is built in the
+        dashboard's own language. Owner only (§5: "User accounts (create, change role,
+        deactivate)"), and therefore *absent* for a staff member rather than shown and
+        disabled — §5's own treatment for an Owner-only area. The screen calls
+        `requireOwner()` itself, and so does every action behind it; `list_accounts()`
+        and the three account transitions refuse anybody else in the database.
+      */}
+      {profile.role === 'owner' ? (
+        <Card>
+          <h2 className="text-heading font-semibold">Brugere</h2>
+          <p className="text-ink-2 text-meta mt-2">
+            Personale og ejere: invitér, skift rolle, deaktivér.
+          </p>
+          <p className="mt-1">
+            <Link className={STANDALONE_LINK} href={USERS_ADMIN_PATH}>
+              Åbn brugerne
             </Link>
           </p>
         </Card>

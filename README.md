@@ -333,6 +333,16 @@ Password reset is fully testable locally: request one at `/admin/glemt-adgangsko
 then open the mail catcher at `http://localhost:54324`. The Danish template lives in
 `supabase/templates/recovery.html` and is applied through `supabase/config.toml`.
 
+So is an invitation (phase 11C): sign in as the owner, open `/admin/brugere`, invite a
+`@example.test` address, and read the e-mail in the same mail catcher — its link lands
+on `/admin/bekraeft?type=invite`, which establishes the session server-side and asks
+the person to choose a password. The template is `supabase/templates/invite.html`.
+Changing either template needs `supabase stop` + `supabase start`; a `db reset` does
+not reload the Auth container. Test suites that create identities delete them again
+through `tests/support/local-auth-admin.ts`, which refuses every host but loopback and
+every address outside `@example.test`; if an interrupted run leaves one behind,
+`npm run db:users` restores the seeded pair and the leftover can be removed in Studio.
+
 ## Checks
 
 ```bash
@@ -546,6 +556,13 @@ redirects unauthenticated `/admin` visitors. It **authorizes nothing**, which is
 known Next.js middleware authorization-bypass advisory class does not apply here:
 bypassing it grants nothing, because it grants nothing.
 
+Accounts (phase 11C) are two rows in two systems: Supabase Auth owns the identity
+(e-mail, password, sessions, the ban), `public.profiles` owns the authorisation (name,
+role, `disabled_at`). The role and the active state move only through
+`set_account_role()` / `set_account_active()` — a direct write is refused for the Owner
+too — and the last active owner cannot be demoted or deactivated, under a lock. The
+Auth Admin API is reached from exactly one server module, `lib/accounts/auth-admin.ts`.
+
 A denied *update* under RLS does not raise — the policy filters the row out and the
 statement reports zero rows changed. That is correct, and it is why `npm run db:test`
 asserts affected-row counts and stored values rather than merely "did not throw".
@@ -578,8 +595,7 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 11C onward — the user administration at
-`/admin/brugere` — and:
+Everything in §15 from phase 12 onward, and:
 the weekly off-platform backup workflow (phase 13, §10f) and Sentry (phase 13).
 `docs/dependencies.md` records which package arrives in which phase. Phase 6 is
 **complete and locked** — 6A (Ugens ret and
@@ -604,9 +620,13 @@ the navigation item and the sitemap entry together; the Owner edits 1v's five fa
 over the phase-1 `site_contact` draft row, and a published number reaches every
 Ring control as a derived `tel:` link on the first request. The 11A finding about
 nested keys is closed for the takeaway sections (strict objects, refused at every
-door) and deliberately left open for Om os. Phase 11 is **not locked** — 11C, the
-user administration at `/admin/brugere`, is not started, and the lock pass over
-11A–11C follows it.
+door) and deliberately left open for Om os. **Phase 11C — the user administration
+at `/admin/brugere` — is built and green (§0ab)**: the Owner invites by name,
+e-mail and role (the Auth server sends the Danish e-mail; the person chooses their
+own password), changes a role, deactivates — never deletes — and reactivates, with
+the last-active-owner invariant refused under a lock, the sessions of a deactivated
+person revoked in the same transaction, and the identity banned. Phase 11 is **not
+locked** — the lock pass over 11A–11C follows.
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published

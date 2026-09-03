@@ -101,6 +101,11 @@ export type FieldProps = {
   inputMode?: 'text' | 'decimal'
   maxLength?: number
   /**
+   * `email` for an address (the phone keyboard shows @ and .); the server parses
+   * the value either way, so the attribute is a convenience, never a rule.
+   */
+  type?: 'text' | 'email'
+  /**
    * Element ids whose text, joined, is this control's accessible name.
    *
    * For a field whose visible label is only meaningful in context — "Punkt 1" inside one
@@ -122,6 +127,7 @@ export function TextField({
   autoComplete = 'off',
   inputMode,
   maxLength,
+  type = 'text',
   labelledBy,
 }: FieldProps) {
   return (
@@ -138,7 +144,7 @@ export function TextField({
         maxLength={maxLength}
         name={name}
         required={required}
-        type="text"
+        type={type}
       />
     </FieldShell>
   )
@@ -170,7 +176,7 @@ export function DateField({
   defaultValue,
   hint,
   error,
-}: Omit<FieldProps, 'inputMode' | 'autoComplete' | 'maxLength' | 'labelledBy' | 'required'>) {
+}: Omit<FieldProps, 'inputMode' | 'autoComplete' | 'maxLength' | 'labelledBy' | 'required' | 'type'>) {
   return (
     <FieldShell id={id} label={label} hint={hint} error={error}>
       <input
@@ -205,7 +211,7 @@ export function TimeField({
   defaultValue,
   hint,
   error,
-}: Omit<FieldProps, 'inputMode' | 'autoComplete' | 'maxLength' | 'labelledBy' | 'required'>) {
+}: Omit<FieldProps, 'inputMode' | 'autoComplete' | 'maxLength' | 'labelledBy' | 'required' | 'type'>) {
   return (
     <FieldShell id={id} label={label} hint={hint} error={error}>
       <input
@@ -231,7 +237,7 @@ export function TextAreaField({
   rows = 4,
   maxLength,
   labelledBy,
-}: Omit<FieldProps, 'inputMode' | 'autoComplete'> & { rows?: number }) {
+}: Omit<FieldProps, 'inputMode' | 'autoComplete' | 'type'> & { rows?: number }) {
   return (
     <FieldShell id={id} label={label} hint={hint} error={error}>
       <textarea
@@ -257,7 +263,7 @@ export function SelectField({
   hint,
   error,
   options,
-}: Omit<FieldProps, 'inputMode' | 'autoComplete' | 'maxLength'> & {
+}: Omit<FieldProps, 'inputMode' | 'autoComplete' | 'maxLength' | 'type'> & {
   options: readonly { value: string; label: string }[]
 }) {
   return (

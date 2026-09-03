@@ -1,0 +1,43 @@
+<!--
+  Klingenberg Food — the invitation (technical plan §5 decision 11, §10c; phase 11C).
+
+  Versioned here and applied through supabase/config.toml, so the wording is reviewed
+  in a pull request rather than clicked into a dashboard and lost — the same rule as
+  recovery.html.
+
+  The link deliberately does NOT use {{ .ConfirmationURL }}. That form lands in the
+  browser with the token in the URL fragment, which only client-side JavaScript can
+  read — and this application has no Supabase client in the browser at all (§1,
+  adjustment 2). Instead the token hash is passed to /admin/bekraeft, a server route
+  handler that exchanges it (type=invite) and writes httpOnly session cookies, then
+  sends the person to /admin/ny-adgangskode to choose their own password. The token
+  never reaches client-side JavaScript, and no password is ever in this e-mail.
+
+  Plain text and one link. No images, no tracking pixel, no external stylesheet.
+-->
+<h2>Du er inviteret til administrationen</h2>
+
+<p>Hej,</p>
+
+<p>
+  Ejeren af Klingenberg Food har oprettet en konto til dig i administrationen af
+  hjemmesiden. Tryk på linket herunder for at vælge din egen adgangskode.
+</p>
+
+<p>
+  <a href="{{ .SiteURL }}/admin/bekraeft?token_hash={{ .TokenHash }}&type=invite">
+    Vælg adgangskode og log ind
+  </a>
+</p>
+
+<p>
+  Linket kan kun bruges én gang og udløber efter en time. Er det udløbet, kan ejeren
+  sende en ny invitation til den samme e-mailadresse.
+</p>
+
+<p>
+  Kender du ikke Klingenberg Food, kan du roligt ignorere denne e-mail. Der sker
+  ikke noget, før linket bruges.
+</p>
+
+<p>Venlig hilsen<br />Klingenberg Food</p>
