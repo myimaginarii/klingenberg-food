@@ -3,6 +3,32 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 12A — no dependencies added (2026-09-03)
+
+**Phase 12A** (technical plan §0ad) — the Menu administration on a phone as the
+primary device — adds **no package**. `package.json` and the lockfile are
+byte-identical to the phase-11 state. The brief named the two things that would have
+tempted one: a drag-and-drop library for reordering (not added — the phase-5E handle,
+Flyt op and Flyt ned stay the feature, and the phone's move buttons are 44 px targets
+that need no gesture) and a UI framework for a "mobile layout" (not added — the phone is
+a set of `max-md:` / `md:` variants over the same markup, and the one script change is
+a branch in the reorder handle's focus recovery). The walkthrough was a temporary
+Playwright config and three spec files over the existing `@axe-core/playwright` and the
+e2e support helpers, deleted before the chain and never committed, as in the phase-10
+and phase-11 passes.
+
+One configuration change rather than a dependency: `app/layout.tsx` sets Next 16's
+documented `data-scroll-behavior="smooth"` on `<html>`, so the framework switches the
+site's CSS smooth scrolling off during its own route-transition scroll (its earlier
+default). No version moved.
+
+### `npm audit --audit-level=high` — clean
+
+Run from a clean `npm ci` as the first step of the phase-12A certification chain
+(2026-09-03): **0 vulnerabilities**.
+
+---
+
 ## Phase 11 completion pass — no dependencies added (2026-09-03)
 
 **The phase-11 lock pass** (technical plan §0ac) adds **no package**. `package.json`

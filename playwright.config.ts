@@ -110,6 +110,10 @@ export default defineConfig({
         // Auth identity, so it must never race itself. `--list` check: the file
         // appears under exactly `users-admin-mobile` and `users-admin`.
         'e2e/users-admin.spec.ts',
+        // The phone-as-primary-device menu story (phase 12A) — a write suite owned
+        // by its one dedicated project at the tail. `--list` check: the file
+        // appears under exactly `menu-mobile`.
+        'e2e/menu-mobile.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -140,6 +144,7 @@ export default defineConfig({
         'e2e/takeaway-admin.spec.ts',
         'e2e/contact-admin.spec.ts',
         'e2e/users-admin.spec.ts',
+        'e2e/menu-mobile.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -660,6 +665,29 @@ export default defineConfig({
       testMatch: 'e2e/users-admin.spec.ts',
       dependencies: ['users-admin-mobile'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    /*
+     * The menu on a phone as the primary device (phase 12A) — the tail of the chain.
+     *
+     * One width, and it is the phone's: the locked phase-5 suites already run every
+     * menu operation at both widths, and this suite asserts what only a 375 px run can
+     * — 1y's foot with the Fortryd and the pending band inside the viewport at the
+     * moment they matter, no sideways scrolling with the longest content the schema
+     * allows, dialogs that fit the screen with the safe way out first, the moved row in
+     * view after a move, and 44 px targets throughout — with touch, because that is the
+     * input the device has. Chained last for the reason every write suite is chained:
+     * it publishes the menu and uploads and removes a real library image, so it owns
+     * the `menu` tag and the library while it runs. It leaves the seed as it found it.
+     */
+    {
+      name: 'menu-mobile',
+      testMatch: 'e2e/menu-mobile.spec.ts',
+      dependencies: ['users-admin'],
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 375, height: 812 },
+        hasTouch: true,
+      },
     },
   ],
 

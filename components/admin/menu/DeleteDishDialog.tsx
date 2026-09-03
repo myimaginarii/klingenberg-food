@@ -44,6 +44,11 @@ import { ModalDialog } from './ModalDialog'
  *     in the error tone, at 44 px.
  *   * Cancelling is a navigation back to the Slet ret control's own anchor, so focus
  *     returns to where it started.
+ *   * On a phone the two choices **stack**, the safe one first and both full width
+ *     (phase 12A) — the arrangement 1ae's sheet and the users-admin confirmations
+ *     already use below `md`. Side by side at 375 px they were 8 px apart, which is
+ *     too close for a thumb aiming at "Behold ret" next to the one control on this
+ *     screen that removes a dish from the hjemmeside.
  */
 export function DeleteDishDialog({
   anchorId,
@@ -72,7 +77,7 @@ export function DeleteDishDialog({
     <ModalDialog cancelHref={cancelHref} id={anchorId} labelledBy={headingId}>
       <div className="flex flex-col gap-4 p-4 md:p-5">
         <div>
-          <h2 className="text-heading font-sans font-semibold" id={headingId}>
+          <h2 className="text-heading font-sans font-semibold wrap-anywhere" id={headingId}>
             {prompt.question}
           </h2>
           <p className="text-ink-2 text-meta mt-1">{prompt.consequence}</p>
@@ -87,7 +92,7 @@ export function DeleteDishDialog({
           </p>
         )}
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-end md:gap-2">
           {/*
             The safe choice first, and focused. A confirmation that opens with the
             keyboard on the destructive button is a confirmation that can be dismissed
@@ -100,7 +105,7 @@ export function DeleteDishDialog({
             route change would leave the keyboard at the top of the document.
           */}
           <a
-            className="bg-brand-700 hover:bg-brand-500 active:bg-brand-900 rounded-field min-h-tap inline-flex items-center px-5 font-semibold text-white"
+            className="bg-brand-700 hover:bg-brand-500 active:bg-brand-900 rounded-field min-h-tap inline-flex items-center justify-center px-5 font-semibold text-white"
             data-autofocus
             href={cancelHref}
           >
@@ -123,7 +128,7 @@ export function DeleteDishDialog({
               version={version}
             />
             <button
-              className="rounded-field border-error text-error-ink hover:bg-error-surface min-h-tap bg-surface inline-flex items-center border-[1.5px] px-4 font-semibold"
+              className="rounded-field border-error text-error-ink hover:bg-error-surface min-h-tap bg-surface inline-flex w-full items-center justify-center border-[1.5px] px-4 font-semibold md:w-auto"
               type="submit"
             >
               {prompt.confirmLabel}

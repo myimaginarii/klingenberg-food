@@ -58,7 +58,7 @@ export function UndoStrip({
       >
         ✓
       </span>
-      <b className="text-success-ink text-meta min-w-0 flex-1 font-semibold">{message}</b>
+      <b className="text-success-ink text-meta min-w-0 flex-1 font-semibold wrap-anywhere">{message}</b>
       {children}
     </div>
     </AutoDismiss>

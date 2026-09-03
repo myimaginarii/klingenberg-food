@@ -42,7 +42,7 @@ import { ReorderControls, type ReorderForm } from './ReorderControls'
 function PriceTag({ priceOre, pending }: { priceOre: number | null; pending: boolean }) {
   return (
     <p
-      className={`rounded-field min-h-12 flex min-w-[7rem] items-center justify-between gap-1 border-[1.5px] px-3 md:justify-end ${
+      className={`rounded-field min-h-12 flex min-w-[7rem] items-center justify-between gap-1 border-[1.5px] px-3 whitespace-nowrap md:justify-end ${
         pending ? 'border-warning bg-surface' : 'border-field-border bg-field-bg'
       }`}
     >
@@ -139,7 +139,16 @@ export function DishRow({
         <div className="min-w-0 flex-1 md:min-w-60">
           <Link className="min-h-tap flex flex-col justify-center gap-1" href={href}>
             <span className="flex flex-wrap items-center gap-2">
-              <span className="text-ink font-semibold">{dish.name}</span>
+              {/*
+                `wrap-anywhere` (phase 12A): a name is up to 200 characters and may be one
+                unbroken word, and the card is 343 px wide. `overflow-wrap: anywhere`
+                rather than `break-word`, because this span is a flex item — only
+                `anywhere` lets the word count as breakable when the item's minimum
+                width is worked out, so the card stops growing past the screen and the
+                word breaks inside it. Without it the name was the one thing on this
+                screen that could make the whole page scroll sideways.
+              */}
+              <span className="text-ink min-w-0 font-semibold wrap-anywhere">{dish.name}</span>
               {pending === null ? null : <KladdeBadge />}
             </span>
             {/*
@@ -158,7 +167,7 @@ export function DishRow({
                 </span>
               </>
             ) : (
-              <span className="text-warning-ink-2 text-meta">{pending}</span>
+              <span className="text-warning-ink-2 text-meta wrap-anywhere">{pending}</span>
             )}
           </Link>
         </div>
@@ -167,7 +176,12 @@ export function DishRow({
           The price, the availability control and the label slot travel together, so a
           row that has to wrap wraps once rather than shedding them one at a time.
         */}
-        <div className="flex items-center gap-2 md:ml-auto md:gap-3">
+        {/*
+          `flex-wrap` (phase 12A): the highest price the schema allows is "9.999,99 kr.",
+          and beside the availability control that is wider than a 375 px card. The
+          control drops under the price rather than the card growing past the screen.
+        */}
+        <div className="flex flex-wrap items-center gap-2 md:ml-auto md:gap-3">
           <PriceTag priceOre={dish.priceOre} pending={priceChanged} />
           <AvailabilitySwitch
             availability={availability}

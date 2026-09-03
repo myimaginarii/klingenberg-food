@@ -7,7 +7,7 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–10 complete and locked.** Phase 9's completion pass
+**Status: phases 0–11 complete and locked; phase 12A done, phase 12 open.** Phase 9's completion pass
 (2026-09-01) is recorded in technical plan §0s, phase 10A in §0t, phase 10B in
 §0u, phase 10C-1 in §0v/§0w, phase 10C-2 in §0x, and **phase 10's completion pass
 (2026-09-02) in §0y — the current truth of the whole image system.** The public site renders from the database;
@@ -629,8 +629,25 @@ person revoked in the same transaction, and the identity banned. **Phase 11 is
 complete and locked** — the completion pass over 11A–11C (§0ac) read the three as one
 system, walked them as Owner, Staff and guest against a production build, audited
 1u / 1aj / 1v at 375 / 768 / 1440, reviewed the account security model as a set and
-closed the phase with one clean regression chain. Phase 12 (the administration on a
-phone, 1x / 1y / 1z) is next and is not started.
+closed the phase with one clean regression chain.
+
+**Phase 12A — the Menu administration on a phone as the primary device — is built
+and green (§0ad).** The whole `/admin/menu` workflow was walked at 375 px as Staff
+against a production build and measured, not eyeballed: the ten-second Fortryd
+strips and the pending band now sit in **1y's foot** — pinned to the bottom of the
+phone screen, visually last, first in the DOM — so an immediate Udsolgt or Slet ret
+pressed deep in a list, or inside the editor, leaves its Fortryd on screen the moment
+it starts (it was 302 px and 78 px above the viewport before); the band is 1y's one
+row; the longest content the schema allows (a 200-character unbroken name,
+"9.999,99 kr.") wraps instead of scrolling the page sideways; a moved row stays in
+view after Flyt op (the root layout now carries Next 16's documented
+`data-scroll-behavior="smooth"`, so the router's scroll to the top is no longer an
+animation the page's own effects measure against); the deletion confirmation stacks
+its two choices with the safe one first; and "Luk" is 44 × 44. Phase 5's semantics,
+the desktop frame 1r and every locked phase-5 suite are unchanged;
+`tests/e2e/menu-mobile.spec.ts` runs the Staff story under its own `menu-mobile`
+project at the tail of the chain. Phase 12 is **not locked**: 12B is the News flow
+(1z) and 12C the 1x / 1q dashboard.
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published

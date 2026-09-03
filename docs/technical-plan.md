@@ -4344,6 +4344,248 @@ database afterwards, as they have been since phase 5; they contaminated nothing.
 
 ---
 
+## §0ad. Phase 12A — the Menu administration on a phone as the primary device (2026-09-03)
+
+Phase 12 (§15) is one line in the plan — *"1x, 1y, 1z — the phone is the primary admin
+device; full menu-edit and news flows completed on a 375 px viewport"* — and 12A is the
+first half of it: the complete Menu workflow at 375 px, audited as a phone-first tool
+rather than as a desktop layout that happens to fit. Phases 5–11 stay locked; nothing
+about drafts, publishing, roles, the sold-out engine, deletion, reordering, pricing,
+caching or the audit log changed. **Phase 12 is not locked**; 12B (News on the phone,
+1z) is the next increment, and the remaining 1x/1q dashboard work is recorded below as
+the third.
+
+### What "the Menu workflow at 375 px" was taken to mean
+
+The brief's list, read against 1y (the one approved mobile Menu frame), 1x (the way
+in), 1r (the desktop counterpart, for what must not regress) and the phase-5, 6 and
+10 lock sections. Every row was walked as Staff against a production build at
+375 × 812 with touch, measured (viewport position of the key control, document
+width, target sizes, computed focus ring, axe), and compared to the frame.
+
+| Workflow | Where it stood | 1y / approved target | Material problem, if any |
+|---|---|---|---|
+| Reaching the menu | phase-4 dashboard card, "Åbn menuen" at 44 px, second card, in the first screen | 1x's tile list | none for the *route*; 1x's tile dashboard itself is not built (recorded as remaining scope, below) |
+| Section navigation | one scrolling row of chips, no counts below `md`, `aria-current` | 1y's row that runs off the right edge | none |
+| Menu overview | one card per dish: name, "Tryk for at rette", Pris tag, Tilgængelig/Udsolgt, the reorder strip | 1y's cards | none in the card; see the foot |
+| Pending state | the band above the list: sentence, the names, a full-width button (153 px) | 1y's one-row band at the **foot** of the phone screen | **the band was a stacked block at the top**, and after a save the person is at the top anyway — but after any later scroll its Offentliggør was gone |
+| Immediate Udsolgt / Slet ret and their ~10 s Fortryd | the green strip at the top of `<main>` | 1y's strip at the **foot** of the phone screen | **the strip was above the fold at the moment it appeared**: 302 px above the viewport after a toggle in the list (the router keeps the scroll position), 78 px above it after a toggle inside the editor (the `#ret-editor` fragment scrolls the panel to the top) |
+| Dish editing | the panel *is* the screen; list hidden; heading "Ret", Kategori pre-selected; fields 48 px; price `inputmode="decimal"`; Gem 44 px; Slet ret at the far end of the footer row | 1y's editor (no separate frame; 1r's panel, stacked) | "Luk" was 40 px wide |
+| Validation | errors under their fields, `aria-invalid`, `aria-describedby`, the panel scrolled into view by its fragment | existing convention | none (the "ugyldig" status notice at the top of `<main>` is above the fold, but the field errors are in view and bound) |
+| Image selection | the 10C-1 picker: 337 × 345 px inside the 812 px viewport, scrollable within itself, Annuller focused, `Esc` back to the slot's own control | 1r's slot | none |
+| Add dish | the dashed row at the end of the list; "Ny ret" with the section pre-selected; the new row at the end, "Ny ret — vises først …" | 1y's "+ Tilføj ret" | none |
+| Reordering | the phase-5E strip on every card: handle 44 × 44, Flyt op / Flyt ned 129 × 44, 8 px apart, boundary buttons greyed, the polite live region | 1y's "hold on a row" (drawn as the handle since 5E) | **after Flyt op the moved row was out of sight** — the router scrolls a route transition to the top, and the focus recovery, measuring against a scroll still animating, found the row "already on screen" |
+| Delete / restore | the `<dialog>`, Behold ret focused, `Esc` back to `#slet-ret`, backdrop inert, the Fortryd strip | one confirmation shape | Behold ret and Slet ret were side by side **8 px apart** on the phone |
+| Preview / publish | Forhåndsvis and Offentliggør in the bar (two rows at 375), the band's own Offentliggør | 1y's bar (Offentliggør only) and band | none beyond the band's placement |
+| Long content | a 200-character unbroken name, a 600-character description, "9.999,99 kr." | no sideways scrolling (1aa) | **the page scrolled sideways** with the unbroken name at 375; the price beside the switch wrapped inside its tag |
+
+### What changed, and what each change is
+
+Every change is presentation over the same page, the same Server Actions, the same
+domain modules and the same URL state. No new route, no new component with business
+logic, no client JavaScript beyond one adjusted effect, no dependency.
+
+1. **1y's foot** — `app/(admin)/admin/menu/page.tsx`. The two immediate strips and
+   the pending band are rendered in one container that, below `md`, is `sticky` to
+   the bottom of the viewport and visually last (`order-last`), while staying **first
+   in the DOM** where the three notices have always been: the tab order and the
+   reading order are unchanged at every width, the live regions are in the tree
+   before their text arrives, and from `md` the container is an ordinary block
+   exactly where 1r draws its contents. It exists only when it has something to hold.
+   The band is in the foot while the **list** is the screen and in flow above the
+   editor while a dish is open — a publish control pinned under a thumb scrolling a
+   half-typed form is the one thing 1y does not draw. Measured afterwards: the Fortryd
+   is at y = 738 of 812 after a toggle in the list *and* after one in the editor.
+2. **The band is one row** (`MenuPendingNotice`) — the sentence and Offentliggør side
+   by side at every width, as 1y and 1r both draw it; the list of names beneath the
+   sentence from `md` only. Each pending row already carries its Kladde badge and its
+   own sentence, and a foot that grew a line per dish would eat the screen it is
+   pinned to.
+3. **Long content wraps** (`DishRow`, `UndoStrip`, `DeleteDishDialog`,
+   `MenuPendingNotice`) — `overflow-wrap: anywhere` (`wrap-anywhere`) on the name, the
+   pending sentence, the strip's message and the confirmation's question. `anywhere`
+   rather than `break-word`, and it mattered: the name is a flex item, and only
+   `anywhere` lets an unbroken word count as breakable when the item's minimum width
+   is worked out — with `break-word` the card still grew past the screen (the first
+   run of the new suite caught exactly that). The price group `flex-wrap`s so the
+   control drops under "9.999,99 kr." rather than the card growing past the screen,
+   and the price itself never breaks mid-number. No limit changed.
+4. **The moved row stays in view** (`ReorderHandle`, `ReorderControls`,
+   `app/layout.tsx`). Two halves. The focus recovery no longer passes
+   `preventScroll`, so a browser scrolls only as far as it must — nothing on a desktop
+   where the row is on screen, the row into view on a phone — and a focus the browser
+   *kept* (Flyt op on a row that is still not first keeps its button, because the row
+   is keyed) is brought into view without being moved; `scroll-mb-36` below `md`
+   keeps both clear of the foot. The other half is the root layout's
+   `data-scroll-behavior="smooth"`: `globals.css` sets `scroll-behavior: smooth` for
+   the public chips, and Next 16 no longer switches that off by itself during a route
+   transition's scroll to the top (its documented attribute asks for exactly the
+   framework's earlier default) — without it that scroll was an animation still
+   running when the effect measured, and the page glided away from the row it had
+   just found "on screen". Hash-only changes keep their smooth scroll; the public
+   site's in-page anchors are untouched. Measured afterwards: every variant walked
+   (Flyt op / Flyt ned, tap and keyboard, first, middle and last row) ends with the
+   moved row at y = 177 and the handle or the pressed button focused.
+5. **The confirmation stacks** (`DeleteDishDialog`) — below `md` Behold ret and Slet
+   ret are full width, the safe one first with a 12 px gap, the arrangement 1ae's sheet
+   and the users-admin confirmations already use; from `md` the row is 1r's.
+6. **"Luk" is 44 × 44** (`DishEditorPanel`) — `min-w-tap`; the words did not move.
+
+### What was verified and deliberately left as it is
+
+- **The card, the chips, the editor's field order and the picker** match 1y / 1r and
+  the phase-5 and 10C-1 decisions; nothing was redrawn. The price field already asked
+  the phone for a number pad (`inputmode="decimal"`); text fields are `type="text"`
+  with `autocomplete="off"`; the description is a four-row textarea at 16 px, so iOS
+  does not zoom.
+- **The bar** keeps Forhåndsvis *and* Offentliggør at 375, wrapping to a second row.
+  1y draws Offentliggør alone in the bar and no Forhåndsvis anywhere; the brief's §12
+  requires preview reachable at 375, and moving it into the foot would hide it while
+  nothing is pending. Recorded as a departure from 1y, in 1y's favour of function.
+- **Toggling Udsolgt in the list keeps the scroll position** (measured: 521 → 519);
+  the row the person pressed stays under their thumb and the strip is in the foot.
+- **Validation keeps the existing convention** — the panel's fragment, the field
+  errors in view and bound; focus is not moved to the first invalid field, as on
+  every other editor. Recorded, not changed.
+- **The reorder strip on every card** (handle, Flyt op, Flyt ned) is 5E's locked
+  design for the phone and stays: 44 px targets 8 px apart, boundary state greyed and
+  `disabled`, no drag library, no gesture required. A card is 192 px; five cards
+  outrun the viewport, which is what the foot and the moved-row reveal are for.
+- **Focus rings**: the computed ring is `3px solid rgb(180,116,26)` at 2 px on every
+  keyboard-focused control (Gem, the chips, the picker's Annuller, the restored
+  Slet ret and Vælg billede, the handle after a keyboard move). A control focused by
+  a *tap* or by a script after a tap does not match `:focus-visible`, which is the
+  platform's rule, not a missing ring.
+- **The status notices after a save** land the person on the list at the top with
+  "gemt som kladde" in view (the editor closes on Gem); after a Tapas or image save
+  the fragment scrolls past the notice — the changed state itself is the
+  confirmation there. Unchanged.
+
+### Departures from the frames, recorded
+
+| Frame | Departure | Why |
+|---|---|---|
+| 1r, 1y | No FOTO thumbnail on the dish rows | Phase 5 recorded the frame as a phase-10 slot; 10C-1 built the slot in the editor and left the row without one. Drawing it means a thumbnail read per section — deferred, not forgotten, and the editor slot is one tap away. |
+| 1y | No "⋯" on the card | The whole card is the way into the editor and no approved menu lists what the three dots would hold. |
+| 1y | "Hold på en række" is "hold på håndtaget" | Phase 5E's recorded decision: a gesture on the whole row fights scrolling; the handle is the hold target and the two buttons are the feature. |
+| 1y | Forhåndsvis in the bar | See above. |
+| 1x, 1q | The dashboard is still the phase-4 foundation | **Remaining Phase 12 scope.** 1x's tile list ("Hvad vil du lave?", the eight 68 px rows, the announcement card, LIGE NU) is shared by the Menu and the News flows and its link names are addressed by twelve locked suites (`Åbn menuen`, `Åbn beskeden`, …). It is one increment, not a side effect of 12A, and is listed below as 12C. |
+
+### Responsive architecture
+
+One page, one action layer, one domain layer; the phone is a set of `max-md:` /
+`md:` variants over the same markup. The DOM order never differs between widths;
+`order-last` and `sticky` move the foot visually only. No `/admin/mobile`, no
+duplicated Menu component, no mobile Server Action, no alternate state, no second
+picker, no JavaScript-driven layout: the one script change is the reorder handle's
+focus recovery, which now lets the browser scroll. Bundle: no new client component;
+`ReorderHandle` grew by one branch.
+
+### Accessibility and touch, measured
+
+axe (WCAG 2.0/2.1/2.2 A+AA) reported zero violations at 375 on the dashboard, the
+list, the list with a pending row and the band, the editor, the refusal state, the
+picker, the sold-out state, the create panel, the list with the longest content, and
+the confirmation — and at 1440 on the states the locked `a11y/menu-admin` file already
+scans. The tap-target sweep at 375 (every `a`, `button`, `select`, and every label
+that *is* the control) found nothing under 44 × 44 after the "Luk" change — "Ejer-
+området" on the dashboard is inside a sentence and exempt, as recorded in §13 item H.
+No horizontal scrolling on any state, including the 200-character name and the
+maximum price. Keyboard: `Tab` from Navn reaches Gem in twelve stops in the drawn
+order; the confirmation and the picker open on the safe control and hand focus back
+to the control they came from through the address; the page behind a dialog is
+inert; a tap beside the sheet does nothing. Screen-reader semantics unchanged from
+phase 5: state in words on every control ("Tilgængelig — Thor. Skift til udsolgt."),
+the dish in every Flyt / Slet / Fortryd name, the section in the list's name, the
+live region for a move.
+
+### Tablet and desktop
+
+768 and 1440 were captured before and after for the list, the editor, the pending
+state and the confirmation. The foot is an ordinary block from `md` where the three
+notices were; the band is one row (as 1r); the confirmation's footer is 1r's row; the
+row's price group has room and does not wrap. Nothing in 1r moved.
+
+### Tests
+
+- **`tests/e2e/menu-mobile.spec.ts`** under one dedicated project, **`menu-mobile`**
+  (375 × 812, touch), the new tail of the chain after `users-admin`, and under no other
+  project: eighteen stories — the way in from the dashboard, the chips, the editor,
+  the save with the band in view, the band at the bottom of a long section, the
+  picker (fit, focus, `Esc`, choose, remove), Udsolgt from the list and from the
+  editor with the Fortryd inside the viewport, Forhåndsvis, Offentliggør from the
+  foot and the first guest request, Flyt op with the moved row in view, a temporary
+  dish, the longest content with no sideways scrolling, an invalid edit, the stacked
+  confirmation, delete and restore, Owner parity, and the seed restored. It uploads
+  its one library image through the real screen and removes it through the library's
+  own Slet.
+- **No locked phase-5 test was changed.** `playwright.config.ts` gains the project and
+  the two `testIgnore` entries; `npx playwright test --list` shows the file under
+  exactly `menu-mobile` (18) and the four `a11y/*` files under `desktop` and `mobile`
+  only.
+- The walkthrough itself was a temporary Playwright harness (`tests/lockpass/`,
+  `playwright.lockpass.config.ts`) over the e2e support helpers, deleted before the
+  chain and never committed, as in §0y and §0ac. Its screenshots (every state at
+  375, the main ones at 768 and 1440) and its JSON measurements are in the session
+  scratchpad.
+
+### The regression
+
+From a clean tree: every port-3100 owner stopped, `npm ci`, `npm run db:reset:full`
+(every test Auth identity gone, the two seeded ones as `npm run db:users` leaves
+them), a twenty-second settle, `.next` emptied, a fresh production build, no stale
+server. Typecheck, lint and the source policy clean; **2,576 unit tests in 100
+files**; **2,030 pgTAP assertions in 28 files**, from real anonymous, Staff and Owner
+JWTs and two dblink sessions; **25 integration tests in 4 files** against the real
+local stack and the mail catcher; `npm audit --audit-level=high` clean (0
+vulnerabilities); `npx playwright test --list` collecting **1,303 tests in 38 files
+across 45 projects**, with `e2e/menu-mobile` under exactly its one dedicated project
+(18 stories), every other write suite under exactly its own projects as before, the
+four `a11y/*` files under `desktop` and `mobile` only, and no stale `testIgnore`
+entry; and the complete Playwright matrix at `--retries=0`, run as the chunked chain
+against one detached production server (the read-only trio together, every write
+project in its own `--no-deps` invocation, in config order — 43 invocations):
+**1,296 passed, 7 deliberately skipped (the standing width/device guards: three
+`public-site` stories at the other width, three `menu-reorder` pointer/touch stories
+at the width without the input, one override story past its clock guard), zero
+failed and zero flaky** on the first and only launch of every chunk (started 18:57,
+finished 19:42). No chunk was re-run and no result is retry-masked. Phases 5–11 ran
+green behind phase 12A, unchanged; the public cache is still 5m/5m
+(`public-cache`, 3 passed), no tracking cookie (the `menu-mobile` guest context
+asserts an empty cookie jar on the first request after a publish), no browser
+Supabase client and no service client outside its two boundaries appeared
+(`tests/unit/policy`), and no phase-12B (News) and no phase-13 work exists.
+
+Two facts about the run worth keeping: the chain's first launch died in `npm ci`
+with `EPERM` on the SWC binary because the detached server from the focused
+pre-run still held it — the chain now stops every port owner before `npm ci`, and
+the relaunch is the run reported here; and the new suite's own first run, against
+a database the earlier walkthrough had left with an unpublished move, published that
+move through the next suite's baseline and failed `menu-reorder` downstream — the
+suite's cleanup now clears every dish draft, and the certified chain started from
+a reset. Neither was a product defect.
+
+### What 12B owes — News on the phone (1z)
+
+1z draws two screens: the list of cards (title, "Offentliggjort DD.MM.ÅÅÅÅ" or the
+Kladde card with "Rettet …", the "+ Ny" in the bar) and the editor (Overskrift at
+19 px, the category chips, the B/Link toolbar and the body at 16 px, the image slot,
+Forhåndsvis / Offentliggør side by side at the end, and the autosave note). 12B is
+the same audit over `/admin/nyheder` at 375: the list's cards and their state words,
+the editor's structured body with the software keyboard (the toolbar reachable while
+the keyboard is up; `Ctrl+B` has no phone equivalent — the B button is the path),
+autosave's status line and its `sr-only` region, the per-article publish/unpublish
+confirmations as one dialog shape stacked on the phone, the image picker on the
+article, the slug policy's refusals readable at 375, the same long-content and
+tap-target sweeps, and a dedicated `news-mobile` project at the tail. The dashboard
+(1x / 1q) is **12C**: the tile list at 375 and the three-column grid from `md`, the
+announcement card with its state and "Rediger besked", the pending band's count with
+the phase-4 per-item list beneath it, LIGE NU, and — because twelve locked suites
+address the current link names — a coordinated rename of `Åbn …` to the tiles'
+names in the support helpers, in one commit, after 12B.
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -5356,7 +5598,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 9 | News | **9A (done, §0q):** the list, the editor with the structured body (textarea form), per-item publish/unpublish behind confirmations, delete, the §7f slug policy end to end, the per-article Draft Mode preview target, and the public list/detail integration incl. unpublish → 404 — proven by `tests/e2e/news-admin.spec.ts` at 375 and 1440 and `supabase/tests/019`. **9B (done, §0r):** the B/Link structured editor, autosave, the `NewsArticle` JSON-LD, canonical/article metadata and the sitemap. The forside teaser has rendered since phase 3 and is verified against the news lifecycle | E2E 6 passes, incl. unpublish → 404 — **complete and locked** by the completion pass of 2026-09-01, recorded in §0s |
 | 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C-1 (done, §0v; hardened, §0w):** image selection in the dish/weekly/monthly/news editors through one shared picker pair, `image_references` as the one definition of "referenced", the draft-aware `delete_image()`/`replace_image()`, and the published `image_id` of the three draft entities guarded in the database — direct PostgREST writes refused, only publish/replace/detach move it (pgTAP `022`, `023`). **10C-2 (done, §0x):** the public `<picture>`/`srcset` rendering on the eight approved surfaces, the public read-model projection inside the tagged reads, the Draft Mode preview of pending images, the news `og:image` and JSON-LD `image`, and the per-entity cache coupling — `delete_image()`/`replace_image()` report the live references they moved (pgTAP `024`), the alt edit expires its live usages, and the first guest request after every public-changing image operation carries the new state (`tests/e2e/public-images.spec.ts`). **Complete and locked** by the completion pass of 2026-09-02 — the two no-image frames built, the cache/reference races classified, one clean regression chain — see §0y | E2E 7 passes whole: `image-library`, `editor-images` and `public-images` at 375 and 1440 |
 | 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Complete and locked** by the completion pass of 2026-09-03 — see §0ac |
-| 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device | Full menu-edit and news flows completed on a 375 px viewport |
+| 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B:** the News flow (1z). **12C:** the 1x / 1q dashboard | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad); the news half is 12B |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project |
 | 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
@@ -5366,9 +5608,10 @@ Phases 5–11 can be reordered to follow whatever the restaurant needs first; ph
 (§0t), 10B (§0u), 10C-1 (§0v, hardened in §0w), 10C-2 (§0x) and the completion
 pass over all four (§0y); phase 11 as 11A — the Forsiden editor (§0z), 11B — Mad ud
 af huset and Kontaktoplysninger (§0aa), 11C — the user administration at
-`/admin/brugere` (§0ab), and the lock pass over all three (§0ac). Phase 12 — the
-administration on a phone as the primary device (1x, 1y, 1z) — is next and is not
-started. Phase 8's lock pass is
+`/admin/brugere` (§0ab), and the lock pass over all three (§0ac). **Phase 12 — the
+administration on a phone as the primary device (1x, 1y, 1z) — is in progress: 12A,
+the Menu workflow at 375 px, is complete (§0ad); 12B (News, 1z) and 12C (the 1x / 1q
+dashboard) remain, and the phase is not locked.** Phase 8's lock pass is
 recorded in §0p, and **phase 9's in §0s**: 9A (the news administration's core, §0q) and
 9B (the B/Link body editor, autosave, the `NewsArticle` JSON-LD, canonical metadata and
 the sitemap, §0r) were read as one system, walked as Owner, Staff and guest against a

@@ -131,7 +131,7 @@ export function DishEditorPanel({
           {heading}
         </h2>
         <Link
-          className="text-ink-2 hover:text-ink min-h-tap -mr-2 inline-flex items-center px-2 text-meta font-medium"
+          className="text-ink-2 hover:text-ink min-h-tap min-w-tap -mr-2 inline-flex items-center justify-center px-2 text-meta font-medium"
           href={closeHref}
         >
           Luk

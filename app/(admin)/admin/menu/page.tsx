@@ -293,6 +293,13 @@ export default async function MenuAdminPage({
   const undoDeleteVersion = one(params[MENU_PARAM.undoDeleteVersion])
   const deletedDish = undoDeleteId === undefined ? null : await readDeletedDish(undoDeleteId)
 
+  // Whether each ~10 s Fortryd is actually on offer — the same three-way and two-way
+  // checks the strips have always been rendered behind, named once so the foot below
+  // can decide whether it exists at all.
+  const undoOffered =
+    undoDish !== undefined && undoVersion !== undefined && undoSoldOut !== undefined
+  const deleteOffered = deletedDish !== null && undoDeleteVersion !== undefined
+
   /*
    * The photo slot and its picker (phase 10C-1), for the open dish. The slot shows
    * the *current* selection — live with the draft over it, the same overlay every
@@ -357,49 +364,82 @@ export default async function MenuAdminPage({
         <MenuStatusNotice status={one(params[MENU_PARAM.status])} />
 
         {/*
-          1r draws this strip inside the list and 1y at the foot of the phone screen.
-          It is rendered once, here, so it is on screen at both widths without
-          scrolling — a message that lasts ten seconds should not have to be looked for.
+          The pending band, in flow above the editor while a dish is open. When the list
+          is the screen it lives in the foot below instead — see the note there.
         */}
-        {undoDish === undefined || undoVersion === undefined || undoSoldOut === undefined ? null : (
-          <AvailabilityUndo
-            dishId={undoDish.id}
-            dishName={undoDish.name}
-            editorOpen={editing?.id === undoDish.id}
-            form={AVAILABILITY_FORM_BINDING}
-            // The strip reports what just happened, which is the opposite of what
-            // Fortryd would restore.
-            message={describeAvailabilityChange({
-              dishName: undoDish.name,
-              soldOut: undoSoldOut !== '1',
-            })}
-            restoreSoldOut={undoSoldOut === '1'}
-            section={activeSection.category.slug}
-            version={undoVersion}
-          />
-        )}
+        {editorOpen ? (
+          <MenuPendingNotice action={publishMenuChanges} pending={menuPending} />
+        ) : null}
 
         {/*
-          The deletion's own Fortryd strip. The dish it names is no longer in the list —
-          `readAdminMenuContent` excludes deleted dishes — so it is read by id, and the
-          sentence it carries is composed by the same module that composed the question
-          the person answered a moment ago.
-        */}
-        {deletedDish === null || undoDeleteVersion === undefined ? null : (
-          <DeleteUndo
-            dishId={deletedDish.id}
-            dishName={deletedDish.name}
-            form={DELETE_FORM_BINDING}
-            message={describeDishDeleted({
-              dishName: deletedDish.name,
-              isNewDraft: deletedDish.isNewDraft,
-            })}
-            section={activeSection.category.slug}
-            version={undoDeleteVersion}
-          />
-        )}
+          THE FOOT (phase 12A) — 1y's bottom of the phone screen.
 
-        <MenuPendingNotice action={publishMenuChanges} pending={menuPending} />
+          1r draws the green Fortryd strip inside the list, at the top, and the pending
+          band beneath the chips. 1y draws both **at the foot of the phone screen**, and
+          the reason is not decoration: a person who has just pressed Udsolgt on the
+          fourth card, or Slet ret inside an editor the fragment has scrolled to, is
+          looking at the middle of a long page — and a strip rendered at the top of
+          `<main>` was above the fold at exactly the moment its ten seconds started.
+          Measured before this change: the strip sat 302 px above the viewport after a
+          toggle in the list and 78 px above it after one in the editor.
+
+          So below `md` this container is `sticky` to the bottom of the viewport and
+          visually last (`order-last`), while staying **first in the DOM**, where it has
+          always been: the tab order and a screen reader's reading order are unchanged
+          at every width, the live regions are already in the tree before their text
+          arrives, and from `md` up the container is an ordinary block exactly where 1r
+          draws its contents. It is rendered only when it has something to hold.
+
+          What it holds: the two immediate strips always; the pending band only while
+          the *list* is the screen. With the editor open the band sits in flow above
+          the panel (rendered above), because a publish control pinned under a thumb
+          that is scrolling a half-typed form is the one thing 1y does not draw.
+        */}
+        {undoOffered || deleteOffered || (!editorOpen && menuPending.length > 0) ? (
+          <div className="flex flex-col gap-3 max-md:sticky max-md:bottom-0 max-md:z-10 max-md:order-last max-md:-mx-gutter max-md:-mb-6 max-md:border-t max-md:border-border max-md:bg-bg max-md:px-gutter max-md:py-3 md:gap-4">
+            {!undoOffered ? null : (
+              <AvailabilityUndo
+                dishId={undoDish.id}
+                dishName={undoDish.name}
+                editorOpen={editing?.id === undoDish.id}
+                form={AVAILABILITY_FORM_BINDING}
+                // The strip reports what just happened, which is the opposite of what
+                // Fortryd would restore.
+                message={describeAvailabilityChange({
+                  dishName: undoDish.name,
+                  soldOut: undoSoldOut !== '1',
+                })}
+                restoreSoldOut={undoSoldOut === '1'}
+                section={activeSection.category.slug}
+                version={undoVersion}
+              />
+            )}
+
+            {/*
+              The deletion's own Fortryd strip. The dish it names is no longer in the
+              list — `readAdminMenuContent` excludes deleted dishes — so it is read by
+              id, and the sentence it carries is composed by the same module that
+              composed the question the person answered a moment ago.
+            */}
+            {!deleteOffered ? null : (
+              <DeleteUndo
+                dishId={deletedDish.id}
+                dishName={deletedDish.name}
+                form={DELETE_FORM_BINDING}
+                message={describeDishDeleted({
+                  dishName: deletedDish.name,
+                  isNewDraft: deletedDish.isNewDraft,
+                })}
+                section={activeSection.category.slug}
+                version={undoDeleteVersion}
+              />
+            )}
+
+            {editorOpen ? null : (
+              <MenuPendingNotice action={publishMenuChanges} pending={menuPending} />
+            )}
+          </div>
+        ) : null}
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-5">
           {/*

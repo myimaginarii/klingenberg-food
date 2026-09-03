@@ -320,12 +320,36 @@ export function ReorderHandle({
    * when nothing has focus. A person who was reading elsewhere on the screen keeps their
    * place, and the toast rule from 1aa — messages never take focus — is untouched,
    * because no message is involved.
+   *
+   * The focus is allowed to **scroll** (phase 12A). A browser scrolls only as far as it
+   * must to show the focused element, so on a desktop where the row is already on screen
+   * nothing moves — but on a phone, where five cards outrun the viewport and the router
+   * has put the page back at the top, the row the person just moved was out of sight.
+   * `scroll-mb-*` on the handle and the two buttons keeps them clear of the foot the
+   * page pins below `md`.
+   *
+   * The other keyboard case is the one where the browser did *not* drop the focus: a
+   * press of Flyt op on a row that is still not first keeps the same button — the row
+   * is keyed, so its element survives the re-render — and a retained focus never
+   * scrolls by itself. The page has still gone back to the top, so the control the
+   * person is standing on is off the phone's screen. That focus is left exactly where
+   * it is and only brought into view.
    */
   useEffect(() => {
     if (!justMoved) return
-    if (document.activeElement !== null && document.activeElement !== document.body) return
 
-    handle.current?.focus({ preventScroll: true })
+    const node = handle.current
+    if (node === null) return
+
+    const active = document.activeElement
+    if (active === null || active === document.body) {
+      node.focus()
+      return
+    }
+
+    if (active instanceof HTMLElement && node.closest('li')?.contains(active) === true) {
+      active.scrollIntoView({ block: 'nearest' })
+    }
   }, [justMoved])
 
   return (
@@ -333,7 +357,7 @@ export function ReorderHandle({
       <button
         aria-hidden={!ready}
         aria-label={describeHandle({ dishName, position: index + 1, total })}
-        className={`rounded-field border-field-border bg-surface text-ink-3 hover:text-ink size-tap flex shrink-0 cursor-grab touch-none items-center justify-center border disabled:cursor-default disabled:opacity-50 ${
+        className={`rounded-field border-field-border bg-surface text-ink-3 hover:text-ink size-tap flex shrink-0 cursor-grab touch-none items-center justify-center border scroll-mb-36 disabled:cursor-default disabled:opacity-50 md:scroll-mb-0 ${
           dragging ? 'cursor-grabbing' : ''
         }`}
         disabled={!ready}
