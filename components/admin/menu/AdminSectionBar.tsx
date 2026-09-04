@@ -1,5 +1,7 @@
 import Link from 'next/link'
 
+import { PinnedBarHeight } from './PinnedBarHeight'
+
 /**
  * The burgundy bar across the top of a section screen — design 1r (desktop) and 1y
  * (mobile).
@@ -23,11 +25,15 @@ import Link from 'next/link'
  *
  * On the phone a pinned bar lays its children out as bar items rather than as one
  * group, so the badge shares the first row with the title and a status line takes a
- * row of its own (`max-md:basis-full` on the line) — two rows of fixed height, which
- * is what lets the editor's toolbar stick *below* the bar at a known offset without
- * measuring anything. The DOM order does not change; `display: contents` only
- * dissolves the group's box. `.admin-bar-pinned` is the hook `app/globals.css` uses
- * to keep fragment targets and focused controls from landing underneath the bar.
+ * row of its own (`max-md:basis-full` on the line) — two rows in the ordinary case.
+ * The bar's height is not promised to be constant, though: a conflict puts several
+ * lines of wording into the status row, and that wording stays whole. So the bar
+ * publishes its measured height as `--admin-bar-height` (`PinnedBarHeight`), and
+ * the editor's toolbar sticks *below* the bar at that offset — whatever the bar's
+ * height is right now — rather than at a number predicted here. The DOM order does
+ * not change; `display: contents` only dissolves the group's box.
+ * `.admin-bar-pinned` is the hook `app/globals.css` uses to keep fragment targets
+ * and focused controls from landing underneath the bar.
  */
 export function AdminSectionBar({
   title,
@@ -51,6 +57,7 @@ export function AdminSectionBar({
           : 'bg-brand-900 text-white'
       }
     >
+      {pinned ? <PinnedBarHeight /> : null}
       <div className="mx-auto flex max-w-content flex-wrap items-center justify-between gap-3 px-gutter py-3 md:px-8">
         <div className="flex min-w-0 items-center gap-3 md:gap-4">
           <Link

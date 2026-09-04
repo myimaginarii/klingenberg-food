@@ -40,6 +40,12 @@ describe('AdminSectionBar pinned — the phone bar the editor keeps in view', ()
     expect(html).toContain('max-md:sticky')
     expect(html).toContain('max-md:top-0')
     expect(html).toContain('max-md:contents')
+    // It carries the height publisher — an empty hidden marker in server HTML;
+    // the measurement itself is a client effect (`PinnedBarHeight`).
+    expect(html).toContain('<span hidden=""></span>')
+    // …and no height of its own in the markup: the bar's height is measured, never
+    // predicted — a multi-line conflict is allowed to make it taller.
+    expect(html).not.toMatch(/max-md:(h|max-h)-/)
   })
 
   it('is exactly the block it was when not pinned', () => {
@@ -52,6 +58,21 @@ describe('AdminSectionBar pinned — the phone bar the editor keeps in view', ()
     expect(html).not.toContain('sticky')
     expect(html).not.toContain('admin-bar-pinned')
     expect(html).not.toContain('contents')
+    expect(html).not.toContain('<span hidden')
+  })
+})
+
+describe('the toolbar and the scroll padding follow the bar’s measured height', () => {
+  // The toolbar exists only once scripting runs, so its class is pinned at the
+  // source rather than in server HTML; the CSS rule likewise.
+  it('sticks the news toolbar at --admin-bar-height, with the two ordinary rows as the fallback', async () => {
+    const { readFile } = await import('node:fs/promises')
+    const field = await readFile(new URL('../../../components/admin/news/NewsBodyField.tsx', import.meta.url), 'utf8')
+    expect(field).toContain('max-md:top-[var(--admin-bar-height,6.25rem)]')
+    expect(field).not.toContain('max-md:top-[6.25rem]')
+
+    const css = await readFile(new URL('../../../app/globals.css', import.meta.url), 'utf8')
+    expect(css).toContain('scroll-padding-top: calc(var(--admin-bar-height, 6.25rem) + 0.75rem)')
   })
 })
 

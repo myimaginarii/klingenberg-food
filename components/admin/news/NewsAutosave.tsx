@@ -232,10 +232,12 @@ export function NewsAutosave({
     <>
       {/*
         The line's row is reserved on the phone (phase 12B): the bar is pinned to
-        the top of the screen there and the body editor's toolbar sticks *under* it
-        at a fixed offset, so the bar must not grow by a row the moment the first
-        keystroke turns the line on. From `md` an idle line renders nothing, as
-        before.
+        the top of the screen there, and it must not grow by a row the moment the
+        first keystroke turns the line on — the compact two-row bar is 1z's. An
+        alert is the one thing allowed to make it taller (its wording stays whole);
+        the toolbar under the bar follows the bar's measured height
+        (`PinnedBarHeight`), so no wording here is ever shortened to fit a number.
+        From `md` an idle line renders nothing, as before.
       */}
       <p
         className={

@@ -383,6 +383,93 @@ test('at the end of a long article the badge, the autosave line and B/Link are s
   await staffPage.setViewportSize(VIEWPORT)
 })
 
+test('a conflict worded over several lines grows the bar, and the toolbar moves down with it — never under it', async () => {
+  // A colleague saves a newer version — every paragraph kept, so the story goes on
+  // with this article after the reload that resolves the conflict.
+  const colleague = await staffPage.context().newPage()
+  await openArticleEditor(colleague, TITLE)
+  await fillArticle(colleague, { text: `${LONG_BODY}\n\nKollegaens afsnit.` })
+  await saveArticle(colleague)
+  await colleague.close()
+
+  // Staff, deep in the article, types against the now-stale version.
+  await caretToEnd(staffPage)
+  const lineTop = () =>
+    staffPage.evaluate(() => {
+      const node = window.getSelection()?.focusNode
+      const element = node instanceof Element ? node : node?.parentElement
+      return Math.round(element?.getBoundingClientRect().top ?? -1)
+    })
+  const lineBefore = await lineTop()
+  await staffPage.keyboard.type(' Mit lokale afsnit.')
+
+  // `.first()`: the alert also lands in the sr-only live region beside the line.
+  const alert = banner(staffPage).getByText('Nogen andre har rettet denne nyhed').first()
+  await expect(alert).toBeVisible({ timeout: 15_000 })
+
+  // The wording is whole — several lines of it, all inside the bar, which is
+  // taller than its two ordinary rows for as long as the conflict stands.
+  const alertBox = await alert.boundingBox()
+  const barBox = await banner(staffPage).boundingBox()
+  expect(alertBox, 'the alert is drawn').not.toBeNull()
+  expect(barBox, 'the bar is drawn').not.toBeNull()
+  const alertLines = await alert.evaluate(
+    (element) => element.getBoundingClientRect().height / parseFloat(getComputedStyle(element).lineHeight),
+  )
+  expect(alertLines).toBeGreaterThan(1)
+  expect(alertBox!.y + alertBox!.height).toBeLessThanOrEqual(barBox!.y + barBox!.height)
+  expect(barBox!.height).toBeGreaterThan(PINNED_BAR_HEIGHT)
+  await expect(banner(staffPage).locator('[aria-live="polite"]')).toHaveText(/Nogen andre har rettet denne nyhed/)
+
+  // The toolbar's top is at the bar's bottom — under it in the flow, never beneath
+  // it in paint — and B and Link are whole, in view and the thing a tap reaches.
+  const expectToolbarUnderBar = async (what: string) => {
+    const bar = await banner(staffPage).boundingBox()
+    const bars = await toolbar(staffPage).boundingBox()
+    const barBottom = (bar?.y ?? 0) + (bar?.height ?? 0)
+    expect(bars?.y ?? -1, `${what}: the toolbar starts at or below the bar's bottom`).toBeGreaterThanOrEqual(barBottom - 0.5)
+    expect(bars?.y ?? -1, `${what}: the toolbar starts immediately below the bar`).toBeLessThanOrEqual(barBottom + 1)
+    expect(await insideViewport(toolbar(staffPage)), `${what}: the toolbar is on screen`).toBe(true)
+    expect(await insideViewport(boldButton(staffPage))).toBe(true)
+    expect(await insideViewport(linkButton(staffPage))).toBe(true)
+    const reached = await toolbar(staffPage).evaluate((element) =>
+      Array.from(element.querySelectorAll('button')).every((button) => {
+        const box = button.getBoundingClientRect()
+        const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2)
+        return hit === button || button.contains(hit)
+      }),
+    )
+    expect(reached, `${what}: a tap on B and on Link reaches the button`).toBe(true)
+  }
+  await expectToolbarUnderBar('the conflict at 812')
+  expect(await scrollsSideways(staffPage)).toBe(false)
+
+  // The text the person was writing stays where it was on the screen; the caret
+  // keeps the keyboard; nothing jumped to the top of the article.
+  expect(Math.abs((await lineTop()) - lineBefore)).toBeLessThan(8)
+  expect(await focusedKind(staffPage)).toBe('textbox')
+  expect(await staffPage.evaluate(() => window.scrollY)).toBeGreaterThan(1500)
+  await expectTargets44(toolbar(staffPage).locator('..'), 'the toolbar under the conflict')
+  expect(await violations(staffPage), 'the conflict state is accessible').toEqual([])
+
+  // With the software keyboard up, the whole warning, B and Link and room to write.
+  await staffPage.setViewportSize(KEYBOARD_VIEWPORT)
+  await caretToEnd(staffPage)
+  expect(await insideViewport(alert)).toBe(true)
+  await expectToolbarUnderBar('the conflict at the keyboard height')
+  const toolbarBox = await toolbar(staffPage).boundingBox()
+  expect(KEYBOARD_VIEWPORT.height - ((toolbarBox?.y ?? 0) + (toolbarBox?.height ?? 0))).toBeGreaterThan(200)
+  expect(await scrollsSideways(staffPage)).toBe(false)
+  await staffPage.setViewportSize(VIEWPORT)
+
+  // The conflict is resolved the way the wording says: by reloading. The stored
+  // version is the colleague's; the bar is its two rows again.
+  await staffPage.reload()
+  await expect(bodyEditor(staffPage)).toContainText('Kollegaens afsnit.')
+  await expect(bodyEditor(staffPage)).not.toContainText('Mit lokale afsnit.')
+  expect(Math.round((await banner(staffPage).boundingBox())?.height ?? 0)).toBe(PINNED_BAR_HEIGHT)
+})
+
 test('B and Link work from deep in the article, and the link panel opens beside the toolbar', async () => {
   const editor = bodyEditor(staffPage)
 

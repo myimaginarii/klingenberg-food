@@ -402,10 +402,14 @@ export function NewsBodyField({
               are one tap away however far down a long article the person is
               writing — and the link panel opens in view, beside the toolbar, rather
               than at the top of the article. From `md` the group is exactly 1s's row
-              at the top of the writing box. `top` is the pinned bar's two fixed rows
-              (`AdminSectionBar`).
+              at the top of the writing box. `top` is the pinned bar's *measured*
+              height (`--admin-bar-height`, published by the bar itself —
+              `PinnedBarHeight`), so a conflict that puts several lines of wording
+              into the bar moves the toolbar down with it instead of under it; `6.25rem`
+              is the bar's two ordinary rows, for the paint before the first
+              measurement.
             */}
-            <div className="bg-field-bg max-md:sticky max-md:top-[6.25rem] max-md:z-10">
+            <div className="bg-field-bg max-md:sticky max-md:top-[var(--admin-bar-height,6.25rem)] max-md:z-10">
               {/* 1s's toolbar: B and Link, and nothing else. */}
               <div
                 aria-label="Formatering"

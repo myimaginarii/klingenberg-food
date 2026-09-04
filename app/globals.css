@@ -262,13 +262,16 @@
   }
 
   /* A section bar pinned to the top of the phone screen (phase 12B, the news
-     editor — `AdminSectionBar pinned`): the bar is two rows of fixed height (100 px)
-     below `md`, so a fragment target or a focused control must land beneath it
-     rather than under it. Applies to every anchor scroll and focus scroll on the
-     page; nothing from `md` up, where the bar is an ordinary block. */
+     editor — `AdminSectionBar pinned`): a fragment target or a focused control must
+     land beneath it rather than under it. The bar publishes its measured height as
+     `--admin-bar-height` (`PinnedBarHeight`) — two rows ordinarily, more while a
+     conflict is worded in it — and 6.25rem is those two rows, for the paint before
+     the first measurement; 0.75rem is the breathing room under the bar. Applies to
+     every anchor scroll and focus scroll on the page; nothing from `md` up, where
+     the bar is an ordinary block. */
   @media (width < 48rem) {
     html:has(.admin-bar-pinned) {
-      scroll-padding-top: 7rem;
+      scroll-padding-top: calc(var(--admin-bar-height, 6.25rem) + 0.75rem);
     }
   }
 
