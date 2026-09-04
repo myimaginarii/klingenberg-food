@@ -3,6 +3,7 @@ import { InviteForm } from '@/components/admin/users/InviteForm'
 import { UserConfirmDialog } from '@/components/admin/users/UserConfirmDialog'
 import { UserList, type UserListRow } from '@/components/admin/users/UserList'
 import { UsersStatusNotice } from '@/components/admin/users/UsersStatusNotice'
+import { NoticeFoot } from '@/components/admin/NoticeFoot'
 import { readAccountDirectory } from '@/lib/accounts/admin'
 import {
   accountControls,
@@ -182,7 +183,19 @@ export default async function UsersAdminPage({
       <AdminSectionBar backHref="/admin" backLabel="Oversigt" title="Brugere" />
 
       <main className="mx-auto flex w-full max-w-[52rem] flex-col gap-4 px-gutter py-6 md:px-8">
-        <UsersStatusNotice status={status} />
+        {/*
+          THE FOOT (the phase-12 lock pass) — the status notice at the bottom of the
+          phone screen. Every action here redirects to the form's or the row's own
+          fragment, which scrolls it to the top and left the notice rendered above it out
+          of sight: measured at 375 px before this change, "Invitationen er sendt" sat
+          696 px above the viewport. `NoticeFoot` is the container 1y draws for exactly
+          this: sticky to the bottom of the phone screen, first in the DOM, an ordinary
+          block from `md`. Nothing about what the notice says, or the account model,
+          changed.
+        */}
+        <NoticeFoot>
+          <UsersStatusNotice status={status} />
+        </NoticeFoot>
 
         <p className="text-ink-2 text-meta">
           Hvem der kan logge ind i administrationen, og hvad de må. En konto deaktiveres

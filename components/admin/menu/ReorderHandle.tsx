@@ -321,19 +321,22 @@ export function ReorderHandle({
    * place, and the toast rule from 1aa — messages never take focus — is untouched,
    * because no message is involved.
    *
-   * The focus is allowed to **scroll** (phase 12A). A browser scrolls only as far as it
-   * must to show the focused element, so on a desktop where the row is already on screen
-   * nothing moves — but on a phone, where five cards outrun the viewport and the router
-   * has put the page back at the top, the row the person just moved was out of sight.
-   * `scroll-mb-*` on the handle and the two buttons keeps them clear of the foot the
-   * page pins below `md`.
+   * The **row** is brought into view, not only the control (phase 12A, corrected by the
+   * phase-12 lock pass). Focusing the handle scrolls the browser only as far as it must
+   * to show the handle, and the handle sits at the foot of a card: measured at 375 px,
+   * a card moved from below the fold ended with its strip on screen and its name, photo
+   * and price 53 px above the viewport — 204 px above it for a card with the longest
+   * name the schema allows. So the focus is placed without scrolling, and the card
+   * itself is scrolled `nearest`: on a desktop where the row is already on screen
+   * nothing moves; on a phone the whole card lands inside the viewport, above the foot
+   * the page pins below `md` (`scroll-padding-bottom` in `globals.css` keeps it clear —
+   * no `scroll-margin` on the controls is needed for that).
    *
    * The other keyboard case is the one where the browser did *not* drop the focus: a
    * press of Flyt op on a row that is still not first keeps the same button — the row
    * is keyed, so its element survives the re-render — and a retained focus never
-   * scrolls by itself. The page has still gone back to the top, so the control the
-   * person is standing on is off the phone's screen. That focus is left exactly where
-   * it is and only brought into view.
+   * scrolls by itself. That focus is left exactly where it is, and the card is brought
+   * into view the same way.
    */
   useEffect(() => {
     if (!justMoved) return
@@ -343,13 +346,12 @@ export function ReorderHandle({
 
     const active = document.activeElement
     if (active === null || active === document.body) {
-      node.focus()
+      node.focus({ preventScroll: true })
+    } else if (!(active instanceof HTMLElement) || node.closest('li')?.contains(active) !== true) {
       return
     }
 
-    if (active instanceof HTMLElement && node.closest('li')?.contains(active) === true) {
-      active.scrollIntoView({ block: 'nearest' })
-    }
+    node.closest('li')?.scrollIntoView({ block: 'nearest' })
   }, [justMoved])
 
   return (
@@ -357,7 +359,7 @@ export function ReorderHandle({
       <button
         aria-hidden={!ready}
         aria-label={describeHandle({ dishName, position: index + 1, total })}
-        className={`rounded-field border-field-border bg-surface text-ink-3 hover:text-ink size-tap flex shrink-0 cursor-grab touch-none items-center justify-center border scroll-mb-36 disabled:cursor-default disabled:opacity-50 md:scroll-mb-0 ${
+        className={`rounded-field border-field-border bg-surface text-ink-3 hover:text-ink size-tap flex shrink-0 cursor-grab touch-none items-center justify-center border disabled:cursor-default disabled:opacity-50 ${
           dragging ? 'cursor-grabbing' : ''
         }`}
         disabled={!ready}

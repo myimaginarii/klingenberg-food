@@ -187,6 +187,20 @@ async function caretToEnd(page: Page): Promise<void> {
   await page.waitForTimeout(200)
 }
 
+/** The viewport top of the line the caret is on — the geometry a thumb is looking at. */
+async function caretLineTop(page: Page): Promise<number | null> {
+  return page.evaluate(() => {
+    const selection = window.getSelection()
+    if (selection === null || selection.rangeCount === 0) return null
+    const rects = selection.getRangeAt(0).getClientRects()
+    const last = rects[rects.length - 1]
+    if (last !== undefined) return last.top
+    const node = selection.focusNode
+    const element = node instanceof Element ? node : node?.parentElement
+    return element?.getBoundingClientRect().top ?? null
+  })
+}
+
 /** The kind of element that has focus, by role or tag. */
 async function focusedKind(page: Page): Promise<string> {
   return page.evaluate(
@@ -313,6 +327,19 @@ test('typing creates the draft by itself, with the autosave line in view and no 
   expect(await insideViewport(staffPage.getByRole('status').first())).toBe(true)
   expect(await shownSlug(staffPage)).toBe(SLUG)
   await expect(staffPage.getByRole('link', { name: 'Vælg billede' })).toBeVisible()
+
+  // And autosave is still alive after that Gem (the phase-12 lock pass found it was
+  // not: the Gem replaced the form node under a controller that survived the
+  // navigation, so the bar kept saying "Gemt for lidt siden" while nothing was
+  // saved). The line starts idle on the re-rendered screen, the next words bring
+  // it back, and a reload proves the words reached the row.
+  await expect(banner(staffPage).getByText('Gemt for lidt siden')).toHaveCount(0)
+  await bodyEditor(staffPage).click()
+  await staffPage.keyboard.press('Control+End')
+  await staffPage.keyboard.type(' Andet afsnit efter Gem.')
+  await waitForAutosaved(staffPage)
+  await staffPage.reload()
+  await expect(bodyEditor(staffPage)).toContainText('Andet afsnit efter Gem.')
 })
 
 // ---------------------------------------------------------------------------
@@ -374,10 +401,25 @@ test('at the end of a long article the badge, the autosave line and B/Link are s
   expect(KEYBOARD_VIEWPORT.height - ((toolbarBox?.y ?? 0) + (toolbarBox?.height ?? 0))).toBeGreaterThan(240)
 
   // Typing there and letting autosave run moves nothing and steals no focus.
-  const before = await staffPage.evaluate(() => window.scrollY)
+  //
+  // The page is sampled AFTER the words are in and BEFORE the save answers (the
+  // phase-12 lock pass). Typing itself may wrap the last line and make the browser
+  // scroll the caret back into view — its own behaviour, measured at 15–67 px when
+  // the new words wrap, and a fraction of a pixel when they do not (the 1 px
+  // `scrollY` variance recorded in §0af). What autosave must never do is move the
+  // page or the line under the thumb: so the save's response is awaited by name,
+  // and the geometry is compared to within rounding, not to an exact integer that
+  // depended on where the last line happened to break.
+  const saved = staffPage.waitForResponse(
+    (response) => response.request().method() === 'POST' && response.url().includes('/admin/nyheder'),
+  )
   await staffPage.keyboard.type(' Tilføjet på telefonen.')
+  const typedScroll = await staffPage.evaluate(() => window.scrollY)
+  const typedLine = await caretLineTop(staffPage)
+  await saved
   await waitForAutosaved(staffPage)
-  expect(await staffPage.evaluate(() => window.scrollY)).toBe(before)
+  expect(Math.abs((await staffPage.evaluate(() => window.scrollY)) - typedScroll)).toBeLessThanOrEqual(1)
+  expect(Math.abs(((await caretLineTop(staffPage)) ?? 0) - (typedLine ?? 0))).toBeLessThanOrEqual(1)
   expect(await focusedKind(staffPage)).toBe('textbox')
 
   await staffPage.setViewportSize(VIEWPORT)

@@ -74,7 +74,7 @@ function MoveButton({
 }) {
   return (
     <button
-      className="rounded-field border-field-border bg-surface text-ink hover:bg-surface-muted min-h-tap disabled:text-ink-3 flex min-w-tap flex-1 items-center justify-center gap-1.5 border px-3 font-semibold scroll-mb-36 disabled:cursor-not-allowed disabled:opacity-50 md:flex-none md:scroll-mb-0"
+      className="rounded-field border-field-border bg-surface text-ink hover:bg-surface-muted min-h-tap disabled:text-ink-3 flex min-w-tap flex-1 items-center justify-center gap-1.5 border px-3 font-semibold disabled:cursor-not-allowed disabled:opacity-50 md:flex-none"
       disabled={disabled}
       name={fieldName}
       type="submit"

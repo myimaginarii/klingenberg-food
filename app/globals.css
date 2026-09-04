@@ -280,9 +280,12 @@
      A control the browser scrolls into view at the bottom edge — a fragment target, a
      focused field — must land above the foot rather than under it. 11rem is the room a
      strip and a band take together, with their padding; nothing from `md` up, where the
-     foot is an ordinary block. */
+     foot is an ordinary block. `:not(:empty)`, because four of the five screens render
+     the foot unconditionally and `empty:hidden` only hides it — a screen whose foot holds
+     nothing has nothing to clear, and must not reserve 11rem at the bottom of every
+     focus and fragment scroll (the phase-12 lock pass). */
   @media (width < 48rem) {
-    html:has(.admin-foot) {
+    html:has(.admin-foot:not(:empty)) {
       scroll-padding-bottom: 11rem;
     }
   }

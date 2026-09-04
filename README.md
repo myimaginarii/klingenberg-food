@@ -7,7 +7,9 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–11 complete and locked; phase 12A and 12B done, phase 12 open.** Phase 9's completion pass
+**Status: phases 0–12 complete and locked.** Phase 12's completion pass (2026-09-04) is
+recorded in technical plan §0ag — the current truth of the administration on a phone.
+Phase 9's completion pass
 (2026-09-01) is recorded in technical plan §0s, phase 10A in §0t, phase 10B in
 §0u, phase 10C-1 in §0v/§0w, phase 10C-2 in §0x, and **phase 10's completion pass
 (2026-09-02) in §0y — the current truth of the whole image system.** The public site renders from the database;
@@ -595,7 +597,7 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 12 onward, and:
+Everything in §15 from phase 13 onward, and:
 the weekly off-platform backup workflow (phase 13, §10f) and Sentry (phase 13).
 `docs/dependencies.md` records which package arrives in which phase. Phase 6 is
 **complete and locked** — 6A (Ugens ret and
@@ -687,9 +689,28 @@ one shared foot (`components/admin/NoticeFoot.tsx`, 12A's inline container made 
 component the Menu uses too): sticky to the bottom of the phone screen, first in the
 DOM, an ordinary block from `md`. The image library and the phase-11 editors were
 green and untouched. `tests/e2e/dashboard-mobile.spec.ts` runs the Staff and Owner
-story under its own `dashboard-mobile` project at the tail of the chain. Phase 12 is
-**not locked**: the completion pass over 12A–12C remains, and its scope is recorded at
-the end of §0af.
+story under its own `dashboard-mobile` project at the tail of the chain.
+
+**Phase 12 is complete and locked (§0ag).** The completion pass of 2026-09-04 read
+12A–12C as one system and walked it as Owner and Staff on a phone against one
+production build — the dashboard into every operational screen and back, measured
+rather than eyeballed — and re-checked 1x / 1y / 1z / 1q at 375, 768 and 1440. It
+closed the recorded observations: **Forhåndsvis stays in the phone's menu bar** (1y
+draws none, but the only preview the frames give a phone is the dashboard band's, which
+exists only while something is pending — recorded as an intentional departure); the
+**menu row moved with Flyt op / Flyt ned now lands wholly in view** (its name was 53 px
+above the viewport before, 204 px for the longest name — the handle's focus recovery
+scrolls the row, not the control); the **news bar's variable height under a conflict**
+is measured, the B/Link toolbar follows it exactly and the value leaves `<html>` with
+the editor; the **1 px `scrollY` observation** was reproduced as layout rounding and
+its one exact-equality assertion replaced by a geometric one; the **three phase-11
+content editors, and Brugere, got the same foot** the four phase-12C screens have (their
+Gem left "gemt som kladde" 244–2,005 px above the phone's viewport); an **empty foot no
+longer reserves scroll clearance**; the one-off list's "Ret" link is 44 px wide; and a
+real defect in the phone-first news flow — **autosave silently dead after the first Gem
+of a just-created article, with the bar still saying "Gemt for lidt siden"** — was found,
+fixed with one React `key`, and pinned in `news-mobile`. One clean regression chain
+closed the phase. What phase 13 starts from is at the end of §0ag.
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published

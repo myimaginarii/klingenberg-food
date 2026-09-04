@@ -6,6 +6,7 @@ import {
   ContactStatusNotice,
 } from '@/components/admin/contact/ContactNotices'
 import { AdminSectionBar, BarLink, BarSubmit } from '@/components/admin/menu/AdminSectionBar'
+import { NoticeFoot } from '@/components/admin/NoticeFoot'
 import { PendingBand, StateBadge } from '@/components/admin/PendingBand'
 import { requireOwner } from '@/lib/auth/guards'
 import {
@@ -107,7 +108,20 @@ export default async function ContactAdminPage({
       </AdminSectionBar>
 
       <main className="mx-auto flex max-w-content flex-col gap-4 px-gutter py-6 md:px-8">
-        <ContactStatusNotice status={status} />
+        {/*
+          THE FOOT (the phase-12 lock pass) — the status notice at the bottom of the
+          phone screen. Gem redirects to the saved card's own fragment, which scrolls that
+          card to the top and left the notice rendered above it out of sight: measured at
+          375 px before this change, the notice sat 244 px above the viewport after Gem. `NoticeFoot` is the container 1y draws for
+          exactly this (the Menu's since 12A, the specials', the announcement's and the
+          hours' since 12C): sticky to the bottom of the phone screen, first in the DOM,
+          an ordinary block from `md`. The pending band stays in flow above the cards —
+          12A's rule for an editor: a publish control is not pinned under a thumb
+          scrolling a half-typed form. Nothing about what the notice says changed.
+        */}
+        <NoticeFoot>
+          <ContactStatusNotice status={status} />
+        </NoticeFoot>
         <ContactMalformedDraftNotice malformed={contact.draftMalformed} />
         <PendingBand action={publishContact} sentence={pendingSentence} />
 

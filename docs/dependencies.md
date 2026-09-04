@@ -3,6 +3,36 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 12 completion pass — no dependencies added (2026-09-04)
+
+**The phase-12 lock pass** (technical plan §0ag) adds **no package**. `package.json` and
+the lockfile are byte-identical to the phase-12C state. What would have tempted one, and
+why none is here: a scroll-position or "scroll into view" helper for the moved menu row
+(not added — the reorder handle's focus recovery now scrolls the row's own `<li>`
+with the platform's `scrollIntoView`, and the two `scroll-mb-36` constants it replaced
+are gone), a keyboard-detection script for the 440 px viewport (not added — the
+software-keyboard walk needed nothing beyond the sticky chrome that already existed),
+and a state library for the news autosave controller (not added — the defect the pass
+found was a React `key`, one attribute in the page). The walkthrough was the same
+temporary Playwright config and seven spec files over `@axe-core/playwright` and the
+e2e support helpers as in the phase-10, 11, 12A, 12B and 12C passes, deleted before
+the chain and never committed. No configuration changed.
+
+One correction to the 12B entry below, recorded here rather than rewritten there: it
+says the pinned bar's height "is a constant the layout is built on, not a
+measurement". That was true of 12B's first commit; `5b85274` ("prevent mobile news
+toolbar overlap", 2026-09-04) replaced the constant with the bar's *measured* height
+(`--admin-bar-height`, a `ResizeObserver` in `PinnedBarHeight`, still no dependency),
+and the lock pass verified that measurement under the conflict state and on the way
+back to every other screen.
+
+### `npm audit --audit-level=high` — clean
+
+Run from a clean `npm ci` as the first step of the phase-12 certification chain
+(2026-09-04): **0 vulnerabilities**.
+
+---
+
 ## Phase 12C — no dependencies added (2026-09-04)
 
 **Phase 12C** (technical plan §0af) — the 1x / 1q dashboard and the phone audit of the

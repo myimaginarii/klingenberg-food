@@ -238,10 +238,21 @@ export default async function NewsAdminPage({
           1s's bar: the badge, and beside it the autosave words ("Gemt for lidt
           siden"). The controller lives here because the words do; it finds the form
           below by its id, and it is the one client component this bar carries.
+
+          `key`: the controller must be remounted whenever the form it listens to is.
+          The two branches below render the form at two different positions, so the
+          Gem that turns a just-created article into an existing one replaces the
+          `<form>` node — while this component, at the same position in the bar,
+          survived the navigation with its listeners still bound to the detached
+          node. Measured in the phase-12 lock pass: after "typing creates the draft"
+          and one Gem, further typing produced no autosave at all until a reload,
+          while the bar kept saying "Gemt for lidt siden". Keyed by the article's
+          identity, the controller follows the form.
         */}
         <AdminSectionBar backHref={newsHref()} backLabel="Nyheder" pinned title={heading}>
           {editing === null ? null : <NewsStateBadge state={describeNewsState(editing)} />}
           <NewsAutosave
+            key={editing === null ? 'ny' : editing.id}
             action={autosaveArticle}
             articleParam={NEWS_PARAM.article}
             creatingParam={NEWS_PARAM.creating}

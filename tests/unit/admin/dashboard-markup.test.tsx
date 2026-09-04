@@ -41,6 +41,17 @@ describe('NoticeFoot — 1y\'s foot, shared', () => {
     const html = renderToStaticMarkup(<NoticeFoot>{null}</NoticeFoot>)
     expect(html).toMatch(/^<div class="admin-foot[^"]*"><\/div>$/)
   })
+
+  // The CSS half of the same promise: an empty foot reserves no scroll clearance. Four
+  // of the five screens render the foot unconditionally, so the rule has to look past
+  // the element's presence to whether it holds anything (the phase-12 lock pass).
+  it('reserves scroll clearance at the bottom of the phone screen only while the foot holds something', async () => {
+    const { readFile } = await import('node:fs/promises')
+    const css = await readFile(new URL('../../../app/globals.css', import.meta.url), 'utf8')
+    expect(css).toContain('html:has(.admin-foot:not(:empty))')
+    expect(css).not.toContain('html:has(.admin-foot) {')
+    expect(css).toMatch(/html:has\(\.admin-foot:not\(:empty\)\) \{\s*scroll-padding-bottom: 11rem;/)
+  })
 })
 
 describe('DashboardTiles — 1x\'s rows and 1q\'s cards', () => {

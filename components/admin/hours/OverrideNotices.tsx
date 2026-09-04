@@ -335,9 +335,10 @@ export function OverrideList({
                   )}
                 </span>
 
+                {/* `min-w-tap`: "Ret" alone is 22 px wide, and 1aa's 44 px applies to width too (the phase-12 lock pass). */}
                 <Link
                   aria-current={selected ? 'true' : undefined}
-                  className="text-brand-700 text-meta min-h-tap inline-flex items-center underline"
+                  className="text-brand-700 text-meta min-h-tap min-w-tap inline-flex items-center justify-center underline"
                   href={hrefFor(override.date)}
                 >
                   {selected ? 'Vist herover' : 'Ret'}
