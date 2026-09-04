@@ -114,12 +114,22 @@ const SERVER_SECRETS = [
  * application — by design — cannot delete, so the tests need their own cleanup
  * door. It runs under Vitest and Playwright in Node, never in a bundle, and it
  * refuses every host but loopback and every address outside `@example.test`.
+ *
+ * `scripts/backup/lib/env.mjs` (phase 13A) is the third: the one file in the backup
+ * tooling that names a secret. The backup and restore commands run under `node`
+ * outside any bundle, cannot import `lib/env/server.ts` for the same reason as the
+ * seed script, and read every other value through this module's functions.
+ * `tests/backup/drill.test.ts` is the fourth and last, for the drill that runs
+ * those commands against the local stack and must hand them their target through
+ * the environment; it refuses every host but loopback before it moves anything.
  */
 const SECRET_ALLOWED_FILES = new Set(
   [
     'lib/env/server.ts',
     'scripts/seed-local-users.mjs',
     'tests/support/local-auth-admin.ts',
+    'scripts/backup/lib/env.mjs',
+    'tests/backup/drill.test.ts',
     'eslint.config.mjs',
     'scripts/check-source-policy.mjs',
     '.env.example',

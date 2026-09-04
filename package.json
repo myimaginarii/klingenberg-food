@@ -27,7 +27,10 @@
     "db:reset:full": "npm run db:reset && npm run db:users",
     "db:users": "node --env-file-if-exists=.env.local scripts/seed-local-users.mjs",
     "db:test": "supabase test db",
-    "db:status": "supabase status"
+    "db:status": "supabase status",
+    "backup": "node --env-file-if-exists=.env.local scripts/backup/backup.mjs",
+    "backup:restore": "node --env-file-if-exists=.env.local scripts/backup/restore.mjs",
+    "backup:drill": "vitest run --config vitest.backup.mts"
   },
   "dependencies": {
     "@supabase/ssr": "0.12.5",

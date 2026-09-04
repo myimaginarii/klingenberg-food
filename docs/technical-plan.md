@@ -5728,6 +5728,223 @@ reading list, not code.
 
 ---
 
+## 0ah. Phase 13A — backup and recovery (2026-09-05)
+
+Phase 13 is §15's operational hardening. Its first increment is §10f's weekly
+off-platform backup, built together with the restore drill the same section demands —
+"a backup is complete only when a restore has been proven". Nothing in the product
+changed: no runtime module, no migration, no screen. The increment is
+`scripts/backup/`, one workflow, one drill, two runbooks, and this record.
+
+### What was found before anything was built
+
+**The plan.** §10f fixes the shape: two layers (managed daily backups on Supabase Pro,
+plus a weekly GitHub Actions job to an external private object store), `supabase db
+dump` for the database, both buckets for Storage, retention of eight weekly points and
+a monthly kept six months "via a lifecycle rule at the destination — not by a script
+deleting things", credentials in a protected `backup` environment, log hygiene as
+design, loud failure, and a restore drill into a scratch project. §13 item A leaves
+the destination provider open and recommends R2. §14 pins actions by SHA.
+
+**The data.** Thirteen application tables in `public` (the seven content entities, the
+three singletons `announcement`/`opening_hours`/`site_contact`, `pages`, `profiles`,
+`images`, `audit_log`), all uuid-keyed — no sequences to reset. Two buckets,
+`media-originals` (private, the recovery source; §0t) and `media` (public
+derivatives), created by migration `20260901140000`, with **no** RLS policy on
+`storage.objects` — the service role is the only writer and the only reader of the
+private bucket. Auth in `auth.*`, owned by the Auth server: `profiles.user_id`
+references `auth.users`, so identities are part of the content story, not beside it.
+
+**The provider.** Supabase's own documentation, read for this increment: daily
+backups (Pro, 7 days) are physical and cover the whole database, `auth` included;
+they are restorable from the dashboard and not downloadable; "database backups do not
+include objects you store via the Storage API, as the database only includes metadata
+about these objects"; and the documented way to move a project is three `db dump`
+files loaded with `psql --single-transaction` under `session_replication_role =
+replica`, with Storage copied "by a script using the client library". The CLI's own
+data dump includes `auth`. So the supported model for an off-platform auth copy is
+exactly a data dump of the auth tables reloaded with psql — which is what was built,
+narrowed to the four durable tables.
+
+**Derivatives are regenerable in principle and not in practice.** The pipeline
+(`lib/images/finalize.ts`) re-derives from an original only inside upload
+finalization; there is no standalone "regenerate derivatives" tool and 13A did not
+invent one. Both buckets are therefore backed up whole. A restore puts back exactly
+the bytes that were public, with their content type and cache header.
+
+### The architecture
+
+| Piece | Where | What it does |
+|---|---|---|
+| **The one command** | `scripts/backup/backup.mjs` — `npm run backup -- --out <dir> [--tier weekly|monthly] [--ship]` | Dumps the database (three plain-SQL files), copies both buckets through the Storage API, writes `manifest.json` last, optionally ships. The scheduled workflow and the manual run are this script. |
+| **The restore** | `scripts/backup/restore.mjs` — `npm run backup:restore -- --from <dir> [--dry-run] [--skip-auth] [--skip-storage] [--allow-partial] [--allow-newer-schema]` | Verifies every file's sha256, assesses the target, compares migration histories, reloads in one psql transaction, uploads the objects, verifies counts and inventories. |
+| **The PostgreSQL door** | `lib/pg.mjs` | `pg_dump`/`psql` natively when a PostgreSQL 17 client is on the PATH, otherwise from the `postgres:17` image — one code path on Windows and on the runner. The connection travels as `PG*` environment variables, **never as an argument** (§8): the Supabase CLI's `db dump --db-url` would have put the URL on a command line, so the tooling calls the tools itself with the CLI's flags where they matter (`--data-only`, `--quote-all-identifiers`, `--role=postgres`, `\restrict` lines neutralised as the CLI does). |
+| **The Storage door** | `lib/storage.mjs` | Recursive listing, download with size check and sha256, upload with the recorded content type and `max-age`, inventory comparison. Service role, Storage API — the plan's own named fallback to `aws s3 sync`, chosen because the runner has no persistent mirror to sync against, because the metadata round-trips exactly, and because it runs identically on the development machine. |
+| **The manifest** | `lib/manifest.mjs` | `klingenberg-food-backup/1`: id, tier, `complete` (derived — a caller cannot assert it), source hosts and project ref, repository commit and migration files, migrations applied to the source, per-component status, row counts, object inventory with sha256, a sha256 per file. Also the retention constants (63/190 days) and the migration-history comparison. |
+| **Shipping** | `lib/ship.mjs` | `aws s3 cp --recursive` to `<prefix>/<tier>/<id>/`, `list-objects-v2` back, compare keys and sizes, and only then `latest.json`. Nothing deletes. The AWS CLI gets a minimal environment holding the destination key pair and nothing else. |
+| **Guards** | `lib/targets.mjs`, `lib/keys.mjs`, `lib/env.mjs`, `lib/run.mjs` | Loopback needs no confirmation; any other host is refused until `BACKUP_RESTORE_CONFIRM_HOST` names it exactly; a database and a Storage API from two project refs are refused; a local database with a remote API (or the reverse) is refused. Object keys are validated (no `..`, no absolute, no backslash, no control byte) and resolved paths are checked to stay under the recovery point. One file names the secrets; every log line and error passes a redactor that knows every value. |
+| **The schedule** | `.github/workflows/backup.yml` | Two crons — Mondays 03:17 UTC (weekly tier), the 1st at 04:17 UTC (monthly tier) — and `workflow_dispatch` with a tier input. `environment: backup`, `permissions: contents: read`, `concurrency: backup` without cancellation, 45-minute timeout, actions pinned by SHA, the recovery point removed from the runner and never uploaded as an artifact. |
+| **The drill** | `tests/backup/drill.test.ts` — `npm run backup:drill`, and the last step of CI's database job | Below. |
+| **The runbooks** | `docs/runbooks/backups.md`, `docs/runbooks/restore.md` | Scope, destination, schedule, retention, secrets and rotation, manual trigger, reading `latest.json`, failure behaviour; and the restore sequence from fetching a point to reopening the site, with the Auth boundary stated. |
+
+Backup scope, exactly: `db/schema.sql` (`pg_dump --schema-only --schema=public` — a
+reference copy; the supported schema restore is the migrations, §10b);
+`db/data-public.sql` (every `public` table, COPY format, `audit_log` included);
+`db/data-auth.sql` (`auth.users`, `auth.identities`, `auth.mfa_factors`,
+`auth.webauthn_credentials`; sessions, refresh tokens, one-time tokens, challenges,
+flow state and the OAuth/SSO configuration tables deliberately excluded — sessions are
+revoked on recovery, and this system has no provider but e-mail); both buckets whole,
+every run. Not in it: `storage.*` rows (buckets come from the migration, object rows
+from the upload), provider-managed schemas, `supabase_migrations` (the manifest
+records the versions), and every secret or setting.
+
+Retention is the destination's lifecycle rule per tier prefix — the runbook states the
+two rules, the code states the two numbers, and no script deletes anything, so no
+retention bug can remove the newest point. A run is successful only when both
+required components succeeded and the upload listed back complete; otherwise the
+manifest says `complete: false`, the partial point is still shipped under its own id,
+`latest.json` is untouched, and the exit code is non-zero.
+
+### The destination decision (§13 item A) — still the owner's
+
+The tooling is provider-neutral: an endpoint, a bucket, a key pair, two lifecycle
+rules. The runbook records the recommendation (R2; B2 equally) and the exact manual
+setup. One correction to §10f: R2 has no object versioning, and the design does not
+need it — each recovery point is its own prefix and nothing overwrites a previous one.
+Until the provider is chosen and the `backup` environment populated, the workflow
+fails at its first step with the names of the missing variables, which is the
+intended state for an unconfigured schedule.
+
+### The restore drill — set-up and result
+
+Against the local stack, with the real commands, on 2026-09-05, eight ordered steps
+in 88 s, twice green (the first run found one harness mistake, below):
+
+1. `npm run db:reset:full` — the seed and the two seeded identities.
+2. Representative content: a **dish** with a **photograph uploaded through the real
+   pipeline** as staff (signed URL, PUT, finalize — so the `images` row, the private
+   original and the four derivatives are exactly what production writes) and
+   referenced from the dish; a published **news** article; a one-off
+   **opening-hours override**; the **weekly special**; the **announcement** (visible,
+   with expiry); a **site_contact** draft; a **page** draft; a third **identity** with a
+   password, created through the Auth Admin API, with its **profile**; and the audit
+   rows the pipeline wrote. Every row snapshotted as `row_to_json`, every binary hashed.
+3. `backup.mjs`: exit 0, `complete: true`, 17 tables counted, `auth.users` = 3,
+   the manifest's object inventory equal to the five uploaded objects and their
+   sha256s equal to the pre-backup hashes; the log free of the service-role key and
+   of any `user:password@`.
+4. Destruction: every `public` table truncated, every identity deleted through the
+   Auth Admin API, every object removed; asserted empty, sign-in failing, the
+   derivative URL not serving.
+5. `restore.mjs --dry-run` (nothing changed), then `restore.mjs`: exit 0, "verified".
+6. **Rows byte-identical** for all nine snapshots, `audit_log` count identical, the
+   image-related audit rows present, the dish still pointing at its photograph, the
+   migration list identical. **Image bytes identical** in both buckets, served with
+   `image/avif`/`image/webp` and `max-age=31536000`, the private bucket still refusing a
+   public URL. **Both the seeded owner and the drilled identity sign in with their
+   old passwords**, the restored profile row identical. **RLS and functions**: the
+   anonymous role reads the published dish and neither `audit_log` nor a draft;
+   `set_dish_sold_out()` on the restored dish returns `updated` and writes its audit
+   row; a direct staff INSERT into `images` is still refused with 42501.
+7. `npm run db:reset:full` again, after removing the drill's objects — nothing survives
+   into the certification chain.
+
+The ship step was exercised separately against the local Supabase S3 endpoint (a
+throwaway private bucket, the AWS CLI from a scratch virtualenv): a monthly point
+uploaded, listed back (4 objects), `latest.json` moved; then a run with a wrong
+service-role key: Storage failed, the manifest said `complete: false`, the point was
+shipped under `weekly/`, `latest.json` still named the earlier point, exit 1. The
+restore refusals were exercised from the command line: a remote host without
+confirmation, a confirmation naming a different host, a database and an API from two
+project refs, a tampered `data-public.sql`, an incomplete point, missing variables —
+each refused with a sentence and exit 1, none printing a credential.
+
+What the drill does **not** prove, said plainly: loading `db/schema.sql` into an empty
+project (a reference path, not the drilled one; the migrations are); a restore into a
+*hosted* scratch project (the tooling's guards and the runbook are written for it, and
+it is the first thing to do once a Pro project exists); and that the production
+secrets are set — the first hand-run of the workflow is that proof.
+
+### Auth, honestly
+
+The off-platform copy restores identities and password hashes, and the drill proves
+sign-in afterwards. This is the same mechanism Supabase documents for moving a
+project, not a dashboard feature: the COPY statements name the Auth server's columns
+at backup time, so a target whose Auth server has *removed* a column refuses the load
+(the transaction rolls back whole). The runbook states the fallback — `--skip-auth`,
+then the owner bootstrap and re-invitations — and that Supabase managed backups remain
+the supported `auth` recovery *inside* a project. Nothing in the tooling writes to
+production `auth.*` on the backup path; only an explicit, confirmed restore does.
+
+### Tests
+
+- `tests/unit/backup/manifest.test.mjs`, `targets.test.mjs`, `storage-and-pg.test.mjs`
+  — 48 assertions: id shape and ordering, completeness derived and unforgeable,
+  validation, `latest` selection, retention numbers and "never the newest",
+  destination key prefixes, the migration-history rule, URL parsing without echoing,
+  every restore-target refusal, redaction of values and of `user:password@`, the
+  environment door, key safety and path containment, the exact `pg_dump` argument
+  lists and the durable-auth list, `\restrict` neutralisation, COPY row counting, the
+  truncate statements, the AWS environment holding nothing else secret, the listing
+  comparison. Plain-Node suites for plain-Node tooling (`vitest.config.mts` now
+  includes `tests/unit/**/*.test.mjs`).
+- `tests/backup/drill.test.ts` under `vitest.backup.mts` — the drill, sequential,
+  ten-minute budget, loopback-only, in CI's database job after the integration suite.
+- pg_dump itself is not unit-tested (brief §26); the drill is its test.
+
+### Source policy and secrets
+
+`scripts/backup/lib/env.mjs` is the third allowed door for a secret's name beside the
+seed script and the test cleanup, and `tests/backup/drill.test.ts` the fourth and
+last; both are recorded in `scripts/check-source-policy.mjs` and `eslint.config.mjs`.
+`SUPABASE_STORAGE_S3_*` is **not** introduced: the Storage half runs on the service
+role the `backup` environment already needs for nothing else — a real trade-off
+(one key with every capability rather than a storage-scoped pair), accepted because
+`SUPABASE_DB_URL` in the same environment already grants everything, and recorded as
+a carry-forward for the security phase.
+
+### Regression
+
+`npm run check` green (typecheck, lint, source policy — 640 files — and 2,659 unit
+tests in 108 files, 48 of them new); pgTAP 2,030 assertions in 28 files; the
+integration suite 25/25; the drill 8/8; `npm audit --audit-level=high` clean; the
+production build green; and the read-only Playwright trio (`desktop`, `mobile`,
+`no-javascript`, the axe suites at both widths among them) green against the built
+site — the full chunked chain was not re-run, because no runtime module, migration,
+route or component changed; every file this increment touched lives under
+`scripts/backup`, `tests`, `.github`, `docs`, the two Vitest configurations, the lint
+configuration and `package.json` scripts. Phases 5–12 remain locked and untouched.
+
+### Carry-forwards for the security phase (§13, new)
+
+- **The backup environment holds the service-role key.** Storage is read through the
+  service role rather than a storage-scoped S3 key pair. Swapping the export to
+  `aws s3 sync` from Supabase's S3 endpoint would narrow it; the manifest format would
+  not change.
+- **`db/schema.sql` is a reference copy** whose load into an empty project is not
+  drilled. Either drill it against a hosted scratch project or drop it from the
+  recovery point.
+- **The Auth data load is the documented migration mechanism, not a dashboard
+  feature**, and depends on the Auth server's column set staying compatible. Re-run
+  the drill after any Supabase Auth major upgrade.
+- **The destination is still undecided** (§13 item A). Until it is, no off-platform
+  copy exists — managed backups are the only layer, and production is not live yet.
+- **No notification beyond GitHub's failed-run e-mail** (§10g, later increment).
+- **Local redaction over-reaches** when the password equals another word in the
+  line (the local `postgres` password redacts the user name in the log). Harmless,
+  cosmetic, local only.
+
+### What 13B should be
+
+The next increment is the rest of §15's row 13 minus the final audit: **rate limiting
+on the sign-in and the Server Actions, the security-header pass, and Sentry on the
+server** (§10g) — three bounded changes to the runtime, each with a browser-observable
+surface and therefore each carrying the full chain. Metadata, sitemap, robots and
+JSON-LD are to be verified against Rich Results, not rebuilt. The final security audit
+over §0s–§0ah's carry-forwards stays its own, last increment. Phase 13 is not locked.
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -5868,7 +6085,8 @@ supabase/
   tests/                        # pgTAP RLS tests
 .github/workflows/
   ci.yml
-  backup.yml                    # weekly off-platform storage + db export (decision C2) — phase 13
+  backup.yml                    # weekly off-platform storage + db export (decision C2) — phase 13A, §0ah
+scripts/backup/                 # the backup and restore commands and their doors — phase 13A
 docs/runbooks/
   backups.md  restore.md  domain-cutover.md  owner-handover.md
 tests/
@@ -6571,7 +6789,8 @@ The domain is deferred and is **not** a Phase 0 dependency.
 | `SENTRY_DSN` | server only | |
 | `RESEND_API_KEY`, `AUTH_EMAIL_FROM` | Supabase project settings | password reset and invites |
 | `VERCEL_AUTOMATION_BYPASS_SECRET` | CI only | Playwright against protected previews |
-| `BACKUP_S3_*`, `SUPABASE_STORAGE_S3_*` | GitHub `backup` environment only | weekly export (§10f) |
+| `BACKUP_S3_*` (endpoint, bucket, region, prefix, key pair) | GitHub `backup` environment only | the weekly export's destination (§10f, §0ah); `SUPABASE_DB_URL`, `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` live there too, for the job |
+| `BACKUP_RESTORE_CONFIRM_HOST` | an operator's shell, for one restore | the exact database host a remote restore may touch (§0ah); never in CI |
 
 Secrets live in Vercel, Supabase project settings and protected GitHub environments. Nothing is committed. `.env.example` documents the names only.
 
@@ -6621,8 +6840,14 @@ defence, not the first.
 **Failure is loud.** A failed run notifies the repository owner. Silent failure is the normal way
 backups turn out not to exist.
 
-**Not implemented yet.** The workflow is designed here and built in phase 13, together with the
-restore drill into a scratch project. `audit_log` remains the content-level recovery story for
+**Built in phase 13A (§0ah, 2026-09-05)** — `scripts/backup/`, `.github/workflows/backup.yml`,
+the drill `npm run backup:drill`, and `docs/runbooks/backups.md` / `restore.md`. Three departures
+from the paragraphs above, each recorded there: the tools are `pg_dump`/`psql` called directly
+with the connection in the environment (the CLI's `db dump --db-url` would put it on a command
+line); Storage is copied whole through the Storage API with the service role (the fallback named
+above — a runner has no mirror to sync against); and the destination is any S3-compatible private
+bucket, with retention as two lifecycle rules by tier prefix. The provider itself (§13 item A) is
+still the one open decision. `audit_log` remains the content-level recovery story for
 "someone published the wrong thing".
 
 ### 10g. Monitoring and error handling
@@ -6681,7 +6906,7 @@ policy · Månedens burger scheduling.
 
 | # | Item | Needed by | Default if unanswered |
 |---|---|---|---|
-| A | **Off-platform backup destination** — Cloudflare R2, Backblaze B2, or the interim private-GitHub-repo archive | phase 13 | Recommend R2 (EU jurisdiction, private, versioned) |
+| A | **Off-platform backup destination** — Cloudflare R2 or Backblaze B2; the tooling is provider-neutral and the manual setup is in `docs/runbooks/backups.md` §3 (§0ah). The interim private-GitHub-repo archive is withdrawn: the workflow exists and needs a bucket, not a workaround | before launch — until it is chosen, no off-platform copy exists | Recommend R2 (EU jurisdiction, private; note it has no object versioning, which the design does not need) |
 | B | **PITR on Supabase Pro** — an extra cost on top of daily backups | before launch | Off. Daily backups plus a weekly off-platform export is proportionate for this content volume |
 | C | **Final map asset and its licence** | before launch | Placeholder until supplied; a build check prevents it shipping |
 | D | **Domain, DNS control, and the Resend sending domain** | before launch (DNS verification takes time) | — |
@@ -6741,7 +6966,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C-1 (done, §0v; hardened, §0w):** image selection in the dish/weekly/monthly/news editors through one shared picker pair, `image_references` as the one definition of "referenced", the draft-aware `delete_image()`/`replace_image()`, and the published `image_id` of the three draft entities guarded in the database — direct PostgREST writes refused, only publish/replace/detach move it (pgTAP `022`, `023`). **10C-2 (done, §0x):** the public `<picture>`/`srcset` rendering on the eight approved surfaces, the public read-model projection inside the tagged reads, the Draft Mode preview of pending images, the news `og:image` and JSON-LD `image`, and the per-entity cache coupling — `delete_image()`/`replace_image()` report the live references they moved (pgTAP `024`), the alt edit expires its live usages, and the first guest request after every public-changing image operation carries the new state (`tests/e2e/public-images.spec.ts`). **Complete and locked** by the completion pass of 2026-09-02 — the two no-image frames built, the cache/reference races classified, one clean regression chain — see §0y | E2E 7 passes whole: `image-library`, `editor-images` and `public-images` at 375 and 1440 |
 | 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Complete and locked** by the completion pass of 2026-09-03 — see §0ac |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B (done, §0ae):** the complete News workflow at 375 px audited against 1z and made phone-first — the pinned editor bar with the badge and the autosave line, the B/Link toolbar and link panel stuck under it, fragment targets below the bar, the stacked confirmations, long titles and addresses that wrap, the public paragraph's wrap — with `tests/e2e/news-mobile.spec.ts` under its own `news-mobile` project. **12C (done, §0af):** the 1x / 1q dashboard — the bar, the band with the phase-4 list beneath it, the announcement card, the role-aware tiles from the entity registry, LIGE NU as a read model — with the phase-4 "Åbn …" vocabulary migrated across the locked suites in the same commit; and the phone audit of Ugens ret, Månedens burger, Besked på hjemmesiden and Åbningstider, whose Fortryd and status notices now sit at the foot of the phone screen through one shared `NoticeFoot`, with `tests/e2e/dashboard-mobile.spec.ts` under its own `dashboard-mobile` project. **Completion pass (§0ag):** the three read as one system, walked as Owner and Staff on a phone, 1x / 1y / 1z / 1q re-checked at 375 / 768 / 1440, the Forhåndsvis and 1 px observations closed, the moved row kept wholly in view, the phase-11 editors and Brugere given the same foot, an empty foot's clearance removed, a dead-autosave defect after the first Gem fixed and pinned | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad), the news half by `news-mobile` (§0ae), the dashboard and the specials by `dashboard-mobile` (§0af). **Complete and locked** by the completion pass of 2026-09-04 — see §0ag |
-| 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project |
+| 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill. **13A (done, §0ah):** the backup and restore commands, the scheduled workflow, the drill in CI, the runbooks — the destination provider still to be chosen | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project (13A: proven against the local stack; the hosted scratch run waits for a Pro project) |
 | 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.

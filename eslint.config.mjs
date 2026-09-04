@@ -43,10 +43,17 @@ const eslintConfig = [
   },
 
   {
-    // The single door to server secrets is allowed to open it — and so are the two
-    // Node-only doors that cannot import it: the local seed script and the account
-    // suites' test-only cleanup (see scripts/check-source-policy.mjs).
-    files: ['lib/env/server.ts', 'scripts/**/*.mjs', 'tests/support/local-auth-admin.ts'],
+    // The single door to server secrets is allowed to open it — and so are the
+    // Node-only doors that cannot import it: the local seed script, the account
+    // suites' test-only cleanup, the backup tooling's own environment module and
+    // the restore drill that hands the backup commands their local target (see
+    // scripts/check-source-policy.mjs).
+    files: [
+      'lib/env/server.ts',
+      'scripts/**/*.mjs',
+      'tests/support/local-auth-admin.ts',
+      'tests/backup/drill.test.ts',
+    ],
     rules: { 'no-restricted-syntax': 'off' },
   },
 ]

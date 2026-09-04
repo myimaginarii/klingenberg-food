@@ -7,8 +7,12 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–12 complete and locked.** Phase 12's completion pass (2026-09-04) is
-recorded in technical plan §0ag — the current truth of the administration on a phone.
+**Status: phases 0–12 complete and locked; phase 13A built (2026-09-05).** Phase 12's
+completion pass (2026-09-04) is recorded in technical plan §0ag — the current truth of the
+administration on a phone. **Phase 13A** (§0ah) is the weekly off-platform backup and the
+restore drill: `scripts/backup/`, `.github/workflows/backup.yml`, `npm run backup:drill`, and
+the runbooks `docs/runbooks/backups.md` and `docs/runbooks/restore.md`. It changes no
+product behaviour; the destination bucket (§13 item A) is the one decision still open.
 Phase 9's completion pass
 (2026-09-01) is recorded in technical plan §0s, phase 10A in §0t, phase 10B in
 §0u, phase 10C-1 in §0v/§0w, phase 10C-2 in §0x, and **phase 10's completion pass
@@ -361,6 +365,17 @@ need Docker: `npm run db:test` — and so is the image-pipeline integration suit
 `npm run test:integration`, which runs against the same local stack. CI runs all of
 them plus `npm audit --audit-level=high` and CodeQL.
 
+```bash
+npm run backup:drill   # phase 13A: backup, destroy, restore, prove — resets the local stack twice
+```
+
+The drill (`tests/backup/drill.test.ts`) runs the real backup and restore commands
+against the local stack and is the last step of CI's database job. It refuses every
+host but loopback, and it ends with `npm run db:reset:full`, so run it when you can
+spare the local database. `npm run backup -- --out ./backups` takes a recovery point
+of the local stack by hand (Docker or a PostgreSQL 17 client needed); the production
+schedule, the destination and the restore sequence are in `docs/runbooks/`.
+
 `npm run test:e2e` builds the site and serves it on port 3100. The read-only projects
 (`desktop`, `mobile`, `no-javascript`) run first; the projects that write to the database
 run after them, one after another, and each restores what it moved. The axe suites in
@@ -597,8 +612,10 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 13 onward, and:
-the weekly off-platform backup workflow (phase 13, §10f) and Sentry (phase 13).
+Everything in §15 from phase 13B onward: Sentry, rate limiting and the security-header
+pass (phase 13B), the final security audit, and launch (phase 14). The weekly off-platform
+backup workflow and the restore drill are built (phase 13A, §0ah); the destination bucket
+is the one decision still open (§13 item A).
 `docs/dependencies.md` records which package arrives in which phase. Phase 6 is
 **complete and locked** — 6A (Ugens ret and
 Lørdagsmenu, §0c), 6B (Månedens burger, §0d), and the completion pass over both halves

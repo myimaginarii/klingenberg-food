@@ -1,0 +1,193 @@
+# Restore — bringing the site back from a recovery point
+
+Technical plan §10f; phase 13A. Read [backups.md](backups.md) first for what a
+recovery point contains and where it lives. This runbook is the sequence to follow
+when the production project, its Storage, or its data is gone or unusable.
+
+## 0. Choose the layer
+
+| Situation | Use |
+|---|---|
+| Wrong content published, a row deleted, a mistake within the last week | `audit_log` first (every publish and immediate change carries before/after, §8); then Supabase's **managed backups** (dashboard → Database → Backups): restore or point-in-time into the same project. Fastest, and it keeps `auth` and Storage intact. |
+| A bad migration, a dropped table | Managed backups, same as above. |
+| The project, the account, the region or Storage is lost; the managed backups are gone with it; a copy is needed outside Supabase | **This runbook.** |
+
+Nothing here is undone by the other layer: the off-platform copy exists for the
+failures managed backups cannot address (backups.md §1).
+
+## 1. Prerequisites
+
+- The recovery point, fetched locally (§2).
+- A **target project** — a new Supabase project (Pro, `eu-central-1`) or a scratch
+  project for a rehearsal. Never the production project's *live* database while the
+  site is open: a restore truncates and reloads every application table.
+- A machine with Node 24, the repository, Docker (or a PostgreSQL 17 client on the
+  PATH), and the AWS CLI for fetching. The Windows development machine qualifies.
+- The target's database connection string (session pooler, port 5432), API origin and
+  service-role key.
+
+## 2. Fetch the recovery point
+
+```bash
+aws s3 cp s3://<bucket>/<prefix>/latest.json - --endpoint-url <endpoint>
+aws s3 cp --recursive s3://<bucket>/<prefix>/<tier>/<id>/ ./recovery/<id>/ --endpoint-url <endpoint>
+```
+
+with the destination key pair in `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY`
+(never on the command line). The restore command verifies every file's sha256
+against the manifest before it does anything, so a damaged or altered download is
+refused rather than loaded.
+
+## 3. Prepare the target at the backup's schema version
+
+The manifest records `repository.commit` and `schema.appliedMigrations`. The
+supported sequence is **restore into the backup's schema version, then migrate
+forward** (brief §17). There are no downgrade migrations.
+
+1. Check out the recorded commit (or any commit whose `supabase/migrations` matches
+   the manifest's list exactly):
+
+   ```bash
+   git checkout <repository.commit>
+   ```
+
+2. Apply the migrations to the new project. They create every table, function,
+   trigger, RLS policy and grant, and the two Storage buckets with their limits and
+   privacy (`20260901140000`):
+
+   ```bash
+   npx supabase link --project-ref <ref>
+   npx supabase db push
+   ```
+
+3. The restore refuses a target whose migration history is **behind** the backup
+   ("apply the migrations first"), **diverges** from it, or is **ahead** of it
+   (without `--allow-newer-schema` — loading old rows into a newer schema is allowed
+   only knowingly, for example when the newer migration is known to add nullable
+   columns only).
+
+If the repository itself is unavailable, `db/schema.sql` in the recovery point is a
+plain `pg_dump` of the public schema and can be loaded into an empty Supabase project
+with `psql --single-transaction --set ON_ERROR_STOP=1 --file db/schema.sql`. That path
+is a reference copy, not the drilled one; expect to review grants by hand.
+
+## 4. Restore the database and Storage
+
+Set the target in the environment — the same three names the application uses — and
+confirm the host:
+
+```bash
+export SUPABASE_DB_URL='postgresql://postgres.<ref>:<password>@aws-0-eu-central-1.pooler.supabase.com:5432/postgres'
+export NEXT_PUBLIC_SUPABASE_URL='https://<ref>.supabase.co'
+export SUPABASE_SERVICE_ROLE_KEY='<the target's service-role key>'
+export BACKUP_RESTORE_CONFIRM_HOST='aws-0-eu-central-1.pooler.supabase.com'
+```
+
+Then look before leaping:
+
+```bash
+npm run backup:restore -- --from ./recovery/<id> --dry-run
+```
+
+The dry run prints the recovery point, the target (hosts only, never a credential),
+the schema comparison and the plan, and changes nothing. Then:
+
+```bash
+npm run backup:restore -- --from ./recovery/<id>
+```
+
+What it does, in order, refusing before the next step on any problem:
+
+1. validates the manifest and every file's sha256;
+2. assesses the target — a loopback target needs no confirmation; any other host must
+   be named exactly in `BACKUP_RESTORE_CONFIRM_HOST`; a database and a Storage API
+   from two different projects are refused;
+3. compares migration histories (§3);
+4. in **one psql transaction** with `session_replication_role = replica` (the
+   Supabase-documented way to reload a dump: triggers and foreign-key checks are
+   quiet, rows land exactly as dumped): truncates every `public` table, truncates the
+   four durable `auth` tables, loads `db/data-auth.sql`, loads
+   `db/data-public.sql`. Any error rolls the whole transaction back;
+5. uploads every Storage object with its recorded content type and cache header,
+   upserting, through the Storage API with the service role;
+6. verifies row counts per table and both buckets' inventories against the manifest,
+   and exits non-zero if anything differs.
+
+Options: `--skip-auth` keeps the target's own identities and loads content only (for
+a project whose Auth is intact); `--skip-storage` restores the database alone;
+`--allow-partial` accepts a recovery point whose manifest says `complete: false`
+(look at `components.<name>.error` first).
+
+## 5. What happens to Auth
+
+`db/data-auth.sql` restores `auth.users` and `auth.identities` (and MFA/WebAuthn
+credentials, unused today), so **every account signs in with the password it had at
+the time of the backup** — proven by the drill. Sessions are not restored: everyone
+signs in again. After a restore into a *new* project:
+
+- **Revoke any session that could still exist** on the target (Supabase dashboard →
+  Authentication → Users → sign out everywhere, or wait for the JWT expiry of one
+  hour). Nothing in the backup can hold a valid token, but the target may.
+- **Supported-behaviour boundary, stated honestly.** Loading `auth.users` with
+  `psql` is what Supabase's own project-migration guide does; it is not a dashboard
+  feature. The COPY statements name the columns of the Auth server version at backup
+  time. A target whose Auth server has since *removed* a column will refuse the load
+  (the transaction rolls back; nothing is half-restored). In that case the fallback
+  is: restore with `--skip-auth`, then re-invite each account through `/admin/brugere`
+  after bootstrapping the first owner (§5, phase 14) — content survives, passwords do
+  not. Added columns are harmless (defaults apply).
+- **Supabase managed backups remain the supported recovery for `auth` inside the same
+  project.** The off-platform copy is the independent one.
+
+## 6. Re-establish what is not in the backup
+
+A recovery point holds data, never configuration or secrets. After a restore into a
+new project:
+
+| Item | Where it is set | Source |
+|---|---|---|
+| Auth: site URL, additional redirect URLs, e-mail templates, rate limits, signup disabled | Supabase dashboard → Authentication; `supabase/config.toml` is the reference | repository |
+| Auth: custom SMTP (Resend) | Supabase dashboard → Authentication → SMTP | Resend account |
+| Storage: bucket limits and privacy | created by the migrations | repository |
+| Vercel: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `SITE_URL`, `SENTRY_DSN` | Vercel project settings | the **new** project's dashboard |
+| GitHub: `SUPABASE_DB_URL` for CI, and the whole `backup` environment | GitHub environments | the new project and the destination |
+| Managed backups / PITR on the new project | Supabase dashboard | enable before reopening |
+
+**Rotate what the incident may have exposed**: the new project has new keys by
+construction; the destination key pair should be rotated if the incident touched it.
+
+## 7. Test before reopening the website
+
+With the application pointed at the restored project:
+
+1. `npm run build` against the target succeeds and the six public pages render with
+   the restored content (menu sections and dishes, the weekly special, the
+   announcement, opening hours, contact facts).
+2. Photographs load from the public bucket; a private original is **not** reachable
+   through a public URL.
+3. An owner signs in, opens `/admin`, and completes a price change, a sell-out and an
+   announcement (the §15 phase-14 acceptance, applied to the restored data).
+4. `/admin/brugere` lists the accounts with the right roles and states.
+5. The image library shows every photograph and "Bruges på" is correct.
+6. The weekly backup workflow is re-pointed at the new project and run once by hand.
+
+## 8. Migrating forward afterwards
+
+Once the restore is verified at the backup's schema version, return to the current
+code and apply the newer migrations:
+
+```bash
+git checkout main
+npx supabase db push
+```
+
+Deploy the current application against the restored project. This is the ordinary
+promotion flow (§10b); nothing about a restored project is special from here on.
+
+## 9. Rehearsal
+
+The drill (`npm run backup:drill`) is this runbook run against the local stack,
+end to end, on every CI run. To rehearse against a scratch **hosted** project, take
+the steps above with the scratch project's values — the confirmation variable and the
+project-ref check make it hard to point the rehearsal at production by accident, and
+impossible to mix one project's database with another's Storage.

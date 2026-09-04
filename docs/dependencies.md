@@ -3,6 +3,42 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 13A — no dependencies added (2026-09-05)
+
+The backup and restore tooling (`scripts/backup/`, technical plan §0ah) is plain Node
+on the built-ins plus `@supabase/supabase-js`, which the application already carries.
+`package.json` gains three scripts (`backup`, `backup:restore`, `backup:drill`) and no
+package.
+
+### The three things that would have justified a package, and why none is here
+
+- **An S3 client** (`@aws-sdk/client-s3`) for the destination. The AWS CLI on the
+  GitHub runner is the one tool §10f names, its credentials travel as environment
+  variables, and the two calls needed (`s3 cp --recursive`, `s3api list-objects-v2`)
+  do not justify a 3 MB SDK in a runtime that never touches S3.
+- **A PostgreSQL driver** (`pg`) for the migration query and the row counts. `psql`
+  is already required for the restore, and one door (`lib/pg.mjs`) for both dump and
+  query keeps the connection in the environment everywhere.
+- **A tarball or encryption library.** The destination is a private bucket with
+  provider-side encryption at rest and TLS in transit (§10f); a recovery point is a
+  directory of plain SQL and objects, which is what a stock `psql` and the Storage API
+  can load without any tool from this repository.
+
+### Tooling outside `package.json`, recorded here
+
+- **`pg_dump` / `psql` 17** — natively when on the PATH, otherwise from the official
+  `postgres:17` Docker image (`BACKUP_PG_IMAGE` overrides the tag). The runner uses
+  the image (`BACKUP_PG_MODE=docker`); the Windows machine has no native client and
+  uses it too. Pinned to the major that matches `supabase/config.toml`.
+- **The AWS CLI** — preinstalled on `ubuntu-latest`; on a developer machine either the
+  v2 installer or `pip install awscli` (then `BACKUP_AWS_CLI=aws.cmd`).
+- **GitHub Actions** — `actions/checkout` and `actions/setup-node` at the same SHAs
+  `ci.yml` pins; nothing new.
+
+### `npm audit --audit-level=high` — clean
+
+Run 2026-09-05 after the increment: 0 vulnerabilities.
+
 ## Phase 12 completion pass — no dependencies added (2026-09-04)
 
 **The phase-12 lock pass** (technical plan §0ag) adds **no package**. `package.json` and

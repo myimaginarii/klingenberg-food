@@ -38,7 +38,13 @@ export default defineConfig({
   },
   test: {
     environment: 'node',
-    include: ['tests/unit/**/*.test.ts', 'tests/unit/**/*.test.tsx', 'lib/**/*.test.ts'],
+    include: [
+      'tests/unit/**/*.test.ts',
+      'tests/unit/**/*.test.tsx',
+      // The backup tooling is plain Node (scripts/backup); its suites are too.
+      'tests/unit/**/*.test.mjs',
+      'lib/**/*.test.ts',
+    ],
     // Time-dependent logic is central to this system (technical plan §7); tests must
     // never inherit the machine's timezone.
     env: { TZ: 'Europe/Copenhagen' },
