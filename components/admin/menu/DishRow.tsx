@@ -1,8 +1,10 @@
 import Link from 'next/link'
 
+import type { AdminImageThumbnail } from '@/lib/content/images-admin'
 import { formatPrice } from '@/lib/format/danish'
 import { describePendingChange, type AdminDish, type DishAvailability } from '@/lib/menu/admin'
 
+import { ImageThumbnail } from '../images/ImageThumbnail'
 import {
   AvailabilityResetNote,
   AvailabilitySwitch,
@@ -54,6 +56,69 @@ function PriceTag({ priceOre, pending }: { priceOre: number | null; pending: boo
   )
 }
 
+/**
+ * The frame both frames draw beside the name: 1y's 60 × 52 on the card, 1r's 72 × 58
+ * on the row, 8 px corners, never shrinking. One box whether or not there is a photo in
+ * it, so a row without one is exactly as tall as its neighbour.
+ */
+const THUMBNAIL_FRAME = 'rounded-field h-13 w-15 shrink-0 md:h-14.5 md:w-18'
+
+/**
+ * The row's photo — the FOTO frame 1r and 1y both draw beside the name (phase 12A).
+ *
+ * WHICH PHOTO. The dish's *current* selection: the published image with the draft
+ * over it — the same overlay the name and the price on this row already show, and
+ * the same one the editor's slot shows one tap away. A pending photo is therefore
+ * visible here exactly as a pending price is, and the sentence beneath the name
+ * ("Ny billede afventer offentliggørelse") says so in words; the public menu keeps
+ * the published one until Offentliggør. Nothing here is a second read model.
+ *
+ * WHAT IT SAYS. Nothing. The link's own text names the dish, so the picture inside it
+ * is a visual identifier and carries `alt=""` — the library's description would be
+ * read as part of the link's name, in front of the dish's, and the row would
+ * introduce itself twice. Its accessible name is one tap away, in the editor's slot.
+ *
+ * WHAT IT LOADS. The smallest public derivative pair through the one admin renderer,
+ * composed by the read layer — never the private original, never a storage address
+ * built here. A sold-out dish's photo is greyed and dimmed, as 1y draws Thor's.
+ *
+ * NO PHOTO. The design's own `.ph` frame, in the administration's dress: the
+ * `bg-field-bg` box with the mono "Foto" the editor's slot already uses for a
+ * selection without a thumbnail. No icon, no stock image, and hidden from assistive
+ * technology — it is a reserved space, not information.
+ */
+function DishThumbnail({
+  thumbnail,
+  soldOut,
+}: {
+  thumbnail: AdminImageThumbnail | null
+  soldOut: boolean
+}) {
+  if (thumbnail === null) {
+    return (
+      <span
+        aria-hidden="true"
+        className={`${THUMBNAIL_FRAME} bg-field-bg border-field-border text-ink-3 row-span-2 flex items-center justify-center border font-mono text-label uppercase`}
+      >
+        Foto
+      </span>
+    )
+  }
+
+  // The `<picture>` is the renderer's; the grid placement is this row's, so it goes on
+  // a wrapper — one that holds no span, for the same reason the text rows have none.
+  return (
+    <span className="row-span-2 flex">
+      <ImageThumbnail
+        altText={null}
+        className={`${THUMBNAIL_FRAME} object-cover ${soldOut ? 'opacity-70 grayscale' : ''}`}
+        sizes="(min-width: 768px) 4.5rem, 3.75rem"
+        thumbnail={thumbnail}
+      />
+    </span>
+  )
+}
+
 /** The Kladde badge from 1aa: a rotated square, the word, and the warning tone. */
 export function KladdeBadge() {
   return (
@@ -67,6 +132,7 @@ export function KladdeBadge() {
 export function DishRow({
   dish,
   href,
+  thumbnail,
   availability,
   availabilityForm,
   reorder,
@@ -74,6 +140,12 @@ export function DishRow({
 }: {
   dish: AdminDish
   href: string
+  /**
+   * The public thumbnail of the dish's current image selection, or `null` when it has
+   * none (or none the caller may see). Resolved by the page from `dish.imageId` in one
+   * read for the whole section (phase 12A); the row never reads.
+   */
+  thumbnail: AdminImageThumbnail | null
   availability: DishAvailability
   /** The immediate Server Action and the field names it reads (§6). */
   availabilityForm: AvailabilityForm
@@ -137,7 +209,20 @@ export function DishRow({
         )}
 
         <div className="min-w-0 flex-1 md:min-w-60">
-          <Link className="min-h-tap flex flex-col justify-center gap-1" href={href}>
+          {/*
+            The photo is *inside* the link (phase 12A): 1y's card is tapped on its top
+            row — "Tryk for at rette" — so the frame is part of the target rather than
+            a dead 60 px beside it, and the link keeps its one name, the dish's. A grid
+            of two columns: the frame in the first, spanning both rows; the name row
+            and the line beneath it in the second, which may shrink to nothing — the
+            frame may not. Deliberately no wrapper around the two text rows: the
+            suites read a row's name as the first span inside a span of this link.
+          */}
+          <Link
+            className="min-h-tap grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1 md:gap-x-4"
+            href={href}
+          >
+            <DishThumbnail soldOut={availability.soldOut} thumbnail={thumbnail} />
             <span className="flex flex-wrap items-center gap-2">
               {/*
                 `wrap-anywhere` (phase 12A): a name is up to 200 characters and may be one

@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 
 import { OWNER, signIn, STAFF } from './support/admin'
 import {
+  choose,
   deleteImageNamed,
   jpegFixture,
   openImagesAdmin,
@@ -341,10 +342,46 @@ test('the picker fits the phone, opens on the safe control, chooses, and hands f
   await expect(staffPage.getByRole('link', { name: /^Skift billede/ })).toBeVisible()
   await expect(staffPage.getByRole('button', { name: 'Fjern billede' })).toBeVisible()
   await expectTargets44(staffPage.locator('main'), 'the editor with a photo')
+})
 
-  await staffPage.getByRole('button', { name: 'Fjern billede' }).click()
-  await staffPage.waitForURL(/status=billede_fjernet/)
-  await expect(staffPage.getByRole('link', { name: 'Vælg billede' })).toBeVisible()
+test('the chosen photo is on the row as 1y draws it — pending here, invisible to the guest', async () => {
+  await openSection(staffPage, BURGERS)
+
+  // Thor's card: the photo beside the name, inside the tap target, saying nothing of
+  // its own; the row's own sentence says the choice is a kladde.
+  const row = dishRow(staffPage, THOR)
+  const link = row.getByRole('link', { name: /^Thor/ })
+  const photo = link.locator('picture img')
+  await expect(photo).toHaveCount(1)
+  await expect(photo).toHaveAttribute('src', /\/storage\/v1\/object\/public\/media\//)
+  await expect(photo).toHaveAttribute('alt', '')
+  await expect(link).toHaveAccessibleName(/^Thor/)
+  await expect(row).toContainText('Ny billede afventer offentliggørelse')
+  expect(await staffPage.content()).not.toContain('media-originals')
+
+  // 1y's frame: 60 × 52, and the whole top row is still the way into the editor.
+  const frame = await photo.boundingBox()
+  expect(Math.round(frame?.width ?? 0)).toBe(60)
+  expect(Math.round(frame?.height ?? 0)).toBe(52)
+  expect((await link.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
+
+  // Odin's card, without a photo: the reserved frame, hidden from assistive
+  // technology, and the same height as its neighbour's link.
+  const odin = dishRow(staffPage, ODIN)
+  await expect(odin.locator('picture')).toHaveCount(0)
+  const odinLink = odin.getByRole('link', { name: /^Odin/ })
+  await expect(odinLink.locator('[aria-hidden="true"]', { hasText: 'Foto' })).toHaveCount(1)
+  expect((await odinLink.boundingBox())?.height).toBe((await link.boundingBox())?.height)
+
+  await expectTargets44(row, 'the card with a photo')
+  expect(await scrollsSideways(staffPage)).toBe(false)
+  expect(await violations(staffPage)).toEqual([])
+
+  // A pending photo is the administration's truth, not the hjemmeside's.
+  const { context, guest } = await guestMenu(staffPage)
+  await expect(publicDish(guest, THOR)).toBeVisible()
+  await expect(guest.locator('img[src*="/storage/v1/"]')).toHaveCount(0)
+  await context.close()
 })
 
 // ---------------------------------------------------------------------------
@@ -362,15 +399,23 @@ test('marking a dish sold out from deep in the list keeps the Fortryd in view', 
   await expect(undo).toBeVisible()
   expect(await insideViewport(undo), 'the Fortryd is inside the viewport the moment it appears').toBe(true)
 
-  // The state is in words on the row itself, with §7b's reset sentence.
+  // The state is in words on the row itself, with §7b's reset sentence — and the
+  // photo is greyed and dimmed, as 1y draws Thor's, without the card growing.
   const row = dishRow(staffPage, THOR)
   await expect(row).toContainText('Udsolgt')
   await expect(row).toContainText('Nulstilles automatisk')
+  const photo = row.locator('picture img')
+  await expect(photo).toHaveCSS('filter', /grayscale/)
+  await expect(photo).toHaveCSS('opacity', '0.7')
+  expect(Math.round((await photo.boundingBox())?.width ?? 0)).toBe(60)
+  await expectTargets44(row, 'the sold-out card with a photo')
   expect(await scrollsSideways(staffPage)).toBe(false)
+  expect(await violations(staffPage)).toEqual([])
 
   await undo.click()
   await staffPage.waitForURL(/fortryd_udsolgt=1/)
   await expect(availabilityControl(staffPage, THOR, false)).toBeVisible()
+  await expect(dishRow(staffPage, THOR).locator('picture img')).not.toHaveCSS('filter', /grayscale/)
 })
 
 test('marking a dish sold out from inside the editor keeps the Fortryd in view too', async () => {
@@ -385,6 +430,14 @@ test('marking a dish sold out from inside the editor keeps the Fortryd in view t
   await undo.click()
   await staffPage.waitForURL(/fortryd_udsolgt=1/)
   await expect(staffPage.getByRole('form', { name: 'Tilgængelighed' })).toContainText('Tilgængelig')
+
+  // The photo leaves the way it came — a pending removal, never a deletion — and the
+  // row draws its reserved frame again.
+  await staffPage.getByRole('button', { name: 'Fjern billede' }).click()
+  await staffPage.waitForURL(/status=billede_fjernet/)
+  await expect(staffPage.getByRole('link', { name: 'Vælg billede' })).toBeVisible()
+  await openSection(staffPage, BURGERS)
+  await expect(dishRow(staffPage, THOR).locator('picture')).toHaveCount(0)
 })
 
 // ---------------------------------------------------------------------------
@@ -463,7 +516,10 @@ test('adding a dish from the dashed row lands it at the end of the section, pend
 })
 
 test('the longest content the schema allows wraps inside the card and never scrolls sideways', async () => {
+  // Every state 1y draws on one card at once: a photo, a 200-character name ending
+  // in an unbroken word, the highest price, and the Kladde tone.
   await openDish(staffPage, BURGERS, TEMP_DISH)
+  await choose(staffPage, /mobil-12a\.jpg/)
   await saveDish(staffPage, {
     [FIELD.name]: LONG_NAME,
     [FIELD.price]: MAX_PRICE,
@@ -477,6 +533,18 @@ test('the longest content the schema allows wraps inside the card and never scro
   await expect(row).toContainText('Kladde')
   const box = await row.boundingBox()
   expect(box?.width ?? 0).toBeLessThanOrEqual(VIEWPORT.width)
+
+  // The photo keeps its frame beside the name; the name breaks inside the card
+  // rather than pushing the price or the control out of it.
+  const photo = row.locator('picture img')
+  await expect(photo).toHaveCount(1)
+  expect(Math.round((await photo.boundingBox())?.width ?? 0)).toBe(60)
+  const name = row.getByRole('link', { name: new RegExp(`^${LONG_NAME.slice(0, 24)}`) })
+  const nameBox = await name.boundingBox()
+  expect((nameBox?.x ?? 0) + (nameBox?.width ?? 0)).toBeLessThanOrEqual(VIEWPORT.width)
+  await expect(row.getByRole('button', { name: /Tilgængelig/ })).toBeVisible()
+  await expectTargets44(row, 'the card with everything on it')
+  expect(await violations(staffPage)).toEqual([])
 
   await openDish(staffPage, BURGERS, LONG_NAME.slice(0, 24))
   expect(await scrollsSideways(staffPage), 'the editor with the longest content').toBe(false)

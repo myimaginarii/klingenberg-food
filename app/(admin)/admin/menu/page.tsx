@@ -19,6 +19,7 @@ import { readOpeningHours } from '@/lib/content/hours'
 import {
   readAdminImage,
   readAdminImageLibrary,
+  readAdminImageThumbnails,
 } from '@/lib/content/images-admin'
 import { readAdminMonthlyBurger } from '@/lib/content/monthly-admin'
 import {
@@ -314,6 +315,16 @@ export default async function MenuAdminPage({
       : await readAdminImage(editing.imageId)
   const pickerImages = choosingImage ? await readAdminImageLibrary() : null
 
+  /*
+   * The photo on each row (1r / 1y's FOTO frame, phase 12A): one read for the open
+   * section, of the *current* selections — `imageId` is the draft over the published
+   * value, the same overlay every other figure on the row shows. The row draws the
+   * frame; it never reads.
+   */
+  const rowThumbnails = await readAdminImageThumbnails(
+    activeSection.dishes.flatMap((dish) => (dish.imageId === null ? [] : [dish.imageId])),
+  )
+
   // The picker's identifying fields: the dish, and the chip to reopen (navigation).
   const imageContext =
     editing === undefined
@@ -460,6 +471,7 @@ export default async function MenuAdminPage({
                 now={now}
                 reorderForm={REORDER_FORM_BINDING}
                 section={activeSection}
+                thumbnails={rowThumbnails}
               />
             ) : (
               <WeeklySpecialNotice

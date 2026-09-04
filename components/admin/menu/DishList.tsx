@@ -1,5 +1,6 @@
 import Link from 'next/link'
 
+import type { AdminImageThumbnail } from '@/lib/content/images-admin'
 import type { OpeningHoursOverride, WeeklySchedule } from '@/lib/hours/types'
 import { describeAvailability, type AdminMenuSection } from '@/lib/menu/admin'
 import { describeMove, orderFingerprint } from '@/lib/menu/reorder'
@@ -52,10 +53,17 @@ export function DishList({
   availabilityForm,
   reorderForm,
   movedDishId,
+  thumbnails,
 }: {
   section: AdminMenuSection
   hrefForDish: (dishId: string) => string
   createHref: string
+  /**
+   * The public thumbnails of this section's current image selections, by image id —
+   * one read by the page (phase 12A). A dish whose id is not in the map draws its
+   * empty frame; the list itself reads nothing.
+   */
+  thumbnails: ReadonlyMap<string, AdminImageThumbnail>
   hours: { schedule: WeeklySchedule; overrides: readonly OpeningHoursOverride[] }
   now: Date
   /** The immediate Server Action each row's switch posts to, and its field names (§6). */
@@ -124,6 +132,7 @@ export function DishList({
                   : null
               }
               section={section.category.slug}
+              thumbnail={dish.imageId === null ? null : (thumbnails.get(dish.imageId) ?? null)}
             />
           ))}
         </ul>

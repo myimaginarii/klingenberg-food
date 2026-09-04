@@ -85,7 +85,9 @@ function publicUrl(path: string): string {
   return derivativePublicUrl(getSupabaseUrl(), path)
 }
 
-function thumbnailOf(row: ImageRow): AdminImageThumbnail | null {
+function thumbnailOf(
+  row: Pick<ImageRow, 'storage_path' | 'derivatives'>,
+): AdminImageThumbnail | null {
   const record = readDerivativeRecord(row.derivatives)
   if (record === null) return null
 
@@ -208,6 +210,44 @@ export async function readAdminImage(id: string): Promise<AdminImage | null> {
   if (data === null) return null
 
   return toAdminImage(data, usages)
+}
+
+/**
+ * The thumbnails of a set of images, keyed by id — one read for a list that draws
+ * a photo beside each of its rows (1r / 1y's FOTO frame on the dish rows; phase 12A).
+ *
+ * The same derivative plan the library's own cards use (`thumbnailOf`): the smallest
+ * public rung, never the 2160 rung and never the private original. Three columns
+ * and nothing else — no alt text, because a row's photo is decorative beside the
+ * name the row already says; no usage, because the row is not a caption. Read
+ * through the caller's own JWT, so RLS decides which ids name an image the caller
+ * may see: an id that names nothing — deleted since the draft was written, or
+ * hidden — is simply absent from the map, and the row draws its empty frame.
+ */
+export async function readAdminImageThumbnails(
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, AdminImageThumbnail>> {
+  const distinct = [...new Set(ids)]
+  if (distinct.length === 0) return new Map()
+
+  const supabase = await createSupabaseServerClient()
+
+  const { data, error } = await supabase
+    .from('images')
+    .select('id, storage_path, derivatives')
+    .in('id', distinct)
+    .returns<Pick<ImageRow, 'id' | 'storage_path' | 'derivatives'>[]>()
+
+  assertNoQueryError('the row thumbnails', error)
+
+  const thumbnails = new Map<string, AdminImageThumbnail>()
+
+  for (const row of data ?? []) {
+    const thumbnail = thumbnailOf(row)
+    if (thumbnail !== null) thumbnails.set(row.id, thumbnail)
+  }
+
+  return thumbnails
 }
 
 /**
