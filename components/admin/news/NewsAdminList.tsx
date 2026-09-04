@@ -63,7 +63,13 @@ export function NewsAdminList({
             href={row.href}
           >
             <span className="min-w-0">
-              <span className="text-ink block truncate font-semibold">{row.title}</span>
+              {/*
+                The title wraps — `anywhere`, so a 200-character title ending in one
+                unbroken word breaks inside the card instead of the card growing past
+                the phone (12A's lesson about flex items). Never truncated: two
+                articles that begin alike must be tellable apart on the list.
+              */}
+              <span className="text-ink block font-semibold wrap-anywhere">{row.title}</span>
               <span className={`text-meta block ${LINE_TONE[row.state.tone]}`}>
                 {row.state.line}
               </span>

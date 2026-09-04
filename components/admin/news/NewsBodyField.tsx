@@ -390,104 +390,120 @@ export function NewsBodyField({
         <>
           <input name={structuredName} ref={hiddenRef} type="hidden" />
 
-          <div className={`bg-field-bg rounded-field overflow-hidden border-[1.5px] ${frame}`}>
-            {/* 1s's toolbar: B and Link, and nothing else. */}
-            <div
-              aria-label="Formatering"
-              className="border-border flex items-center gap-1.5 border-b px-2 py-1.5"
-              role="toolbar"
-            >
-              <button
-                aria-pressed={selection.bold}
-                className="rounded-field text-ink aria-pressed:bg-section min-h-tap min-w-tap inline-flex items-center justify-center px-3 font-bold hover:bg-section"
-                onClick={onBold}
-                onMouseDown={(event) => event.preventDefault()}
-                type="button"
+          {/*
+            `overflow-clip` rather than `overflow-hidden`: both clip the surface to the
+            rounded frame, but `hidden` also makes the frame a scroll container, which
+            would pin the sticky toolbar below to the frame instead of to the screen.
+          */}
+          <div className={`bg-field-bg rounded-field overflow-clip border-[1.5px] ${frame}`}>
+            {/*
+              The toolbar and its link panel stick to the top of the phone screen
+              (phase 12B, 1z), directly under the pinned section bar, so B and Link
+              are one tap away however far down a long article the person is
+              writing — and the link panel opens in view, beside the toolbar, rather
+              than at the top of the article. From `md` the group is exactly 1s's row
+              at the top of the writing box. `top` is the pinned bar's two fixed rows
+              (`AdminSectionBar`).
+            */}
+            <div className="bg-field-bg max-md:sticky max-md:top-[6.25rem] max-md:z-10">
+              {/* 1s's toolbar: B and Link, and nothing else. */}
+              <div
+                aria-label="Formatering"
+                className="border-border flex items-center gap-1.5 border-b px-2 py-1.5"
+                role="toolbar"
               >
-                <span aria-hidden="true">B</span>
-                <span className="sr-only">Fed skrift</span>
-              </button>
-
-              <button
-                aria-expanded={panel.kind !== 'lukket'}
-                className="rounded-field text-neutral-ink min-h-tap min-w-tap inline-flex items-center justify-center px-3 font-medium underline hover:bg-section"
-                onClick={onLinkButton}
-                onMouseDown={(event) => event.preventDefault()}
-                type="button"
-              >
-                Link
-              </button>
-            </div>
-
-            {panel.kind === 'ingen-markering' ? (
-              <div className="border-border flex flex-col gap-2 border-b p-3 md:flex-row md:items-center md:justify-between">
-                <p className="text-ink-2 text-meta">
-                  Markér først den tekst, der skal være et link.
-                </p>
                 <button
-                  className="rounded-field border-neutral-ink text-neutral-ink min-h-tap inline-flex items-center justify-center border px-3 text-meta font-medium"
-                  onClick={() => closePanel(lastRangeRef.current)}
+                  aria-pressed={selection.bold}
+                  className="rounded-field text-ink aria-pressed:bg-section min-h-tap min-w-tap inline-flex items-center justify-center px-3 font-bold hover:bg-section"
+                  onClick={onBold}
+                  onMouseDown={(event) => event.preventDefault()}
                   type="button"
                 >
-                  Luk
+                  <span aria-hidden="true">B</span>
+                  <span className="sr-only">Fed skrift</span>
+                </button>
+
+                <button
+                  aria-expanded={panel.kind !== 'lukket'}
+                  className="rounded-field text-neutral-ink min-h-tap min-w-tap inline-flex items-center justify-center px-3 font-medium underline hover:bg-section"
+                  onClick={onLinkButton}
+                  onMouseDown={(event) => event.preventDefault()}
+                  type="button"
+                >
+                  Link
                 </button>
               </div>
-            ) : null}
 
-            {panel.kind === 'aaben' ? (
-              <div className="border-border flex flex-col gap-2 border-b p-3">
-                <label className="text-meta text-neutral-ink font-medium" htmlFor={`${id}-link`}>
-                  Linkadresse
-                </label>
-                <input
-                  aria-describedby={panel.problem === null ? undefined : `${id}-link-fejl`}
-                  aria-invalid={panel.problem === null ? undefined : true}
-                  className={`bg-surface rounded-field w-full border-[1.5px] px-3 min-h-12 ${panel.problem === null ? 'border-field-border' : 'border-error'}`}
-                  defaultValue={panel.href}
-                  id={`${id}-link`}
-                  inputMode="url"
-                  onKeyDown={(event) => {
-                    if (event.key === 'Enter') {
-                      event.preventDefault()
-                      onApplyLink()
-                    }
-                  }}
-                  placeholder="https://…"
-                  ref={hrefInputRef}
-                  type="text"
-                />
-                {panel.problem === null ? null : (
-                  <p className="text-error-ink text-meta font-medium" id={`${id}-link-fejl`}>
-                    {panel.problem}
+              {panel.kind === 'ingen-markering' ? (
+                <div className="border-border flex flex-col gap-2 border-b p-3 md:flex-row md:items-center md:justify-between">
+                  <p className="text-ink-2 text-meta">
+                    Markér først den tekst, der skal være et link.
                   </p>
-                )}
-                <div className="flex flex-wrap gap-2">
                   <button
-                    className="bg-brand-700 hover:bg-brand-500 rounded-field min-h-tap inline-flex items-center justify-center px-4 text-meta font-semibold text-white"
-                    onClick={onApplyLink}
+                    className="rounded-field border-neutral-ink text-neutral-ink min-h-tap inline-flex items-center justify-center border px-3 text-meta font-medium"
+                    onClick={() => closePanel(lastRangeRef.current)}
                     type="button"
                   >
-                    {panel.existing ? 'Gem link' : 'Indsæt link'}
-                  </button>
-                  {panel.existing ? (
-                    <button
-                      className="rounded-field border-error text-error-ink min-h-tap inline-flex items-center justify-center border-[1.5px] px-4 text-meta font-semibold"
-                      onClick={onRemoveLink}
-                      type="button"
-                    >
-                      Fjern link
-                    </button>
-                  ) : null}
-                  <button
-                    className="rounded-field border-neutral-ink text-neutral-ink min-h-tap inline-flex items-center justify-center border px-4 text-meta font-medium"
-                    onClick={() => closePanel(panel.range)}
-                    type="button"
-                  >
-                    Annullér
+                    Luk
                   </button>
                 </div>
-              </div>
-            ) : null}
+              ) : null}
+
+              {panel.kind === 'aaben' ? (
+                <div className="border-border flex flex-col gap-2 border-b p-3">
+                  <label className="text-meta text-neutral-ink font-medium" htmlFor={`${id}-link`}>
+                    Linkadresse
+                  </label>
+                  <input
+                    aria-describedby={panel.problem === null ? undefined : `${id}-link-fejl`}
+                    aria-invalid={panel.problem === null ? undefined : true}
+                    className={`bg-surface rounded-field w-full border-[1.5px] px-3 min-h-12 ${panel.problem === null ? 'border-field-border' : 'border-error'}`}
+                    defaultValue={panel.href}
+                    id={`${id}-link`}
+                    inputMode="url"
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter') {
+                        event.preventDefault()
+                        onApplyLink()
+                      }
+                    }}
+                    placeholder="https://…"
+                    ref={hrefInputRef}
+                    type="text"
+                  />
+                  {panel.problem === null ? null : (
+                    <p className="text-error-ink text-meta font-medium" id={`${id}-link-fejl`}>
+                      {panel.problem}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      className="bg-brand-700 hover:bg-brand-500 rounded-field min-h-tap inline-flex items-center justify-center px-4 text-meta font-semibold text-white"
+                      onClick={onApplyLink}
+                      type="button"
+                    >
+                      {panel.existing ? 'Gem link' : 'Indsæt link'}
+                    </button>
+                    {panel.existing ? (
+                      <button
+                        className="rounded-field border-error text-error-ink min-h-tap inline-flex items-center justify-center border-[1.5px] px-4 text-meta font-semibold"
+                        onClick={onRemoveLink}
+                        type="button"
+                      >
+                        Fjern link
+                      </button>
+                    ) : null}
+                    <button
+                      className="rounded-field border-neutral-ink text-neutral-ink min-h-tap inline-flex items-center justify-center border px-4 text-meta font-medium"
+                      onClick={() => closePanel(panel.range)}
+                      type="button"
+                    >
+                      Annullér
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
 
             <div
               aria-describedby={describedBy}

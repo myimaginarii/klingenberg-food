@@ -261,6 +261,17 @@
     outline-offset: 2px;
   }
 
+  /* A section bar pinned to the top of the phone screen (phase 12B, the news
+     editor — `AdminSectionBar pinned`): the bar is two rows of fixed height (100 px)
+     below `md`, so a fragment target or a focused control must land beneath it
+     rather than under it. Applies to every anchor scroll and focus scroll on the
+     page; nothing from `md` up, where the bar is an ordinary block. */
+  @media (width < 48rem) {
+    html:has(.admin-bar-pinned) {
+      scroll-padding-top: 7rem;
+    }
+  }
+
   /* Bevægelse respekterer prefers-reduced-motion (1aa "BEVÆGELSE"). */
   @media (prefers-reduced-motion: reduce) {
     html {

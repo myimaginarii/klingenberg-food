@@ -48,29 +48,35 @@ export function NewsConfirmDialog({
     <ModalDialog cancelHref={cancelHref} id={anchorId} labelledBy={headingId}>
       <div className="flex flex-col gap-4 p-4 md:p-5">
         <div>
-          <h2 className="text-heading font-sans font-semibold" id={headingId}>
+          {/* `wrap-anywhere`: the question quotes the title, which may be one unbroken word. */}
+          <h2 className="text-heading font-sans font-semibold wrap-anywhere" id={headingId}>
             {prompt.question}
           </h2>
           <p className="text-ink-2 text-meta mt-1">{prompt.consequence}</p>
         </div>
 
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        {/*
+          On the phone the two choices stack, full width, the safe one first with a
+          clear gap — the arrangement 1ae's sheet, the users-admin confirmations and
+          the menu's deletion (12A) use; from `md` they are 1s's row.
+        */}
+        <div className="flex flex-col gap-3 md:flex-row md:flex-wrap md:items-center md:justify-end md:gap-2">
           <a
-            className="bg-brand-700 hover:bg-brand-500 active:bg-brand-900 rounded-field min-h-tap inline-flex items-center px-5 font-semibold text-white"
+            className="bg-brand-700 hover:bg-brand-500 active:bg-brand-900 rounded-field min-h-tap inline-flex items-center justify-center px-5 font-semibold text-white"
             data-autofocus
             href={cancelHref}
           >
             {cancelLabel}
           </a>
 
-          <form action={action}>
+          <form action={action} className="flex flex-col md:block">
             <input name={fieldNames.articleId} type="hidden" value={articleId} />
             <input name={fieldNames.version} type="hidden" value={version} />
             <button
               className={
                 destructive
-                  ? 'rounded-field border-error text-error-ink hover:bg-error-surface min-h-tap bg-surface inline-flex items-center border-[1.5px] px-4 font-semibold'
-                  : 'rounded-field border-neutral-ink text-neutral-ink hover:bg-section min-h-tap bg-surface inline-flex items-center border-[1.5px] px-4 font-semibold'
+                  ? 'rounded-field border-error text-error-ink hover:bg-error-surface min-h-tap bg-surface inline-flex items-center justify-center border-[1.5px] px-4 font-semibold'
+                  : 'rounded-field border-neutral-ink text-neutral-ink hover:bg-section min-h-tap bg-surface inline-flex items-center justify-center border-[1.5px] px-4 font-semibold'
               }
               type="submit"
             >

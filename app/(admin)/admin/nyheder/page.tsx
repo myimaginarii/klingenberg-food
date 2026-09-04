@@ -239,7 +239,7 @@ export default async function NewsAdminPage({
           siden"). The controller lives here because the words do; it finds the form
           below by its id, and it is the one client component this bar carries.
         */}
-        <AdminSectionBar backHref={newsHref()} backLabel="Nyheder" title={heading}>
+        <AdminSectionBar backHref={newsHref()} backLabel="Nyheder" pinned title={heading}>
           {editing === null ? null : <NewsStateBadge state={describeNewsState(editing)} />}
           <NewsAutosave
             action={autosaveArticle}
@@ -270,7 +270,7 @@ export default async function NewsAdminPage({
                 <ImagePickerField
                   anchorId={IMAGE_SLOT_ANCHOR}
                   chooseHref={null}
-                  disabledNote="Billedet kan vælges, når nyheden er gemt første gang."
+                  disabledNote="Billedet kan vælges, når nyheden er gemt første gang. Tryk Gem kladde, så åbner feltet."
                   selection={null}
                 />
               }

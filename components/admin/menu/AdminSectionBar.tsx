@@ -12,20 +12,45 @@ import Link from 'next/link'
  *
  * It is a `<header>` with the screen's `<h1>` inside it, so the page has exactly one
  * top-level heading and it is the one a person reads first.
+ *
+ * PINNED ON THE PHONE (phase 12B, the news editor — 1z)
+ *
+ * A bar whose words matter *while the person is typing further down* — the news
+ * editor's Kladde/Udgivet badge and its autosave line ("Gemmer…", "Gemt — ændringerne
+ * er på hjemmesiden", a conflict) — stays at the top of the phone screen instead of
+ * scrolling away with the first paragraph. `pinned` does that below `md`, and nothing
+ * else: from `md` the bar is exactly the block it always was.
+ *
+ * On the phone a pinned bar lays its children out as bar items rather than as one
+ * group, so the badge shares the first row with the title and a status line takes a
+ * row of its own (`max-md:basis-full` on the line) — two rows of fixed height, which
+ * is what lets the editor's toolbar stick *below* the bar at a known offset without
+ * measuring anything. The DOM order does not change; `display: contents` only
+ * dissolves the group's box. `.admin-bar-pinned` is the hook `app/globals.css` uses
+ * to keep fragment targets and focused controls from landing underneath the bar.
  */
 export function AdminSectionBar({
   title,
   backHref,
   backLabel = 'Tilbage',
+  pinned = false,
   children,
 }: {
   title: string
   backHref: string
   backLabel?: string
+  /** Stick to the top of the phone screen (below `md`); an ordinary block from `md`. */
+  pinned?: boolean
   children?: React.ReactNode
 }) {
   return (
-    <header className="bg-brand-900 text-white">
+    <header
+      className={
+        pinned
+          ? 'admin-bar-pinned bg-brand-900 text-white max-md:sticky max-md:top-0 max-md:z-20'
+          : 'bg-brand-900 text-white'
+      }
+    >
       <div className="mx-auto flex max-w-content flex-wrap items-center justify-between gap-3 px-gutter py-3 md:px-8">
         <div className="flex min-w-0 items-center gap-3 md:gap-4">
           <Link
@@ -39,7 +64,15 @@ export function AdminSectionBar({
         </div>
 
         {children === undefined ? null : (
-          <div className="flex flex-wrap items-center gap-2">{children}</div>
+          <div
+            className={
+              pinned
+                ? 'flex flex-wrap items-center gap-2 max-md:contents'
+                : 'flex flex-wrap items-center gap-2'
+            }
+          >
+            {children}
+          </div>
         )}
       </div>
     </header>

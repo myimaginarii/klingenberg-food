@@ -4586,6 +4586,280 @@ names in the support helpers, in one commit, after 12B.
 
 ---
 
+## §0ae. Phase 12B — the News administration on a phone as the primary device (2026-09-04)
+
+The second half of phase 12 (§15): the complete News workflow at 375 px, audited as a
+phone-first tool against frame **1z** ("Nyheder + editor — mobil") the way 12A audited
+the Menu against 1y (§0ad). Phases 5–11 stay locked, phase 9 included: nothing about
+the status model, the draft/published semantics, the published-edit-is-live rule, the
+autosave machine, the frozen slug, the structured body, B and Link only, `https:`
+only, the audit rows, the cache contract, the metadata or the delete/unpublish
+transitions changed. **Phase 12 is not locked**; 12C (the 1x / 1q dashboard) remains
+and is recorded at the end of this section.
+
+### What 1z requires, and what merely had to survive 375 px
+
+1z draws two screens and nothing else. **The list**: a burgundy bar with `‹ Tilbage`,
+"Nyheder" and a white "+ Ny" pill; one card per article — the title, a line saying
+"Offentliggjort DD.MM.ÅÅÅÅ" or "Rettet DD.MM.ÅÅÅÅ", and the state as a pill in words
+with its own shape (green dot "Udgivet", amber diamond "Kladde"), the draft card in the
+warning tone. No thumbnail, no placeholder frame, no preview link, no delete on the
+list. **The editor**: `‹ Nyheder`, "Ny nyhed" and the Kladde pill in the bar;
+Overskrift; the category chips; the Tekst box with the **B / Link** toolbar at its top
+and the body at 16 px; the dashed Billede slot; **Forhåndsvis and Offentliggør side by
+side** at the end; and the note *"Gemmer selv som kladde, mens der skrives — intet går
+tabt, hvis telefonen låser midt i en vagt."* 1s (desktop) adds "Gemt for lidt siden"
+beside the badge in the bar, Slet, "Fjern fra hjemmesiden" and the date field. So the
+frame itself requires: the card list with its state words, the two-button toolbar at
+the top of the writing box, the slot, the two end controls, and an editor whose
+autosave the person can trust. Everything else on the screen — the §7f address line,
+the Gem fallback, the date, "Ingen kategori", Slet, Fjern fra hjemmesiden, Forhåndsvis
+on the list — is the locked 9A/9B/10C-1 design that had to remain *usable* at 375, not
+something 1z asks for.
+
+### What the walkthrough found
+
+Every row was walked as Staff against a production build at 375 × 812 with touch by a
+temporary Playwright harness (`tests/lockpass/`, deleted before the chain, as in §0y,
+§0ac and §0ad), measured — the viewport position of the key control, the document
+width, target sizes, computed font sizes, the focus ring, axe — and compared to 1z.
+
+| Workflow | Where it stood | Material problem, if any |
+|---|---|---|
+| The list | 1z's cards, state in words, "+ Ny nyhed" and Forhåndsvis in a two-row bar (124 px), every target 44 px, no sideways scrolling | **the title was `truncate`d** — a 200-character title read "Lockpass 12B: Nordisk bur…", and two articles beginning alike could not be told apart |
+| A new article | 16 px in every editable control (the title, the date, the body, the link address — iOS does not zoom), 44 px chips, the slot saying why it is closed | the slot's sentence said "gemt første gang" while the bar already said "Gemt for lidt siden" — autosave had created the row, but the slot needs the Gem navigation to render |
+| The first save | autosave created the row with the screen unmoved (scrollY 46 → 46) and the keyboard still in the text; Gem then rendered the badge, the address and the slot | the outcome notice and the badge were **above the viewport** after Gem's `#nyhed-editor` fragment (y = −75 and −145) |
+| A long article, caret at the end | Gem in view; the text itself fine | **the bar with the badge and the autosave line was 2,868 px above the viewport, the B/Link toolbar 2,185 px above it** — with a 440 px keyboard viewport the same; a published article's "Gemt — ændringerne er på hjemmesiden" was equally out of reach (y = −2,861) |
+| Bold, Link | the operations themselves correct; the panel 307 px wide, its input 16 px, focus into the address field and back to the text, `http:` refused | the panel opened **at the top of the writing box** — thousands of pixels from the selected words |
+| The picker | 337 × 345 inside the viewport, Annuller focused, `Esc` back to `#vaelg-billede`, choose and remove as 10C-1 | none |
+| Validation, the slug | the field error in view and bound, the `ugyldig` notice above the fold (the phase-5 convention, unchanged) | **the address line under the title made the editor scroll sideways** with a 200-character title ending in an unbroken word (one monospace run) |
+| Preview | the real `/nyheder/[slug]` in Draft Mode | **the public article page scrolled sideways at 375** (1,039 px) with a body containing an unbroken 120-character run — valid content the editor accepts |
+| Publish, unpublish, delete | the sheets inside the viewport, the safe choice focused, `Esc` back to the control, the backdrop inert | the two choices were **side by side 8 px apart** (publish, delete) or wrapped into a ragged second line (unpublish) |
+| Long content | no sideways scrolling in the editor (Chrome's `contenteditable` wraps an unbroken run itself), the long link readable | none in the editor |
+| Autosave during a long edit | scrollY unchanged before, during and after the save; focus kept in the text; `replaceState` only on creation | none — the one-in-flight machine needed nothing |
+
+### What changed, and what each change is
+
+Every change is presentation over the same page, the same Server Actions, the same
+domain modules and the same URL state. No new route, no new component, no client
+JavaScript, no dependency. Every file touched is a phase-9 or shared admin component
+changed in its class strings; the one public-side file (`NewsBody.tsx`) changed by
+one class because the walkthrough proved a defect — the rule this brief set.
+
+1. **The editor's bar is pinned on the phone** (`AdminSectionBar pinned`,
+   `app/(admin)/admin/nyheder/page.tsx`). Below `md` the news editor's bar is `sticky`
+   at the top of the screen, and it lays its children out as bar items rather than one
+   group (`display: contents` on the phone only): the Kladde/Udgivet badge shares the
+   first row with `‹ Nyheder` and the title — exactly 1z's row — and the autosave line
+   takes a row of its own. The row is **reserved** (`NewsAutosave` renders its `<p>`
+   empty with a 20 px minimum height on the phone; from `md` an idle line still
+   renders nothing), so the bar is two rows of fixed height — 100 px — and never grows
+   by a row on the first keystroke. Measured afterwards, at the end of an eight-
+   paragraph article and again with a 440 px keyboard viewport: the badge at y = 17,
+   the status line at y = 68, "Gemt — ændringerne er på hjemmesiden" in view while the
+   published article is edited at its end. The DOM order is unchanged; the list's bar
+   and every other section bar are exactly the blocks they were.
+2. **The B/Link toolbar and its link panel stick under the bar** (`NewsBodyField`).
+   One wrapper around the toolbar and the panel is `sticky` at `top: 6.25rem` below
+   `md` — the bar's fixed height, which is why the height had to be fixed. The writing
+   box is `overflow-clip` rather than `overflow-hidden`: both clip to the rounded frame,
+   but `hidden` makes the frame a scroll container and would have pinned the toolbar to
+   the frame instead of the screen. Measured: B and Link at y = 106 with the caret at
+   the end of the article, and 283 px of text still visible under them with the
+   keyboard viewport; the link panel opens at y = 157 with its address field focused,
+   while the selected words stay within a line of where they were (scroll anchoring
+   absorbs the panel's height). From `md` the group is 1s's row at the top of the box.
+3. **Fragment targets land under the bar, not beneath it** (`app/globals.css`): below
+   `md`, `html:has(.admin-bar-pinned)` sets `scroll-padding-top: 7rem`, so Gem's
+   `#nyhed-editor`, a cancelled confirmation's `#offentliggoer-nyhed` and the picker's
+   `#vaelg-billede` all arrive below the pinned bar. A side effect worth having: after
+   Gem, publish and unpublish the outcome notice (y = 37) and the badge are now inside
+   the viewport, where the fragment scroll used to put them above it.
+4. **The confirmations stack** (`NewsConfirmDialog`) — below `md` the safe choice and
+   the committing one are full width, the safe one first, 12 px apart, the arrangement
+   1ae's sheet, the users-admin confirmations and 12A's `DeleteDishDialog` use; from
+   `md` the footer is 1s's row. The question wraps `anywhere`, because it quotes the
+   title.
+5. **Long content wraps** — the list title (`NewsAdminList`: `wrap-anywhere`, no
+   `truncate`; a 200-character title makes a 306 px card and stays inside it with the
+   pill beside it), the §7f address line (`NewsEditorForm`), the confirmation's
+   question, and — the one public-side change — the article paragraph
+   (`components/site/news/NewsBody.tsx`: `wrap-anywhere` on the `<p>`), because the
+   preview step of the phone flow met a public page that scrolled sideways. No limit
+   changed.
+6. **The slot's sentence says what to do** — "Billedet kan vælges, når nyheden er gemt
+   første gang. Tryk Gem kladde, så åbner feltet." The locked rule stands: an article that does not
+   exist as a row cannot select an image, autosave creates the row without a
+   navigation, and the Gem is what renders the slot. The wording now bridges the gap
+   instead of contradicting the bar.
+
+### What was verified and deliberately left as it is
+
+- **Autosave** is the 9B machine untouched: a 2 s debounce, one save in flight, no
+  save of unchanged content, `replaceState` once on creation; the screen does not move
+  and focus is not taken on any save, measured at the top of the form and at the end
+  of a long article. The `sr-only` live region is unchanged and still role-less
+  (§0r); the visible line simply has a reserved row on the phone.
+- **The published rule** — a saved edit is public at once — is said on the phone by
+  the two things now pinned in view while the person types: the "Udgivet" badge and
+  "Gemt — ændringerne er på hjemmesiden". `describeSaveConsequence`'s sentence beside
+  Gem is unchanged and stays at the foot of the form.
+- **The image picker** is 10C-1's, unchanged; the slot's `Skift billede` / `Fjern
+  billede` are 44 px and in the flow after the form, as 10C-1 recorded.
+- **Slug behaviour**: the address follows the title until first publish (proved again
+  with a 200-character Danish title), locks at publish, and the collision and stale
+  refusals are the 9A sentences, readable at 375 in the notice under the pinned bar.
+- **The link panel's rule** (absolute `https:` only, ≤ 2048) is unchanged in all three
+  layers; the phone story refuses `http:` and applies a 400-character `https:` address.
+- **The footer row** (Slet / Forhåndsvis på hjemmesiden / Offentliggør or Fjern fra
+  hjemmesiden) stays stacked full width at 375. 1z draws Forhåndsvis and Offentliggør
+  side by side with no Slet; "Forhåndsvis på hjemmesiden" is 1s's own label and does
+  not fit beside Offentliggør in 343 px. Recorded as a departure, in favour of the
+  locked label.
+- **No sticky foot.** 1z draws none, and unlike the Menu nothing here is a ten-second
+  Fortryd: the phone's pinned chrome is the bar and the toolbar at the top, which is
+  where 1z draws both.
+- **No thumbnail on the list card** — 1z draws neither a photo nor a placeholder frame
+  on the news cards (unlike 1y's dish cards), so none is drawn.
+- **Focus rings**: `3px solid rgb(180,116,26)` at 2 px on the toolbar's buttons reached
+  by `Shift+Tab` from the text, on the footer links and on every dialog control.
+- **Keyboard**: `Esc` from each of the three confirmations and from the picker is a
+  real navigation back to the control it came from, and the control is focused; the
+  fragment scroll is the site's smooth one, so the suite polls for it. The alert
+  states (conflict, failure, vanished) are the locked 9B behaviour and are covered by
+  `news-admin`; on the phone a conflict's four lines make the bar taller than its
+  reserved 100 px and the stuck toolbar's top is covered by the difference while the
+  alert stands — autosave has stopped in that state and the person's task is to copy
+  their text, so this is recorded rather than engineered around.
+
+### Departures from the frames, recorded
+
+| Frame | Departure | Why |
+|---|---|---|
+| 1z | The list's bar wraps to two rows at 375 ("Forhåndsvis" and "+ Ny nyhed" under `‹ Tilbage` / "Nyheder") | 9A added the list's Forhåndsvis, accepted at 9's lock; the locked suites address the link by its full name "+ Ny nyhed". Every control is 44 px and the first card is at y = 225. |
+| 1z | Forhåndsvis / Offentliggør stacked, not side by side; Slet and Fjern fra hjemmesiden present | 1s's labels and controls, locked at 9. |
+| 1z | The bar carries a second row for the autosave line | 1s's "Gemt for lidt siden", which 1z's static artboard omits; on the phone the line is the one place the published-edit rule is visible while typing. |
+| 1z | The date field and "Ingen kategori" | Accepted at 9A (§0s). |
+| 1z, 1s | The B/Link toolbar sticks under the bar | 1z draws the toolbar at the top of the box; on a long article that box top is off screen, and the brief's §6/§7 require the toolbar reachable while editing. Measured, not assumed. |
+| 1x, 1q | "Åbn nyhederne" is at y = 1,082 on the dashboard at 375 | The phase-4 dashboard; **12C**. |
+
+### Responsive architecture
+
+One page, one action layer, one domain layer; the phone is a set of `max-md:` /
+`md:` variants over the same markup. The DOM order never differs between widths;
+`sticky` and `display: contents` move things visually only. No `/admin/mobile`, no
+second editor, no second picker, no mobile Server Action, no alternate state, no
+keyboard-detection script, no scroll restoration, no `ResizeObserver`: the one
+measurement the layout depends on — the bar's height — is made a constant instead of
+measured. Bundle: no new client component; `NewsAutosave` and `NewsBodyField` changed
+class strings and one wrapper element; `AdminSectionBar` gained one boolean prop.
+
+### Accessibility and touch, measured
+
+axe (WCAG 2.0/2.1/2.2 A+AA) reported zero violations at 375 on the list, the empty
+editor, the saved draft, the editor with a photo, the open link panel, the picker, the
+refusal state, the published editor, and the three confirmations — and at 1440 on the
+states the locked `a11y/news-admin` file scans. The tap-target sweep at 375 (every
+`a`, `button`, `select`, the date control, and every label that *is* the control)
+found nothing under 44 × 44 on any state; the toolbar's B is 44 × 44 and Link 57 × 44.
+No sideways scrolling on any state, including the 200-character title on the list, in
+the editor and in the confirmation, the 400-character link, the unbroken 120-character
+run, and the public preview of all three. 16 px in every editable control. Screen-
+reader semantics unchanged from phase 9: the state in the pill's words, the badge's
+words, `aria-pressed` on B, the labelled `role="textbox"`, the field errors bound by
+`aria-describedby`, the confirmations named by their question, the alert-only live
+region.
+
+### Tablet and desktop
+
+768 and 1440 were captured before and after for the list (short and 200-character
+titles), the empty editor, the saved draft, the editor with a photo, the long article,
+the published editor and the three confirmations. From `md` the bar is the block it
+was (the idle line renders nothing), the toolbar is 1s's row at the top of the box,
+the confirmations' footers are 1s's row, and the list is the same column of cards.
+Nothing in 1s moved.
+
+### Tests
+
+- **`tests/e2e/news-mobile.spec.ts`** under one dedicated project, **`news-mobile`**
+  (375 × 812, touch), the new tail of the chain after `menu-mobile`, and under no other
+  project: fifteen stories — the way in from the dashboard and the list, the editor's
+  phone-ready fields under the pinned bar, autosave creating the draft with the line in
+  view and no scroll, the picker (fit, focus, `Esc`, choose), the end of a long article
+  with the badge, the line and B/Link on screen (and with the keyboard viewport), B
+  and Link from deep in the text with the panel opening in place, the longest content
+  in the editor / on the list / in the confirmation / on the public preview, a refused
+  save in view, the stacked publish confirmation and its `Esc`, publish and the first
+  guest request with no cookie, the live edit said in the pinned bar and read by the
+  guest, the stacked unpublish confirmation and the 404, the stacked delete
+  confirmation with the inert backdrop, Owner parity, and the seed restored. It uploads
+  its one library image through the real screen and removes it through the library's
+  own Slet.
+- **`tests/unit/news/phone-layout.test.tsx`** (6 tests) pins the four class decisions
+  as server markup: the pinned bar (and the unpinned bar unchanged), the wrapping title,
+  the stacked dialog with the safe control first, and the public paragraph's wrap.
+- **No locked phase-9 test was changed.** `playwright.config.ts` gains the project and
+  the two `testIgnore` entries; `npx playwright test --list` shows the file under
+  exactly `news-mobile` (15) and the four `a11y/*` files under `desktop` and `mobile`
+  only. `editor-images` still finds "Billedet kan vælges, når nyheden er gemt første
+  gang" by substring.
+
+### Recorded for the FINAL SECURITY AUDIT (phase 13) — carried, unchanged
+
+- The news audit-insert tolerance (§0s): a published autosave's content UPDATE and its
+  `log_audit` INSERT are two statements, not one transaction. Untouched by 12B, which
+  changed no action.
+
+### The regression
+
+From a clean tree: every port-3100 owner stopped, `npm ci`, `npm run db:reset:full`
+(every test Auth identity gone, the two seeded ones as `npm run db:users` leaves
+them), a twenty-second settle, `.next` emptied, a fresh production build, no stale
+server. Typecheck, lint and the source policy clean; **2,590 unit tests in 103
+files** (+6 in the one new file); **2,030 pgTAP assertions in 28 files**, from real
+anonymous, Staff and Owner JWTs and two dblink sessions — unchanged, because no
+function, grant or table moved; **25 integration tests in 4 files** against the real
+local stack and the mail catcher; `npm audit --audit-level=high` clean (0
+vulnerabilities); `npx playwright test --list` collecting **1,319 tests in 39 files
+across 46 projects**, with `e2e/news-mobile` under exactly its one dedicated project
+(15 stories), `e2e/menu-mobile` under exactly `menu-mobile` (19), every other write
+suite under exactly its own projects as before, the four `a11y/*` files under
+`desktop` and `mobile` only, and no stale `testIgnore` entry; and the complete
+Playwright matrix at `--retries=0`, run as the chunked chain against one detached
+production server (the read-only trio together, every write project in its own
+`--no-deps` invocation, in config order — 44 invocations): **1,312 passed, 7
+deliberately skipped (the standing width/device guards: three `public-site` stories
+at the other width, three `menu-reorder` pointer/touch stories at the width without
+the input, one override story past its clock guard), zero failed and zero flaky** on
+the first and only launch of every chunk (started 16:06, finished 16:53). No chunk
+was re-run and no result is retry-masked. Phases 5–12A ran green behind phase 12B,
+unchanged — the two phase-9 news projects (33 + 33), the four image projects, and
+`menu-mobile` among them; the public cache is still 5m/5m (`public-cache`, 3
+passed), no tracking cookie (the `news-mobile` guest context asserts an empty cookie
+jar on the first request after a publish), no browser Supabase client and no service
+client outside its two boundaries appeared (`tests/unit/policy`), and no phase-12C
+(dashboard) and no phase-13 work exists.
+
+One fact about the build-up worth keeping: the focused pre-run failed the locked
+`editor-images` pair once, because the slot's sentence had been reworded to
+"…første gang — tryk Gem kladde." and that suite matches "…første gang." with its
+full stop. The sentence was restored and the hint appended as a second sentence; the
+locked test was not touched. The certified chain is the run after that correction.
+
+### What 12C owes — the dashboard (1x / 1q)
+
+1x's tile list at 375 ("Hvad vil du lave?", the eight 68 px rows, the announcement
+card with its state and "Rediger besked", the pending band's count with the phase-4
+per-item list beneath it, LIGE NU) and 1q's three-column grid from `md` — and, because
+twelve locked suites address the current link names (`Åbn menuen`, `Åbn nyhederne`,
+`Åbn beskeden`, …), a coordinated rename to the tiles' names in the support helpers, in
+one commit. The two measured facts this phase leaves for it: "Åbn menuen" and "Åbn
+nyhederne" sit at y ≈ 1,082 on a 2,035 px dashboard at 375, below the fold. Nothing
+in 12A or 12B pre-empts it: the section bars' `‹ Tilbage` / `‹ Oversigt` labels and
+the dashboard's cards are exactly phase 4's.
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -5598,20 +5872,20 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 9 | News | **9A (done, §0q):** the list, the editor with the structured body (textarea form), per-item publish/unpublish behind confirmations, delete, the §7f slug policy end to end, the per-article Draft Mode preview target, and the public list/detail integration incl. unpublish → 404 — proven by `tests/e2e/news-admin.spec.ts` at 375 and 1440 and `supabase/tests/019`. **9B (done, §0r):** the B/Link structured editor, autosave, the `NewsArticle` JSON-LD, canonical/article metadata and the sitemap. The forside teaser has rendered since phase 3 and is verified against the news lifecycle | E2E 6 passes, incl. unpublish → 404 — **complete and locked** by the completion pass of 2026-09-01, recorded in §0s |
 | 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C-1 (done, §0v; hardened, §0w):** image selection in the dish/weekly/monthly/news editors through one shared picker pair, `image_references` as the one definition of "referenced", the draft-aware `delete_image()`/`replace_image()`, and the published `image_id` of the three draft entities guarded in the database — direct PostgREST writes refused, only publish/replace/detach move it (pgTAP `022`, `023`). **10C-2 (done, §0x):** the public `<picture>`/`srcset` rendering on the eight approved surfaces, the public read-model projection inside the tagged reads, the Draft Mode preview of pending images, the news `og:image` and JSON-LD `image`, and the per-entity cache coupling — `delete_image()`/`replace_image()` report the live references they moved (pgTAP `024`), the alt edit expires its live usages, and the first guest request after every public-changing image operation carries the new state (`tests/e2e/public-images.spec.ts`). **Complete and locked** by the completion pass of 2026-09-02 — the two no-image frames built, the cache/reference races classified, one clean regression chain — see §0y | E2E 7 passes whole: `image-library`, `editor-images` and `public-images` at 375 and 1440 |
 | 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Complete and locked** by the completion pass of 2026-09-03 — see §0ac |
-| 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B:** the News flow (1z). **12C:** the 1x / 1q dashboard | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad); the news half is 12B |
+| 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B (done, §0ae):** the complete News workflow at 375 px audited against 1z and made phone-first — the pinned editor bar with the badge and the autosave line, the B/Link toolbar and link panel stuck under it, fragment targets below the bar, the stacked confirmations, long titles and addresses that wrap, the public paragraph's wrap — with `tests/e2e/news-mobile.spec.ts` under its own `news-mobile` project. **12C:** the 1x / 1q dashboard | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad), the news half by `news-mobile` (§0ae); 12C remains |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project |
 | 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-09-03: phases 0–11 are complete and locked** — phase 10 as 10A
+**Status, 2026-09-04: phases 0–11 are complete and locked** — phase 10 as 10A
 (§0t), 10B (§0u), 10C-1 (§0v, hardened in §0w), 10C-2 (§0x) and the completion
 pass over all four (§0y); phase 11 as 11A — the Forsiden editor (§0z), 11B — Mad ud
 af huset and Kontaktoplysninger (§0aa), 11C — the user administration at
 `/admin/brugere` (§0ab), and the lock pass over all three (§0ac). **Phase 12 — the
 administration on a phone as the primary device (1x, 1y, 1z) — is in progress: 12A,
-the Menu workflow at 375 px, is complete (§0ad); 12B (News, 1z) and 12C (the 1x / 1q
-dashboard) remain, and the phase is not locked.** Phase 8's lock pass is
+the Menu workflow at 375 px, is complete (§0ad), 12B, the News workflow at 375 px, is
+complete (§0ae); 12C (the 1x / 1q dashboard) remains, and the phase is not locked.** Phase 8's lock pass is
 recorded in §0p, and **phase 9's in §0s**: 9A (the news administration's core, §0q) and
 9B (the B/Link body editor, autosave, the `NewsArticle` JSON-LD, canonical metadata and
 the sitemap, §0r) were read as one system, walked as Owner, Staff and guest against a

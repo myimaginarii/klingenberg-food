@@ -140,8 +140,12 @@ export function NewsEditorForm({
             name={fieldNames.title}
           />
 
-          {/* §7f: the admin shows the final URL under the title field. */}
-          <p className="text-ink-3 text-micro">
+          {/*
+            §7f: the admin shows the final URL under the title field. `wrap-anywhere`:
+            the address is one hyphenated run in monospace, and a 200-character title
+            ending in an unbroken word makes it wider than a phone (12B).
+          */}
+          <p className="text-ink-3 text-micro wrap-anywhere">
             {address === null ? (
               'Nyheden får sin adresse ud fra overskriften, når du gemmer.'
             ) : (

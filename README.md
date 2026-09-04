@@ -7,7 +7,7 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–11 complete and locked; phase 12A done, phase 12 open.** Phase 9's completion pass
+**Status: phases 0–11 complete and locked; phase 12A and 12B done, phase 12 open.** Phase 9's completion pass
 (2026-09-01) is recorded in technical plan §0s, phase 10A in §0t, phase 10B in
 §0u, phase 10C-1 in §0v/§0w, phase 10C-2 in §0x, and **phase 10's completion pass
 (2026-09-02) in §0y — the current truth of the whole image system.** The public site renders from the database;
@@ -646,8 +646,26 @@ animation the page's own effects measure against); the deletion confirmation sta
 its two choices with the safe one first; and "Luk" is 44 × 44. Phase 5's semantics,
 the desktop frame 1r and every locked phase-5 suite are unchanged;
 `tests/e2e/menu-mobile.spec.ts` runs the Staff story under its own `menu-mobile`
-project at the tail of the chain. Phase 12 is **not locked**: 12B is the News flow
-(1z) and 12C the 1x / 1q dashboard.
+project at the tail of the chain.
+
+**Phase 12B — the News administration on a phone as the primary device — is built
+and green (§0ae).** The whole `/admin/nyheder` workflow was walked at 375 px as Staff
+against a production build and measured against frame 1z: the editor's burgundy bar is
+now **pinned** to the top of the phone screen with the Kladde/Udgivet badge on its
+first row and the autosave line on a reserved second row, so "Gemt — ændringerne er på
+hjemmesiden" is in view while a published article is edited at its end (it was
+2,861 px above the viewport before); the **B / Link toolbar and its link panel stick
+under the bar**, so formatting is one tap away however long the article and the panel
+opens beside the selected words instead of at the top of the box; fragment targets
+land under the pinned bar; the publish, unpublish and delete confirmations stack their
+two choices with the safe one first; a 200-character title wraps on the list card, in
+the §7f address line and in the confirmation's question; and the public article
+paragraph wraps an unbroken run instead of scrolling the phone sideways. Phase 9's
+semantics — no draft column, published edits live on save, the autosave machine, the
+frozen slug, B and Link only, `https:` only — the desktop frame 1s and every locked
+phase-9 suite are unchanged; `tests/e2e/news-mobile.spec.ts` runs the Staff story
+under its own `news-mobile` project at the tail of the chain. Phase 12 is **not
+locked**: 12C is the 1x / 1q dashboard.
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published

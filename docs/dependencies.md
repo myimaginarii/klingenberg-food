@@ -3,6 +3,27 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 12B — no dependencies added (2026-09-04)
+
+**Phase 12B** (technical plan §0ae) — the News administration on a phone as the
+primary device — adds **no package**. `package.json` and the lockfile are
+byte-identical to the phase-12A state. The brief named what would have tempted one:
+a rich-text or editor library (not added — the 9B B/Link editor over
+`contenteditable` stays the feature, and the phone change is a sticky wrapper around
+its toolbar), a keyboard-detection or scroll-restoration script (not added — the
+pinned bar's height is a constant the layout is built on, not a measurement), and a
+mobile UI framework (not added — the phone is `max-md:` / `md:` variants over the same
+markup). The walkthrough was a temporary Playwright config and one spec file over the
+existing `@axe-core/playwright` and the e2e support helpers, deleted before the chain
+and never committed, as in the phase-10, 11 and 12A passes. No configuration changed.
+
+### `npm audit --audit-level=high` — clean
+
+Run from a clean `npm ci` as the first step of the phase-12B certification chain
+(2026-09-04): **0 vulnerabilities**.
+
+---
+
 ## Phase 12A — no dependencies added (2026-09-03)
 
 **Phase 12A** (technical plan §0ad) — the Menu administration on a phone as the

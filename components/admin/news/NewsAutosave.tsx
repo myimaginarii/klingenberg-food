@@ -230,17 +230,24 @@ export function NewsAutosave({
 
   return (
     <>
-      {line === null ? null : (
-        <p
-          className={
-            line.tone === 'alert'
-              ? 'max-w-[36ch] text-meta font-semibold text-white'
-              : 'text-meta text-white/70'
-          }
-        >
-          {line.text}
-        </p>
-      )}
+      {/*
+        The line's row is reserved on the phone (phase 12B): the bar is pinned to
+        the top of the screen there and the body editor's toolbar sticks *under* it
+        at a fixed offset, so the bar must not grow by a row the moment the first
+        keystroke turns the line on. From `md` an idle line renders nothing, as
+        before.
+      */}
+      <p
+        className={
+          line === null
+            ? 'max-md:min-h-5 max-md:basis-full md:hidden'
+            : line.tone === 'alert'
+              ? 'max-w-[36ch] text-meta font-semibold text-white max-md:basis-full'
+              : 'text-meta text-white/70 max-md:min-h-5 max-md:basis-full'
+        }
+      >
+        {line === null ? '' : line.text}
+      </p>
       {/*
         Only trouble is announced; routine "Gemt" updates stay visual (§19). The
         region is `aria-live` without `role="status"`, deliberately: the screen's

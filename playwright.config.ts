@@ -114,6 +114,10 @@ export default defineConfig({
         // by its one dedicated project at the tail. `--list` check: the file
         // appears under exactly `menu-mobile`.
         'e2e/menu-mobile.spec.ts',
+        // The phone-as-primary-device news story (phase 12B) — the same shape,
+        // owned by `news-mobile` alone. `--list` check: the file appears under
+        // exactly `news-mobile`.
+        'e2e/news-mobile.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -145,6 +149,7 @@ export default defineConfig({
         'e2e/contact-admin.spec.ts',
         'e2e/users-admin.spec.ts',
         'e2e/menu-mobile.spec.ts',
+        'e2e/news-mobile.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -683,6 +688,29 @@ export default defineConfig({
       name: 'menu-mobile',
       testMatch: 'e2e/menu-mobile.spec.ts',
       dependencies: ['users-admin'],
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 375, height: 812 },
+        hasTouch: true,
+      },
+    },
+    /*
+     * The news on a phone as the primary device (phase 12B) — the new tail.
+     *
+     * The same shape as `menu-mobile`, for the same reasons: the locked phase-9 pair
+     * runs every news operation at both widths, and this suite asserts what only a
+     * 375 px run can — the pinned bar with the Kladde/Udgivet badge and the autosave
+     * line in view at the end of a long article, B and Link one tap away there, the
+     * link panel opening in view, no scroll after an autosave, the three confirmations
+     * stacked with the safe way out first, the longest title and address wrapping, and
+     * 44 px targets throughout — with touch. Chained last: it publishes an article
+     * (the `news` tag) and uploads and removes a real library image. It leaves the seed
+     * as it found it.
+     */
+    {
+      name: 'news-mobile',
+      testMatch: 'e2e/news-mobile.spec.ts',
+      dependencies: ['menu-mobile'],
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 375, height: 812 },
