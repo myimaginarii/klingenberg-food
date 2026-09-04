@@ -52,7 +52,7 @@ export async function openAnnouncementAdmin(page: Page): Promise<void> {
  */
 export async function openAnnouncementAdminFromDashboard(page: Page): Promise<void> {
   await page.goto('/admin')
-  await page.getByRole('link', { name: 'Åbn beskeden' }).click()
+  await page.getByRole('link', { name: 'Rediger besked', exact: true }).click()
   await expect(announcementForm(page)).toBeVisible()
 }
 

@@ -14,6 +14,7 @@ import {
 } from '@/components/admin/weekly/WeeklyNotices'
 import { WeeklyDishEditor } from '@/components/admin/weekly/WeeklyDishEditor'
 import { ImagePickerDialog } from '@/components/admin/images/ImagePickerDialog'
+import { NoticeFoot } from '@/components/admin/NoticeFoot'
 import { ImagePickerField } from '@/components/admin/images/ImagePickerField'
 import { requireStaff } from '@/lib/auth/guards'
 import { readOpeningHours } from '@/lib/content/hours'
@@ -294,24 +295,42 @@ export default async function WeeklySpecialAdminPage({
       </AdminSectionBar>
 
       <main className="mx-auto flex max-w-content flex-col gap-4 px-gutter py-6 md:px-8">
-        <WeeklyStatusNotice status={one(params[WEEKLY_PARAM.status])} />
-        <WeeklyMalformedDraftNotice malformed={weekly.draftMalformed} />
+        {/*
+          THE FOOT (phase 12C) — what just happened, at the bottom of the phone screen.
 
-        {undoTarget === undefined || undoVersion === undefined || undoSoldOut === undefined ? null : (
-          <WeeklyAvailabilityUndo
-            form={AVAILABILITY_FORM_BINDING}
-            label={WEEKLY_TARGET_NAMES[undoTarget]}
-            // The strip reports what just happened, which is the opposite of what
-            // Fortryd would restore.
-            message={describeWeeklyAvailabilityChange({
-              target: undoTarget,
-              soldOut: undoSoldOut !== '1',
-            })}
-            restoreSoldOut={undoSoldOut === '1'}
-            target={undoTarget}
-            version={undoVersion}
-          />
-        )}
+          Every save and every Udsolgt press redirects to the card's own fragment
+          (`#ugens-ret`, `#loerdagsmenu`), which scrolls that card to the top of the
+          screen — and put the status notice and the green Fortryd strip, rendered
+          above it, out of sight: measured before this change at 375 px, the strip was
+          279 px above the viewport after a press on Ugens ret and 1,694 px above it
+          after one on Lørdagsmenuen; the "gemt som kladde" notice 447 px above it.
+          `NoticeFoot` is the container 1y draws for exactly this (the Menu's since
+          12A): sticky to the bottom of the phone screen, first in the DOM, an ordinary
+          block from `md`. The pending band stays in flow above the cards — 12A's rule
+          for an editor: a publish control is not pinned under a thumb scrolling a
+          half-typed form.
+        */}
+        <NoticeFoot>
+          <WeeklyStatusNotice status={one(params[WEEKLY_PARAM.status])} />
+
+          {undoTarget === undefined || undoVersion === undefined || undoSoldOut === undefined ? null : (
+            <WeeklyAvailabilityUndo
+              form={AVAILABILITY_FORM_BINDING}
+              label={WEEKLY_TARGET_NAMES[undoTarget]}
+              // The strip reports what just happened, which is the opposite of what
+              // Fortryd would restore.
+              message={describeWeeklyAvailabilityChange({
+                target: undoTarget,
+                soldOut: undoSoldOut !== '1',
+              })}
+              restoreSoldOut={undoSoldOut === '1'}
+              target={undoTarget}
+              version={undoVersion}
+            />
+          )}
+        </NoticeFoot>
+
+        <WeeklyMalformedDraftNotice malformed={weekly.draftMalformed} />
 
         <WeeklyPendingNotice action={publishWeeklySpecial} sentences={pendingSentences} />
 

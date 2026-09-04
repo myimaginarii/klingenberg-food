@@ -29,8 +29,12 @@ async function violations(page: Page) {
   }))
 }
 
-/** The dashboard's links that stand on their own, rather than inside a sentence. */
-const STANDALONE_DASHBOARD_LINKS = ['Åbn menuen', 'Åbn beskeden', 'Åbn mad ud af huset', 'Åbn indhold'] as const
+/**
+ * The dashboard's links that stand on their own — 1x / 1q's tiles (phase 12C), named by
+ * the words on them: a Staff member's four everyday destinations and the announcement
+ * card's own control.
+ */
+const STANDALONE_DASHBOARD_LINKS = ['Rediger menu', 'Rediger besked', 'Mad ud af huset', 'Om os', 'Se hjemmesiden'] as const
 
 test.describe('the administration', () => {
   test('the dashboard has no accessibility violations', async ({ page }) => {
@@ -42,19 +46,17 @@ test.describe('the administration', () => {
   /**
    * The dashboard's standalone links, held to 1aa's 44 px minimum target.
    *
-   * Named one by one rather than swept up by a selector, because the dashboard also
-   * carries a link that is genuinely *inside a sentence* — "Ejer-området" — and WCAG
-   * 2.2's target-size criterion exempts a control whose position is determined by the
-   * flow of the text around it. A blanket "every link on the page" assertion would
-   * either fail on that link or have to guess which links are prose, and guessing is
-   * how the exemption quietly grows. This list is the set of links that stand on their
-   * own, and it grows only when a screen adds one.
+   * Named one by one rather than swept up by a selector, so the list is the set of
+   * links that stand on their own — 1x's 68 px rows and the bar's control — and it
+   * grows only when a screen adds one. Since phase 12C no link on the dashboard sits
+   * inside a sentence; the phase-1 "Ejer-området" line, the one WCAG 2.2 target-size
+   * exemption the old dashboard relied on, is gone with the card it lived in.
    */
   test('every standalone link on the dashboard is a 44 px target', async ({ page }) => {
     await signIn(page, STAFF)
 
     for (const name of STANDALONE_DASHBOARD_LINKS) {
-      const link = page.getByRole('link', { name })
+      const link = page.getByRole('link', { name, exact: true })
       await expect(link).toHaveCount(1)
 
       const box = await link.boundingBox()

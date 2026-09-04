@@ -115,8 +115,8 @@ test.afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 test('the Owner opens Brugere: both seeded accounts in words, the last-owner sentence, no delete, accessibly', async () => {
-  await expect(ownerPage.getByRole('link', { name: 'Åbn brugerne' })).toBeVisible()
-  await tallEnough(ownerPage.getByRole('link', { name: 'Åbn brugerne' }))
+  await expect(ownerPage.getByRole('link', { name: 'Brugere', exact: true })).toBeVisible()
+  await tallEnough(ownerPage.getByRole('link', { name: 'Brugere', exact: true }))
 
   await openUsersAdmin(ownerPage)
 
@@ -235,10 +235,10 @@ test('the invitee follows the link, chooses a password, and is a Staff member: n
 }) => {
   const invitee = await acceptInvitation(browser, INVITEE_EMAIL, INVITEE_PASSWORD)
 
-  await expect(invitee.page.getByRole('heading', { level: 1 })).toHaveText(`Hej, ${INVITEE_NAME}`)
+  await expect(invitee.page.getByText(`Logget ind som ${INVITEE_NAME}`)).toBeVisible()
   await expect(invitee.page.getByText('Din adgangskode er skiftet.')).toBeVisible()
-  await expect(invitee.page.getByRole('link', { name: 'Åbn brugerne' })).toHaveCount(0)
-  await expect(invitee.page.getByRole('link', { name: 'Åbn menuen' })).toBeVisible()
+  await expect(invitee.page.getByRole('link', { name: 'Brugere', exact: true })).toHaveCount(0)
+  await expect(invitee.page.getByRole('link', { name: 'Rediger menu', exact: true })).toBeVisible()
 
   await invitee.page.goto(USERS_ADMIN_PATH)
   await expect(invitee.page).toHaveURL(/\/admin\/ingen-adgang/)
@@ -260,7 +260,7 @@ test('promoting the invitee: the confirmation names them, Esc cancels and return
   const invitee = await browser.newContext()
   const inviteePage = await invitee.newPage()
   await signIn(inviteePage, { email: INVITEE_EMAIL, password: INVITEE_PASSWORD })
-  await expect(inviteePage.getByRole('link', { name: 'Åbn brugerne' })).toHaveCount(0)
+  await expect(inviteePage.getByRole('link', { name: 'Brugere', exact: true })).toHaveCount(0)
 
   await openUsersAdmin(ownerPage)
   const row = userRow(ownerPage, INVITEE_EMAIL)
@@ -290,7 +290,7 @@ test('promoting the invitee: the confirmation names them, Esc cancels and return
 
   // The invitee's EXISTING session, with its old JWT: the next request is an owner's.
   await inviteePage.goto('/admin')
-  await expect(inviteePage.getByRole('link', { name: 'Åbn brugerne' })).toBeVisible()
+  await expect(inviteePage.getByRole('link', { name: 'Brugere', exact: true })).toBeVisible()
   await inviteePage.goto(USERS_ADMIN_PATH)
   await expect(inviteePage.getByRole('heading', { level: 1 })).toHaveText('Brugere')
 
@@ -323,7 +323,7 @@ test('demoting the invitee back makes the Owner the last active owner again: ref
   await inviteePage.goto(USERS_ADMIN_PATH)
   await expect(inviteePage).toHaveURL(/\/admin\/ingen-adgang/)
   await inviteePage.goto('/admin')
-  await expect(inviteePage.getByRole('link', { name: 'Åbn brugerne' })).toHaveCount(0)
+  await expect(inviteePage.getByRole('link', { name: 'Brugere', exact: true })).toHaveCount(0)
   await invitee.close()
 
   // The screen: the Owner's row is the last active owner again.
@@ -380,7 +380,7 @@ test('deactivating the invitee: the confirmation is destructive, their open sess
   const invitee = await browser.newContext()
   const inviteePage = await invitee.newPage()
   await signIn(inviteePage, { email: INVITEE_EMAIL, password: INVITEE_PASSWORD })
-  await expect(inviteePage.getByRole('heading', { level: 1 })).toHaveText(`Hej, ${INVITEE_NAME}`)
+  await expect(inviteePage.getByText(`Logget ind som ${INVITEE_NAME}`)).toBeVisible()
 
   await openUsersAdmin(ownerPage)
   const dialog = await openConfirmation(ownerPage, userRow(ownerPage, INVITEE_EMAIL), /^Deaktivér/)
@@ -463,8 +463,8 @@ test('reactivating the invitee restores sign-in with the existing role', async (
   const invitee = await browser.newContext()
   const inviteePage = await invitee.newPage()
   await signIn(inviteePage, { email: INVITEE_EMAIL, password: INVITEE_PASSWORD })
-  await expect(inviteePage.getByRole('heading', { level: 1 })).toHaveText(`Hej, ${INVITEE_NAME}`)
-  await expect(inviteePage.getByRole('link', { name: 'Åbn brugerne' })).toHaveCount(0)
+  await expect(inviteePage.getByText(`Logget ind som ${INVITEE_NAME}`)).toBeVisible()
+  await expect(inviteePage.getByRole('link', { name: 'Brugere', exact: true })).toHaveCount(0)
   await invitee.close()
 
   expect((await listLocalAccountAudit(inviteeId)).map((entry) => entry.action)).toEqual([
@@ -528,7 +528,7 @@ test('a second owner may deactivate themselves: their session ends at once; reac
   await confirm(secondPage, selfDemote, /^Gør til medarbejder/)
   await expect(secondPage).toHaveURL(/\/admin\?besked=rolle-skiftet/)
   await expect(secondPage.getByText('Din rolle er nu medarbejder.')).toBeVisible()
-  await expect(secondPage.getByRole('link', { name: 'Åbn brugerne' })).toHaveCount(0)
+  await expect(secondPage.getByRole('link', { name: 'Brugere', exact: true })).toHaveCount(0)
   await secondPage.goto(USERS_ADMIN_PATH)
   await expect(secondPage).toHaveURL(/\/admin\/ingen-adgang/)
   await second.close()
@@ -547,7 +547,7 @@ test('a Staff member is refused the tile, the address, the transitions and the r
   const staffPage = await context.newPage()
   await signIn(staffPage, STAFF)
 
-  await expect(staffPage.getByRole('link', { name: 'Åbn brugerne' })).toHaveCount(0)
+  await expect(staffPage.getByRole('link', { name: 'Brugere', exact: true })).toHaveCount(0)
   await staffPage.goto(USERS_ADMIN_PATH)
   await expect(staffPage).toHaveURL(/\/admin\/ingen-adgang/)
   await expect(staffPage.getByRole('form', { name: 'Invitér en ny bruger' })).toHaveCount(0)

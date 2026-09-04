@@ -37,7 +37,7 @@ test.afterAll(async () => {
 
 test('the Owner\'s dashboard tile is a 44 px target', async () => {
   await page.goto('/admin')
-  const link = page.getByRole('link', { name: 'Åbn brugerne' })
+  const link = page.getByRole('link', { name: 'Brugere', exact: true })
   await expect(link).toHaveCount(1)
   expect((await link.boundingBox())?.height ?? 0).toBeGreaterThanOrEqual(44)
 })
@@ -106,7 +106,7 @@ test('a Staff member is sent to the "no access" page, not shown a locked screen'
   const staffPage = await context.newPage()
   await signIn(staffPage, STAFF)
 
-  await expect(staffPage.getByRole('link', { name: 'Åbn brugerne' })).toHaveCount(0)
+  await expect(staffPage.getByRole('link', { name: 'Brugere', exact: true })).toHaveCount(0)
   await staffPage.goto(PATH)
   await expect(staffPage).toHaveURL(/\/admin\/ingen-adgang/)
   await expect(staffPage.getByRole('form', { name: 'Invitér en ny bruger' })).toHaveCount(0)

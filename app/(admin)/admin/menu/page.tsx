@@ -9,6 +9,7 @@ import { DishEditorPanel } from '@/components/admin/menu/DishEditorPanel'
 import { DishList } from '@/components/admin/menu/DishList'
 import { TapasEditor } from '@/components/admin/menu/TapasEditor'
 import { MenuPendingNotice } from '@/components/admin/menu/MenuPendingNotice'
+import { NoticeFoot } from '@/components/admin/NoticeFoot'
 import { MenuStatusNotice } from '@/components/admin/menu/MenuStatusNotice'
 import { MonthlyBurgerNotice } from '@/components/admin/menu/MonthlyBurgerNotice'
 import { WeeklySpecialNotice } from '@/components/admin/menu/WeeklySpecialNotice'
@@ -399,7 +400,10 @@ export default async function MenuAdminPage({
           always been: the tab order and a screen reader's reading order are unchanged
           at every width, the live regions are already in the tree before their text
           arrives, and from `md` up the container is an ordinary block exactly where 1r
-          draws its contents. It is rendered only when it has something to hold.
+          draws its contents. It is rendered only when it has something to hold. Since
+          phase 12C the container is `NoticeFoot`, shared with Ugens ret, Månedens
+          burger, Åbningstider and Besked på hjemmesiden, which measured the same
+          defect; what each screen puts into it stays that screen's decision.
 
           What it holds: the two immediate strips always; the pending band only while
           the *list* is the screen. With the editor open the band sits in flow above
@@ -407,7 +411,7 @@ export default async function MenuAdminPage({
           that is scrolling a half-typed form is the one thing 1y does not draw.
         */}
         {undoOffered || deleteOffered || (!editorOpen && menuPending.length > 0) ? (
-          <div className="flex flex-col gap-3 max-md:sticky max-md:bottom-0 max-md:z-10 max-md:order-last max-md:-mx-gutter max-md:-mb-6 max-md:border-t max-md:border-border max-md:bg-bg max-md:px-gutter max-md:py-3 md:gap-4">
+          <NoticeFoot>
             {!undoOffered ? null : (
               <AvailabilityUndo
                 dishId={undoDish.id}
@@ -449,7 +453,7 @@ export default async function MenuAdminPage({
             {editorOpen ? null : (
               <MenuPendingNotice action={publishMenuChanges} pending={menuPending} />
             )}
-          </div>
+          </NoticeFoot>
         ) : null}
 
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-5">

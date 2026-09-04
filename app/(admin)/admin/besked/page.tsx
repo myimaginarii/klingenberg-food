@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 
 import { AnnouncementEditor } from '@/components/admin/announcement/AnnouncementEditor'
+import { NoticeFoot } from '@/components/admin/NoticeFoot'
 import {
   AnnouncementMalformedDraftNotice,
   AnnouncementPendingNotice,
@@ -296,24 +297,33 @@ export default async function AnnouncementAdminPage({
       </AdminSectionBar>
 
       <main className="mx-auto flex max-w-content flex-col gap-4 px-gutter py-6 md:px-8">
-        <AnnouncementStatusNotice status={one(params[ANNOUNCEMENT_PARAM.status])} />
-        <AnnouncementMalformedDraftNotice malformed={announcement.draftMalformed} />
-
         {/*
-          The ~10 s Fortryd (§6, 1aa). The change is already live when this renders: the
-          column moved, the `announcement` tag was expired and an audit row was written
-          before the redirect that produced this URL.
+          THE FOOT (phase 12C) — the status notice and the ~10 s Fortryd (§6, 1aa) at
+          the bottom of the phone screen. Every press here redirects to the card's own
+          fragment (`#besked`), which scrolls it to the top and left both above the
+          viewport: measured before this change at 375 px, the strip sat 353 px above it
+          after "Vis besked" was switched off. `NoticeFoot` is the container 1y draws
+          for exactly this: sticky to the bottom of the phone screen, first in the DOM,
+          an ordinary block from `md`. The change is already live when the strip
+          renders: the column moved, the `announcement` tag was expired and an audit row
+          was written before the redirect that produced this URL.
         */}
-        {undoVersion === undefined || undoVisible === undefined ? null : (
-          <AnnouncementVisibilityUndo
-            form={visibilityForm}
-            // The strip reports the state the bar is in **now**, which is the opposite of
-            // what Fortryd would restore.
-            message={describeAnnouncementVisibilityChange({ visible: undoVisible !== '1' })}
-            restoreVisible={undoVisible === '1'}
-            version={undoVersion}
-          />
-        )}
+        <NoticeFoot>
+          <AnnouncementStatusNotice status={one(params[ANNOUNCEMENT_PARAM.status])} />
+
+          {undoVersion === undefined || undoVisible === undefined ? null : (
+            <AnnouncementVisibilityUndo
+              form={visibilityForm}
+              // The strip reports the state the bar is in **now**, which is the opposite of
+              // what Fortryd would restore.
+              message={describeAnnouncementVisibilityChange({ visible: undoVisible !== '1' })}
+              restoreVisible={undoVisible === '1'}
+              version={undoVersion}
+            />
+          )}
+        </NoticeFoot>
+
+        <AnnouncementMalformedDraftNotice malformed={announcement.draftMalformed} />
 
         {/*
           1ad: "Offentliggør er nedtonet, indtil feltet er gyldigt." A greyed-out control

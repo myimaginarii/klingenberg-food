@@ -150,7 +150,10 @@ test('publishing puts the draft live', async () => {
   await publishOnly(staffPage, [ABOUT_PENDING])
 
   await expect(staffPage.getByRole('status').first()).toContainText('offentliggjort')
-  await expect(staffPage.getByText(ABOUT_PENDING)).toHaveCount(0)
+  // Scoped to the pending list: since phase 12C the dashboard carries an "Om os" tile.
+  await expect(
+    staffPage.getByRole('form', { name: 'Ændringer der venter' }).getByText(ABOUT_PENDING),
+  ).toHaveCount(0)
 })
 
 test('the next public request shows the published value immediately', async ({ browser }) => {
@@ -280,7 +283,7 @@ test('staff cannot publish the owner-only Forsiden, even by submitting it direct
     checkbox.disabled = false
     checkbox.checked = true
   })
-  await form.getByRole('button', { name: 'Offentliggør valgte ændringer' }).click()
+  await form.getByRole('button', { name: 'Offentliggør', exact: true }).click()
   await staffPage.waitForURL(/\/admin\?[a-z_]+=/)
 
   await expect(staffPage.getByRole('status').first()).toContainText('kræver ejer-adgang')

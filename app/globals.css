@@ -275,6 +275,18 @@
     }
   }
 
+  /* The foot of a phone screen (phase 12A/12C, `NoticeFoot`): the Fortryd strip, a
+     status notice and the pending band stick to the bottom of the viewport below `md`.
+     A control the browser scrolls into view at the bottom edge — a fragment target, a
+     focused field — must land above the foot rather than under it. 11rem is the room a
+     strip and a band take together, with their padding; nothing from `md` up, where the
+     foot is an ordinary block. */
+  @media (width < 48rem) {
+    html:has(.admin-foot) {
+      scroll-padding-bottom: 11rem;
+    }
+  }
+
   /* Bevægelse respekterer prefers-reduced-motion (1aa "BEVÆGELSE"). */
   @media (prefers-reduced-motion: reduce) {
     html {

@@ -663,6 +663,6 @@ test('the run restores the seed: the words, the sections, the button, visible, n
 
 test('the tile is on the dashboard for a staff member, and the address is theirs', async () => {
   await staffPage.goto('/admin')
-  await staffPage.getByRole('link', { name: 'Åbn mad ud af huset' }).click()
+  await staffPage.getByRole('link', { name: 'Mad ud af huset', exact: true }).click()
   await expect(staffPage).toHaveURL(TAKEAWAY_ADMIN_PATH)
 })

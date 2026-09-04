@@ -3,6 +3,30 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 12C — no dependencies added (2026-09-04)
+
+**Phase 12C** (technical plan §0af) — the 1x / 1q dashboard and the phone audit of the
+remaining operational screens — adds **no package**. `package.json` and the lockfile
+are byte-identical to the phase-12B state. What would have tempted one, and why none is
+here: an icon set for the tiles (not added — the frames' glyphs are bordered boxes,
+drawn as such, `aria-hidden`, with the label carrying the meaning), a dashboard or
+charting library (not added — the frames draw three rows of numbers, computed by one
+pure module from the published rows), a state or data-fetching layer for the "read
+model" (not added — the page reads through the reads every admin screen already uses,
+under React's per-request `cache`), and a sticky/positioning helper for the shared
+foot (not added — `NoticeFoot` is one `<div>` of `max-md:` variants). The walkthrough
+was the same temporary Playwright config and two spec files over `@axe-core/playwright`
+and the e2e support helpers as in the phase-10, 11, 12A and 12B passes, deleted before
+the chain and never committed. No configuration changed beyond one new Playwright
+project.
+
+### `npm audit --audit-level=high` — clean
+
+Run from a clean `npm ci` as the first step of the phase-12C certification chain
+(2026-09-04): **0 vulnerabilities**.
+
+---
+
 ## Phase 12B — no dependencies added (2026-09-04)
 
 **Phase 12B** (technical plan §0ae) — the News administration on a phone as the

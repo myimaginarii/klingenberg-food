@@ -14,6 +14,7 @@ import {
   MonthlyStateBanner,
 } from '@/components/admin/monthly/MonthlyStateBanner'
 import { ImagePickerDialog } from '@/components/admin/images/ImagePickerDialog'
+import { NoticeFoot } from '@/components/admin/NoticeFoot'
 import { ImagePickerField } from '@/components/admin/images/ImagePickerField'
 import { requireStaff } from '@/lib/auth/guards'
 import { readOpeningHours } from '@/lib/content/hours'
@@ -262,22 +263,33 @@ export default async function MonthlyBurgerAdminPage({
       </AdminSectionBar>
 
       <main className="mx-auto flex max-w-content flex-col gap-4 px-gutter py-6 md:px-8">
-        <MonthlyStatusNotice
-          scheduledMessage={describeScheduledPublish(burger.live.starts_on, now)}
-          status={one(params[MONTHLY_PARAM.status])}
-        />
-        <MonthlyMalformedDraftNotice malformed={burger.draftMalformed} />
-
-        {undoVersion === undefined || undoSoldOut === undefined ? null : (
-          <MonthlyAvailabilityUndo
-            form={AVAILABILITY_FORM_BINDING}
-            // The strip reports what just happened, which is the opposite of what
-            // Fortryd would restore.
-            message={describeMonthlyAvailabilityChange({ soldOut: undoSoldOut !== '1' })}
-            restoreSoldOut={undoSoldOut === '1'}
-            version={undoVersion}
+        {/*
+          THE FOOT (phase 12C) — the status notice and the Fortryd strip at the bottom
+          of the phone screen. The card's fragment (`#maanedens-burger`) scrolls the
+          card to the top and left both above the viewport: measured before this change
+          at 375 px, the strip sat 496 px above it after an Udsolgt press, the "gemt som
+          kladde" notice 496 px above it after Gem. See the Ugens ret screen and
+          `NoticeFoot`; the pending band stays in flow, as on every editor.
+        */}
+        <NoticeFoot>
+          <MonthlyStatusNotice
+            scheduledMessage={describeScheduledPublish(burger.live.starts_on, now)}
+            status={one(params[MONTHLY_PARAM.status])}
           />
-        )}
+
+          {undoVersion === undefined || undoSoldOut === undefined ? null : (
+            <MonthlyAvailabilityUndo
+              form={AVAILABILITY_FORM_BINDING}
+              // The strip reports what just happened, which is the opposite of what
+              // Fortryd would restore.
+              message={describeMonthlyAvailabilityChange({ soldOut: undoSoldOut !== '1' })}
+              restoreSoldOut={undoSoldOut === '1'}
+              version={undoVersion}
+            />
+          )}
+        </NoticeFoot>
+
+        <MonthlyMalformedDraftNotice malformed={burger.draftMalformed} />
 
         <MonthlyPendingNotice action={publishMonthlyBurger} sentence={pending} />
 

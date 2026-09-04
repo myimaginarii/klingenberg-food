@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation'
 
 import { Notice } from '@/components/admin/Notice'
+import { NoticeFoot } from '@/components/admin/NoticeFoot'
 import {
   HoursMalformedDraftNotice,
   HoursPendingNotice,
@@ -437,8 +438,38 @@ export default async function OpeningHoursAdminPage({
       </AdminSectionBar>
 
       <main className="mx-auto flex max-w-content flex-col gap-4 px-gutter py-6 md:px-8">
-        <HoursStatusNotice status={status} />
-        <OverrideStatusNotice status={status} />
+        {/*
+          THE FOOT (phase 12C) — the two status notices and the announcement's report,
+          with its Fortryd strip, at the bottom of the phone screen.
+
+          "Gem og offentliggør" redirects to the one-off card's own fragment, which
+          scrolls the card to the top — and the green strip, rendered above it, sat
+          115 px above the viewport at 375 px for Staff and Owner alike at the moment
+          its ten seconds started (measured before this change). `NoticeFoot` is the
+          container 1y draws for exactly this: sticky to the bottom of the phone screen,
+          first in the DOM, an ordinary block from `md`. The announcement's report moves
+          up the DOM to join the hours' two notices here — from `md` it now stands at
+          the top of the column rather than between the two cards, which is where the
+          other screens' reports stand. Nothing about what it says, or what Fortryd
+          does, changed.
+        */}
+        <NoticeFoot>
+          <HoursStatusNotice status={status} />
+          <OverrideStatusNotice status={status} />
+          <OverrideAnnouncementNotice
+            key={undoToken ?? announcementStatus ?? 'ingen'}
+            outcome={outcome}
+            undo={
+              undoToken === undefined
+                ? null
+                : {
+                    action: undoGeneratedAnnouncement,
+                    fieldName: OVERRIDE_UNDO_FORM.version,
+                    version: undoToken,
+                  }
+            }
+          />
+        </NoticeFoot>
 
         {isOwner && hours !== null && weeklyValues !== null ? (
           <>
@@ -469,24 +500,10 @@ export default async function OpeningHoursAdminPage({
         )}
 
         {/*
-          The announcement's own report, beside the hours' own above. `undo` turns the same
-          sentence into 1aa's green strip with Fortryd in it — ten seconds, `role="status"`,
-          and it never takes focus.
+          The announcement's own report stands in the foot above, beside the hours' own:
+          `undo` turns the same sentence into 1aa's green strip with Fortryd in it — ten
+          seconds, `role="status"`, and it never takes focus.
         */}
-        <OverrideAnnouncementNotice
-          key={undoToken ?? announcementStatus ?? 'ingen'}
-          outcome={outcome}
-          undo={
-            undoToken === undefined
-              ? null
-              : {
-                  action: undoGeneratedAnnouncement,
-                  fieldName: OVERRIDE_UNDO_FORM.version,
-                  version: undoToken,
-                }
-          }
-        />
-
         <OverrideMalformedDraftNotice malformed={selected?.draftMalformed ?? false} />
 
         <OverridePendingNotice

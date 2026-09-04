@@ -589,7 +589,7 @@ test('a Staff member is refused the editor, the action and the row', async ({ br
   await signIn(staffPage, STAFF)
 
   // No tile on the dashboard, and the address itself is refused.
-  await expect(staffPage.getByRole('link', { name: 'Åbn forsiden' })).toHaveCount(0)
+  await expect(staffPage.getByRole('link', { name: 'Rediger forsiden', exact: true })).toHaveCount(0)
   await staffPage.goto(HOME_ADMIN_PATH)
   await expect(staffPage).toHaveURL(/\/admin\/ingen-adgang/)
   await expect(staffPage.getByRole('form', { name: HOME_CARDS.hero })).toHaveCount(0)

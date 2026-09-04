@@ -135,7 +135,7 @@ test.afterAll(async () => {
 
 test('the dashboard leads to the image library', async () => {
   await staffPage.goto('/admin')
-  await staffPage.getByRole('link', { name: 'Åbn billederne' }).click()
+  await staffPage.getByRole('link', { name: 'Billeder', exact: true }).click()
 
   await expect(staffPage.getByRole('heading', { level: 1 })).toHaveText('Billeder')
 })

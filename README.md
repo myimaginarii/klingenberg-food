@@ -123,8 +123,8 @@ Four things are worth knowing about it:
 
 **Phase 8 is complete and locked** — the completion pass of 2026-08-31 is recorded in
 technical plan §0p, which is the statement of what "phase 8" is in force today. `/admin`
-itself is still the **foundation-level** dashboard from phase 4 plus the menu, announcement,
-opening-hours and news entries — the remaining section screens arrive in their own phases.
+itself is the 1x / 1q dashboard since phase 12C (§0af): the tiles, the announcement card,
+the pending band and LIGE NU, read from the locked systems.
 
 **Phase 9A** is finished: **Nyheder** (`/admin/nyheder`) is the news administration's core —
 the list, writing an article, §7f's generated-and-frozen slug shown under the title,
@@ -664,8 +664,32 @@ paragraph wraps an unbroken run instead of scrolling the phone sideways. Phase 9
 semantics — no draft column, published edits live on save, the autosave machine, the
 frozen slug, B and Link only, `https:` only — the desktop frame 1s and every locked
 phase-9 suite are unchanged; `tests/e2e/news-mobile.spec.ts` runs the Staff story
-under its own `news-mobile` project at the tail of the chain. Phase 12 is **not
-locked**: 12C is the 1x / 1q dashboard.
+under its own `news-mobile` project at the tail of the chain.
+
+**Phase 12C — the dashboard on a phone, and the rest of the phone's operational
+screens — is built and green (§0af).** `/admin` is now frames 1x and 1q: the burgundy
+bar with the account, the amber band ("2 ændringer er ikke offentliggjort" with
+Forhåndsvis and Offentliggør, and the phase-4 per-item list beneath it), "Hej — hvad
+vil du lave?" over today's hours, the announcement card reading the published state
+with "Rediger besked", the tiles — 68 px rows on the phone, a grid from 768 — named by
+the words on them (Rediger menu, Skriv en nyhed, Åbningstider, Billeder, Mad ud af
+huset, …; Rediger forsiden, Kontaktoplysninger and Brugere for the Owner), and LIGE NU.
+The dashboard is a **read model** over the locked systems (`lib/admin/dashboard.ts`):
+no table, no cache, no metric the frames did not draw, and which tiles a person sees
+comes from the entity registry's `requiredRole` through the same `mayChangeEntity()`
+the publish action asks — a courtesy, never a permission. The phase-4 "Åbn …" links
+are gone, and the twelve locked suites that addressed them were migrated to the tiles'
+names in the same commit. The audit of the other operational screens at 375 px found
+one defect four times over — Ugens ret, Månedens burger, Besked på hjemmesiden and
+Åbningstider all redirected to a card's fragment and left their ten-second Fortryd
+strip and their status notice above the viewport (115–1,694 px) — and closed it with
+one shared foot (`components/admin/NoticeFoot.tsx`, 12A's inline container made a
+component the Menu uses too): sticky to the bottom of the phone screen, first in the
+DOM, an ordinary block from `md`. The image library and the phase-11 editors were
+green and untouched. `tests/e2e/dashboard-mobile.spec.ts` runs the Staff and Owner
+story under its own `dashboard-mobile` project at the tail of the chain. Phase 12 is
+**not locked**: the completion pass over 12A–12C remains, and its scope is recorded at
+the end of §0af.
 
 What the **announcement** deliberately does not do is now split across two records. §0h
 lists what phase 7 does not do, and "restore" there means visibility of the same published

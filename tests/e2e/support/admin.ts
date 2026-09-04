@@ -75,7 +75,7 @@ export async function publishOnly(page: Page, titles: readonly string[]): Promis
     await form.getByRole('checkbox', { name: title }).check()
   }
 
-  await form.getByRole('button', { name: 'Offentliggør valgte ændringer' }).click()
+  await form.getByRole('button', { name: 'Offentliggør', exact: true }).click()
 
   // Same reason: the action redirects back with one count per outcome.
   await page.waitForURL(/\/admin\?[a-z_]+=/)

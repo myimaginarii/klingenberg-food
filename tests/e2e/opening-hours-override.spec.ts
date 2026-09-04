@@ -123,7 +123,7 @@ test('a staff member reaches the card from the dashboard', async () => {
 
   // Phase 8A's tile was Owner-only and absent here. §5 puts the one-off change in both
   // columns, so the tile is now drawn for staff too — with 1q's own wording for it.
-  await staffPage.getByRole('link', { name: 'Ret tider for en dag' }).click()
+  await staffPage.getByRole('link', { name: 'Åbningstider', exact: true }).click()
 
   await expect(staffPage).toHaveURL(new RegExp(HOURS_ADMIN_PATH))
   await expect(overrideForm(staffPage)).toBeVisible()

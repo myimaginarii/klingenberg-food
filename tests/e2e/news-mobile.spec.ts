@@ -244,7 +244,7 @@ test.afterAll(async () => {
 
 test('a staff member reaches Nyheder from the dashboard, and the list fits the phone', async () => {
   await staffPage.goto('/admin')
-  await staffPage.getByRole('link', { name: 'Åbn nyhederne' }).click()
+  await staffPage.getByRole('link', { name: 'Skriv en nyhed', exact: true }).click()
 
   await expect(staffPage.getByRole('heading', { level: 1 })).toHaveText('Nyheder')
   await expect(banner(staffPage).getByRole('link', { name: /Tilbage/ })).toHaveAttribute('href', '/admin')

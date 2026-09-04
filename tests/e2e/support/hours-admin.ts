@@ -57,7 +57,7 @@ export async function openHoursAdmin(page: Page): Promise<void> {
 /** Reach the editor the way an owner does — from the dashboard tile. */
 export async function openHoursAdminFromDashboard(page: Page): Promise<void> {
   await page.goto('/admin')
-  await page.getByRole('link', { name: 'Åbn åbningstiderne' }).click()
+  await page.getByRole('link', { name: 'Åbningstider', exact: true }).click()
   await expect(hoursForm(page)).toBeVisible()
 }
 

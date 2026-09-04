@@ -232,7 +232,7 @@ test.afterAll(async () => {
 
 test('a staff member reaches Rediger menu from the dashboard, and the screen fits the phone', async () => {
   await staffPage.goto('/admin')
-  await staffPage.getByRole('link', { name: 'Åbn menuen' }).click()
+  await staffPage.getByRole('link', { name: 'Rediger menu', exact: true }).click()
 
   await expect(staffPage.getByRole('heading', { level: 1 })).toHaveText('Rediger menu')
   await expect(staffPage.getByRole('banner').getByRole('link', { name: /Tilbage/ })).toHaveAttribute('href', '/admin')
@@ -630,7 +630,7 @@ test('the Owner meets the same phone screen and the same publish path', async ({
   await signIn(ownerPage, OWNER)
 
   await ownerPage.goto('/admin')
-  await ownerPage.getByRole('link', { name: 'Åbn menuen' }).click()
+  await ownerPage.getByRole('link', { name: 'Rediger menu', exact: true }).click()
   await expect(ownerPage.getByRole('heading', { level: 1 })).toHaveText('Rediger menu')
   expect(await insideViewport(barPublish(ownerPage))).toBe(true)
   expect(await scrollsSideways(ownerPage)).toBe(false)

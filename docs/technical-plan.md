@@ -4860,6 +4860,396 @@ the dashboard's cards are exactly phase 4's.
 
 ---
 
+## §0af. Phase 12C — the dashboard on a phone, and the rest of the phone's operational screens (2026-09-04)
+
+The third increment of phase 12 (§15): the administration's landing screen built to
+frames **1x** ("Oversigt — mobil") and **1q** ("Oversigt — desktop"), and an audit of
+the operational screens the phone reaches from it that 12A and 12B had not walked —
+Ugens ret, Månedens burger, Besked på hjemmesiden, Åbningstider, the image library and
+the phase-11 editors. Phases 5–11 stay locked; 12A and 12B stay as accepted. Nothing
+about drafts, publishing, roles, the sold-out engine, the announcement's temporary
+model, the generated message, ownership, caching or the audit log changed. **Phase 12 is
+not locked**; the remaining lock-pass scope is recorded at the end of this section.
+
+### What 1x and 1q establish, and what stays entity-driven
+
+The two frames were read directly, not inferred from the phase-4 dashboard. What they
+draw, and is therefore contract:
+
+| Element | 1x (375) | 1q (1100) |
+|---|---|---|
+| Bar | logo, "Administration", "Se siden" | wordmark ("Klingenberg Food" / "Administration"), *"Logget ind som Navn · Ejer"*, "Se hjemmesiden", "Log ud" |
+| Pending band | under the bar, amber: diamond, "2 ændringer er ikke offentliggjort", **Forhåndsvis** and **Offentliggør** side by side, full width, 48 px | the same band as one row: the count, a sub-line naming what waits ("Overskrift på forsiden · 1 pris i Burgere"), Forhåndsvis, "Offentliggør ændringer" |
+| Heading | "Hvad vil du lave?" (24 px Bricolage), "Onsdag · åbent 15:00–20:00" | "Hej — hvad vil du lave?" (32 px), the same line |
+| Announcement card | "Besked på hjemmesiden", the **Vises nu** pill, the message in quotation marks, "Rediger besked" full width | the same with the glyph and *"Forsvinder af sig selv søndag 14.09.2026 kl. 20:00"*, "Rediger besked" at the row's end |
+| Tiles | eight 68 px rows, glyph + label + one supporting line + chevron: Rediger menu · Skriv en nyhed · Åbningstider · Rediger forsiden · Billeder · Kontaktoplysninger · Besked på hjemmesiden · Mad ud af huset | six cards in three columns (no Besked tile — the card above carries it) and Mad ud af huset as a full row |
+| LIGE NU | one card at the foot: I dag · Retter på hjemmesiden · Markeret udsolgt | three cards: LIGE NU (Retter på hjemmesiden, Markeret udsolgt, Offentliggjorte nyheder), SENESTE NYHED (title, Udgivet pill, DD.MM.ÅÅÅÅ, "Rediger"), DAGENS ÅBNINGSTID (15:00–20:00, Onsdag, "Ret kun i dag") |
+
+Both frames draw the announcement card **on the published state only**, and neither
+draws a metric, a chart or an activity feed: the numbers are the three (four) rows
+above and nothing else. 1q's own caption is the rule the tile list follows: *"Syv
+store mål i almindeligt dansk. Ingen sidemenu, ingen 'Indstillinger', ingen
+'Indlæg / Sider / Medier'."*
+
+What is **entity-driven** and drawn in the frames' language rather than by them: four
+destinations exist that neither frame lists, and a person has to be able to reach
+them — **Ugens ret** and **Månedens burger** (phase 6's two screens, until now reachable
+only through the menu screen's chip and notice), **Brugere** (11C, Owner) and **Om os**
+(the one page still edited on the phase-4 content screen, `/admin/indhold`). They are
+tiles in the same list, recorded here as additions. The phase-4 "Din konto" card with
+its "Ejer-området" sentence is gone: the bar states the account, and `/admin/ejer` —
+phase 1's proof page — is unlinked and untouched.
+
+### The dashboard as a read model
+
+The screen owns no state and defines no rule. Everything it says is read from the
+locked systems through the reads they already expose, worded by the functions those
+systems already use, and computed by one pure module — `lib/admin/dashboard.ts`
+(`describeToday`, `countMenu`, `summariseNews`, `describePendingCount`), unit-tested
+with the clock held still:
+
+- **the band and its list** — `pending_changes`, the view that *is* the definition of
+  pending (§4), through `readPendingChanges()`; the count is the row count, the
+  band's Forhåndsvis lands on the most recently edited row's page (Draft Mode is
+  site-wide once started), and the
+  phase-4 per-item list — checkbox, state, editor, time, per-item Forhåndsvis, "Kun
+  ejeren kan offentliggøre dette" — sits beneath it, unchanged in what it says;
+- **the announcement card** — the published row through `readAdminAnnouncement()`,
+  its state by `describeAnnouncementState()` (phase 7's four badges: Vises nu, Slået
+  fra, Udløbet, Ingen besked) and its expiry by `formatExpiryWeekdayStamp()` — the
+  formatter 1t's helper already used; a pending draft is not shown, because a guest
+  has not seen it;
+- **today's line, the "I dag" row and DAGENS ÅBNINGSTID** — the published schedule and
+  overrides through the ordinary cached `readOpeningHours()`, decided by the phase-2
+  engine (`getOpenState().today`, overrides honoured in both directions); "åbent" is
+  *the day has hours*, which is what both frames print at any time of that day, not
+  the Forside's minute-by-minute badge;
+- **"Retter på hjemmesiden" and "Markeret udsolgt"** — the published menu as a guest
+  reads it (`readMenuContent()`, the same cached, tag-expired read the menu page
+  renders from; hidden sections, deleted and never-published rows already excluded),
+  with "sold out" decided by §7b's one `resolveSoldOut()` so a dish that has reset is
+  not counted;
+- **"Offentliggjorte nyheder" and SENESTE NYHED** — the administration's own list
+  through the phase-9 status model; "latest" is by `published_at`, which is the fact
+  the card prints.
+
+No table, no cache of its own, no second copy of anything; a Draft Mode session takes
+the two cached reads down their preview path exactly as the weekly and monthly screens
+already do for the hours.
+
+### The role-aware tiles — the §5 matrix as data, stated once
+
+`app/(admin)/admin/dashboard-tiles.ts` is the list. A tile that opens an editor for a
+publishable entity takes its role from the registry (`lib/publishing/entities.ts`,
+`requiredRole`) through `mayChangeEntity()` — the same function the pending list and
+the publish action ask — so Rediger forsiden and Kontaktoplysninger are Owner tiles
+because the registry says so. Billeder is every active staff member's and Brugere the
+Owner's, the two capabilities with no entity behind them (§5). Åbningstider is drawn
+for both roles because both have a card on that screen (§0j), and its supporting line
+says which half is whose: "Ret tider for en dag" (1x / 1q's own words) for Staff,
+"Ugens faste tider, og ret tider for en dag" for the Owner. A hidden tile is a
+courtesy and nothing more: every screen calls its own guard, every action re-checks,
+RLS decides again — proved once more by the new suite, which sends a Staff member to
+`/admin/brugere` and `/admin/forsiden` by address and meets `/admin/ingen-adgang`.
+
+### The vocabulary migration — one commit
+
+The phase-4 dashboard's links were sentences ("Åbn menuen", "Åbn nyhederne", "Åbn
+beskeden", "Åbn åbningstiderne" / "Ret tider for en dag", "Åbn billederne", "Åbn
+forsiden", "Åbn kontaktoplysningerne", "Åbn brugerne", "Åbn mad ud af huset", "Åbn
+indhold"), and twelve locked suites and three support helpers addressed them by those
+words. The final vocabulary is the tiles' — the words a person reads on them, which are
+the link's accessible name (`aria-labelledby`), with the supporting line as its
+description (`aria-describedby`):
+
+| Was | Is | Addressed by |
+|---|---|---|
+| Åbn menuen | **Rediger menu** | `menu-mobile`, `users-admin` |
+| Åbn nyhederne | **Skriv en nyhed** | `news-admin`, `news-mobile` |
+| Åbn beskeden | **Rediger besked** (the card's control) | `support/announcement-admin` |
+| Åbn åbningstiderne · Ret tider for en dag | **Åbningstider** (described per role) | `support/hours-admin`, `opening-hours`, `opening-hours-override` |
+| Åbn billederne | **Billeder** | `image-library` |
+| Åbn forsiden | **Rediger forsiden** | `homepage-admin` |
+| Åbn kontaktoplysningerne | **Kontaktoplysninger** | `contact-admin` |
+| Åbn brugerne | **Brugere** | `users-admin`, `a11y/users-admin` |
+| Åbn mad ud af huset | **Mad ud af huset** | `takeaway-admin`, `a11y/admin-pages` |
+| Åbn indhold | **Om os** | `a11y/admin-pages` |
+| "Offentliggør valgte ændringer" | **Offentliggør** (the project's one label for the control, as every band and bar) | `support/admin`, `draft-publish` |
+| `<h1>` "Hej, Navn" | the bar's *"Logget ind som Navn · Rolle"*; the `<h1>` is 1q's "Hej — hvad vil du lave?" | `users-admin` |
+
+Every migrated locator uses `exact: true` against the accessible name, and the one
+page-wide text assertion a tile label collided with — `draft-publish`'s "Om os is no
+longer pending" — is scoped to the pending form, as its sibling assertions already were.
+The band itself carries no `role="status"`: it is a standing state inside a form that
+names itself, and the locked suites read the page's first `status` as the publish
+report, which stays the notice below the band. No test was weakened: the `opening-hours` assertion that a Staff member is offered the one-off
+change "in its own words" now reads the tile's accessible description, and the
+`users-admin` proof that an invitee's profile carries their name now reads the bar.
+The form's name "Ændringer der venter", the per-item checkbox names, the row's
+"Forhåndsvis" and "Kun ejeren kan offentliggøre dette" are unchanged. No public
+navigation was renamed; the section bars' "‹ Oversigt" / "‹ Tilbage" are phase 4's.
+
+### 375 — measured against 1x
+
+Before, the Staff dashboard was 2,035 px tall (the Owner's 2,568) with "Åbn menuen" the
+only destination in the first screen and "Åbn nyhederne" at y = 1,082. After: 1,271 px
+(Staff) and 1,505 px (Owner); the bar, the heading, today's line, the announcement
+card and the first **five** tiles — Rediger menu, Ugens ret, Månedens burger, Skriv en
+nyhed, Åbningstider — inside the first 812 px; every tile a 343 × 68 px link (1x's 68);
+"Rediger besked" 310 × 48; no sideways scrolling with a 90-character announcement
+(the schema's ceiling) or the long tile lines; the tap-target sweep (every link,
+button and checkbox) found nothing under 44 × 44; axe zero at 375 for Staff and Owner,
+with the band and the list, and with the long announcement live. `Tab` walks the bar,
+"Rediger besked" and the tiles top-down; the computed ring on a tile is
+`3px solid rgb(180,116,26)` at 2 px. Nothing is behind hover.
+
+One departure from 1x: the bar is **two rows** on the phone, because 343 px does not
+hold the wordmark, the account line and both controls, and the account line is on the
+phone deliberately — who is signed in is the one fact a shared phone at the counter
+must show (and the `users-admin` proof reads it there). "Logget ind som" is spoken but
+not drawn below `md`; "Se siden" is 1q's "Se hjemmesiden" at every width, one label.
+
+### 768 and 1440 — measured against 1q
+
+From `md` the tiles are cards (glyph, 20 px label, 15 px line), the Besked tile is
+hidden (1q's card carries it), Mad ud af huset spans the grid, and LIGE NU becomes
+1q's three cards. At 1440 the grid is 1q's three columns (395 px cards at x = 112, 523,
+933; the wide row 1,216 px) with equal-height rows; at 768 it is 1aa's "2 kort pr.
+række" (344 px at x = 32 and 392), and the three LIGE NU cards follow the same 2/3
+split rather than squeezing into 220 px. axe zero at 1440 for both roles. One markup
+at every width: the phone and the desktop are `md:` / `lg:` variants of the same `<li>`,
+the same card and the same band; no second dashboard, no duplicated component.
+
+### Ugens ret and Månedens burger on the phone — the 12A observation, reproduced and closed
+
+12A recorded that "the same status/undo strip-above-fold problem exists" on both
+screens. Reproduced at 375 × 812 with touch against a production build, before any
+change:
+
+| Action | Where pressed (y) | Where the feedback was | Focus |
+|---|---|---|---|
+| Ugens ret → Udsolgt | 423 | the strip **279 px above** the viewport, Fortryd at −262 | body |
+| Lørdagsmenuen → Udsolgt | 384 | the strip **1,694 px above** the viewport | body |
+| Ugens ret → Gem | — | "gemt som kladde" 447 px above, the band 372 px above | body |
+| Månedens burger → Udsolgt | 141 | the strip **496 px above** | body |
+| Månedens burger → Gem | — | the notice 496 px above, the band 401 px above | body |
+
+The mechanism is the same on both, and not the Menu's: every save and every press
+redirects to the *card's own fragment* (`#ugens-ret`, `#loerdagsmenu`,
+`#maanedens-burger`), which scrolls the card to the top of the screen — and the status
+notice and the green strip were rendered above the card. The Menu fix could not simply
+be copied, because these are editor screens: 12A's rule for an editor is that the
+pending band, a publish control, is **not** pinned under a thumb scrolling a half-typed
+form.
+
+**What changed** — presentation and nothing else; no route, no action, no domain
+module, no fragment, no data model, no publish semantic, no sold-out rule, no undo
+duration:
+
+1. **One shared foot** — `components/admin/NoticeFoot.tsx`. The container 12A built
+   inline in the menu page (sticky to the bottom of the phone screen, visually last,
+   **first in the DOM**, an ordinary block from `md`) is now one component, and the
+   menu page uses it too. It is a container and nothing else: it knows no sentence, no
+   action, no entity. `empty:hidden` takes it away when nothing renders inside it (every
+   notice returns `null` for a status it does not know; the strips remove themselves
+   after ten seconds), and its `.admin-foot` hook gives `<html>` a
+   `scroll-padding-bottom` of 11rem below `md`, so a fragment target or a focused control
+   the browser scrolls to the bottom edge lands above the foot. The three screens share
+   exactly the positioning, the responsive behaviour and the semantics — that is why
+   the abstraction exists — and each puts into it what its own domain says.
+2. **What each foot holds.** The Menu: the two strips and, while the list is the
+   screen, the band — exactly as 12A. Ugens ret and Månedens burger: the **status
+   notice** ("gemt som kladde", the refusal, "opdateret på hjemmesiden", …) and the
+   **Fortryd strip**; the band and the malformed-draft notice stay in flow above the
+   cards. Measured afterwards: after Udsolgt on Ugens ret the strip is at y = 721 and
+   Fortryd (91 × 44) at 739; after Udsolgt on Lørdagsmenuen, scrolled 1,747 px down, the
+   same y = 721; after Gem the notice at 742; after a refusal the "Ret det, der er
+   markeret herunder" notice at 742 with the field bound (`aria-invalid`); Månedens
+   burger's strip at 721, Fortryd 739, the notice at 721 / 742. Focus is untouched
+   (`body` — the strips never take it, per 1aa), the screen does not move under the
+   thumb, and the strip's `role="status"` and ten seconds are `UndoStrip`'s, unchanged.
+
+Walked in full at 375 as Staff: open, edit, image select and remove (the 10C-1
+picker, unchanged), save, the band, preview, publish, Udsolgt on both weekly cards and
+the burger, Fortryd, validation, and long content — a 120-character name, a
+600-character description, a 480-character burger description and a reversed period —
+with no sideways scrolling and axe zero in every state.
+
+### The remaining operational screens — audited, and what was found
+
+| Screen | At 375, before | Found |
+|---|---|---|
+| **Besked på hjemmesiden** (§18) | the editor's fields, chips, expiry and link usable; every target 44 px; axe zero | **the same fragment defect**: "Vis besked" off left its Fortryd strip 353 px above the viewport, Gem its notice 351 px above. **Fixed** with the same foot — the status notice and the visibility strip; the band, the obstacle sentence, the state banner and the editor stay in flow. After: the strip at 738, the notice at 742; the switch it was pressed from ends above the foot. The temporary-only model, the required expiry, the optional link, "Fjern beskeden nu" and the one-level restore are untouched. |
+| **Åbningstider — the one-off change with its generated message** (§17) | the card, the chips, the suggestion, "Gem og offentliggør" all usable; 1ae's sheet inside the viewport with its choices stacked, safe one first, `Esc` deciding nothing, focus returned to the publish button (the locked suite's own assertions, re-run at 375) | **the same fragment defect for Staff and Owner alike**: after "Gem og offentliggør" the announcement's Fortryd strip sat 115 px above the viewport, the "enkelt ændring offentliggjort" notice further up. **Fixed** with the same foot — the two status notices and the announcement's report with its strip. After: the strip at 701 with Fortryd (91 × 44) at 729 and the hours notice at 631, for both roles; Fortryd puts the message back and leaves the hours changed, as before; the foot is 195 px when all three stand. One consequence from `md`: the announcement's report now stands at the top of the column beside the hours' notices rather than between the two cards — the same place every other screen's reports stand. No Phase-8 semantic changed: the coordinator, the conflict, ownership, the removal consequence and the cache order are the locked ones. |
+| **Billeder** (§19) | list, upload, detail, alt, delete, picker — the 10B/10C-1 phone coverage | green: no overflow, no target under 44, axe zero, the back link in view. **Untouched.** |
+| **Forsiden, Mad ud af huset, Kontaktoplysninger, Brugere** (§20) | entered from the new tiles | green on entry: no overflow, no target under 44, axe zero, the back link at y = 12. Their internal layouts were not reopened. Recorded for the lock pass: their Gem also redirects to a section fragment, so a saved-notice-above-the-fold walk of the three content editors is the one thing this audit did not repeat. |
+
+### The News CSS variable, walked
+
+`PinnedBarHeight` removes `--admin-bar-height` from `<html>` in its effect cleanup
+(the 5b85274 fix already did). Walked as Owner: dashboard → Menu → back → News → the
+editor (the variable `100px`) → back to the list by the bar (unset) → dashboard by the
+bar (unset) → Menu (unset, `<html style>` empty) → weekly → back → Brugere → the
+editor again (`100px`). No stale value reached another screen; the editor re-measures
+on every return; 768 and 1440 are unaffected because the bar is not pinned there. No
+lifecycle change was needed. The new suite pins the walk.
+
+### Touch, focus, long content, accessibility
+
+- **Targets.** Sweeps at 375 on every 12C-touched state — the dashboard (both roles,
+  with the band), the weekly and monthly editors after a press and after a refusal,
+  the hours screen after a publish, the announcement editor after a switch — found
+  nothing under 44 × 44: the tiles 68 px, "Rediger besked" and the band's two controls
+  48 px, every Fortryd 91 × 44, "Log ud" 60 × 44, the band's checkboxes 20 px inside a
+  44 px row with their labels as the target.
+- **Focus.** The ring is `3px solid rgb(180,116,26)` at 2 px on the tiles and the bar's
+  controls; no strip or notice takes focus; the foot never covers a focused control
+  (`scroll-padding-bottom`; asserted on the announcement switch); a dialog's safe
+  choice is still focused first and `Esc` still resolves nothing on 1ae — the locked
+  suites' own assertions, unchanged. No focus manager was added.
+- **Long content.** A 90-character announcement on the card (the schema's ceiling),
+  the longest tile lines, a 120-character weekly name with a 600-character description,
+  a 120-character burger name, a pending Ugens ret in the band: no sideways scrolling
+  anywhere (`wrap-anywhere` on the card's message, the tile's words and the band's
+  names). No limit changed.
+- **axe** (WCAG 2.0/2.1/2.2 A + AA): zero violations at 375 on the Staff dashboard,
+  the Owner dashboard, the dashboard with the band and the list, the dashboard with the
+  long announcement live, the weekly editor after a press, after a save and after a
+  refusal, the monthly editor after a save, after a press and after a refusal, the
+  hours screen after a publish (both roles), the announcement editor after a save and
+  after a switch — and at 1440 on both dashboards.
+
+### Departures from the frames, recorded
+
+| Frame | Departure | Why |
+|---|---|---|
+| 1x | The bar is two rows; "Se siden" reads "Se hjemmesiden" | the account line and "Log ud" are on the phone too (above); one label at every width |
+| 1x / 1q | Four tiles the frames do not draw: Ugens ret, Månedens burger, Brugere, Om os | entity-driven destinations that exist; drawn in the frames' language and recorded above |
+| 1x | The pending band's per-item list beneath it | phase 4's per-item attribution and selective publish, addressed by locked suites; the band itself is 1x's |
+| 1q | No sub-line under the count naming what waits | the list beneath names every item once with its checkbox, and five locked suites address an item by its title inside the form, which must stay unique |
+| 1q | "Offentliggør ændringer" reads "Offentliggør" | the project's one label for the control, as every band and bar since phase 5 |
+| 1q | At 768 the grid is two columns, not three | 1aa's own breakpoint rule ("768–1023: 2 kort pr. række") |
+| 1ag / 1ah | The status notice and the strip at the foot of the phone screen | the two frames have no phone artboard; the foot is 1y's, measured, not assumed |
+
+### Responsive architecture
+
+One page, one action layer, one domain layer; the phone is `max-md:` / `md:` / `lg:`
+variants over the same markup. The DOM order never differs between widths — the foot
+is first in the DOM and last visually, the Besked tile is hidden from `md`, the wider
+LIGE NU cards from below it. No `/admin/mobile`, no second dashboard, no mobile Server
+Action, no dashboard table, no cache of its own, no client JavaScript on the dashboard
+at all (the page is plain forms and links), no dependency. Bundle: no new client
+component; `NoticeFoot` is a server component of one `<div>`.
+
+### Tests
+
+- **`tests/e2e/dashboard-mobile.spec.ts`** under one dedicated project,
+  **`dashboard-mobile`** (375 × 812, touch), the new tail after `news-mobile`, and under
+  no other project: thirteen stories — the landing screen as 1x draws it (the bar, the
+  question, today's line, the nine Staff tiles in order with the first four in the first
+  screen, no Owner door, targets, axe); LIGE NU's three rows from the locked systems and
+  1q's two extra cards hidden; the announcement card's state and "Rediger besked" there
+  and back; Ugens ret from the tile with Udsolgt and Fortryd inside the viewport on both
+  cards; a saved week's notice at the foot with the band in flow and the refusal in view;
+  the band on the dashboard counting the registry and publishing it; Månedens burger from
+  the tile — the notice, Udsolgt, Fortryd and a refused long save; a one-off change with
+  its generated message and the strip at the foot, then Fortryd; a 90-character
+  announcement wrapping on the card and "Vis besked" leaving its Fortryd at the foot
+  clear of the switch; the News bar's measurement set in the editor and gone on the list,
+  the dashboard and the menu; the Owner's twelve tiles with Brugere there and back; the
+  refused addresses; and the seed restored.
+- **`tests/unit/admin/dashboard.test.ts`** (12) pins the read model, and
+  **`tests/unit/admin/dashboard-markup.test.tsx`** (7) pins the foot's phone classes and
+  `empty:hidden`, the tile named by its label and described by its line, the phone-only
+  and the wide tile, the bar's order, the band with its list, and the card reading the
+  published state.
+- **The vocabulary migration** above touched twelve locked files and three helpers by
+  locator name only; `tests/a11y/admin-pages.spec.ts`'s standalone-link list is the
+  tiles', with `exact: true`.
+- `playwright.config.ts` gains the project and the two `testIgnore` entries;
+  `npx playwright test --list` shows the file under exactly `dashboard-mobile` (13).
+- The walkthrough was a temporary Playwright harness (`tests/lockpass/`,
+  `playwright.lockpass.config.ts`) over the e2e support helpers — a before pass and an
+  after pass, both against a detached production build at 375 with touch — deleted
+  before the chain and never committed, as in §0y, §0ac, §0ad and §0ae. Its screenshots
+  (every state at 375; both dashboards at 768 and 1440) and its JSON measurements are
+  in the session scratchpad.
+
+### Security and source policy
+
+No new architecture. The role-aware tile list is a courtesy over the registry, not an
+authorization: the suite forges the two Owner addresses as Staff and is refused. The
+dashboard reads through the same two paths every admin screen reads through (the
+caller's JWT for the announcement, the pending view and the news list; the cached
+public reads for the hours and the menu), and no profile field beyond the signed-in
+person's own name and role reaches the page. No browser Supabase client, no service
+client outside its two boundaries, no privileged state moved client-side
+(`tests/unit/policy`, unchanged and green). The source policy is clean.
+
+### The regression
+
+From a clean tree: every port-3100 owner stopped, `npm ci`, `npm run db:reset:full`
+(every test Auth identity gone, the two seeded ones as `npm run db:users` leaves
+them), a twenty-second settle, `.next` emptied, a fresh production build, no stale
+server. Typecheck, lint and the source policy clean; **2,610 unit tests in 105
+files** (+19 in the two new `tests/unit/admin` files, +1 from 5b85274's
+`phone-layout` addition); **2,030 pgTAP assertions in 28 files**, from real anonymous,
+Staff and Owner JWTs and two dblink sessions — unchanged, because no function, grant
+or table moved; **25 integration tests in 4 files** against the real local stack and
+the mail catcher; `npm audit --audit-level=high` clean (0 vulnerabilities);
+`npx playwright test --list` collecting **1,333 tests in 40 files across 47 projects**,
+with `e2e/dashboard-mobile` under exactly its one dedicated project (13 stories),
+`e2e/news-mobile` under exactly `news-mobile` (16), `e2e/menu-mobile` under exactly
+`menu-mobile` (19), every other write suite under exactly its own projects as before,
+the thirteen `a11y/*` files under `desktop` and `mobile` only, and no stale
+`testIgnore` entry; and the complete Playwright matrix at `--retries=0`, run as the
+chunked chain against one detached production server (the read-only trio together,
+every write project in its own `--no-deps` invocation, in config order — 45
+invocations): **1,326 passed, 7 deliberately skipped (the standing width/device
+guards: three `public-site` stories at the other width, three `menu-reorder`
+pointer/touch stories at the width without the input, one override story past its
+clock guard), zero failed and zero flaky** on the first and only launch of every
+chunk (started 20:07, finished 20:53). No chunk was re-run and no result is
+retry-masked. Phases 5–12B ran green behind phase 12C, unchanged — the two phase-6
+pairs, the four phase-7/8 pairs, the two phase-9 pairs, the four image projects, the
+four phase-11 pairs, `menu-mobile` and `news-mobile` among them; the public cache is
+still 5m/5m (`public-cache`, 3 passed), no tracking cookie (the `menu-mobile` and
+`news-mobile` guest contexts assert an empty cookie jar on the first request after a
+publish), no browser Supabase client and no service client outside its two boundaries
+appeared (`tests/unit/policy`), and no phase-13 work exists.
+
+Three facts about the build-up worth keeping, none a product defect. The focused
+pre-run failed `draft-publish` twice on the way to this chain and each time taught the
+dashboard something: first the new "Om os" tile collided with a page-wide "Om os is no
+longer pending" assertion (scoped to the form, as above); then the band's
+`role="status"` was read as the page's first status by the locked publish-report
+assertion (the role came off — the band is a standing state, not an announcement);
+and then 1q's sub-line naming the pending items made an item's title non-unique
+inside the form for five locked strict locators (the sub-line went — the list beneath
+names each item once). The same pre-run also failed the locked, untouched `news-mobile`
+story "at the end of a long article…" by **one pixel** of `scrollY` after an autosave
+under the keyboard viewport (2,983 → 2,984), which passed on its own rerun and passed
+in the certified chain; 12C changed nothing on that screen, and the assertion is an
+exact-equality one on a value scroll anchoring is known to move (§0ae's harness
+lessons) — recorded for the lock pass rather than touched. The certified chain is the
+run after those corrections, from a reset.
+
+### What remains of phase 12 — the lock pass
+
+12A, 12B and 12C are each accepted; the phase is not locked. The completion pass owes:
+reading the three increments as one system (the foot, the pinned bar, the tiles, the
+vocabulary) and walking Staff and Owner from the dashboard through every phone flow
+against one production build; re-checking 1x, 1y, 1z and 1q once more at 375 / 768 /
+1440 side by side; the one walk this audit did not repeat — the three phase-11 content
+editors' saved notice after their section fragment at 375; §0ae's recorded conflict
+state on the news bar (the taller bar covering the toolbar's top while a conflict
+stands); the 12A open item on the price group and Forhåndsvis in the menu bar; reading
+the four `NoticeFoot` users and the `scroll-padding` rules as a set; and one clean
+regression chain, after which §15's phase-12 row is closed the way phases 5–11 were
+closed.
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -5872,7 +6262,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 9 | News | **9A (done, §0q):** the list, the editor with the structured body (textarea form), per-item publish/unpublish behind confirmations, delete, the §7f slug policy end to end, the per-article Draft Mode preview target, and the public list/detail integration incl. unpublish → 404 — proven by `tests/e2e/news-admin.spec.ts` at 375 and 1440 and `supabase/tests/019`. **9B (done, §0r):** the B/Link structured editor, autosave, the `NewsArticle` JSON-LD, canonical/article metadata and the sitemap. The forside teaser has rendered since phase 3 and is verified against the news lifecycle | E2E 6 passes, incl. unpublish → 404 — **complete and locked** by the completion pass of 2026-09-01, recorded in §0s |
 | 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C-1 (done, §0v; hardened, §0w):** image selection in the dish/weekly/monthly/news editors through one shared picker pair, `image_references` as the one definition of "referenced", the draft-aware `delete_image()`/`replace_image()`, and the published `image_id` of the three draft entities guarded in the database — direct PostgREST writes refused, only publish/replace/detach move it (pgTAP `022`, `023`). **10C-2 (done, §0x):** the public `<picture>`/`srcset` rendering on the eight approved surfaces, the public read-model projection inside the tagged reads, the Draft Mode preview of pending images, the news `og:image` and JSON-LD `image`, and the per-entity cache coupling — `delete_image()`/`replace_image()` report the live references they moved (pgTAP `024`), the alt edit expires its live usages, and the first guest request after every public-changing image operation carries the new state (`tests/e2e/public-images.spec.ts`). **Complete and locked** by the completion pass of 2026-09-02 — the two no-image frames built, the cache/reference races classified, one clean regression chain — see §0y | E2E 7 passes whole: `image-library`, `editor-images` and `public-images` at 375 and 1440 |
 | 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Complete and locked** by the completion pass of 2026-09-03 — see §0ac |
-| 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B (done, §0ae):** the complete News workflow at 375 px audited against 1z and made phone-first — the pinned editor bar with the badge and the autosave line, the B/Link toolbar and link panel stuck under it, fragment targets below the bar, the stacked confirmations, long titles and addresses that wrap, the public paragraph's wrap — with `tests/e2e/news-mobile.spec.ts` under its own `news-mobile` project. **12C:** the 1x / 1q dashboard | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad), the news half by `news-mobile` (§0ae); 12C remains |
+| 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B (done, §0ae):** the complete News workflow at 375 px audited against 1z and made phone-first — the pinned editor bar with the badge and the autosave line, the B/Link toolbar and link panel stuck under it, fragment targets below the bar, the stacked confirmations, long titles and addresses that wrap, the public paragraph's wrap — with `tests/e2e/news-mobile.spec.ts` under its own `news-mobile` project. **12C (done, §0af):** the 1x / 1q dashboard — the bar, the band with the phase-4 list beneath it, the announcement card, the role-aware tiles from the entity registry, LIGE NU as a read model — with the phase-4 "Åbn …" vocabulary migrated across the locked suites in the same commit; and the phone audit of Ugens ret, Månedens burger, Besked på hjemmesiden and Åbningstider, whose Fortryd and status notices now sit at the foot of the phone screen through one shared `NoticeFoot`, with `tests/e2e/dashboard-mobile.spec.ts` under its own `dashboard-mobile` project | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad), the news half by `news-mobile` (§0ae), the dashboard and the specials by `dashboard-mobile` (§0af); the completion pass remains |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project |
 | 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
@@ -5885,7 +6275,9 @@ af huset and Kontaktoplysninger (§0aa), 11C — the user administration at
 `/admin/brugere` (§0ab), and the lock pass over all three (§0ac). **Phase 12 — the
 administration on a phone as the primary device (1x, 1y, 1z) — is in progress: 12A,
 the Menu workflow at 375 px, is complete (§0ad), 12B, the News workflow at 375 px, is
-complete (§0ae); 12C (the 1x / 1q dashboard) remains, and the phase is not locked.** Phase 8's lock pass is
+complete (§0ae), and 12C, the 1x / 1q dashboard and the phone audit of the remaining
+operational screens, is complete (§0af); the completion pass over the three remains,
+and the phase is not locked.** Phase 8's lock pass is
 recorded in §0p, and **phase 9's in §0s**: 9A (the news administration's core, §0q) and
 9B (the B/Link body editor, autosave, the `NewsArticle` JSON-LD, canonical metadata and
 the sitemap, §0r) were read as one system, walked as Owner, Staff and guest against a

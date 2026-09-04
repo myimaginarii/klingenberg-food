@@ -514,8 +514,12 @@ test.describe('as a staff member', () => {
   test('the dashboard offers the one-off change, in its own words', async () => {
     await staffPage.goto('/admin')
 
-    await expect(staffPage.getByRole('link', { name: 'Åbn åbningstiderne' })).toHaveCount(0)
-    await expect(staffPage.getByRole('link', { name: 'Ret tider for en dag' })).toBeVisible()
+    // 1x / 1q's tile, described for a staff member by the half of the screen that is
+    // theirs — and not by the Owner's week (phase 12C).
+    const tile = staffPage.getByRole('link', { name: 'Åbningstider', exact: true })
+    await expect(tile).toBeVisible()
+    await expect(tile).toHaveAccessibleDescription('Ret tider for en dag')
+    await expect(staffPage.getByText('Ugens faste tider')).toHaveCount(0)
   })
 
   test('the screen shows no weekly editor, and says who can change the week', async () => {

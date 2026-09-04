@@ -302,7 +302,7 @@ test('a Staff member is refused the tile, the address, the action and the row', 
   const staffPage = await context.newPage()
   await signIn(staffPage, STAFF)
 
-  await expect(staffPage.getByRole('link', { name: 'Åbn kontaktoplysningerne' })).toHaveCount(0)
+  await expect(staffPage.getByRole('link', { name: 'Kontaktoplysninger', exact: true })).toHaveCount(0)
   await staffPage.goto(CONTACT_ADMIN_PATH)
   await expect(staffPage).toHaveURL(/\/admin\/ingen-adgang/)
   await expect(staffPage.getByRole('form', { name: 'Kontaktoplysninger' })).toHaveCount(0)

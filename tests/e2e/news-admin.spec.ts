@@ -88,7 +88,7 @@ test.afterAll(async () => {
 
 test('the dashboard leads to the news list', async () => {
   await staffPage.goto('/admin')
-  await staffPage.getByRole('link', { name: 'Åbn nyhederne' }).click()
+  await staffPage.getByRole('link', { name: 'Skriv en nyhed', exact: true }).click()
 
   await expect(staffPage.getByRole('heading', { level: 1 })).toHaveText('Nyheder')
 })

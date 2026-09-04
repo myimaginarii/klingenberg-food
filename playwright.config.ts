@@ -118,6 +118,9 @@ export default defineConfig({
         // owned by `news-mobile` alone. `--list` check: the file appears under
         // exactly `news-mobile`.
         'e2e/news-mobile.spec.ts',
+        // The dashboard-first phone story (phase 12C) — owned by `dashboard-mobile`
+        // alone. `--list` check: the file appears under exactly `dashboard-mobile`.
+        'e2e/dashboard-mobile.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -150,6 +153,7 @@ export default defineConfig({
         'e2e/users-admin.spec.ts',
         'e2e/menu-mobile.spec.ts',
         'e2e/news-mobile.spec.ts',
+        'e2e/dashboard-mobile.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -711,6 +715,28 @@ export default defineConfig({
       name: 'news-mobile',
       testMatch: 'e2e/news-mobile.spec.ts',
       dependencies: ['menu-mobile'],
+      use: {
+        ...devices['Desktop Chrome'],
+        viewport: { width: 375, height: 812 },
+        hasTouch: true,
+      },
+    },
+    /*
+     * The dashboard on a phone as the primary device (phase 12C) — the tail.
+     *
+     * The same shape as the two before it: a Staff member's day from 1x's landing
+     * screen — the tiles in the first screen, LIGE NU from the locked systems, the
+     * band publishing what the registry says is pending, and the four screens whose
+     * Fortryd was measured above the viewport before 12C (Ugens ret, Månedens burger,
+     * Åbningstider, Besked på hjemmesiden) now leaving it at the foot — plus the
+     * Owner's tiles, the refused address, and the News bar's measurement gone on the
+     * way back. Chained last: it publishes the two specials, an announcement and a
+     * one-off change, and leaves the seed as the locked suites leave it.
+     */
+    {
+      name: 'dashboard-mobile',
+      testMatch: 'e2e/dashboard-mobile.spec.ts',
+      dependencies: ['news-mobile'],
       use: {
         ...devices['Desktop Chrome'],
         viewport: { width: 375, height: 812 },
