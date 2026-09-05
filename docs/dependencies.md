@@ -23,13 +23,19 @@ exactly, in `dependencies`:
   `@sentry/webpack-plugin` / `@sentry/bundler-plugin-core` / `rollup` /
   `@sentry/cli` (the build integration, **never used**: `next.config.ts` is not
   wrapped, no source maps are uploaded, no auth token exists).
-- **A postinstall script**: `@sentry/cli` downloads its binary on install unless
-  `SENTRYCLI_SKIP_DOWNLOAD=1` is set. It is a transitive dependency of the unused
-  build plugin. On this machine npm's install-script allow-list left it
-  un-run and nothing needed it; on Vercel the default `npm ci` runs it. It is
-  harmless and unused, recorded here because a network download at install time
-  is a supply-chain fact worth knowing; the final security audit may choose to set
-  the variable in the Vercel build environment.
+- **A postinstall script**: `@sentry/cli`, a transitive dependency of the unused
+  build plugin, runs `scripts/install.js` on install. Read for the lock pass
+  (§0ak): it first resolves the platform binary from the lockfile's **pinned
+  optional package** (`@sentry/cli-linux-x64`, `@sentry/cli-win32-x64`, …, each
+  with an integrity hash from the npm registry) and exits; only when that package
+  is absent does it fall back to downloading the binary from Sentry's CDN. The
+  vendor's own switch, `SENTRYCLI_SKIP_DOWNLOAD=1`, makes it exit before either
+  step. **Decision:** this project never runs the CLI (no source-map upload, no
+  build wrapper), so CI sets the switch in both workflows, and the Vercel build
+  environment should carry it too (`docs/runbooks/pre-launch-checklist.md` row
+  M6). The optional package itself is still installed by `npm ci` like every other
+  lockfile entry. Enabling source-map upload later means removing the switch
+  wherever the build runs.
 - **Nothing in the browser bundle.** `grep -ri sentry .next/static` finds
   nothing after the build; `tests/e2e/monitoring.spec.ts` reads every JavaScript
   chunk the walked pages load and asserts the same.

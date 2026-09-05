@@ -7,12 +7,14 @@ Two sources of truth, and they do not overlap:
 - **Architecture** — [`docs/technical-plan.md`](docs/technical-plan.md)
 - **UI/UX** — `Klingenberg Food Hi-fi.dc.html`, screens 1a–1ab
 
-**Status: phases 0–12 complete and locked; phase 13A built (2026-09-05).** Phase 12's
-completion pass (2026-09-04) is recorded in technical plan §0ag — the current truth of the
-administration on a phone. **Phase 13A** (§0ah) is the weekly off-platform backup and the
-restore drill: `scripts/backup/`, `.github/workflows/backup.yml`, `npm run backup:drill`, and
-the runbooks `docs/runbooks/backups.md` and `docs/runbooks/restore.md`. It changes no
-product behaviour; the destination bucket (§13 item A) is the one decision still open.
+**Status: phases 0–13 complete and locked (2026-09-05).** Phase 13's lock pass is
+recorded in technical plan §0ak — the current truth of the production-hardening layer:
+the weekly off-platform backup and the restore drill (13A, §0ah), the PostgreSQL-backed
+rate limiter and the security-header policy (13B, §0ai), server-side monitoring (13C,
+§0aj), and the error and not-found states of both route groups (§10g). What the hosted
+projects must be configured with, and what a person verifies once before launch, is one
+register: `docs/runbooks/pre-launch-checklist.md`. Phase 12's completion pass
+(2026-09-04) is recorded in §0ag — the current truth of the administration on a phone.
 Phase 9's completion pass
 (2026-09-01) is recorded in technical plan §0s, phase 10A in §0t, phase 10B in
 §0u, phase 10C-1 in §0v/§0w, phase 10C-2 in §0x, and **phase 10's completion pass
@@ -635,10 +637,13 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-The rest of §15's row 13 and beyond: the SEO verification, the final security
-audit, and launch (phase 14). The weekly off-platform backup workflow and the restore
-drill are built (phase 13A, §0ah); the destination bucket is the one decision still
-open (§13 item A). **Phase 13C is built and green (§0aj):** the server reports
+The SEO verification against Rich Results, the final security audit over the
+carry-forwards §0ak lists, and launch (phase 14). **Phase 13 is locked (§0ak):** the
+runbooks under `docs/runbooks/` are current, and `pre-launch-checklist.md` is the one
+list of gates the repository cannot close by itself — the backup destination (§13 item
+A), the hosted restore rehearsal, `RATE_LIMIT_SECRET`, the HSTS scope, the real Sentry
+project and its one controlled event. The weekly off-platform backup workflow and the
+restore drill are built (phase 13A, §0ah). **Phase 13C is built and green (§0aj):** the server reports
 unexpected failures to Sentry — pages, route handlers, Server Actions and the proxy
 through the framework's `onRequestError` hook, plus a closed list of operational
 events (the limiter that cannot answer, an account banned in one system and not

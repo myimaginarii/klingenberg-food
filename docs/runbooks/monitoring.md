@@ -1,6 +1,7 @@
 # Monitoring — server-side error reporting
 
-Technical plan §1 (stack note), §10g, §12, §0aj; phase 13C. This runbook answers:
+Technical plan §1 (stack note), §10g, §12, §0aj; phase 13C, locked with phase 13
+(§0ak). This runbook answers:
 what the server reports, what it never collects, how a production deployment is
 connected to a Sentry project, how to prove the connection once, and what to do
 when an event arrives. The companion documents are
@@ -37,9 +38,14 @@ or slow, every restaurant operation completes exactly as it would without it.
 Every event passes one central sanitizer before it leaves the process
 (`lib/monitoring/sanitize.ts`): it drops the headers, cookies, body and query of
 any request record, reduces any user record to its `id`, filters every value under
-a key that names a credential, and redacts inside every string a JWT, a URL with
+a key that names a credential (English and the Danish `adgangskode`/`kodeord`),
+and redacts inside every string a JWT, a Supabase `sb_secret_…` key, a URL with
 credentials before its host, an e-mail address, a bearer value, a Supabase auth
-cookie and a token-carrying parameter. The rule is subtractive and tested
+cookie and a token-carrying parameter. One honest limit: an *unshaped* opaque
+secret inside a provider's free-text sentence — a bare token with no prefix, no
+`key=` and no `@host` — cannot be recognised by any rule; the doors therefore
+never pass such values, and the provider sentences this system forwards
+(PostgREST, the Auth Admin API, the Storage API) do not contain them. The rule is subtractive and tested
 (`tests/unit/monitoring/sanitize.test.ts`), so a developer who forgets not to log a
 secret is caught here.
 
@@ -56,9 +62,15 @@ diagnosis needs, and the audit trail answers the rest.
 
 Each has a fixed name, a component tag, a severity and a fingerprint, so one
 incident is one issue rather than hundreds; a **storm boundary** sends at most one
-event per name (and, for the limiter, per scope) per minute per server process
-(`lib/monitoring/report.ts`, `lib/monitoring/storm.ts`). The server log still
-carries every line.
+event per name *and grouping key* per minute per server process
+(`lib/monitoring/report.ts`, `lib/monitoring/storm.ts`). The grouping key is what
+makes two distinct facts two events: the limiter scope, the storage bucket, the
+**account UUID** of a partial account state (two accounts left half-moved inside
+one minute are two repairs — tightened in phase 13's lock pass, §0ak) and the
+transition name. What the boundary still folds is a repetition of the *same* fact
+inside a minute: the same scope failing again, several cleanups in the same bucket
+(the audit trail is the inventory, §8), the same account failing twice. The server
+log still carries every line.
 
 | Event | Level | What it means | What to do |
 |---|---|---|---|
@@ -137,7 +149,8 @@ prove that the real project receives an event. Once, after step 5:
 4. Confirm the alert e-mail arrived, then resolve the issue.
 5. Record the date and the release in the launch notes.
 
-Until this has been done once, treat monitoring as **unproven in production**.
+Until this has been done once, treat monitoring as **unproven in production**
+(pre-launch-checklist.md row M3).
 
 ## 7. Source maps and stack traces — the v1 decision
 
@@ -153,8 +166,35 @@ for a first version. Two later options, if a real event proves hard to read:
 `next build` already writes server source maps beside the chunks, so
 `NODE_OPTIONS=--enable-source-maps` on the Vercel function would make Node map
 the frames at runtime; or the SDK's build integration with a build-only token.
-Either is a decision for the lock pass or the launch, recorded here so it is not
-rediscovered.
+
+**Decided in phase 13's lock pass (§0ak): v1 stays as it is.** Measured against
+the lock-pass harness, an event carries the release, the environment, the route,
+the operation, the exception message and the compiled frames — enough to say which
+code path failed in which deployment for a site of this size, and the deployment's
+commit gives the developer the exact source. The improvement path, in order of
+cost: `NODE_OPTIONS=--enable-source-maps` (one Vercel setting, no build step, no
+token, larger frames); then the SDK's upload with a build-only token, which would
+also require the Sentry CLI's binary — see the next paragraph.
+
+**`ContextLines`** — the SDK quotes up to seven lines of source around each frame
+(`pre_context`, `context_line`, `post_context`). Inspected on a real event: the
+quoted lines are *code* — compiled server chunks in production, the source file
+under the test runner — never a runtime value. A secret in an environment variable
+does not appear in source, and the one integration that would attach runtime
+values (`LocalVariablesAsync`) is not installed. Kept, for readability without
+source maps. Its dependency behaviour: it reads the chunk files from disk at event
+time, which a Vercel function bundle has.
+
+**`@sentry/cli`** — a transitive dependency of the unused build plugin. Its
+postinstall resolves the platform binary from the lockfile's pinned optional
+package (`@sentry/cli-linux-x64` and the others, integrity-checked from the npm
+registry) and only falls back to downloading from Sentry's CDN when that package
+is absent. This project never runs the CLI — no source-map upload, no build wrapper
+— so CI sets the vendor's own switch, `SENTRYCLI_SKIP_DOWNLOAD=1`, which makes the
+postinstall exit before either step; the Vercel build environment should carry
+the same variable (pre-launch-checklist.md row M6). Turning source-map upload on
+later means removing that variable wherever the build runs, because the upload
+needs the binary.
 
 ## 8. Orphaned files after `image:cleanup-failed`
 

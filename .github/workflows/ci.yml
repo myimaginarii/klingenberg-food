@@ -33,6 +33,13 @@ env:
   # Keeps CI output free of interactive noise and progress spinners.
   CI: true
   NEXT_TELEMETRY_DISABLED: 1
+  # `@sentry/cli` (a transitive dependency of the unused Sentry build plugin) runs a
+  # postinstall that falls back to downloading its binary from Sentry's CDN when the
+  # lockfile's optional platform package is absent. This project never runs the CLI
+  # (no source-map upload, no build wrapper - technical plan section 0aj, 0ak), so the
+  # supported switch turns the fallback off. Enabling source-map upload later means
+  # removing this line wherever the build runs.
+  SENTRYCLI_SKIP_DOWNLOAD: 1
 
 jobs:
   verify:

@@ -316,9 +316,28 @@ describe('the Auth Admin boundary', () => {
     expect(event.level).toBe('error')
     expect(event.tags).toMatchObject({ component: 'auth-admin', operation: 'auth-admin:ban-failed', code: 'unexpected_failure', status: 500 })
     expect((event.contexts as Record<string, Record<string, unknown>>).operation).toEqual({ account_id: ACCOUNT_ID })
+    expect(event.fingerprint).toEqual(['operational', 'auth-admin:ban-failed', ACCOUNT_ID])
     const text = serialised(event)
     expect(text).not.toContain(EMAIL)
     expect(text).not.toContain(JWT)
+  })
+
+  it('two accounts left half-moved inside one minute are two events and two issues, not one (the lock pass)', async () => {
+    const SECOND_ACCOUNT = '7a4b1e6c-0000-4000-8000-000000000002'
+    serviceClient.current = service({
+      updateUserById: async () => ({ error: { code: 'unexpected_failure', status: 500, message: 'x' } }),
+    })
+    for (const userId of [ACCOUNT_ID, SECOND_ACCOUNT, ACCOUNT_ID]) {
+      await setAccountActive(committed, createAuthAdmin(), { userId, active: false, expectedUpdatedAt: 'v' })
+    }
+    const all = await flushed()
+    // The third call repeats the first account inside the window: suppressed. The
+    // second account is a distinct repair and is not.
+    expect(all).toHaveLength(2)
+    expect(all.map((event) => event.fingerprint)).toEqual([
+      ['operational', 'auth-admin:ban-failed', ACCOUNT_ID],
+      ['operational', 'auth-admin:ban-failed', SECOND_ACCOUNT],
+    ])
   })
 
   it('a reactivation whose unban failed is its own operation', async () => {

@@ -4,7 +4,10 @@ Phase 13B (technical plan §0ai) built the application's rate limiter and the
 security-header policy. Both work locally without any configuration. This runbook
 lists the settings a **production** deployment needs beyond the code, so that
 launch (phase 14) does not discover them. Nothing here is committed: the values
-live in the Vercel project, the Supabase project and nowhere else.
+live in the Vercel project, the Supabase project and nowhere else. The canonical
+register of every such gate, with its status, is
+[pre-launch-checklist.md](pre-launch-checklist.md); this document is the procedure
+behind its S3, R1–R2, H2–H3 and M-rows.
 
 ## 1. The rate-limit secret (Vercel)
 
@@ -56,6 +59,13 @@ per-client tier would be site-wide. Moving to another host means deciding which
 header that host guarantees — in `lib/rate-limit/sign-in.ts`, not by trusting an
 unknown proxy.
 
+**Decided in phase 13's lock pass (§0ak): Klingenberg Food is a Vercel deployment
+(§10a), and only Vercel is a recognised deployment.** An origin that is neither
+local nor Vercel gets a per-process stand-in key with one warning and one shared
+client subject; that is documented *unsupported-deployment* behaviour, not a
+configuration to reach for. Alternate hosting requires a configuration review of
+the header trust and the secret rule before it is a deployment.
+
 ## 4. HSTS scope — a launch decision
 
 The site sends `Strict-Transport-Security: max-age=63072000` on production
@@ -65,6 +75,13 @@ builds: two years, **without** `includeSubDomains` and **without** `preload`.
   every subdomain is HTTPS — it is enforced by browsers for two years.
 - Do not submit the domain to the HSTS preload list from a phase; it is a
   one-way decision for the owner, with its own runbook if ever taken.
+
+**Decided in phase 13's lock pass (§0ak):** `includeSubDomains` is *not*
+intentionally omitted for good — it is a **pre-launch infrastructure decision**
+(pre-launch-checklist.md row H2). The repository cannot prove that every subdomain
+of a domain it does not know is HTTPS, so the conservative policy ships, and the
+row stays open until the domain layout does the proving. Preload remains out of
+scope.
 
 Vercel also sends its own HSTS on HTTPS deployments; the application's header is
 the policy this repository owns and tests.

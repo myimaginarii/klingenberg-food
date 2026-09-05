@@ -138,7 +138,12 @@ export type OperationalEventInput = {
   readonly tags?: Readonly<Record<string, string | number | boolean>>
   /** The identifiers a repair needs: an account UUID, a storage path. Never a person's data. */
   readonly context?: Readonly<Record<string, unknown>>
-  /** One extra grouping discriminator (the limiter scope), so one outage is one issue per scope. */
+  /**
+   * One extra grouping discriminator, so one incident is one issue *and* the storm
+   * boundary suppresses only repetitions of the same fact: the limiter scope, the
+   * storage bucket, the account UUID of a partial account state (two accounts left
+   * half-moved in one minute are two repairs), the transition name.
+   */
   readonly groupBy?: string
 }
 

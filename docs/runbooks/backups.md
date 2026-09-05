@@ -1,9 +1,12 @@
 # Backups — the weekly off-platform recovery point
 
-Technical plan §10f, §10e, §14; phase 13A. The companion runbook is
-[restore.md](restore.md). This document answers: what is backed up, where it goes,
-when, for how long, with which credentials, how to run one by hand, and how to tell
-which recovery point is the latest good one.
+Technical plan §10f, §10e, §14; phase 13A, locked with phase 13 (§0ak). The
+companion runbook is [restore.md](restore.md). This document answers: what is backed
+up, where it goes, when, for how long, with which credentials, how to run one by
+hand, and how to tell which recovery point is the latest good one. What must be
+configured and verified before launch is listed once, in
+[pre-launch-checklist.md](pre-launch-checklist.md) (rows B1–B8); this document holds
+the procedures those rows point at.
 
 ## 1. Two layers, two failures
 
@@ -24,7 +27,7 @@ One recovery point is one directory, named by its UTC creation instant
 
 | Path | Contents | Produced by |
 |---|---|---|
-| `db/schema.sql` | `pg_dump --schema-only` of `public`: every table, constraint, index, function, trigger, RLS policy and grant. **A reference copy.** The supported schema restore is the repository's migrations (§10b); this file is for the day the repository is unavailable. | `scripts/backup/lib/pg.mjs` |
+| `db/schema.sql` | `pg_dump --schema-only` of `public`: every table, constraint, index, function, trigger, RLS policy and grant. **A reference copy for inspection — not a restore method.** It answers "what did the schema look like when this point was taken?" without a checkout. The one supported schema restore is the repository's migrations at the recorded commit (§10b, restore.md §3); loading this file is not drilled and not supported. | `scripts/backup/lib/pg.mjs` |
 | `db/data-public.sql` | `pg_dump --data-only` of `public`, COPY format: `profiles`, `images`, `menu_categories`, `dishes`, `weekly_special`, `monthly_burger`, `news`, `announcement`, `opening_hours`, `opening_hours_overrides`, `pages`, `site_contact`, `audit_log` — every application table, including the singletons and the audit trail. | same |
 | `db/data-auth.sql` | `pg_dump --data-only` of the four **durable** Auth tables: `auth.users` (e-mail, password hash, ban state), `auth.identities`, `auth.mfa_factors`, `auth.webauthn_credentials`. | same |
 | `storage/media-originals/<key>` | Every private original, read through the Storage API with the service role. | `scripts/backup/lib/storage.mjs` |
@@ -57,7 +60,13 @@ One recovery point is one directory, named by its UTC creation instant
 Both buckets are copied whole on every run — not an incremental sync. The runner's
 disk is new each week, so there is nothing to sync against, and a restaurant's photo
 library is tens to hundreds of megabytes: a full copy costs a minute and cannot
-quietly miss an object. Each recovery point is therefore self-contained. Private
+quietly miss an object. Each recovery point is therefore a **complete data and
+Storage copy** — every row of every application table, the durable identities and
+every object of both buckets, with no dependency on an earlier point. It is not the
+whole system on its own: the schema comes from the **repository's migration history**
+at the commit the manifest records (restore.md §3), and configuration and secrets from
+their own sources (restore.md §6). Said precisely, a recovery point is *a complete
+data/storage recovery point paired with the repository migration history*. Private
 originals are read through the Storage API with the service role (the Supabase
 project-migration guide's own route for Storage), never through a public URL, and no
 signed URL is treated as an identifier: the manifest records bucket, key, size, sha256,
@@ -87,7 +96,7 @@ change when the provider is chosen. Note one correction to §10f's wording: R2 d
 offer object versioning; the design does not depend on it — every recovery point is a
 separate prefix, and nothing ever overwrites a previous point.
 
-Manual setup, once the provider is chosen:
+Manual setup, once the provider is chosen (pre-launch-checklist.md rows B1–B6):
 
 1. Create a **private** bucket in an EU location. Encryption at rest is the provider's
    default on both R2 and B2; transport is TLS. No public access, no public listing.
@@ -221,5 +230,10 @@ a trusted function working on the restored rows, and the schema at the same
 migration. Evidence and limits are in technical plan §0ah.
 
 What no drill can prove from the repository: that the **production** secrets are set
-and the destination reachable. The first hand-run of the workflow (§3 step 5) is that
-proof, and it should be repeated after any change to the environment.
+and the destination reachable, and that a restore into a **hosted** project behaves as
+it does against the local stack. The first hand-run of the workflow (§3 step 5) is the
+first proof, and the hosted scratch-project rehearsal (restore.md §9) the second; both
+are pre-launch gates — [pre-launch-checklist.md](pre-launch-checklist.md) rows B6 and
+B7 — and neither is claimed by this repository. The lock pass (§0ak) re-ran the drill
+and a shipped backup against the local S3 endpoint, including a run with a broken
+required component: `complete: false`, exit 1, `latest.json` untouched.

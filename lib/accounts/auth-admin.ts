@@ -177,10 +177,14 @@ export function createAuthAdmin(): AuthAdmin {
         // The database transition has already committed when this runs (see
         // `./admin.ts`): the account is deactivated (or reactivated) there and not
         // at the Auth server. That is the partial state the operator must hear about.
+        // Grouped per account (the phase-13 lock pass): two accounts left half-moved
+        // inside one minute are two repairs, and the storm boundary must not fold
+        // the second into the first.
         reportOperationalEvent(banned ? 'auth-admin:ban-failed' : 'auth-admin:unban-failed', {
           detail: error.message,
           tags: { code: error.code ?? 'unknown', status: error.status ?? 0 },
           context: { account_id: userId },
+          groupBy: userId,
         })
         return 'failed'
       }

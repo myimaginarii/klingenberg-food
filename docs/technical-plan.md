@@ -6891,6 +6891,450 @@ locked.
 
 ---
 
+## 0ak. Phase 13 — complete and locked (2026-09-05)
+
+Phase 13 is §15's production-hardening row, built as three increments — 13A, backup
+and recovery (§0ah); 13B, rate limiting and the security-header policy (§0ai, with
+its closure pass); 13C, server-side monitoring (§0aj) — and closed by this pass, which
+read the three as **one operational and security layer**, re-ran every proof against
+the current build, resolved the decisions the three had left to it, put every
+pre-launch gate in one register, and ran one authoritative certification chain. The
+SEO verification against Rich Results and the final security audit over the
+carry-forwards are the next increments and were not started; neither was phase 14.
+§0ah, §0ai and §0aj stand as written — each increment's own account — and this
+section is what "phase 13" means as a whole.
+
+### What phase 13 is, stated once
+
+**Backup.** One command (`scripts/backup/backup.mjs`) takes a recovery point — a
+`pg_dump` of the `public` schema (for inspection), every application table's rows
+(`audit_log` included), the four durable Auth tables, both Storage buckets whole, and
+a manifest written last with a sha256 for every file — and, on the schedule
+(`.github/workflows/backup.yml`, Mondays weekly, the 1st monthly), ships it to any
+S3-compatible private bucket and moves `latest.json` only after the upload has been
+listed back complete. One command (`restore.mjs`) verifies, assesses the target,
+compares migration histories, reloads in one transaction under
+`session_replication_role = replica`, re-uploads the objects and verifies counts and
+inventories. Retention is the destination's two lifecycle rules (63 and 190 days);
+nothing in the tooling deletes. **Said precisely:** a recovery point is *a complete
+data/storage recovery point paired with the repository migration history* — every
+row and every byte, no dependency on an earlier point, and the schema from the
+repository at the commit the manifest records. The runbooks no longer call it
+"self-contained".
+
+**Rate limiting.** One limiter in PostgreSQL: a closed vocabulary of twelve scopes
+(`rate_limit_scopes`), one counter table with no address in it, and four SECURITY
+DEFINER doors — `consume_rate_limit()` for every signed-in Server Action and the
+reset request, `reserve_sign_in_attempt()` / `release_sign_in_attempt()` for the
+sign-in path, all through one resolver; the read door `peek_rate_limit()` remains in
+the database and has no application caller. Actor scopes are keyed by `auth.uid()`
+inside the database; client scopes by an HMAC the server derives under
+`RATE_LIMIT_SECRET`. The sign-in attempt is reserved in both client-keyed buckets
+before the Auth server is asked, stays for every verdict and is released after a
+success or a no-verdict failure. Fail-open everywhere but the two account scopes.
+Lazy pruning at two hours bounds the table.
+
+**Headers.** One pure builder attached to every response by `next.config.ts`: CSP
+(`script-src 'self' 'unsafe-inline'`, no `eval` in production, no inline style, no
+framing, images and the uploader's connection from this origin and Supabase only),
+HSTS two years without `includeSubDomains` or `preload`, `nosniff`,
+`strict-origin-when-cross-origin`, the permissions denial, `X-Frame-Options: DENY`.
+The caching underneath is untouched.
+
+**Monitoring.** `instrumentation.ts` initialises the SDK's server half once per
+process and hands the framework's `onRequestError` to one hook; the proxy reports
+through the same door because the framework does not; five server modules send a
+closed vocabulary of thirteen operational events through one reporter; one sanitizer
+is `beforeSend` and `beforeBreadcrumb`. Server only, errors only, no user identity,
+best-effort by construction.
+
+**Error states (§10g).** `error.tsx` and `not-found.tsx` in both route groups, built
+by this pass (below).
+
+### The recovery drill and the shipped backup — re-run on this build
+
+The 13A drill (`npm run backup:drill`) ran green against the current HEAD: the
+representative content created through the real paths (a dish with a photograph
+through the real pipeline, a published article, a one-off opening-hours change, the
+weekly special, the announcement, a site_contact draft, a page draft, a third
+identity, the audit rows), the recovery point `complete: true` with every checksum
+matching, the destruction, the restore, rows byte-identical, image bytes identical in
+both buckets with the private one still private, the seeded owner and the drilled
+identity signing in with their old passwords, RLS and `set_dish_sold_out()` and the
+`images` INSERT guard working on the restored rows, the migration list identical.
+Nothing 13B or 13C changed had made the recovery system stale — it touches no runtime
+module, and the two rate-limit tables it now also dumps are operational state whose
+restore is harmless (a counter window that has ended).
+
+The ship step was exercised against the local Supabase S3 endpoint with the AWS CLI
+from a scratch virtualenv: a monthly point uploaded, listed back (4 objects),
+`latest.json` moved and naming it, the log free of the service-role key and of any
+`user:password@`. Then a run with a broken required component (a wrong service-role
+key): `storage: failed`, `manifest: INCOMPLETE`, the partial point shipped under
+`weekly/` with `complete: false` and the redacted reason, **`latest.json`
+byte-identical to before**, exit 1; the restore refused the partial point without
+`--allow-partial`. The retention constants (63 / 190 days), the "never the newest",
+and the "complete is derived, never asserted" rules are pinned by the 13A unit suite
+and did not drift.
+
+### Decisions this pass had to make
+
+**`db/schema.sql` is a reference copy, not a restore method.** The runbook had said
+it "can be loaded into an empty Supabase project" — undrilled, and a second restore
+path in waiting. Corrected: the file exists for inspection (what did the schema look
+like when the point was taken?), the repository's migrations at the recorded commit
+are the one supported schema restore, a project created from the file would have no
+migration history and the restore command would refuse it, and the repository — on
+GitHub and on every developer machine — is a required part of every restore. No
+second method was added and none drilled.
+
+**Auth recovery, reconfirmed.** The four durable tables are in the off-platform copy;
+sessions, refresh tokens, one-time tokens, challenges and flow state are not; the
+drill proves compatible recovery against the current local Auth schema; a future Auth
+server that removes a column refuses the load whole, and the fallback is
+`--skip-auth` plus re-invitations; managed backups remain the supported in-project
+Auth recovery. Nothing writes to production `auth.*` on the backup path. Hosted Auth
+recovery is part of the scratch-project gate.
+
+**The hosted scratch restore and the provider are pre-launch gates, not this
+phase's claims.** The repository cannot prove a restore into a hosted project and does
+not choose a provider or an account. Both are rows in the canonical checklist (B1–B7),
+with the eight-step rehearsal spelled out and "destroy the scratch project" as its
+last step. Locking phase 13 does not require them; launching does.
+
+**The limiter is one architecture.** The generic door and the two sign-in doors share
+the resolver, the tables, the tier rows, the window arithmetic and the pruning rule;
+the sign-in doors exist because the sign-in path has two counters to move atomically
+and a reservation to give back, which the generic increment-and-answer cannot express.
+The pre-closure peek-then-consume path is gone from the application; its TypeScript
+wrapper — dead since the closure — was removed by this pass, the database function
+kept (granted, pinned by pgTAP `029`, harmless as a read door). The Auth concurrency
+proof re-ran green: with two allowances left, eight simultaneous wrong passwords reach
+the Auth server exactly twice; the right password at the threshold reaches it not at
+all; a success leaves both buckets at zero; a wrong password leaves one; an
+unreachable Auth server and a thrown attempt leave the count unchanged; the counters
+never go negative (the check constraint and the release's `hits > 0`).
+
+**`RATE_LIMIT_SECRET`, three environments.** Locally the fixed development key stands
+in; a local `next build && next start` uses the same key (the whole Playwright chain
+is that proof, port 3100, no secret set); on Vercel a missing or short value throws at
+the first sign-in or reset request, naming the variable and never a value. The
+production gate is one row (R1). **An origin that is neither local nor Vercel** keeps
+a per-process key with one warning — classified by this pass as documented
+*unsupported-deployment* behaviour: Klingenberg Food is a Vercel deployment (§10a),
+and alternate hosting requires a configuration review of the header trust and the
+secret rule before it is a deployment (R2). No multi-provider support was built.
+
+**Fail-open / fail-closed, the final matrix.** Sign-in and reset, ordinary saves,
+autosave, the immediate operations and the image pipeline fail open; the two account
+scopes fail closed. Monitoring now sees every `unavailable` as
+`rate-limiter:unavailable` (warning) or `rate-limiter:refused` (error) without
+changing a single product answer — the boundary suite drives the real modules over a
+failing database client and asserts both the event and the unchanged outcome.
+
+**Headers, re-measured on this build.** Every response class — `/`, `/menu`,
+`/nyheder`, `/mad-ud-af-huset`, `/find-os`, the login page, the `/admin` 307, the
+preview's 303, a public 404, an `/admin/…` 404, the immutable `_next/static` chunk,
+the sitemap — carried all six headers; `Cache-Control` was `s-maxage=300` on the
+public pages, `private, no-cache, no-store` on the administration and the 404,
+`public, max-age=31536000, immutable` on the chunk; no `report-only`, no reporting
+header, no `x-powered-by`. Nothing 13C's instrumentation touched a header. The
+browser suites (`security-headers`, `monitoring`) ran green at both widths against
+the build, and again inside the chain.
+
+**CSP `'unsafe-inline'` — accepted as a final-security carry-forward.** Re-evaluated
+against this build only: the production HTML still carries the framework's inline
+bootstrap scripts on every page; a nonce is a fresh value per response and therefore
+a dynamic render, which would destroy `Revalidate 5m / Expire 5m`; the hash
+alternative is experimental and build-time. The trade-off of §0ai stands, production
+has no `unsafe-eval` (pinned twice), and no other architecture was attempted.
+
+**HSTS scope — a pre-launch infrastructure decision, not an omission for good.** The
+repository cannot prove that every subdomain of a domain it does not know is HTTPS,
+so `max-age=63072000` without `includeSubDomains` ships, and row H2 stays open until
+the domain layout does the proving. Preload is out of scope; nothing was submitted.
+
+**Monitoring is server-only, re-proved on this build.** No `instrumentation-client`,
+no browser Sentry config, no wrapper, no `NEXT_PUBLIC_…SENTRY…` (the source policy
+and the policy suite); `grep -ri sentry .next/static` empty after the build; the
+browser suite reads every loaded chunk and sees no monitoring request, no monitoring
+cookie or storage, no Replay, no tracing; the CSP names no Sentry origin.
+
+**Sanitization — proven over whole events, and widened twice.** A new permanent suite
+(`tests/unit/monitoring/whole-event.test.ts`) assembles every forbidden value at run
+time from fragments, so the assertions can cover the *entire* serialised envelope
+item — stack frames and ContextLines source quotes included, which the boundary suite
+has to strip. A Server Action error whose request carried an `Authorization` header,
+the session cookie, a `token_hash` and a `token` in the query, a form body with a
+password field, and whose message, breadcrumbs and contexts carried a JWT, an e-mail
+address, the database URL with its password, the service-role key, a signed upload
+URL: none of it in any byte of the event; the request record was the method and the
+URL without its query. The three operational events whose provider sentences echoed
+credentials: the same. Two gaps were found by that harness and closed, narrowly: the
+Supabase **`sb_secret_…` key format** (the service-role key of a project created after
+the key-format change — the local stack already issues one) was not redacted, because
+the only key rule was the JWT rule; and the **Danish credential words**
+`adgangskode` / `kodeord` were not sensitive keys. One honest limit is recorded in the
+runbook: an unshaped opaque secret inside a provider's free-text sentence cannot be
+recognised by any rule; the doors never pass such values.
+
+**Operational events, re-run.** Limiter unavailable (fail-open and fail-closed), Auth
+Admin partial failures (ban, unban, profile), image processing internal failures
+(grant, derivative, `create_image()` refusal), post-commit cleanup orphans, and an
+unexpected server exception each produced exactly the expected event with the
+expected level, tags and repair identifiers; the expected business refusals — a
+duplicate address, a malformed one, a forbidden transition, `limited`, `allowed`, a
+redirect, a 404 — produced zero.
+
+**Storm suppression — tightened narrowly.** The boundary keyed on
+`name|groupBy`, and `groupBy` was set only for the limiter (per scope) and the
+storage cleanup (per bucket). So two *different* accounts left half-moved inside one
+minute — two distinct repairs — would have reported the first and silently dropped
+the second's UUID. Closed by grouping the account events per account
+(`auth-admin:ban-failed`, `auth-admin:unban-failed`, `accounts:profile-failed` by
+`account_id`; `accounts:transition-failed` by transition), which also makes each
+partial account its own Sentry issue, resolvable on its own. Pinned: three
+deactivations for two accounts inside the window produce two events with two
+fingerprints. What the boundary still folds is a repetition of the same fact — the
+same scope, the same bucket (the audit trail is the inventory), the same account —
+and that is accepted and recorded as the remaining carry-forward. No queue, no second
+limiter.
+
+**The account UUID — kept as pseudonymous operational context.** Never the Sentry
+user (`setUser` appears nowhere; the policy suite keeps it so), never beside an e-mail
+or a name, needed to repeat the ban or the invitation that repairs the partial state,
+and the sanitizer's `user` reduction and key filter attach nothing around it. No more
+identity was added.
+
+**ContextLines — inspected and kept.** A real event's frames carry `filename`,
+`function`, `lineno`, `colno`, `in_app`, `module`, `pre_context`, `context_line`,
+`post_context` — source code around the frame, the compiled chunk in production —
+and no `vars` (`LocalVariablesAsync` is not installed). A runtime value that appears
+only in a variable never appears in a quoted line (pinned in the whole-event suite).
+Environment values and request data are not source. Kept, with the dependency
+behaviour recorded in the runbook.
+
+**`@sentry/cli` — B, skipped, by the vendor's own switch.** Read in
+`node_modules/@sentry/cli/scripts/install.js`: the postinstall resolves the platform
+binary from the lockfile's pinned optional package (`@sentry/cli-linux-x64` and the
+rest, integrity-checked from the npm registry) and exits; only when that package is
+absent does it download from Sentry's CDN; `SENTRYCLI_SKIP_DOWNLOAD=1` makes it exit
+before either. The project uses no Sentry build wrapper, no source-map upload and no
+CLI behaviour, so both workflows set the switch, the Vercel build environment is
+recommended to (row M6), and `npm ci` under it, the build, the monitoring suites and
+the production server's monitoring all ran green in the chain. Enabling source-map
+upload later means removing the switch wherever the build runs; recorded in three
+places.
+
+**Source maps — A, v1 kept.** Measured on the lock-pass events: release, environment,
+route, operation, message and compiled frames identify the code path and the
+deployment, and the commit gives the developer the source. The improvement path is
+recorded in order of cost (`NODE_OPTIONS=--enable-source-maps`, then the upload with
+a build-only token, which would need the CLI back).
+
+**The real Sentry delivery gate stays manual** (row M3): a real EU project with the
+browser features off, the DSN in Vercel Production, one controlled server-only
+failure through a temporary trigger that is then removed, the event's release,
+environment and sanitized payload confirmed, the alert configured. The repository
+proves the integration against a fake ingest and claims nothing beyond that.
+
+**Backup failure visibility — GitHub-native, confirmed.** A failed run is a red
+workflow and GitHub's failed-run e-mail; `latest.json` is not moved; no Sentry SDK in
+the tooling and no DSN in the `backup` environment (row B8 asks the owner to confirm
+the notification setting once). Decoupled on purpose; no missing signal was found.
+
+**Monitoring outage — proven harmless again.** The production build served with
+`SENTRY_DSN` pointing at a closed loopback port (monitoring on, ingest unreachable):
+a wrong password refused in 376 ms, the right one signed in in 655 ms, a real
+`/admin/indhold` save in 518 ms — every result exactly as without monitoring, and the
+startup line saying monitoring was on. Then served with a recording loopback ingest:
+the failing requests each produced one event and the successful and refused requests
+none.
+
+### The error and not-found states — §10g answered, built
+
+§10g requires "`error.tsx` and `not-found.tsx` in both route groups, in the approved
+visual language". Measured on this build before anything was written: the public
+site had its 404 since phase 3 (`app/(site)/not-found.tsx` behind the catch-all); an
+unexpected public render error fell through to the framework's English "Application
+error" page outside the site's shell; an administration screen's `notFound()` fell
+through to the framework's default 404; and an `/admin/…` address that matched no
+screen was answered, for a signed-in person, by the *public* 404 inside the public
+header and footer. The default was unsuitable in a Danish restaurant's site, the plan
+required the files, and monitoring did not need them — so the smallest accessible
+version was built in the existing language and nothing was redesigned:
+
+- `app/(site)/error.tsx` — the 404's composition (eyebrow, title, one sentence, the
+  two button treatments): *"Siden kunne ikke vises"*, a "Prøv igen" button that
+  calls the framework's `retry()`, "Til forsiden". A Client Component, as every
+  error boundary must be — recorded as the public site's fourth in the policy suite,
+  with its reason. No message, no digest, no stack, no logging (the server already
+  reported the failure; the browser is not monitored).
+- `app/(admin)/admin/error.tsx` — `AdminShell`, the error-tone `Notice`, a retry
+  and "Tilbage til oversigten". Never a stack trace.
+- `app/(admin)/admin/not-found.tsx` and `app/(admin)/admin/[...ikke-fundet]/page.tsx`
+  — the administration's own 404 (`requireStaff()` first, then `notFound()`), so a
+  mistyped administration address stays inside the administration; the eight
+  existing `notFound()` calls in administration screens now land here too.
+
+Measured against the production build with a temporary throwing page in each group
+(removed before the commit): the public throw answered 500 with the site's header,
+footer, sentence, retry and link, no message leaked; the administration throw
+answered 500 with the administration's notice, retry and link, no message leaked;
+the unknown administration address answered 404 inside the administration with
+`noindex`; the public 404 unchanged; every failing request produced exactly one event
+through the hook (a retry is a new request and a new event); the healthy controls
+produced none. `global-error.tsx` for the root layout was not added: the root layout
+renders fonts and metadata only. One observation, pre-existing since phase 3 and not
+this phase's: with JavaScript off, the 404 and the error page deliver their content
+as the streamed payload the boundary renders client-side, so a guest without
+JavaScript sees the site's shell with an empty main (status 404 or 500 either way).
+Recorded for the launch pass; the no-JavaScript promise of §7e item 11 is about
+pages that work, and a page that has failed is not one.
+
+### Cross-system failure drills
+
+- **Limiter unavailable + monitoring** — fail-open content scope: the action went on
+  as 13B decided, one sanitized warning with the scope and the door, no
+  monitoring-induced failure; a hundred calls, one event. Fail-closed account
+  scope: refused as 13B decided, one error event, and nothing reached the
+  transition (no marker consumed, no audit row — the refusal happens before the
+  database function is called, `029`'s regression assertion).
+- **Image cleanup failure + monitoring** — the committed delete stayed committed and
+  reported `deleted`, the orphan stayed accepted, one warning per bucket naming the
+  bucket and the server-minted paths, no token from the storage error in any byte,
+  the audit row's `storage_path` still the inventory. Phase 10's transaction design
+  untouched.
+- **Auth partial failure + monitoring** — the deactivation reported `updated` with
+  `authStep: 'failed'` (the honest answer the screen already showed), the database
+  transition committed and the Auth ban not, one error naming the operation and the
+  account UUID only — no address, no bearer, no token — and the repair (deactivate
+  again) still the documented path.
+- **Backup failure** — above: `complete: false`, exit 1, `latest.json` unchanged, the
+  previous point intact, no monitoring involved.
+
+### Source policy, security review, code quality
+
+Source policy: 683 files, five rules, OK — backup secrets named in one
+door, the rate-limit secret in one door, no browser Sentry, no `NEXT_PUBLIC`
+monitoring, no browser Supabase client; the SECURITY DEFINER set still pinned by
+name in six locked pgTAP suites; the test-only doors still loopback-only. No
+allow-list exception was added.
+
+The scoped security review found no backup secret in any log or manifest (the
+redactor over-reaches on the local `postgres` password, cosmetically), no unsafe
+restore target (loopback or the exact confirmed host; refs must agree), no limiter
+bypass (a client-keyed subject is refused for a caller with a session; nobody outside
+the server can compute one), no production secret fallback (Vercel throws), no
+SECURITY DEFINER mistake (`search_path` pinned, closed vocabulary, EXECUTE narrowed),
+no CSP or header gap beyond the recorded `'unsafe-inline'`, two monitoring redaction
+gaps (closed above), no product effect from a monitoring outage, and the Sentry CLI
+supply-chain assumption resolved by the switch. Unresolved items are the
+carry-forwards below.
+
+Code quality, 13A–13C as one slice: no runtime module imports the backup tooling; the
+two environment doors (`lib/env/server.ts`, `scripts/backup/lib/env.mjs`) are
+deliberate — two runtimes, one of which cannot import `server-only`; the two redactors
+(`redactSecrets` for the tooling's known values, `sanitize.ts` for shaped credentials
+in events) serve different inputs and stay apart; the limiter is one architecture
+(above); the stale peek wrapper is gone; no raw subject or address appears anywhere;
+monitoring capture is spread to exactly five modules and the reporter, pinned; no
+Server Action calls Sentry; the pre-launch prerequisites now live in one file and the
+other runbooks link to it; no shell or process secret leakage (the AWS CLI's
+environment holds the destination key pair and nothing else); no circular import; no
+giant module. Fixed: the dead wrapper, the storm grouping, the two sanitizer gaps, the
+dependency record's imprecise description of the CLI download (it is a fallback
+behind the pinned optional package), and the runbooks' wording.
+
+### The canonical pre-launch checklist
+
+`docs/runbooks/pre-launch-checklist.md` — one register, five groups (Supabase,
+backup, rate limiting, headers, monitoring), every row with one of three statuses:
+*Repository proven*, *Requires production infrastructure*, *Requires one manual
+pre-launch verification*. Nothing infrastructure-dependent is marked done. The other
+runbooks keep their procedures and link to it; §13 item A, §15 row 13 and the README
+point at it. Final copy, photography, SEO and the map are not in it.
+
+### Final-security carry-forwards — inputs to the dedicated audit, deliberately unfixed
+
+From the earlier systems, still standing: the News published-autosave audit row being
+inserted separately from the content update (§0s); the signed-upload token's TTL and
+session binding (§0u); the service-role boundaries (§0t, §0ab); private originals
+never finalised (§0t); best-effort storage orphans (§0y, now visible as
+`image:cleanup-failed`); `replace_image()` accepting any successor (§0y); the image
+and reference markers (§0w); the account `auth.sessions` SECURITY DEFINER revocation
+(§0ab); the old access token's remaining validity after deactivation (§0ab); the
+deactivated-login disclosure (§0ab); the direct Owner name write (§0ab); the invite
+link's lifetime (§0ab); the test-only cleanup doors (§0ab, §0ai).
+
+From phase 13: the Auth durable-table backup's dependency on the Auth server's column
+set (re-run the drill after any Auth major upgrade); the hosted restore still manual
+(B7); the backup environment holding the service-role key rather than a
+storage-scoped pair (§0ah); the account-targeted temporary sign-in lock-out surface
+(thirty failures at one address in fifteen minutes, from three or more clients);
+the four SECURITY DEFINER limiter doors and the unused read door; the provider's
+own Auth endpoints; a release the limiter cannot record during an outage
+(`rate-limiter:release-failed`); refused hits keep counting in an unbounded integer;
+CSP `'unsafe-inline'`; the storm boundary's remaining fold (the same fact repeated
+inside a minute); the account UUID as operational context; the Sentry SDK's
+supply-chain footprint (106 packages for a server half) with the CLI download
+switched off rather than removed; compiled stack frames without source maps;
+`ContextLines` quoting compiled source; the redaction's honest limit on unshaped
+secrets in provider sentences; `robots.ts` absent (§11 names it; the root layout's
+`noindex` stands until launch — the SEO pass's item, noted here so it is not
+rediscovered as a header question).
+
+### The regression — one authoritative chain
+
+One clean chain on 2026-09-05, launched once from a tree holding only this pass's
+changes and never stitched: every port-3100 owner stopped, `npm ci` (with
+`SENTRYCLI_SKIP_DOWNLOAD=1`), `npm run db:reset:full` (the seed and the two seeded
+identities — clean Auth state), typecheck, lint, source policy (683
+files), the unit suite (**2,811** tests in 120 files), pgTAP
+(**2,187** assertions in 30 files), the integration suite
+(**44** in 6 files), the backup drill (**8 of 8 cases, 85 s**), then
+`.next` removed, a fresh production build (`grep -ri sentry .next/static`: nothing),
+a detached `next start` with no DSN and no destination (monitoring off; the only
+transports any test uses are the recording ones inside the unit suites; the only
+backup targets the local stack), `playwright test --list` (**1,360 tests in 43 files**), the
+complete Playwright matrix at `--retries=0` — the read-only trio in one invocation
+and every write project in its own `--no-deps` invocation in the config's order,
+`security` last — **1,353 passed, 7 skipped (the standing
+width/device/clock guards), 0 failed, 0 flaky** across
+48 projects, and `npm audit --audit-level=high` (0 vulnerabilities).
+The chain ran from 19:18 to 20:10. One earlier launch of the same chain, at 18:16, is recorded rather than hidden: it passed every step through the drill and the build and then hung in the harness itself — the PowerShell child that starts the detached server held the script's output pipe open, so the runner never advanced to the browser section although the server was up. Nothing had failed and no state was touched after the build, but nothing was resumed either: the hung processes were killed, the server-start step was rewritten to poll a file, and the chain was launched again from `npm ci`.
+
+Phases 5–12 stayed green behind the pass — every locked project of the matrix — and
+so did phase 13: 13A (the drill, the 13A unit suites), 13B (`029`, `030`, the two
+integration suites, `security-headers` at both widths, the `security` tail), 13C
+(the monitoring unit suites, the boundary and whole-event suites, `monitoring` at
+both widths). Also verified on the way: `Revalidate 5m / Expire 5m` (`public-cache`,
+and `s-maxage=300` beside the policy on every public response), zero public
+tracking cookies (`public-site`, `monitoring`), no browser Supabase client and no
+browser monitoring (`tests/unit/policy`), no phase-14 work.
+
+### Phase 13 is locked
+
+Every condition of the lock held: the local restore drill green, the backup failure
+semantics green, the limiter concurrency green, headers and CSP green, monitoring
+sanitization green over whole events, monitoring proven not to affect product
+failures, the pre-launch checklist canonical and current, the scoped security review
+and the code-quality review closed with the fixes above, one authoritative complete
+regression green, the documentation current, and no material phase-13 defect
+remaining. **Phase 13 is complete and locked**, as `chore: complete phase 13
+production hardening` on top of 13A, 13B, the closure and 13C.
+
+### What comes next
+
+Not phase 14. Two increments of §15's row 13 remain and were deliberately not begun
+here: **the SEO verification** — metadata, canonicals, the sitemap, `robots.ts`
+(absent today), the `NewsArticle` and organisation JSON-LD against Rich Results, and
+the root layout's `noindex` lifted only at launch — and **the final security audit**
+over every carry-forward listed above, run as its own dedicated review with the
+`/security-review` scope, which this pass did not invoke. Then phase 14.
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -7806,6 +8250,8 @@ Sentry on the server (Server Actions, route handlers, RSC) with releases tied to
 
 **Built in phase 13C (§0aj):** `instrumentation.ts` initialises the SDK's server half once per process and hands the framework's `onRequestError` hook to `lib/monitoring/request-error.ts`; the proxy reports through the same door because the Node-runtime proxy of this framework version never reaches the hook; five server modules send a closed list of operational events through `lib/monitoring/report.ts`; one sanitizer (`lib/monitoring/sanitize.ts`) is `beforeSend` and `beforeBreadcrumb`. Errors only — no tracing, no profiling, no user identity, no source-map upload in v1. `docs/runbooks/monitoring.md` is the operator's document. The uptime ping and the log drain remain provider configuration for launch.
 
+**Closed by phase 13's lock pass (§0ak):** `error.tsx` in both route groups (`app/(site)/error.tsx`, `app/(admin)/admin/error.tsx`) and `not-found.tsx` in both (`app/(site)/not-found.tsx` since phase 3; `app/(admin)/admin/not-found.tsx` with its own catch-all), each in the existing visual language — one Danish sentence, a retry and a way back, no message and no stack. An unexpected render error answers 500 with the site's or the administration's own page instead of the framework's English default; the framework hook still reports it once per failing request. The inline error states of the administration's actions were already the closed reply vocabularies of phases 5–12.
+
 ---
 
 ## 11. SEO
@@ -7860,7 +8306,7 @@ policy · Månedens burger scheduling.
 
 | # | Item | Needed by | Default if unanswered |
 |---|---|---|---|
-| A | **Off-platform backup destination** — Cloudflare R2 or Backblaze B2; the tooling is provider-neutral and the manual setup is in `docs/runbooks/backups.md` §3 (§0ah). The interim private-GitHub-repo archive is withdrawn: the workflow exists and needs a bucket, not a workaround | before launch — until it is chosen, no off-platform copy exists | Recommend R2 (EU jurisdiction, private; note it has no object versioning, which the design does not need) |
+| A | **Off-platform backup destination** — Cloudflare R2 or Backblaze B2; the tooling is provider-neutral and the manual setup is in `docs/runbooks/backups.md` §3 (§0ah). The interim private-GitHub-repo archive is withdrawn: the workflow exists and needs a bucket, not a workaround. Phase 13's lock pass (§0ak) kept the decision open on purpose and made it rows B1–B7 of `docs/runbooks/pre-launch-checklist.md` — the repository *supports* an S3-compatible destination; nothing in it *chooses* one | before launch — until it is chosen, no off-platform copy exists | Recommend R2 (EU jurisdiction, private; note it has no object versioning, which the design does not need) |
 | B | **PITR on Supabase Pro** — an extra cost on top of daily backups | before launch | Off. Daily backups plus a weekly off-platform export is proportionate for this content volume |
 | C | **Final map asset and its licence** | before launch | Placeholder until supplied; a build check prevents it shipping |
 | D | **Domain, DNS control, and the Resend sending domain** | before launch (DNS verification takes time) | — |
@@ -7920,12 +8366,18 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C-1 (done, §0v; hardened, §0w):** image selection in the dish/weekly/monthly/news editors through one shared picker pair, `image_references` as the one definition of "referenced", the draft-aware `delete_image()`/`replace_image()`, and the published `image_id` of the three draft entities guarded in the database — direct PostgREST writes refused, only publish/replace/detach move it (pgTAP `022`, `023`). **10C-2 (done, §0x):** the public `<picture>`/`srcset` rendering on the eight approved surfaces, the public read-model projection inside the tagged reads, the Draft Mode preview of pending images, the news `og:image` and JSON-LD `image`, and the per-entity cache coupling — `delete_image()`/`replace_image()` report the live references they moved (pgTAP `024`), the alt edit expires its live usages, and the first guest request after every public-changing image operation carries the new state (`tests/e2e/public-images.spec.ts`). **Complete and locked** by the completion pass of 2026-09-02 — the two no-image frames built, the cache/reference races classified, one clean regression chain — see §0y | E2E 7 passes whole: `image-library`, `editor-images` and `public-images` at 375 and 1440 |
 | 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Complete and locked** by the completion pass of 2026-09-03 — see §0ac |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B (done, §0ae):** the complete News workflow at 375 px audited against 1z and made phone-first — the pinned editor bar with the badge and the autosave line, the B/Link toolbar and link panel stuck under it, fragment targets below the bar, the stacked confirmations, long titles and addresses that wrap, the public paragraph's wrap — with `tests/e2e/news-mobile.spec.ts` under its own `news-mobile` project. **12C (done, §0af):** the 1x / 1q dashboard — the bar, the band with the phase-4 list beneath it, the announcement card, the role-aware tiles from the entity registry, LIGE NU as a read model — with the phase-4 "Åbn …" vocabulary migrated across the locked suites in the same commit; and the phone audit of Ugens ret, Månedens burger, Besked på hjemmesiden and Åbningstider, whose Fortryd and status notices now sit at the foot of the phone screen through one shared `NoticeFoot`, with `tests/e2e/dashboard-mobile.spec.ts` under its own `dashboard-mobile` project. **Completion pass (§0ag):** the three read as one system, walked as Owner and Staff on a phone, 1x / 1y / 1z / 1q re-checked at 375 / 768 / 1440, the Forhåndsvis and 1 px observations closed, the moved row kept wholly in view, the phase-11 editors and Brugere given the same foot, an empty foot's clearance removed, a dead-autosave defect after the first Gem fixed and pinned | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad), the news half by `news-mobile` (§0ae), the dashboard and the specials by `dashboard-mobile` (§0af). **Complete and locked** by the completion pass of 2026-09-04 — see §0ag |
-| 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill. **13A (done, §0ah):** the backup and restore commands, the scheduled workflow, the drill in CI, the runbooks — the destination provider still to be chosen. **13B (done, §0ai):** the PostgreSQL-backed limiter over the sign-in path and every Server Action (twelve tiers, one atomic door, HMAC subjects, fail-open except for accounts), and the security-header policy on every response (CSP, HSTS, nosniff, referrer, permissions, frame denial) with the public caching intact. **13C (done, §0aj):** server-side Sentry — the framework hook for pages, route handlers, Server Actions and the proxy, thirteen operational events from five server modules, one sanitizer, release and environment on every event, no browser SDK, no CSP change; the one controlled production event is a pre-launch gate | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project (13A: proven against the local stack; the hosted scratch run waits for a Pro project) |
+| 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill. **13A (done, §0ah):** the backup and restore commands, the scheduled workflow, the drill in CI, the runbooks — the destination provider still to be chosen. **13B (done, §0ai):** the PostgreSQL-backed limiter over the sign-in path and every Server Action (twelve tiers, one atomic door, HMAC subjects, fail-open except for accounts), and the security-header policy on every response (CSP, HSTS, nosniff, referrer, permissions, frame denial) with the public caching intact. **13C (done, §0aj):** server-side Sentry — the framework hook for pages, route handlers, Server Actions and the proxy, thirteen operational events from five server modules, one sanitizer, release and environment on every event, no browser SDK, no CSP change; the one controlled production event is a pre-launch gate. **Lock pass (§0ak, 2026-09-05):** the three read as one operational layer, the error and not-found states of both route groups built (§10g), the sanitizer widened to the non-JWT service key and the Danish credential words, the storm boundary grouped per account, the Sentry CLI download switched off, the pre-launch gates consolidated in `docs/runbooks/pre-launch-checklist.md`, one clean certification chain. **Complete and locked.** The SEO verification against Rich Results and the final security audit are the next increments, not this phase's | Rich Results valid (ahead); a backup lands off-platform and a restore succeeds into a scratch project — proven against the local stack and a local S3 endpoint; the hosted runs are pre-launch gates B6/B7, deliberately not claimed by the repository |
 | 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-09-04: phases 0–12 are complete and locked** — phase 10 as 10A
+**Status, 2026-09-05: phases 0–13 are complete and locked.** Phase 13 — the
+production-hardening layer — as 13A, backup and recovery (§0ah), 13B, rate limiting and
+the security-header policy (§0ai, with its closure pass), 13C, server-side monitoring
+(§0aj), and the lock pass over the three (§0ak), which is the current truth of what a
+deployment must be configured with (`docs/runbooks/pre-launch-checklist.md`) and what
+the final security audit inherits. The SEO verification and that audit are the next
+increments. Before it: **phases 0–12** — phase 10 as 10A
 (§0t), 10B (§0u), 10C-1 (§0v, hardened in §0w), 10C-2 (§0x) and the completion
 pass over all four (§0y); phase 11 as 11A — the Forsiden editor (§0z), 11B — Mad ud
 af huset and Kontaktoplysninger (§0aa), 11C — the user administration at
@@ -7934,10 +8386,7 @@ administration on a phone as the primary device (1x, 1y, 1z) — as 12A, the Men
 workflow at 375 px (§0ad), 12B, the News workflow at 375 px (§0ae), 12C, the 1x / 1q
 dashboard and the phone audit of the remaining operational screens (§0af), and the
 completion pass over the three (§0ag), which is the current truth of the
-administration on a phone.** Phase 13 is in progress: 13A — backup and recovery —
-is recorded in §0ah, 13B — rate limiting and the security-header policy — in
-§0ai, and 13C — server-side monitoring — in §0aj; the SEO verification, the lock
-pass and the final audit remain, and the phase is not locked. Phase 8's lock pass is
+administration on a phone.** Phase 8's lock pass is
 recorded in §0p, and **phase 9's in §0s**: 9A (the news administration's core, §0q) and
 9B (the B/Link body editor, autosave, the `NewsArticle` JSON-LD, canonical metadata and
 the sitemap, §0r) were read as one system, walked as Owner, Staff and guest against a

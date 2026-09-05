@@ -18,12 +18,13 @@ import type { Breadcrumb, ErrorEvent } from '@sentry/nextjs'
  *     (`/admin/bekraeft`), so the whole query is dropped rather than a list of
  *     parameter names maintained;
  *   * anything under a key that names a credential (`authorization`, `cookie`,
- *     `password`, `secret`, `token`, `apikey`, `dsn`, …), wherever it appears in
- *     tags, extra, contexts or breadcrumb data;
- *   * a JWT, a connection string or URL with credentials before its host
- *     (`user:password@host`), an e-mail address, a bearer value, a Supabase auth
- *     cookie, or a token-carrying parameter inside any string — an exception
- *     message, a breadcrumb, a context value;
+ *     `password` and its Danish `adgangskode`/`kodeord`, `secret`, `token`,
+ *     `apikey`, `dsn`, …), wherever it appears in tags, extra, contexts or
+ *     breadcrumb data;
+ *   * a JWT, a Supabase `sb_secret_…` key, a connection string or URL with
+ *     credentials before its host (`user:password@host`), an e-mail address, a
+ *     bearer value, a Supabase auth cookie, or a token-carrying parameter inside
+ *     any string — an exception message, a breadcrumb, a context value;
  *   * the user's e-mail, name, address and IP: `user` is reduced to its `id`, which
  *     the application only ever sets to the internal account UUID (§0aj), or
  *     removed entirely;
@@ -42,7 +43,7 @@ export const REDACTED = '[redacted]'
 
 /** Keys whose values are never sent, whatever they hold. */
 const SENSITIVE_KEY =
-  /(authorization|cookie|passw|secret|token|api[-_]?key|dsn|credential|session|bearer|signature|private[-_]?key|service[-_]?role)/i
+  /(authorization|cookie|passw|adgangskode|kodeord|secret|token|api[-_]?key|dsn|credential|session|bearer|signature|private[-_]?key|service[-_]?role)/i
 
 /** Breadcrumb categories that carry request URLs and headers — dropped whole. */
 const DROPPED_BREADCRUMB_CATEGORIES = /^(http|fetch|xhr)\b/i
@@ -53,6 +54,10 @@ const MAX_DEPTH = 6
 const TEXT_RULES: ReadonlyArray<readonly [RegExp, string]> = [
   // A JWT: an access token, a refresh token, the anon key or the service-role key.
   [/\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]{8,}\b/g, '[jwt]'],
+  // A Supabase secret API key in the newer, non-JWT format (`sb_secret_…`) — the
+  // service-role key of a project created after the key-format change (the lock
+  // pass, §0ak). The publishable key is public by design and is left alone.
+  [/\bsb_secret_[\w-]{8,}/g, '[secret-key]'],
   // Credentials before the host of a URL or connection string: `user:password@host`,
   // a DSN's key before its ingest host.
   [/\b([a-z][a-z0-9+.-]*:\/\/)[^\s/@]+(?::[^\s/@]*)?@/gi, '$1[credentials]@'],

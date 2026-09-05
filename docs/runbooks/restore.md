@@ -1,8 +1,11 @@
 # Restore — bringing the site back from a recovery point
 
-Technical plan §10f; phase 13A. Read [backups.md](backups.md) first for what a
-recovery point contains and where it lives. This runbook is the sequence to follow
-when the production project, its Storage, or its data is gone or unusable.
+Technical plan §10f; phase 13A, locked with phase 13 (§0ak). Read
+[backups.md](backups.md) first for what a recovery point contains and where it lives.
+This runbook is the sequence to follow when the production project, its Storage, or
+its data is gone or unusable. A recovery point is a complete data/storage copy
+**paired with the repository's migration history** — §3 below is where the pairing
+happens, and it is why a restore needs a checkout and not only the archive.
 
 ## 0. Choose the layer
 
@@ -66,10 +69,15 @@ forward** (brief §17). There are no downgrade migrations.
    only knowingly, for example when the newer migration is known to add nullable
    columns only).
 
-If the repository itself is unavailable, `db/schema.sql` in the recovery point is a
-plain `pg_dump` of the public schema and can be loaded into an empty Supabase project
-with `psql --single-transaction --set ON_ERROR_STOP=1 --file db/schema.sql`. That path
-is a reference copy, not the drilled one; expect to review grants by hand.
+`db/schema.sql` in the recovery point is a plain `pg_dump --schema-only` of `public`,
+kept **for inspection**: it shows what the schema looked like when the point was taken
+without a checkout. It is **not a restore method** — loading it is not drilled, not
+supported and not a substitute for step 2; a project created from it would have no
+`supabase_migrations` history and the restore command would refuse it (step 3). The
+repository is a required part of every restore. Any checkout whose
+`supabase/migrations` matches the manifest's list will do — the repository is on
+GitHub and on every developer machine, which is the availability this design relies on
+(phase 13's lock pass, §0ak).
 
 ## 4. Restore the database and Storage
 
@@ -187,7 +195,12 @@ promotion flow (§10b); nothing about a restored project is special from here on
 ## 9. Rehearsal
 
 The drill (`npm run backup:drill`) is this runbook run against the local stack,
-end to end, on every CI run. To rehearse against a scratch **hosted** project, take
-the steps above with the scratch project's values — the confirmation variable and the
-project-ref check make it hard to point the rehearsal at production by accident, and
-impossible to mix one project's database with another's Storage.
+end to end, on every CI run. The rehearsal against a scratch **hosted** project is a
+**pre-launch gate the repository cannot perform** — row B7 of
+[pre-launch-checklist.md](pre-launch-checklist.md) lists its eight steps: take the
+steps above with the scratch project's values, verify the workflows, the Auth
+recovery, the bucket privacy, RLS and a trusted function, then destroy the scratch
+project. The confirmation variable and the project-ref check make it hard to point the
+rehearsal at production by accident, and impossible to mix one project's database with
+another's Storage. Until B7 is done, "a restore succeeds into a scratch project" is
+proven for the local stack only.

@@ -138,6 +138,7 @@ async function createProfile(
       detail: error.message,
       tags: { code: error.code ?? 'unknown' },
       context: { account_id: identity.userId },
+      groupBy: identity.userId,
     })
     return 'failed'
   }
@@ -151,6 +152,7 @@ async function createProfile(
     reportOperationalEvent('accounts:profile-failed', {
       tags: { code: 'no_auth_user' },
       context: { account_id: identity.userId },
+      groupBy: identity.userId,
     })
     return 'no_auth_user'
   }
@@ -158,6 +160,7 @@ async function createProfile(
   reportOperationalEvent('accounts:profile-failed', {
     tags: { code: 'unreadable_reply' },
     context: { account_id: identity.userId },
+    groupBy: identity.userId,
   })
   return 'failed'
 }
@@ -242,6 +245,7 @@ function transitionFailure(
   reportOperationalEvent('accounts:transition-failed', {
     detail: error.message,
     tags: { code: error.code ?? 'unknown', transition },
+    groupBy: transition,
   })
   return { status: 'failed', updatedAt: null }
 }

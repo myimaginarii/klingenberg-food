@@ -10,10 +10,13 @@ import { rateLimitTier, type RateLimitScope } from './scopes'
 /**
  * The limiter door — technical plan §8, §0ai; phase 13B.
  *
- * Two calls, both to the database, both answering the same shape. The counters,
- * the windows, the atomic increment and the subject derivation all live in
- * `consume_rate_limit()` / `peek_rate_limit()` (migration `20260905120000`); this
- * module only asks and translates. It performs no authorization, chooses no
+ * Every call goes to the database and every answer has the same shape. The
+ * counters, the windows, the atomic increment and the subject derivation all live
+ * in `consume_rate_limit()` (migration `20260905120000`) and the two sign-in doors
+ * (migration `20260905180000`); this module only asks and translates. The
+ * database's read door, `peek_rate_limit()`, has had no application caller since
+ * the 13B closure replaced peek-then-consume with the reservation, so it has no
+ * wrapper here (pgTAP `029` still owns the function itself). It performs no authorization, chooses no
  * threshold, and never sees an address: an `actor` scope carries no subject at all
  * (the function reads `auth.uid()`), and a `client` scope carries the HMAC
  * `lib/rate-limit/subject.ts` derived.
@@ -77,18 +80,9 @@ export async function consumeRateLimit(
   return ask(supabase, 'consume_rate_limit', scope, subject)
 }
 
-/** The same answer without counting — the sign-in path's question before it tries. */
-export async function peekRateLimit(
-  supabase: SupabaseClient,
-  scope: RateLimitScope,
-  subject?: string,
-): Promise<RateLimitDecision> {
-  return ask(supabase, 'peek_rate_limit', scope, subject)
-}
-
 async function ask(
   supabase: SupabaseClient,
-  fn: 'consume_rate_limit' | 'peek_rate_limit',
+  fn: 'consume_rate_limit',
   scope: RateLimitScope,
   subject: string | undefined,
 ): Promise<RateLimitDecision> {

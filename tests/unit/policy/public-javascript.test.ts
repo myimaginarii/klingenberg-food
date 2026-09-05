@@ -40,6 +40,11 @@ const ALLOWED_PUBLIC_CLIENT_COMPONENTS = new Map([
     'removes an announcement whose expiry passes while the page is open (§7a, §7c) — ' +
       'the third of three expiry layers, and the only one that can act without a request',
   ],
+  [
+    'app/(site)/error.tsx',
+    'an error boundary must be a Client Component (the framework’s rule); it renders only ' +
+      'after a public page has already failed (§10g, phase 13’s lock pass)',
+  ],
 ])
 
 function* walk(directory: string): Generator<string> {

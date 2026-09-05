@@ -62,6 +62,14 @@ describe('redactText', () => {
     )
   })
 
+  it('replaces a Supabase secret key in the non-JWT format (the lock pass)', () => {
+    const key = ['sb_secret_', 'N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz'].join('')
+    expect(redactText(`service role ${key} refused`)).toBe('service role [secret-key] refused')
+    expect(redactText(`apikey=${key}`)).toBe(`apikey=${REDACTED}`)
+    // The publishable key is public by design and stays readable.
+    expect(redactText('sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH')).toBe('sb_publishable_ACJWlzQHlZjBrEguHvfOxg_3BJgxAaH')
+  })
+
   it('replaces an e-mail address in a sentence', () => {
     expect(redactText('Inviting ny.medarbejder@example.test failed')).toBe('Inviting [email] failed')
     expect(redactText('two: a@b.test, c.d+e@f-g.h.test')).toBe('two: [email], [email]')
@@ -96,6 +104,10 @@ describe('sensitive keys and scrubValue', () => {
       DSN_NAME,
       'service_role',
       'session',
+      // The Danish words a form field of this administration would carry.
+      'adgangskode',
+      'ny_adgangskode',
+      'kodeord',
     ]) {
       expect(isSensitiveKey(key), key).toBe(true)
     }

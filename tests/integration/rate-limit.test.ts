@@ -1,7 +1,7 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
-import { consumeRateLimit, peekRateLimit, refusedByRateLimit } from '@/lib/rate-limit/limiter'
+import { consumeRateLimit, decisionFromReply, refusedByRateLimit } from '@/lib/rate-limit/limiter'
 import { RATE_LIMIT_SCOPES } from '@/lib/rate-limit/scopes'
 import { CLIENT_SUBJECT_PATTERN, deriveClientSubject, normalizeAccountAddress } from '@/lib/rate-limit/subject'
 
@@ -64,8 +64,9 @@ describe('an actor scope through a real session', () => {
     const first = await consumeRateLimit(ownerRest, 'content:publish')
     expect(first).toEqual({ status: 'allowed', remaining: RATE_LIMIT_SCOPES['content:publish'].maxHits - 1 })
 
-    const peeked = await peekRateLimit(ownerRest, 'content:publish')
-    expect(peeked).toEqual(first)
+    // The database's read door, asked directly (the application has no wrapper for it).
+    const peekedReply = await ownerRest.rpc('peek_rate_limit', { p_scope: 'content:publish' })
+    expect(decisionFromReply(peekedReply.data, peekedReply.error)).toEqual(first)
 
     const buckets = await listLocalRateLimitBuckets()
     const mine = buckets.filter((b) => b.scope === 'content:publish')
@@ -133,7 +134,8 @@ describe('a client scope through the anonymous client', () => {
       const decision = await consumeRateLimit(anon, 'auth:signin-account', account)
       expect(decision).toEqual({ status: 'allowed', remaining: limit - i })
     }
-    expect((await peekRateLimit(anon, 'auth:signin-account', account)).status).toBe('limited')
+    const peeked = await anon.rpc('peek_rate_limit', { p_scope: 'auth:signin-account', p_subject: account })
+    expect(decisionFromReply(peeked.data, peeked.error).status).toBe('limited')
     expect((await consumeRateLimit(anon, 'auth:signin-account', account)).status).toBe('limited')
   })
 

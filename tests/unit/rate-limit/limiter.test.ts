@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import { consumeRateLimit, decisionFromReply, peekRateLimit, refusedByRateLimit } from '@/lib/rate-limit/limiter'
+import { consumeRateLimit, decisionFromReply, refusedByRateLimit } from '@/lib/rate-limit/limiter'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 /**
@@ -83,9 +83,9 @@ describe('the door', () => {
     await consumeRateLimit(supabase, 'content:save')
     expect(rpc).toHaveBeenLastCalledWith('consume_rate_limit', { p_scope: 'content:save' })
 
-    await peekRateLimit(supabase, 'auth:signin', 'ab'.repeat(32))
-    expect(rpc).toHaveBeenLastCalledWith('peek_rate_limit', {
-      p_scope: 'auth:signin',
+    await consumeRateLimit(supabase, 'auth:reset', 'ab'.repeat(32))
+    expect(rpc).toHaveBeenLastCalledWith('consume_rate_limit', {
+      p_scope: 'auth:reset',
       p_subject: 'ab'.repeat(32),
     })
   })
