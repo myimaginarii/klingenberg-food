@@ -1,4 +1,5 @@
 import { type PostalAddress, directionsUrl, formatAddressLine } from '@/lib/site/links'
+import { MAP_ASSET } from '@/lib/site/map-asset'
 
 /**
  * The map — technical plan §7g (decision 6).
@@ -17,15 +18,11 @@ import { type PostalAddress, directionsUrl, formatAddressLine } from '@/lib/site
  * engine and the clipboard regardless of whether the picture loads.
  *
  * **The asset is a placeholder** until the licensed image arrives (§13, open item C).
- * Swapping it is a one-file change: this descriptor is the only place the path and the
- * intrinsic size appear, and `public/map/LICENSE.md` carries the provenance field the
- * launch check reads.
+ * Swapping it is a one-file change: `lib/site/map-asset.ts` is the only place the path
+ * and the intrinsic size appear, and `public/map/LICENSE.md` carries the provenance
+ * record the launch guard reads (`lib/site/map-launch-guard.ts`, phase 14A) — a Vercel
+ * production build refuses the placeholder; everything else renders it.
  */
-const MAP_ASSET = {
-  src: '/map/klingenberg-food-placeholder.svg',
-  width: 1200,
-  height: 900,
-} as const
 
 export type MapFrame = 'hero' | 'card' | 'square'
 

@@ -23,7 +23,7 @@ import { WEEKDAY_KEYS, type WeekdayKey } from '@/lib/time/calendar'
  * Mandag to Søndag, in the order the document and every Danish opening-hours table use
  * them, from `WEEKDAY_KEYS`. The values come from the stored schedule and nothing is
  * hard-coded: the current week — Mon/Tue closed, Wed–Fri 15:00–20:00, Sat–Sun 17:00–20:00 —
- * is *data*, seeded in `supabase/seed.sql`, and this file contains none of those times.
+ * is *data*, seeded in `supabase/seed/confirmed.sql`, and this file contains none of those times.
  *
  * **1t's lower half is not here.** "ENKELT ÆNDRING", the date field, "Andre tider en enkelt
  * dag", the suggested message and "Vis også som besked øverst på hjemmesiden" live in

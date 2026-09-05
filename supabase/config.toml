@@ -33,7 +33,7 @@ schema_paths = []
 # Seeds run after migrations on `npm run db:reset`. The seed carries the confirmed
 # business facts and throwaway test accounts — never real restaurant accounts (§5).
 enabled = true
-sql_paths = ["./seed.sql"]
+sql_paths = ["./seed/confirmed.sql", "./seed/development.sql"]
 
 [db.pooler]
 enabled = false

@@ -1,7 +1,7 @@
 /**
  * The facts the browser tests assert against — technical plan header, design 1ab.
  *
- * These are the owner-confirmed values, the same ones `supabase/seed.sql` writes. They
+ * These are the owner-confirmed values, the same ones `supabase/seed/confirmed.sql` writes. They
  * are stated once here so a test failure points at the site, not at a number typed
  * twice.
  */

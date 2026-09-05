@@ -1,8 +1,10 @@
 import type { NextConfig } from 'next'
+import { PHASE_PRODUCTION_BUILD } from 'next/constants'
 
 import { PUBLIC_REVALIDATE_SECONDS } from './lib/cache/tags'
 import { getServerActionAllowedOrigins } from './lib/config/site'
 import { securityHeaders } from './lib/security/headers'
+import { assertLaunchMapProvenance } from './lib/site/map-launch-guard'
 import { optionalSupabaseOrigin } from './lib/supabase/config'
 
 const nextConfig: NextConfig = {
@@ -80,4 +82,17 @@ const nextConfig: NextConfig = {
   },
 }
 
-export default nextConfig
+/**
+ * The launch map guard — technical plan §7g, §13 item C; phase 14A.
+ *
+ * Once per production build, never at request time: a **Vercel production**
+ * build (`VERCEL_ENV=production`) is refused while `public/map/` still holds the
+ * placeholder or its provenance record is incomplete. A local `next build`, CI
+ * and every Vercel preview build pass with the placeholder — the guard reads the
+ * platform's own environment signal and adds no variable of its own
+ * (`lib/site/map-launch-guard.ts`).
+ */
+export default function config(phase: string): NextConfig {
+  if (phase === PHASE_PRODUCTION_BUILD) assertLaunchMapProvenance()
+  return nextConfig
+}

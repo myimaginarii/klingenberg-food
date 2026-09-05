@@ -3,6 +3,17 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 14A — no dependency added (2026-09-05)
+
+The production wiring (technical plan §0al) is plain Node over what the tree
+already holds: `@supabase/supabase-js` for the Owner bootstrap's Auth Admin
+call, `node:util`'s `parseArgs` for the three commands' options (no argument
+parser added, by decision), psql from the `postgres:17` image or the PATH
+through phase 13A's door, and `next/constants` for the build-phase hook the map
+guard runs under. `npm audit --audit-level=high` is unchanged. The seed moved
+from `supabase/seed.sql` to `supabase/seed/confirmed.sql` + `development.sql`;
+the Supabase CLI runs both through `config.toml`'s `sql_paths`, in order.
+
 ## Phase 13C — one dependency added: `@sentry/nextjs` (2026-09-05)
 
 Server-side error monitoring (technical plan §10g, §0aj). One package, pinned

@@ -32,7 +32,7 @@ import { WeeklyAvailabilityBlock, type WeeklyAvailabilityForm } from './WeeklyAv
  *
  * 1ag states it as a standing note: *"Teksten … står altid i denne sektion. Den skrives
  * ikke pr. ret og gælder ikke resten af menuen."* It is the menu section's own `note`
- * column, seeded once (`supabase/seed.sql`) and printed by the public menu under Ugens
+ * column, seeded once (`supabase/seed/confirmed.sql`) and printed by the public menu under Ugens
  * ret. So this card shows it as the frame does — as a reminder of a rule — and offers no
  * control for it, which is what stops it being written per dish or widened to the rest
  * of the menu.

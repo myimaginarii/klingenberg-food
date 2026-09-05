@@ -32,6 +32,15 @@ export const NAMES = Object.freeze({
   /** Restore safety: the exact database host an operator confirms for a remote target. */
   restoreConfirmHost: 'BACKUP_RESTORE_CONFIRM_HOST',
 
+  /**
+   * Launch safety (phase 14A): one confirmation per operation, never shared, so a
+   * shell that confirmed a migration has not confirmed a content load or the Owner
+   * bootstrap. Each names the target project's host exactly (scripts/launch/lib/target.mjs).
+   */
+  bootstrapConfirmHost: 'BOOTSTRAP_CONFIRM_HOST',
+  contentLoadConfirmHost: 'CONTENT_LOAD_CONFIRM_HOST',
+  migrateConfirmHost: 'MIGRATE_CONFIRM_HOST',
+
   /** Tooling knobs — none of them secret. */
   pgMode: 'BACKUP_PG_MODE',
   pgImage: 'BACKUP_PG_IMAGE',
@@ -111,10 +120,38 @@ export function readDestination(env = process.env) {
 export function readOptions(env = process.env) {
   return {
     restoreConfirmHost: read(env, NAMES.restoreConfirmHost),
+    bootstrapConfirmHost: read(env, NAMES.bootstrapConfirmHost),
+    contentLoadConfirmHost: read(env, NAMES.contentLoadConfirmHost),
+    migrateConfirmHost: read(env, NAMES.migrateConfirmHost),
     pgMode: read(env, NAMES.pgMode),
     pgImage: read(env, NAMES.pgImage),
     awsCli: read(env, NAMES.awsCli),
   }
+}
+
+/**
+ * The API half of a project only — the Auth Admin API and PostgREST over the service
+ * role. What the Owner bootstrap needs (phase 14A); it never opens the database.
+ *
+ * @param {Record<string, string | undefined>} env
+ */
+export function readApiProject(env = process.env) {
+  requireAll(env, [NAMES.apiUrl, NAMES.serviceRoleKey])
+  return {
+    apiUrl: /** @type {string} */ (read(env, NAMES.apiUrl)),
+    serviceRoleKey: /** @type {string} */ (read(env, NAMES.serviceRoleKey)),
+  }
+}
+
+/**
+ * The database half of a project only — what the migration door and the content
+ * loader need (phase 14A); neither holds a service-role key.
+ *
+ * @param {Record<string, string | undefined>} env
+ */
+export function readDatabase(env = process.env) {
+  requireAll(env, [NAMES.dbUrl])
+  return { dbUrl: /** @type {string} */ (read(env, NAMES.dbUrl)) }
 }
 
 /**

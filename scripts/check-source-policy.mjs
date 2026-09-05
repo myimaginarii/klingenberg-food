@@ -2,7 +2,7 @@
 /**
  * Repository source-policy checks — technical plan §8, §10d, §10f.
  *
- * Five rules, all cheap, all run in CI before the build:
+ * Six rules, all cheap, all run in CI before the build:
  *
  *   1. no-hard-coded-domain  A site domain literal may appear only in
  *                            lib/config/site.ts. Choosing the restaurant's domain
@@ -19,6 +19,14 @@
  *                            browser SDK file, no `withSentryConfig`, no
  *                            `NEXT_PUBLIC_…SENTRY…` variable, no Replay or browser
  *                            tracing anywhere in the tree.
+ *   6. launch-content-boundary The production launch tooling (`scripts/launch/`)
+ *                            and the workflows never name the development seed
+ *                            layer or the local user seeder, and the confirmed
+ *                            content file carries no `@example.test` identity
+ *                            (§10a, §10b; phase 14A). The unit policy suite
+ *                            (`tests/unit/policy/launch-boundary.test.ts`) holds
+ *                            the fuller set; this is the cheap version that runs
+ *                            before anything is built.
  *
  * Exit code 1 on any violation, with file:line and the offending text.
  */
@@ -68,9 +76,10 @@ const ALLOWED_HOSTS = new Set([
   'www.w3.org', // SVG / XML namespaces
   'www.google.com', // Google Maps directions URL (§7g) — not a site domain
   // The restaurant's Facebook page is a confirmed business fact and is stored as
-  // content in `site_contact.facebook_url`, seeded in supabase/seed.sql. It is a
+  // content in `site_contact.facebook_url`, seeded in supabase/seed/confirmed.sql. It is a
   // third-party profile URL, not this site's origin, so the §10d rule — "choosing our
   // domain later must be configuration, not a code change" — does not apply to it.
+  // (Since phase 14A the seed is `supabase/seed/confirmed.sql`.)
   'www.facebook.com',
 ])
 
@@ -365,6 +374,52 @@ if (!existsSync(licencePath)) {
   }
 }
 
+// --- 6. launch-content-boundary (§10a, §10b; phase 14A) ---------------------------
+//
+// Production never runs the development seed. The loader reads one constant file,
+// the migration door reads the migration directory, and neither — nor the Owner
+// bootstrap, nor any workflow — may so much as name the development layer or the
+// local user seeder. The confirmed file, comments aside, holds no test identity.
+
+const LAUNCH_FORBIDDEN_RE = /seed\/development\.sql|seed-local-users/
+const CONFIRMED_CONTENT = 'supabase/seed/confirmed.sql'
+
+/**
+ * Code, not prose: a script may explain in a comment which file it never reads.
+ * Block comments are blanked line by line so line numbers survive; `//` and `#`
+ * comments are cut at the marker.
+ */
+function withoutComments(contents, relPath) {
+  const blockless = relPath.endsWith('.mjs')
+    ? contents.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' '))
+    : contents
+  const marker = relPath.endsWith('.mjs') ? /(^|[^:])\/\/.*$/ : /#.*$/
+  return blockless.split(/\r?\n/).map((line) => line.replace(marker, '$1'))
+}
+
+for (const absolute of sourceFiles()) {
+  const relPath = normalise(relative(ROOT, absolute))
+  if (!(relPath.startsWith('scripts/launch/') || relPath.startsWith('.github/workflows/'))) continue
+  if (!shouldScan(relPath)) continue
+  withoutComments(readFileSync(absolute, 'utf8'), relPath).forEach((line, index) => {
+    if (LAUNCH_FORBIDDEN_RE.test(line)) {
+      report('launch-content-boundary', relPath, index + 1, line, 'the development seed layer and the local seeder are never a production path')
+    }
+  })
+}
+
+const confirmedPath = join(ROOT, CONFIRMED_CONTENT)
+if (!existsSync(confirmedPath)) {
+  violations.push({ rule: 'launch-content-boundary', where: CONFIRMED_CONTENT, detail: 'the confirmed content file is missing', line: '' })
+} else {
+  readFileSync(confirmedPath, 'utf8').split(/\r?\n/).forEach((line, index) => {
+    const code = line.replace(/--.*$/, '')
+    if (/@example\.test/i.test(code)) {
+      report('launch-content-boundary', CONFIRMED_CONTENT, index + 1, line, 'a test identity in the confirmed content source')
+    }
+  })
+}
+
 // A check that silently inspects nothing is worse than no check: it reports success
 // forever. Refuse to pass on an empty scan.
 if (scanned === 0) {
@@ -376,7 +431,7 @@ if (scanned === 0) {
 
 if (violations.length === 0) {
   console.log(
-    `source-policy: OK — ${scanned} file(s) scanned; no hard-coded domains, no \`set -x\`, no stray secret access, no browser monitoring.`,
+    `source-policy: OK — ${scanned} file(s) scanned; no hard-coded domains, no \`set -x\`, no stray secret access, no browser monitoring, no development seed in the launch path.`,
   )
   process.exit(0)
 }

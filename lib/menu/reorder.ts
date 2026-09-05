@@ -131,7 +131,7 @@ export function dropIndex(
 /**
  * The first position in a section's order.
  *
- * One, not zero, because that is what `supabase/seed.sql` writes and what
+ * One, not zero, because that is what `supabase/seed/confirmed.sql` writes and what
  * `nextSortOrderIn` in `lib/menu/admin.ts` produces for an empty section. A list that
  * starts at 1 also reads correctly in the sentence a person hears — "plads 1 af 6" —
  * with no arithmetic between the stored value and the spoken one.

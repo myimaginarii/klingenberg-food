@@ -28,7 +28,7 @@ export const WEEKDAYS = [
 export type Weekday = (typeof WEEKDAYS)[number]
 
 /**
- * The owner-confirmed week, as `supabase/seed.sql` writes it.
+ * The owner-confirmed week, as `supabase/seed/confirmed.sql` writes it.
  *
  * Stated once here so a failure points at the site rather than at a time typed twice, and
  * so every scenario can restore exactly what it found.

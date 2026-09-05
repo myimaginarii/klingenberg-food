@@ -21,7 +21,10 @@ and are deliberately not here.
 | **Requires one manual pre-launch verification** | A step a person performs once against the real projects, and records with a date in the launch notes. Until it is done, the capability is **unproven in production**, however green CI is. |
 
 Nothing below is marked done. A row is closed by writing the date and the release
-beside it in the launch notes, never by editing this file.
+beside it in the launch notes — [launch-notes.md](launch-notes.md) §7, by row id —
+never by editing this file. Phase 14's own items (assets, the Owner bootstrap, the
+content load, the migration run, the domain wiring, training) are the other
+sections of that document; they are not repeated here.
 
 ## 1. Supabase
 

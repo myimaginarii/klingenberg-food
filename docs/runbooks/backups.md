@@ -49,7 +49,8 @@ One recovery point is one directory, named by its UTC creation instant
   object inventory.
 - **Provider-managed schemas** (`storage`, `realtime`, `supabase_functions`,
   `extensions`, `vault`, …) and `supabase_migrations` — the migrations table is
-  recreated by `supabase db push`; the manifest records which versions were applied.
+  recreated by the migration door (`npm run launch:migrate`, phase 14A) or by
+  `supabase db push`; the manifest records which versions were applied.
 - **Secrets and configuration** — environment variables, the service-role key, SMTP
   credentials, Vercel settings, Auth settings (site URL, redirect URLs, templates,
   rate limits). These are re-established from their own sources; see

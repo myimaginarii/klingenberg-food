@@ -177,6 +177,21 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
             npm run test:integration
 
+      # Phase 14A: the three production launch commands — the migration door, the
+      # confirmed-content loader and the Owner bootstrap — driven in their
+      # loopback-only harness mode against the same stack (psql 17 from the
+      # postgres:17 image through the runner's Docker). The content suite resets
+      # the stack twice, so it runs last.
+      - name: Launch tooling drill
+        run: |
+          eval "$(npx supabase status -o env)"
+          NEXT_PUBLIC_SUPABASE_URL="$API_URL" \
+          NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY" \
+          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
+          SUPABASE_DB_URL="$DB_URL" \
+          BACKUP_PG_MODE=docker \
+            npm run launch:drill
+
       - name: Stop local Supabase
         if: always()
         run: npx supabase stop --no-backup

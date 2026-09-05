@@ -333,7 +333,12 @@ anything but a loopback Supabase, and creates two throwaway identities:
 
 `.test` is a reserved TLD, so neither address can ever be a real mailbox. **No real
 restaurant account is created by anything in this repository.** The one-time production
-owner bootstrap is separate and arrives at launch (technical plan §5).
+Owner bootstrap is a separate command, `npm run launch:bootstrap-owner` (phase 14A): it
+refuses the local stack, requires the production project's host as its confirmation,
+sends the same Danish invitation the administration sends — the Owner chooses their own
+password — and is inert once any Owner exists. `docs/runbooks/owner-handover.md` is the
+operator's document; `tests/launch/bootstrap.test.mjs` drives it against the local Auth
+server in its loopback-only harness mode.
 
 `npm run db:reset:full` runs both steps in the right order.
 
@@ -371,6 +376,22 @@ them plus `npm audit --audit-level=high` and CodeQL.
 npm run backup:drill   # phase 13A: backup, destroy, restore, prove — resets the local stack twice
 ```
 
+```bash
+npm run launch:drill   # phase 14A: the three launch commands in harness mode — resets the local stack twice
+```
+
+The launch drill (`tests/launch/`, `vitest.launch.mts`) runs `scripts/launch/migrate.mjs`,
+`load-content.mjs` and `bootstrap-owner.mjs` with `--local-harness` against the local
+stack — the production code with its target guard inverted to loopback-only, never
+weakened — and is the last step of CI's database job. Their pure rules are unit-tested
+under `tests/unit/launch/`, and `tests/unit/policy/launch-boundary.test.ts` pins that
+migration, content load and Owner bootstrap stay three separate commands, that no
+launch tool names the development seed layer, and that the launch tools sit outside
+the runtime import graph. The production commands themselves (`npm run launch:migrate`,
+`npm run launch:load-content`, `npm run launch:bootstrap-owner`) refuse the local stack
+and need their own confirmation variable naming the target project's host
+(`.env.example`, `docs/runbooks/launch-notes.md`).
+
 The drill (`tests/backup/drill.test.ts`) runs the real backup and restore commands
 against the local stack and is the last step of CI's database job. It refuses every
 host but loopback, and it ends with `npm run db:reset:full`, so run it when you can
@@ -404,7 +425,7 @@ and needs no CSP change). Monitoring is off in every test run and in local
 development — there is no DSN — so nothing an automated run does can reach a real
 Sentry project. `docs/runbooks/monitoring.md` is the operator's document.
 
-`npm run check:policy` enforces four repository rules from the technical plan:
+`npm run check:policy` enforces six repository rules from the technical plan:
 
 1. **No hard-coded domain.** A site origin may only be produced by
    `lib/config/site.ts` (§10d). The restaurant's domain is deferred; choosing it later
@@ -416,6 +437,13 @@ Sentry project. `docs/runbooks/monitoring.md` is the operator's document.
 4. **No browser monitoring.** No `instrumentation-client` or client Sentry config
    file, no build wrapper around `next.config.ts`, no `NEXT_PUBLIC_…SENTRY…`
    variable, no Replay or browser-tracing integration anywhere (§1, §12, §0aj).
+5. **Map provenance recorded** (`public/map/LICENSE.md`, §7g) — and, since phase 14A,
+   a **Vercel production build** is refused while it still says `placeholder`
+   (`lib/site/map-launch-guard.ts`, run by `next.config.ts`); local, CI and preview
+   builds pass with it.
+6. **No development seed in the launch path** (phase 14A). No launch tool and no
+   workflow names `supabase/seed/development.sql` or the local user seeder, and
+   `supabase/seed/confirmed.sql` holds no `@example.test` identity.
 
 ## Layout
 
@@ -558,6 +586,11 @@ scripts/
   check-source-policy.mjs
   seed-local-users.mjs   local Owner/Staff identities via the supported admin API
   clear-data-cache.mjs   development only — see "Getting started"
+  launch/                phase 14A — the three production launch commands:
+                         migrate.mjs (the migration door), load-content.mjs (the
+                         one-time confirmed-content load), bootstrap-owner.mjs
+                         (the first Owner, by invitation); lib/ holds their pure
+                         rules; every target confirmed, the local stack refused
 supabase/
   config.toml       local stack: public signup off, no realtime, mail catcher on
   migrations/       schema, RLS, the draft/publish core, immediate sold-out, soft
@@ -567,7 +600,11 @@ supabase/
                     announcement ownership, the news admin (unpublish + delete),
                     the image storage foundation (buckets + the trusted image doors),
                     and the image replacement transition (10B)
-  seed.sql          the confirmed contact, opening-hours and menu facts
+  seed/
+    confirmed.sql   the confirmed contact, opening-hours and menu facts — the ONE
+                    source; loaded first locally, once in production (phase 14A)
+    development.sql the placeholder pages, News and weekly state — local only,
+                    never a production path
   templates/        Danish auth emails, versioned and applied through config.toml
   tests/            pgTAP — the §5 permission matrix, the owner invariant, and every
                     write path phases 4–10A added
@@ -633,12 +670,29 @@ transcription of it, not an interpretation.
 Local is fully working. Staging and production are deliberately **not** provisioned yet —
 Supabase Pro and Vercel Pro are deferred until closer to launch (§10a). Nothing in the
 code needs to change when they arrive: the site URL resolves from the environment, and
-no plan-specific API is used.
+no plan-specific API is used. What the repository *does* hold since phase 14A (§0al) is
+the wiring a production project is brought up with: the migration door
+(`npm run launch:migrate`, and `.github/workflows/production-migrate.yml`, dispatch-only
+until phase 14C creates the protected `production` environment and adds the push
+trigger), the one-time confirmed-content load, the one-time Owner bootstrap, and the
+launch map guard — each proven against the local stack only, none of them run against
+anything hosted.
 
 ## Deferred to a later phase
 
 The SEO verification against Rich Results, the final security audit over the
-carry-forwards §0ak lists, and launch (phase 14). **Phase 13 is locked (§0ak):** the
+carry-forwards §0ak lists, and the rest of launch. **Phase 14A — production wiring in
+the repository — is built and green (§0al):** the Owner bootstrap through the phase-11
+invitation (no password generated, ever; inert once an Owner exists; its partial states
+repaired by rerunning), the seed split into `supabase/seed/confirmed.sql` and
+`supabase/seed/development.sql`, the one-time confirmed-content loader with its
+fresh-state guard and single transaction, the migration door with the restore
+tooling's history discipline and a dispatch-only production workflow, the launch map
+guard, and the three runbooks (`domain-cutover.md`, `owner-handover.md`,
+`launch-notes.md`). Phase 14 is **not** complete: 14B (real assets and copy, the Om os
+editor), 14C (the hosted deployment, the migration run, the content load, the Owner,
+the workflow trigger) and 14D (the lock) remain, and nothing hosted is provisioned.
+**Phase 13 is locked (§0ak):** the
 runbooks under `docs/runbooks/` are current, and `pre-launch-checklist.md` is the one
 list of gates the repository cannot close by itself — the backup destination (§13 item
 A), the hosted restore rehearsal, `RATE_LIMIT_SECRET`, the HSTS scope, the real Sentry

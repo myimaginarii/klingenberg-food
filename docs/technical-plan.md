@@ -7335,6 +7335,254 @@ over every carry-forward listed above, run as its own dedicated review with the
 
 ---
 
+## 0al. Phase 14A — production wiring in the repository (2026-09-05)
+
+The phase-14 planning pass split launch into four increments: **14A**, the
+production wiring in the repository; **14B**, real assets and copy and the Om os
+editor; **14C**, the hosted production deployment, bootstrap and verification;
+**14D**, the lock. This section is 14A: everything a launch needs *from the
+repository*, built and proven against the local stack, with **no hosted Supabase,
+Vercel, Sentry or object-store account touched, no real credential, no real asset,
+no domain, no indexing change and no copy work**. Eight decisions of the planning
+pass are in force here and are restated where each lands: the Owner bootstrap uses
+the phase-11 invitation; confirmed content is separated from development content;
+the migration door exists but applies nothing to a real project yet; the protected
+production workflow is activated in 14C; staging stays planned; the Om os editor
+is 14B's; launch checks distinguish a real Vercel production build from a local
+production build; the domain, the indexing and the assets are untouched.
+
+### What was found before anything was built
+
+- **Accounts.** Phase 11C's invitation is `auth.admin.inviteUserByEmail` (the
+  identity and its Danish e-mail in one operation) followed by
+  `create_account_profile()` — a SECURITY INVOKER transition that requires an
+  *active Owner* as the caller. The application's own repair paths were measured
+  there: an unconfirmed identity is re-sent the invitation under the same id, a
+  confirmed one answers `email_exists` and is found by address and given its
+  profile without a new e-mail. The profile guard (`tg_guard_account_write`)
+  admits `postgres` and `service_role` with the whole table — the path
+  `scripts/seed-local-users.mjs` has used since phase 1 — and refuses `anon` and
+  `authenticated` outside a named transition. The deferred owner-invariant
+  trigger refuses any transaction that leaves zero active Owners, on UPDATE and
+  DELETE, including the cascade from `auth.users`.
+- **The seed.** One file, `supabase/seed.sql`, carrying confirmed facts (contact,
+  hours, nine sections, every confirmed dish, the tapas lists) *and* development
+  state (the weekly placeholder, the three page documents with their placeholder
+  prose, three placeholder News articles) in one run.
+- **Target safety.** Phase 13A's restore guard (`scripts/backup/lib/targets.mjs`):
+  loopback needs no confirmation, any other host must be named exactly in
+  `BACKUP_RESTORE_CONFIRM_HOST`, a database and a Storage API from two projects
+  are refused. Its pg door (`pg.mjs`) runs psql natively or from the
+  `postgres:17` image with the connection in libpq's environment. Its history
+  comparison (`compareMigrationHistories`) names four relations.
+- **Migration history.** The CLI records `supabase_migrations.schema_migrations
+  (version, name, statements)`; the local stack held 24 versions.
+- **The map.** `components/site/StaticMap.tsx` held the asset descriptor;
+  `public/map/LICENSE.md` records `Provenance: placeholder`; source-policy rule 4
+  demands the row exist and says nothing about its value.
+- **CI.** No production workflow existed; `ci.yml` runs against the local stack.
+
+### What it contains
+
+**The Owner bootstrap — `scripts/launch/bootstrap-owner.mjs`
+(`npm run launch:bootstrap-owner --email … --name …`).** One purpose: the FIRST
+Owner into an Owner-less application, through the phase-11 invitation — the Auth
+Admin API sends the Danish invitation, the Owner chooses their own password on
+`/admin/ny-adgangskode` — then ONE `INSERT` into `profiles` (`role = 'owner'`,
+active) over the service role, the trusted path §8 names as the key's fourth
+holder, narrowed to an insert: never an upsert, never an update, never a role
+change, never a deletion. One audit row (`bootstrap`, entity `profile`, no
+actor) records it best-effort. **This is the deliberate update of §5's older
+wording**: revision 2 said a random password plus a reset e-mail; the production
+bootstrap generates, prints, sends and knows no password. `lib/owner-state.mjs`
+classifies what the command reads before it writes — A (nothing: invite and
+create), B (unconfirmed identity, no profile: re-invite and create), C (confirmed
+identity, no profile: attach, send nothing), D (a non-Owner profile behind the
+address: refuse, never promote), E (any Owner profile, active or disabled:
+refuse, the command is inert) — and three further refusals: a banned identity, an
+Owner-less database that nevertheless holds profiles, and a directory holding
+`@example.test` identities (a development stack). B and C are the partial states
+a first run can leave and are repaired by the same command with the same address.
+
+**The target guard — `scripts/launch/lib/target.mjs`, shared by all three
+commands.** A production run reaches a **hosted** project only and refuses the
+local stack outright; the operator confirms the target by naming its project host
+(`<ref>.supabase.co`, the host the dashboard shows — a pooler host names a region,
+not a project) in a variable that belongs to that one operation:
+`BOOTSTRAP_CONFIRM_HOST`, `CONTENT_LOAD_CONFIRM_HOST`, `MIGRATE_CONFIRM_HOST`. A
+target without a readable project ref is ambiguous and refused. The **local
+harness** (`--local-harness`) inverts the first rule rather than weakening it —
+loopback only, still confirmed with the loopback host, never a hosted project — and
+it is how the tests drive the production code. The Owner address is refused under
+every RFC 2606 reserved domain in production and required to be `@example.test`
+in the harness. The primitives (URL parsing, project refs, loopback, redaction,
+the logger, the pg door, the history comparison) are phase 13A's, imported; the
+one change to that tooling is additive — `env.mjs` gains the three confirmation
+names and two narrower readers, `readApiProject()` (the bootstrap holds no
+database URL) and `readDatabase()` (the two database tools hold no service key).
+
+**The seed split.** `supabase/seed/confirmed.sql` — the contact row, the week, the
+nine sections, every confirmed dish and price, the tapas lists, and nothing else;
+`supabase/seed/development.sql` — the weekly placeholder, the three page documents
+(the Forside's approved hero and award strings included, because a page document
+must be whole and the rest of each document is placeholder prose), the three
+placeholder News articles, and the note about `npm run db:users`. `config.toml`
+runs them in that order, so `npm run db:reset` produces exactly the state it did:
+9 sections, 47 dishes, the contact and hours facts, the weekly placeholder, the
+page documents, 3 News, 2 identities after `db:users`. There is one source of
+truth for the confirmed facts; nothing is duplicated. The classification: **confirmed** —
+`site_contact`, `opening_hours`, `menu_categories`, `dishes`; **development** —
+`weekly_special`, `pages` (all three), `news`, and the two `@example.test`
+identities the seeder creates; **structural** — the singleton rows and the
+`pages` rows, which the initial migration creates and the seed only updates.
+
+**The content loader — `scripts/launch/load-content.mjs`
+(`npm run launch:load-content`).** Reads `supabase/seed/confirmed.sql` by a
+constant path (never a glob, never the development layer) and applies it to a
+**fresh** production database in ONE psql transaction: an in-transaction guard
+re-asserts freshness, the file runs, and one `audit_log` marker row (entity
+`launch`, action `content_load`, no actor, the file's sha256 and the counts)
+records it. `lib/content.mjs` names four states from the tables the file
+populates: *fresh* (no section, no dish, the contact row empty, the week all
+closed) — load; *loaded* (marker present) — nothing to do, exit 0; *operational*
+(content, no marker: a live restaurant, a restored backup, a hand-edited project)
+— refuse, the administration owns the content; *inconsistent* (marker over empty
+tables) — refuse. There is no `ON CONFLICT DO UPDATE` anywhere; the loader never
+overwrites a live restaurant. A failure anywhere rolls the whole load back.
+
+**The migration door — `scripts/launch/migrate.mjs` (`npm run launch:migrate`).**
+Reads the target's `supabase_migrations.schema_migrations` (creating the table
+the CLI's way on a fresh project), compares it with `supabase/migrations`
+(`lib/migrations.mjs`, over 13A's `compareMigrationHistories`): *equal* — nothing
+to apply; *target-older* — the pending files apply in order, each in its own
+transaction with a CLI-compatible history row (`version`, `name`, `statements` as
+the whole file); *target-newer* (versions this checkout does not know) and
+*divergent* — refused before anything is applied. No rollback, no downgrade. The
+door runs migrations and **nothing else**: no seed file, no content, no Owner —
+pinned by the boundary suite and by source-policy rule 6.
+`.github/workflows/production-migrate.yml` runs this same file from the protected
+`production` environment (`SUPABASE_DB_URL` as a secret, `MIGRATE_CONFIRM_HOST` as
+an environment variable) and is **dispatch-only in 14A**: adding a `push: main`
+trigger now would fail every merge until the environment exists. Its header
+records the four steps 14C takes to activate it.
+
+**The launch map guard — `lib/site/map-asset.ts` and
+`lib/site/map-launch-guard.ts`, run by `next.config.ts` in the production-build
+phase.** A **Vercel production build** (`VERCEL_ENV=production`, the platform's own
+signal — no new variable) is refused while `public/map/LICENSE.md` records
+`placeholder`, the descriptor still renders the placeholder file, a required
+provenance row (Provenance, File, Source, Licence, Recorded) is missing, the
+licence names another file, or the file is absent. A local `NODE_ENV=production`
+build, CI and every Vercel preview build pass with the placeholder — measured:
+`VERCEL=1 VERCEL_ENV=production npx next build` on this tree fails in the config
+phase with the two reasons named; the ordinary build passes. It validates
+provenance, never pixels, and invents no licence: the asset and its licence are
+14B's.
+
+**Runbooks.** `docs/runbooks/domain-cutover.md` (preparation only, in order:
+domain ownership, the Vercel domain, DNS, `SITE_URL`, the Auth Site URL, the
+redirect URLs, the Resend domain, the HSTS subdomain decision, preview protection,
+production `noindex` throughout phase 14, and what the SEO and final-QA passes own);
+`docs/runbooks/owner-handover.md` (when the bootstrap can run, the exact command,
+what success looks like, the invitation through Resend, the Owner's own password,
+sign-in, `/admin/brugere`, the first Staff account, the inert second run, the
+training pass — one price, one sell-out, one announcement unaided — and account
+ownership at handover); `docs/runbooks/launch-notes.md` (the one dated record of
+every phase-14 item, linking to the phase-13 checklist by row id rather than
+copying it). `.env.example` documents the three operator variables under their own
+heading, distinct from the runtime ones. `restore.md` §3 and §8 now name the door.
+
+### Tests
+
+- `tests/unit/launch/target.test.mjs` — the guard in both modes, the address
+  rules, the two narrow readers, the four distinct confirmation names.
+- `tests/unit/launch/owner-state.test.mjs` — A–E and the three refusals.
+- `tests/unit/launch/migrations.test.mjs` — the repository files, the four
+  relations, the bundle and its dollar-quote tag, the CLI-compatible DDL.
+- `tests/unit/launch/content.test.mjs` — the four states, the bundle's order and
+  its guard, the provenance embedding.
+- `tests/unit/site/map-launch-guard.test.ts` — allowed everywhere but production;
+  refused there for each reason; accepted for a complete non-placeholder fixture.
+- `tests/unit/policy/launch-boundary.test.ts` — the launch tools outside the
+  runtime graph; migration ≠ content ≠ bootstrap (no cross-import, no cross-subject,
+  one launch-side service client); the seeder imported by nothing and named by no
+  launch tool or workflow; the confirmed file (comments stripped) writing exactly
+  the four tables and carrying no `@example.test`, placeholder, News, page,
+  weekly, profile or uuid literal; the config order; the workflow dispatch-only.
+- `npm run launch:drill` (`vitest.launch.mts`, `tests/launch/`), against the real
+  local stack in harness mode, the last step of CI's database job:
+  `migrate.test.mjs` — production mode refuses loopback; a current database is a
+  no-op; a staged pending migration applies with its history row and changes no
+  content and no account; target-newer and divergent refused; a failing migration
+  rolls back and records nothing. `content-load.test.mjs` — the seeded stack is
+  operational and refused; emptied to the migration state it is fresh, loads in
+  one transaction, and the confirmed tables come back **byte-identical** to what
+  the seeded reset had written (the confirmed layer alone reproduces them); the
+  rerun is harmless; a marker over empty tables refuses; a forced failure leaves
+  no section, no dish, no marker. `bootstrap.test.mjs` — production mode refuses
+  loopback; the harness refuses a real address; E with the seeded Owner; the
+  application made Owner-less by hand (with triggers quiet — the command never
+  does this); a dry run changes nothing; A invites the first Owner (the Danish
+  invitation in the mail catcher with its one-time link and no password, the
+  profile, the audit row, no secret, token or link printed); E again; B re-sent
+  and repaired; C attached without an e-mail; D never promoted; a banned identity
+  refused; profiles without an Owner refused. The seeded identities are restored
+  exactly.
+- Source-policy rule 6, `launch-content-boundary`: no launch tool or workflow
+  names the development layer or the seeder (code, not comments); the confirmed
+  file holds no test identity.
+
+### Security, reviewed narrowly
+
+Service-role leakage — the key is read by the bootstrap alone, through 13A's
+`env.mjs`, on the logger's redaction list, never printed; the database tools never
+hold it. Wrong target — refused without the operation's own confirmation naming
+the project host; loopback refused in production; hosted refused in the harness.
+Repeated bootstrap — inert on any Owner profile. Partial invite — B and C repaired,
+never by deleting an identity. Role escalation — INSERT only; D refused. Ambiguous
+identity — banned refused. Log redaction — 13A's logger (the local demo password
+`postgres` is redacted wherever it appears, which is harmless). Production/test
+confusion — a directory holding `@example.test` identities is refused as a
+development stack. Loader — no overwrite of a live database, one transaction, the
+connection in the environment, no argument reaches SQL (the only argument, the
+harness's `--source`, is a file path that is read, never interpolated). Migration
+— divergent and newer histories refused, credentials never on a command line,
+version and name from the filename regex only, `--migrations-dir` a harness option.
+Coupling — none: three scripts, no cross-import, pinned.
+
+### What phase 14A deliberately does not contain
+
+No hosted project, no real credential, no real Owner, no real content load, no
+real migration run, no workflow trigger on `main`, no staging project, no map
+asset, no photograph, no copy, no Om os editor (14B), no domain, no DNS, no
+`noindex` change, no SEO work, no copy humanization, no final QA, and no security
+audit beyond the narrow review above.
+
+### The regression — one authoritative chain (2026-09-05)
+
+From a clean intended tree with no site server: `npm ci`; typecheck; lint; source
+policy (709 files, six rules); **unit 2,885 / 2,885 in 126 files** (the four launch
+suites, the map guard and the launch boundary among them); `db:reset:full`;
+**pgTAP 2,187 / 2,187 in 30 files**; **integration 44 / 44 in 6 files**; **the
+backup drill 8 / 8** (the shared `env.mjs` changed, additively); **the launch drill
+28 / 28 in 3 files**; `db:reset:full` again, `.next` removed, a fresh production
+build (green with the placeholder map — the guard refuses only a Vercel
+production build, proven separately: `VERCEL=1 VERCEL_ENV=production npx next
+build` fails in the config phase naming the two reasons); `next start` on 3100;
+`playwright --list` **1,360 tests in 43 files**; the complete matrix with
+`--retries=0` — the read-only trio in one invocation, then every one of the 45
+write projects in its own invocation in config order — **1,353 passed, 7 skipped,
+0 failed, 0 flaky**, the seven skips being the standing viewport-, touch- and
+date-conditional ones (`public-site` ×3, `menu-reorder` ×3, the override reset's
+day-of-week case); `npm audit --audit-level=high` **0 vulnerabilities**. Phases
+5–13 stayed green throughout: the five-minute revalidate/expire contract
+(`public-cache`), no guest cookie and no browser monitoring (`monitoring`,
+`public-site`), the six security headers (`security-headers`), the sign-in
+throttle (`security`), and the backup tooling's own drill unchanged in outcome.
+Recorded as `feat: implement phase 14a production wiring`.
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -7697,10 +7945,16 @@ a second trusted function then believes.
   needed before implementation — accounts are data, not schema.
 - **No real accounts are created now.** Local and staging seed `owner@example.test` and
   `staff@example.test` with throwaway passwords.
-- **Bootstrap at launch:** the first production owner is created once, by the developer, with a
-  service-role script that sets a random password and immediately triggers the reset email. The
-  restaurant's owner sets their own password; the developer never knows it. The script lives in
-  `supabase/` and refuses to run if an owner already exists.
+- **Bootstrap at launch — revised in phase 14A (§0al):** the first production owner is created
+  once, by the developer, with `scripts/launch/bootstrap-owner.mjs` (`npm run
+  launch:bootstrap-owner`), through the **same invitation the administration uses for every
+  later account** (phase 11C): `auth.admin.inviteUserByEmail` sends the Danish invitation and
+  the Owner chooses their own password from its link; one INSERT then creates the Owner profile
+  behind the identity. *Revision 2 said "sets a random password and immediately triggers the
+  reset email"; that wording is withdrawn* — no password is generated, printed, sent or known to
+  anyone but the Owner. The command runs from a terminal against a confirmed hosted project only,
+  refuses to run if any Owner profile exists (active or disabled), never changes a role, and
+  repairs its own partial states (an invitation whose profile write failed) by being run again.
 - **Invite:** the owner adds a user (name, email, role) → a Server Action uses
   `auth.admin.inviteUserByEmail` — the identity and its invitation e-mail in one operation
   (phase 11C, §0ab reading A; §15 had said `createUser` plus a separate e-mail) — then
@@ -8003,7 +8257,9 @@ No map library. No tile provider called at runtime. No JavaScript. The entire ma
 - **Placeholder during development.** A neutral brand-tinted asset at the exact final dimensions with
   the pin in the correct position, so the layout is final on day one and the swap is a one-file change
   with no code edit. It is a **launch-blocking checklist item** that the placeholder must not reach
-  production — enforced by a build-time check on the provenance field in `LICENSE.md`.
+  production — enforced by a build-time check on the provenance field in `LICENSE.md` (built in
+  phase 14A, §0al: `lib/site/map-launch-guard.ts`, run by `next.config.ts` in the production-build
+  phase, refusing only a Vercel production build).
 - **The whole preview links to directions.** One universal link:
   `https://www.google.com/maps/dir/?api=1&destination=<url-encoded address>`. This opens the native
   Google Maps app on Android and iOS when it is installed, and the web map otherwise. One `<a>`, no
@@ -8136,9 +8392,9 @@ silently breaks E2E if it is missed — so it is called out explicitly in phase 
 
 Local → staging → production, one set of migration files throughout.
 
-- **Local:** `supabase start` + `next dev`. `supabase/seed.sql` loads the confirmed menu, hours and contact facts so a fresh clone is immediately usable. Migrations in `supabase/migrations` are the only way schema changes happen.
-- **PR:** CI applies migrations to **staging**, builds, and runs the full suite against the Vercel Preview Deployment. Never against production.
-- **Merge to `main`:** CI applies migrations to the production Supabase project, then Vercel promotes the build. Production credentials live in a protected GitHub environment that pull requests cannot read.
+- **Local:** `supabase start` + `next dev`. The seed is two files since phase 14A (§0al): `supabase/seed/confirmed.sql` — the confirmed contact, hours and menu facts — then `supabase/seed/development.sql` — the placeholder pages, News and weekly state — in that order, so a fresh clone is immediately usable. Migrations in `supabase/migrations` are the only way schema changes happen.
+- **PR:** CI applies migrations to **staging**, builds, and runs the full suite against the Vercel Preview Deployment. Never against production. *(Staging is planned, not provisioned; until it exists CI uses the local stack.)*
+- **Merge to `main`:** CI applies migrations to the production Supabase project, then Vercel promotes the build. Production credentials live in a protected GitHub environment that pull requests cannot read. **Built in phase 14A as the migration door** — `scripts/launch/migrate.mjs`, one implementation for an operator's terminal (`npm run launch:migrate`) and for `.github/workflows/production-migrate.yml`, which is dispatch-only until phase 14C adds the `push: main` trigger once the protected `production` environment exists. The door applies migrations and **nothing else**: production never runs a seed file; the confirmed content is loaded once by `npm run launch:load-content`, and the first Owner by `npm run launch:bootstrap-owner` — three separate, explicitly confirmed commands (§0al).
 
 ### 10c. Authentication email (decision 9)
 
@@ -8185,6 +8441,9 @@ The domain is deferred and is **not** a Phase 0 dependency.
 | `VERCEL_AUTOMATION_BYPASS_SECRET` | CI only | Playwright against protected previews |
 | `BACKUP_S3_*` (endpoint, bucket, region, prefix, key pair) | GitHub `backup` environment only | the weekly export's destination (§10f, §0ah); `SUPABASE_DB_URL`, `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` live there too, for the job |
 | `BACKUP_RESTORE_CONFIRM_HOST` | an operator's shell, for one restore | the exact database host a remote restore may touch (§0ah); never in CI |
+| `MIGRATE_CONFIRM_HOST` | an operator's shell, or the protected GitHub `production` environment (phase 14C) | the production project's host (`<ref>.supabase.co`) the migration door may touch (§0al); the door refuses the local stack and any other project |
+| `CONTENT_LOAD_CONFIRM_HOST` | an operator's shell, once | the project host the one-time confirmed-content load may touch (§0al); never in CI |
+| `BOOTSTRAP_CONFIRM_HOST` | an operator's shell, once | the project host the one-time Owner bootstrap may touch (§0al); never in CI |
 
 Secrets live in Vercel, Supabase project settings and protected GitHub environments. Nothing is committed. `.env.example` documents the names only.
 
@@ -8308,7 +8567,7 @@ policy · Månedens burger scheduling.
 |---|---|---|---|
 | A | **Off-platform backup destination** — Cloudflare R2 or Backblaze B2; the tooling is provider-neutral and the manual setup is in `docs/runbooks/backups.md` §3 (§0ah). The interim private-GitHub-repo archive is withdrawn: the workflow exists and needs a bucket, not a workaround. Phase 13's lock pass (§0ak) kept the decision open on purpose and made it rows B1–B7 of `docs/runbooks/pre-launch-checklist.md` — the repository *supports* an S3-compatible destination; nothing in it *chooses* one | before launch — until it is chosen, no off-platform copy exists | Recommend R2 (EU jurisdiction, private; note it has no object versioning, which the design does not need) |
 | B | **PITR on Supabase Pro** — an extra cost on top of daily backups | before launch | Off. Daily backups plus a weekly off-platform export is proportionate for this content volume |
-| C | **Final map asset and its licence** | before launch | Placeholder until supplied; a build check prevents it shipping |
+| C | **Final map asset and its licence** — the build check exists since phase 14A (§0al): a Vercel production build (`VERCEL_ENV=production`) is refused while `public/map/LICENSE.md` records `placeholder` or the descriptor still renders the placeholder file; local, CI and preview builds pass. The asset and its licence arrive in 14B | before launch | Placeholder until supplied; a build check prevents it shipping |
 | D | **Domain, DNS control, and the Resend sending domain** | before launch (DNS verification takes time) | — |
 | E | **Structured-data gaps** — `priceRange`, coordinates, a public email | before launch | Left out rather than invented |
 | F | **Who owns the Vercel, Supabase and GitHub accounts**, and who pays | phase 0 (administrative) | Developer-owned during build, transferred at handover per `owner-handover.md` |
@@ -8367,11 +8626,13 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Complete and locked** by the completion pass of 2026-09-03 — see §0ac |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B (done, §0ae):** the complete News workflow at 375 px audited against 1z and made phone-first — the pinned editor bar with the badge and the autosave line, the B/Link toolbar and link panel stuck under it, fragment targets below the bar, the stacked confirmations, long titles and addresses that wrap, the public paragraph's wrap — with `tests/e2e/news-mobile.spec.ts` under its own `news-mobile` project. **12C (done, §0af):** the 1x / 1q dashboard — the bar, the band with the phase-4 list beneath it, the announcement card, the role-aware tiles from the entity registry, LIGE NU as a read model — with the phase-4 "Åbn …" vocabulary migrated across the locked suites in the same commit; and the phone audit of Ugens ret, Månedens burger, Besked på hjemmesiden and Åbningstider, whose Fortryd and status notices now sit at the foot of the phone screen through one shared `NoticeFoot`, with `tests/e2e/dashboard-mobile.spec.ts` under its own `dashboard-mobile` project. **Completion pass (§0ag):** the three read as one system, walked as Owner and Staff on a phone, 1x / 1y / 1z / 1q re-checked at 375 / 768 / 1440, the Forhåndsvis and 1 px observations closed, the moved row kept wholly in view, the phase-11 editors and Brugere given the same foot, an empty foot's clearance removed, a dead-autosave defect after the first Gem fixed and pinned | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad), the news half by `news-mobile` (§0ae), the dashboard and the specials by `dashboard-mobile` (§0af). **Complete and locked** by the completion pass of 2026-09-04 — see §0ag |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill. **13A (done, §0ah):** the backup and restore commands, the scheduled workflow, the drill in CI, the runbooks — the destination provider still to be chosen. **13B (done, §0ai):** the PostgreSQL-backed limiter over the sign-in path and every Server Action (twelve tiers, one atomic door, HMAC subjects, fail-open except for accounts), and the security-header policy on every response (CSP, HSTS, nosniff, referrer, permissions, frame denial) with the public caching intact. **13C (done, §0aj):** server-side Sentry — the framework hook for pages, route handlers, Server Actions and the proxy, thirteen operational events from five server modules, one sanitizer, release and environment on every event, no browser SDK, no CSP change; the one controlled production event is a pre-launch gate. **Lock pass (§0ak, 2026-09-05):** the three read as one operational layer, the error and not-found states of both route groups built (§10g), the sanitizer widened to the non-JWT service key and the Danish credential words, the storm boundary grouped per account, the Sentry CLI download switched off, the pre-launch gates consolidated in `docs/runbooks/pre-launch-checklist.md`, one clean certification chain. **Complete and locked.** The SEO verification against Rich Results and the final security audit are the next increments, not this phase's | Rich Results valid (ahead); a backup lands off-platform and a restore succeeds into a scratch project — proven against the local stack and a local S3 endpoint; the hosted runs are pre-launch gates B6/B7, deliberately not claimed by the repository |
-| 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
+| 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover. Planned as four increments: **14A (done, §0al) — production wiring in the repository:** the Owner bootstrap through the phase-11 invitation, the confirmed/development seed split, the one-time confirmed-content loader, the migration door and its dispatch-only workflow, the launch map guard, and the three runbooks (`domain-cutover.md`, `owner-handover.md`, `launch-notes.md`) — no hosted account touched. **14B** — real assets and copy, and the Om os editor. **14C** — hosted production deployment, bootstrap and verification (the migration run, the content load, the Owner, the workflow's push trigger). **14D** — the phase-14 lock | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
-**Status, 2026-09-05: phases 0–13 are complete and locked.** Phase 13 — the
+**Status, 2026-09-05 (later): phase 14A — production wiring — is built and green (§0al);
+phase 14 is not complete and nothing hosted is provisioned.** Before it: **phases 0–13 are
+complete and locked.** Phase 13 — the
 production-hardening layer — as 13A, backup and recovery (§0ah), 13B, rate limiting and
 the security-header policy (§0ai, with its closure pass), 13C, server-side monitoring
 (§0aj), and the lock pass over the three (§0ak), which is the current truth of what a

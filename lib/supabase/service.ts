@@ -25,7 +25,10 @@ import { getSupabaseUrl } from './config'
  *                                                       ban / unban, phase 11C)
  *   3. migrations and seeding                          (the Supabase CLI, and
  *                                                       scripts/seed-local-users.mjs)
- *   4. the one-time production owner bootstrap         (phase 14)
+ *   4. the one-time production owner bootstrap         (scripts/launch/bootstrap-owner.mjs,
+ *                                                       phase 14A — the Auth Admin
+ *                                                       API and one profile INSERT,
+ *                                                       from a terminal, never at runtime)
  *
  * Phase 10A gave it its first runtime caller, `lib/images/storage.ts`, and phase 11C
  * its second, `lib/accounts/auth-admin.ts` — both narrow, capability-shaped modules

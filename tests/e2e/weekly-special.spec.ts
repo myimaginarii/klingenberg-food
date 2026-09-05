@@ -54,7 +54,7 @@ import {
 
 test.describe.configure({ mode: 'serial' })
 
-/** The seeded week, exactly as `supabase/seed.sql` writes it. */
+/** The seeded week, exactly as `supabase/seed/confirmed.sql` writes it. */
 const SEEDED = {
   name: 'Retnavn — oplyses ugentligt',
   description: 'Beskrivelsen skrives af køkkenet hver uge i administrationen.',

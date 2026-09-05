@@ -50,7 +50,7 @@ import {
  * stored draft written by an older editor cannot reach a live menu carrying a shape the
  * current rules would refuse.
  *
- * `choose` may be **absent** where the rules say `null`, which is what `supabase/seed.sql`
+ * `choose` may be **absent** where the rules say `null`, which is what `supabase/seed/confirmed.sql`
  * writes for the fixed-contents group: there is nothing to choose, so there is nothing to
  * say. Writing it explicitly as `null` is equally accepted, and is what the editor stores.
  *

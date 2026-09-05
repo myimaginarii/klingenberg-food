@@ -150,7 +150,7 @@ function isPosition(value: number, length: number): boolean {
  * group with the matching id, verbatim.
  *
  * This is a repair of *structure*, and it is needed for a concrete reason rather than as
- * defensive habit: `supabase/seed.sql` writes the fixed-contents group without a
+ * defensive habit: `supabase/seed/confirmed.sql` writes the fixed-contents group without a
  * `choose` key at all, which is correct JSON for "there is nothing to choose" and is
  * accepted by the schema, but is not the canonical shape a save writes back. Normalising
  * on read means the first save stores the canonical document and every later comparison
@@ -176,7 +176,7 @@ function isPosition(value: number, length: number): boolean {
  *     before it can be published. Neither pass tolerates a non-string item, a missing
  *     group or a renamed id;
  *   * so the only values this function ever actually repairs are ones no application
- *     path can produce: `supabase/seed.sql`'s fixed-contents group, which omits `choose`,
+ *     path can produce: `supabase/seed/confirmed.sql`'s fixed-contents group, which omits `choose`,
  *     and whatever a `psql` session writes by hand.
  *
  * The reverse direction is closed as well: the repair fixes **structure**, never content.

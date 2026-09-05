@@ -43,7 +43,7 @@ import {
 
 test.describe.configure({ mode: 'serial' })
 
-/** The seeded board, exactly as `supabase/seed.sql` writes it. */
+/** The seeded board, exactly as `supabase/seed/confirmed.sql` writes it. */
 const SEEDED = {
   base: {
     heading: 'På bordet — altid med',

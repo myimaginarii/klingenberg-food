@@ -58,7 +58,9 @@ export function requireSecret(name: ServerSecretName): string {
  * The key bypasses RLS entirely. Per §8 it has four intended call sites across the
  * whole project — the image storage boundary (`lib/images/storage.ts`, phase 10A), the
  * Auth Admin boundary (`lib/accounts/auth-admin.ts`, phase 11C), migrations and seeding,
- * and the one-time owner bootstrap — and it is reachable only from modules that, like
+ * and the one-time owner bootstrap (`scripts/launch/bootstrap-owner.mjs`, phase 14A —
+ * a terminal command outside this runtime, reading the key through
+ * `scripts/backup/lib/env.mjs`) — and it is reachable only from modules that, like
  * this one, import `server-only`, so it cannot enter a browser bundle.
  * `tests/unit/policy/images-boundary.test.ts` pins the two runtime importers.
  */

@@ -56,12 +56,19 @@ forward** (brief §17). There are no downgrade migrations.
 
 2. Apply the migrations to the new project. They create every table, function,
    trigger, RLS policy and grant, and the two Storage buckets with their limits and
-   privacy (`20260901140000`):
+   privacy (`20260901140000`). Since phase 14A the repository's own migration door
+   does this — the connection string in the environment, the project host typed as
+   the confirmation, migrations only (never a seed):
 
    ```bash
-   npx supabase link --project-ref <ref>
-   npx supabase db push
+   export SUPABASE_DB_URL='<the target's session-pooler string, port 5432>'
+   export MIGRATE_CONFIRM_HOST='<ref>.supabase.co'
+   npm run launch:migrate -- --dry-run
+   npm run launch:migrate
    ```
+
+   (`npx supabase link` + `npx supabase db push` remains an equivalent CLI path; the
+   door records the same history rows.)
 
 3. The restore refuses a target whose migration history is **behind** the backup
    ("apply the migrations first"), **diverges** from it, or is **ahead** of it
@@ -142,7 +149,8 @@ signs in again. After a restore into a *new* project:
   time. A target whose Auth server has since *removed* a column will refuse the load
   (the transaction rolls back; nothing is half-restored). In that case the fallback
   is: restore with `--skip-auth`, then re-invite each account through `/admin/brugere`
-  after bootstrapping the first owner (§5, phase 14) — content survives, passwords do
+  after bootstrapping the first owner (`npm run launch:bootstrap-owner`, §5, phase
+  14A — [owner-handover.md](owner-handover.md)) — content survives, passwords do
   not. Added columns are harmless (defaults apply).
 - **Supabase managed backups remain the supported recovery for `auth` inside the same
   project.** The off-platform copy is the independent one.
@@ -186,10 +194,12 @@ code and apply the newer migrations:
 
 ```bash
 git checkout main
-npx supabase db push
+npm run launch:migrate
 ```
 
-Deploy the current application against the restored project. This is the ordinary
+(with `SUPABASE_DB_URL` and `MIGRATE_CONFIRM_HOST` still set from §3; the door
+applies exactly the migrations the restored project lacks and refuses anything
+else). Deploy the current application against the restored project. This is the ordinary
 promotion flow (§10b); nothing about a restored project is special from here on.
 
 ## 9. Rehearsal
