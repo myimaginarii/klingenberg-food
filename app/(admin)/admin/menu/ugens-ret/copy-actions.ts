@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { copyPreviousWeekToDraft } from '@/lib/menu/weekly-copy'
 
 import { readCopyForm } from './forms'
@@ -44,6 +46,7 @@ import { weeklyHref } from './routes'
  */
 export async function copyPreviousWeek(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', weeklyHref({ status: RATE_LIMIT_STATUS }))
 
   const request = readCopyForm(formData)
   if (request === null) redirect(weeklyHref({ status: 'ugyldig', focus: 'copy' }))

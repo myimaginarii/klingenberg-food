@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { saveEntityDraft } from '@/lib/publishing/drafts'
 import { draftTargetSchema } from '@/lib/publishing/requests'
 
@@ -26,6 +28,7 @@ import { contentEditorFor } from './editors'
  */
 export async function saveContentDraft(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', `/admin/indhold?status=${RATE_LIMIT_STATUS}`)
 
   const target = draftTargetSchema.safeParse({
     entity: formData.get('entity'),

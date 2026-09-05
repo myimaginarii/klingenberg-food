@@ -121,6 +121,7 @@ export default defineConfig({
         // The dashboard-first phone story (phase 12C) — owned by `dashboard-mobile`
         // alone. `--list` check: the file appears under exactly `dashboard-mobile`.
         'e2e/dashboard-mobile.spec.ts',
+        'e2e/security.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
@@ -154,6 +155,7 @@ export default defineConfig({
         'e2e/menu-mobile.spec.ts',
         'e2e/news-mobile.spec.ts',
         'e2e/dashboard-mobile.spec.ts',
+        'e2e/security.spec.ts',
       ],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
@@ -742,6 +744,25 @@ export default defineConfig({
         viewport: { width: 375, height: 812 },
         hasTouch: true,
       },
+    },
+    /*
+     * Security hardening (phase 13B) — the tail.
+     *
+     * The read-only half of the phase — the header policy on every representative
+     * response, together with the cache header it must not disturb, and a browser
+     * walk of the public site and the administration under the enforced CSP with the
+     * console watched — is `security-headers.spec.ts`, which the `desktop` and
+     * `mobile` projects pick up like any other read-only file. This project holds
+     * what writes: a real upload, picker and Draft Mode preview under the CSP, and
+     * the two refusal stories a person can meet — the sign-in throttle and a
+     * limited action in the administration. It fills and empties counters through
+     * the loopback-only test door, so it runs last and leaves every bucket empty.
+     */
+    {
+      name: 'security',
+      testMatch: 'e2e/security.spec.ts',
+      dependencies: ['dashboard-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
   ],
 

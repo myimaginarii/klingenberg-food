@@ -9,6 +9,8 @@ import {
   SATURDAY_EDITOR_FIELDS,
 } from '@/lib/menu/weekly'
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { saveEntityDraft } from '@/lib/publishing/drafts'
 import { draftTargetSchema } from '@/lib/publishing/requests'
 
@@ -81,6 +83,7 @@ function readVersion(formData: FormData, field: string) {
  */
 export async function saveWeeklyDraft(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', weeklyHref({ status: RATE_LIMIT_STATUS }))
 
   const target = readVersion(formData, WEEK_FORM.version)
   if (!target.success) redirect(weeklyHref({ status: 'ugyldig', focus: 'week' }))
@@ -145,6 +148,7 @@ export async function saveWeeklyDraft(formData: FormData): Promise<void> {
  */
 export async function saveSaturdayDraft(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', weeklyHref({ status: RATE_LIMIT_STATUS }))
 
   const target = readVersion(formData, SATURDAY_FORM.version)
   if (!target.success) redirect(weeklyHref({ status: 'ugyldig', focus: 'saturday' }))

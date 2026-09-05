@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireOwner } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { readAdminOpeningHours } from '@/lib/content/hours-admin'
 import { toWeeklySchedule, weeklyHoursDraftWrite } from '@/lib/hours/weekly-form'
 import { saveEntityDraft } from '@/lib/publishing/drafts'
@@ -56,6 +58,7 @@ import { openingHoursHref } from './routes'
  */
 export async function saveOpeningHoursDraft(formData: FormData): Promise<void> {
   const profile = await requireOwner()
+  await enforceRateLimit('content:save', openingHoursHref({ status: RATE_LIMIT_STATUS }))
 
   const target = draftTargetSchema.safeParse({
     entity: 'opening_hours',

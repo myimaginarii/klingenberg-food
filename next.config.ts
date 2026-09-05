@@ -2,6 +2,8 @@ import type { NextConfig } from 'next'
 
 import { PUBLIC_REVALIDATE_SECONDS } from './lib/cache/tags'
 import { getServerActionAllowedOrigins } from './lib/config/site'
+import { securityHeaders } from './lib/security/headers'
+import { optionalSupabaseOrigin } from './lib/supabase/config'
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
@@ -47,6 +49,29 @@ const nextConfig: NextConfig = {
    * which is the price of the two promises above and is what §7a already describes.
    */
   expireTime: PUBLIC_REVALIDATE_SECONDS,
+  /**
+   * The security-header policy — technical plan §8, phase 13B (§0ai).
+   *
+   * One set for every response, public and administration alike, built by
+   * `lib/security/headers.ts` and pinned by its unit test. It is attached here rather
+   * than in `proxy.ts` because the proxy runs on `/admin` only and a header policy
+   * that skipped the public site would be no policy; and because this is a static
+   * policy — no nonce, no per-request value — so the public pages keep their
+   * five-minute `s-maxage` caching untouched. `Cache-Control` is not set here and is
+   * not affected: `headers()` adds to a response, it does not replace what the route
+   * decided (`tests/e2e/security-headers.spec.ts` asserts the two together).
+   */
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: securityHeaders({
+          production: process.env.NODE_ENV === 'production',
+          supabaseOrigin: optionalSupabaseOrigin(),
+        }),
+      },
+    ]
+  },
   experimental: {
     serverActions: {
       // Derived from lib/config/site.ts — never a hard-coded domain (technical plan §8, §10d).

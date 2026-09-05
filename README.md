@@ -382,6 +382,16 @@ run after them, one after another, and each restores what it moved. The axe suit
 `tests/a11y/` run inside the `desktop` (1440 px) and `mobile` (375 px) projects, so every
 accessibility assertion is made at both widths.
 
+The security hardening of phase 13B has its own suites: `supabase/tests/029` (the
+limiter's SQL, including a two-session race), `tests/integration/rate-limit.test.ts`
+(the application door over real sessions), `tests/e2e/security-headers.spec.ts` (the
+header policy beside the cache header on every response class, and a CSP walk of the
+public site and the administration, read-only at both widths) and the `security`
+Playwright project at the tail (an upload under the CSP, two refusal stories, the
+sign-in throttle). The browser stories fill and empty counters through the
+loopback-only door in `tests/support/local-auth-admin.ts`; a run interrupted mid-story
+can leave a full bucket — `npm run db:reset` empties it.
+
 `npm run check:policy` enforces three repository rules from the technical plan:
 
 1. **No hard-coded domain.** A site origin may only be produced by
@@ -612,10 +622,16 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-Everything in §15 from phase 13B onward: Sentry, rate limiting and the security-header
-pass (phase 13B), the final security audit, and launch (phase 14). The weekly off-platform
+The rest of §15's row 13 and beyond: Sentry on the server (phase 13C), the SEO
+verification, the final security audit, and launch (phase 14). The weekly off-platform
 backup workflow and the restore drill are built (phase 13A, §0ah); the destination bucket
-is the one decision still open (§13 item A).
+is the one decision still open (§13 item A). **Phase 13B is built and green (§0ai):**
+every Server Action and the sign-in path are rate-limited by a PostgreSQL-backed limiter
+(twelve tiers, one atomic door, HMAC subjects, `RATE_LIMIT_SECRET` as a deployment
+prerequisite), and every response carries the security-header policy — CSP, HSTS,
+nosniff, referrer, permissions and frame denial — with the public caching intact;
+`docs/runbooks/production-security.md` lists what the production project must be
+configured with before launch.
 `docs/dependencies.md` records which package arrives in which phase. Phase 6 is
 **complete and locked** — 6A (Ugens ret and
 Lørdagsmenu, §0c), 6B (Månedens burger, §0d), and the completion pass over both halves

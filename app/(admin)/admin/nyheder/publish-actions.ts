@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { readAdminArticle } from '@/lib/content/news-admin'
 import { unpublishNewsArticle } from '@/lib/news/admin'
@@ -36,6 +38,7 @@ import { newsHref } from './routes'
 
 export async function publishArticle(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:publish', newsHref({ status: RATE_LIMIT_STATUS }))
 
   const id = rowId('Nyheden').safeParse(formData.get(NEWS_FORM.articleId))
   const version = formData.get(NEWS_FORM.version)
@@ -74,6 +77,7 @@ export async function publishArticle(formData: FormData): Promise<void> {
 
 export async function unpublishArticle(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:publish', newsHref({ status: RATE_LIMIT_STATUS }))
 
   const id = rowId('Nyheden').safeParse(formData.get(NEWS_FORM.articleId))
   const version = formData.get(NEWS_FORM.version)

@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { applyOverrideForm } from '@/lib/hours/override-admin'
 
 import {
@@ -11,6 +13,7 @@ import {
   readOverrideForm,
   readOverrideVersionDate,
 } from './override-forms'
+import { openingHoursHref } from './routes'
 
 /**
  * Gem — saving a one-off opening-hours change as a pending change. Design 1t (lower
@@ -48,6 +51,7 @@ import {
  */
 export async function saveOverride(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', openingHoursHref({ overrideFocus: true, status: RATE_LIMIT_STATUS }))
   const form = readOverrideForm(formData)
 
   const outcome = await applyOverrideForm(profile, {

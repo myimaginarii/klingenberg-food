@@ -3,6 +3,8 @@
 import { z } from 'zod'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { isRateLimited } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_MESSAGE } from '@/lib/rate-limit/scopes'
 import { finalizeImageUpload } from '@/lib/images/finalize'
 import { IMAGE_REFUSALS } from '@/lib/images/rules'
 import { requestImageUpload } from '@/lib/images/signed-upload'
@@ -46,6 +48,12 @@ const requestSchema = z.strictObject({
 export async function requestUpload(input: unknown): Promise<UploadGrantReply> {
   const profile = await requireStaff()
 
+  // The grant tier (phase 13B): refused before any URL is signed, as the closed
+  // `refused` reply with the shared sentence — no processor detail, no count.
+  if (await isRateLimited('image:upload-request')) {
+    return { status: 'refused', message: RATE_LIMIT_MESSAGE }
+  }
+
   const parsed = requestSchema.safeParse(input)
   if (!parsed.success) {
     return { status: 'failed', message: IMAGE_REFUSALS.failed }
@@ -75,6 +83,13 @@ const finalizeSchema = z.strictObject({
 
 export async function finalizeUpload(input: unknown): Promise<UploadFinalizeReply> {
   const profile = await requireStaff()
+
+  // The processing tier (phase 13B): refused before the original is downloaded or
+  // sharp is started. The uploaded original stays in the private bucket for the
+  // person to finalise again after the window, exactly like a lost network reply.
+  if (await isRateLimited('image:finalize')) {
+    return { status: 'refused', message: RATE_LIMIT_MESSAGE }
+  }
 
   const parsed = finalizeSchema.safeParse(input)
   if (!parsed.success) {

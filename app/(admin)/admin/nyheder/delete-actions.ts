@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { deleteNewsArticle } from '@/lib/news/admin'
 import { rowId } from '@/lib/schemas/primitives'
@@ -26,6 +28,7 @@ import { newsHref } from './routes'
  */
 export async function deleteArticle(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('operation:immediate', newsHref({ status: RATE_LIMIT_STATUS }))
 
   const id = rowId('Nyheden').safeParse(formData.get(NEWS_FORM.articleId))
   const version = formData.get(NEWS_FORM.version)

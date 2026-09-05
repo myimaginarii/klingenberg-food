@@ -17,6 +17,8 @@ export type ServerSecretName =
   | 'SUPABASE_SERVICE_ROLE_KEY'
   | 'SUPABASE_DB_URL'
   | 'SENTRY_DSN'
+  /** Keys the sign-in throttle's client subjects (phase 13B, `lib/rate-limit/sign-in.ts`). */
+  | 'RATE_LIMIT_SECRET'
 
 function read(name: ServerSecretName): string | undefined {
   const value = process.env[name]?.trim()
@@ -60,4 +62,17 @@ export function requireSecret(name: ServerSecretName): string {
  */
 export function getServiceRoleKey(): string {
   return requireSecret('SUPABASE_SERVICE_ROLE_KEY')
+}
+
+/**
+ * The rate-limit secret (§10e, phase 13B), or `undefined` when it is not configured.
+ *
+ * Keys the HMAC that turns a client address or an account address into the
+ * sign-in throttle's subject (`lib/rate-limit/subject.ts`), so that nothing stored
+ * can be turned back into either. Optional on purpose: `lib/rate-limit/sign-in.ts`
+ * substitutes a fixed development key locally and a per-instance key on a host that
+ * has not set it yet, and says so in the log — never the value.
+ */
+export function getRateLimitSecret(): string | undefined {
+  return optionalSecret('RATE_LIMIT_SECRET')
 }

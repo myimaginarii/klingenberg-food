@@ -221,3 +221,70 @@ export function inviteLinkOf(mail: CaughtMail): { tokenHash: string; type: strin
   if (match === null) return null
   return { tokenHash: match[1]!, type: match[2]! }
 }
+
+// ---------------------------------------------------------------------------
+// The rate-limit counters — phase 13B
+// ---------------------------------------------------------------------------
+//
+// The application has no door that lowers a counter, by design (migration
+// `20260905120000`). The suites need one for the same reason they need the Auth
+// cleanup above: a story that proves the refusal leaves a full bucket behind, and
+// a bucket left behind would refuse the next run for up to a window. So, loopback
+// only and service role only, the tests may empty the table — and may FILL one
+// bucket, so a UI story can meet the refusal without hundreds of requests.
+
+export type LocalRateLimitBucket = {
+  readonly scope: string
+  readonly subject: string
+  readonly windowStart: string
+  readonly hits: number
+}
+
+/** Every counter, gone. Nothing else is touched. */
+export async function clearLocalRateLimits(): Promise<void> {
+  const service = serviceClient()
+  const { error } = await service.from('rate_limit_buckets').delete().neq('hits', -1)
+  if (error) throw new Error(`Could not clear the local rate-limit buckets: ${error.message}`)
+}
+
+/**
+ * Put `hits` into the CURRENT window of one scope for one subject — an actor's uuid
+ * for an actor-keyed scope. The window is computed the way the function computes
+ * it: the epoch-aligned floor of now over the scope's window length.
+ */
+export async function fillLocalRateLimit(scope: string, subject: string, hits: number): Promise<void> {
+  const service = serviceClient()
+
+  const rule = await service
+    .from('rate_limit_scopes')
+    .select('window_seconds')
+    .eq('scope', scope)
+    .maybeSingle<{ window_seconds: number }>()
+  if (rule.error || rule.data === null) {
+    throw new Error(`Unknown rate-limit scope "${scope}": ${rule.error?.message ?? 'no such row'}`)
+  }
+
+  const seconds = rule.data.window_seconds
+  const windowStart = new Date(Math.floor(Date.now() / 1000 / seconds) * seconds * 1000).toISOString()
+
+  const { error } = await service
+    .from('rate_limit_buckets')
+    .upsert({ scope, subject, window_start: windowStart, hits }, { onConflict: 'scope,subject,window_start' })
+  if (error) throw new Error(`Could not fill the local rate-limit bucket: ${error.message}`)
+}
+
+/** What the table holds — for asserting privacy: no address, no e-mail, ever. */
+export async function listLocalRateLimitBuckets(): Promise<LocalRateLimitBucket[]> {
+  const service = serviceClient()
+  const { data, error } = await service
+    .from('rate_limit_buckets')
+    .select('scope, subject, window_start, hits')
+  if (error) throw new Error(`Could not read the local rate-limit buckets: ${error.message}`)
+
+  return (data as { scope: string; subject: string; window_start: string; hits: number }[]).map((row) => ({
+    scope: row.scope,
+    subject: row.subject,
+    windowStart: row.window_start,
+    hits: row.hits,
+  }))
+}

@@ -1,4 +1,5 @@
 import { Notice, type NoticeTone } from '@/components/admin/Notice'
+import { RATE_LIMIT_NOTICE, RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 
 /**
  * What the Kontaktoplysninger screen says about itself — design 1aa, 1v; §6.
@@ -45,6 +46,8 @@ export const CONTACT_MESSAGES: Record<string, { tone: NoticeTone; text: string }
   forbidden: { tone: 'error', text: 'Kun ejeren kan rette kontaktoplysningerne.' },
   not_found: { tone: 'error', text: 'Kontaktoplysningerne findes ikke.' },
   failed: { tone: 'error', text: 'Ændringen kunne ikke gemmes. Intet blev ændret — prøv igen.' },
+  // The limiter's refusal (phase 13B): the one code and sentence every screen shares.
+  [RATE_LIMIT_STATUS]: RATE_LIMIT_NOTICE,
 }
 
 export function ContactStatusNotice({ status }: { status?: string }) {

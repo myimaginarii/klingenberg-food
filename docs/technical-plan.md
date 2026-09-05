@@ -5945,6 +5945,451 @@ over §0s–§0ah's carry-forwards stays its own, last increment. Phase 13 is no
 
 ---
 
+## 0ai. Phase 13B — rate limiting and the security-header policy (2026-09-05)
+
+The second increment of §15's row 13, and the first of phase 13 to change the
+runtime: an abuse-resistant limiter over the sign-in path and every Server Action,
+and the production HTTP security-header policy. Nothing about what the
+administration *does* changed — no screen, no transition, no permission — and 13A's
+backup tooling is untouched. What changed is what happens when somebody asks for
+the same thing far too often, and what every response tells a browser about itself.
+Sentry, the SEO verification and the final security audit remain ahead (§0ah);
+phase 13 is not locked.
+
+### What was found before anything was built
+
+**The mutation surface, from the source.** Fifty-eight Server Actions in
+fifty-six files under `app/(admin)/admin`, plus three route handlers
+(`/api/preview/start`, `/api/preview/stop`, `/admin/bekraeft`). Every
+authenticated action begins with `requireStaff()` or `requireOwner()` and reports
+through its screen's `xHref({ status })` redirect and a closed table of Danish
+sentences; three answer the browser with a structured reply instead (the news
+autosave, the two upload doors and the replacement). Grouped by what they actually
+do, the surface is: the sign-in, reset-request and set-password actions (no
+session, or a recovery session); ordinary draft saves and in-place edits (dishes,
+specials, pages, contact, hours, the announcement draft, one-off overrides, alt
+text, reorder steps, image slots, tapas lists, news create/save); publishing (every
+editor's Offentliggør, the dashboard batch, news publish/unpublish, the takeaway
+visibility through publish); the immediate paths (the three sold-out toggles and
+their Fortryd, announcement visibility, replacement and restore, override removal,
+dish deletion and its Fortryd); the destructive image operations (delete, replace);
+the uploads (grant, finalize); and the account transitions (invite, role change,
+deactivate, reactivate). The route handlers mutate nothing but a cookie.
+
+**What the providers already own.** Supabase Auth rate-limits its own endpoints
+per IP — the token endpoint the sign-in action calls, e-mail sends, OTP
+verifications, token refreshes — with settings that live in the project's Auth
+configuration (locally `supabase/config.toml` sets `email_sent = 10`). Those limits
+protect the Auth server from anybody holding the public anon key, whether they use
+this site's form or not, and nothing in this phase pretends to replace them: the
+site's login form was, until now, an unlimited proxy to that endpoint from a single
+origin, and *that* is what the application limiter closes. Vercel's edge holds the
+network-level protections (its own DDoS mitigation, the trusted `x-real-ip` /
+`x-forwarded-for` it writes on every request) and is not configured by this
+repository. The application layer therefore owns exactly: the site's sign-in and
+reset forms as a stuffing tool, and the authenticated mutation surface a Staff or
+Owner session can flood — by accident (a script, a stuck key, a tab loop) or on
+purpose.
+
+**The headers, measured.** Against a production build of HEAD (`0aef2c7`), every
+response — public pages, the news article, the 404, the login page, the `/admin`
+redirect, the preview redirect, the static assets, the administration — carried
+**no** `Content-Security-Policy`, `Strict-Transport-Security`,
+`X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy` or
+`X-Frame-Options`. The production HTML carried 21 inline `<script>` elements on the
+Forside and 16 on the menu editor (the React Server Components payload the
+framework streams into the document), **zero** inline `<style>` elements and
+**zero** `style=""` attributes. The only external origins referenced on the public
+site are `www.google.com` (the directions link) and `www.facebook.com` (the page
+link) — links, not resources. Fonts are self-hosted by `next/font`; images come
+from this origin and from the Supabase Storage origin; the one browser request that
+leaves the page is the uploader's PUT to a signed Storage URL. There is no browser
+Supabase client, no third-party script, no `dangerouslySetInnerHTML`.
+
+### The limiter — one door in PostgreSQL
+
+Vercel runs the application on several short-lived instances, so a counter in
+process memory is one counter per instance and none after a cold start. The one
+durable store this system already has is PostgreSQL, and the decision "allowed or
+limited" is one atomic statement there. No Redis, no new provider, no dependency.
+
+| Piece | Where | What it is |
+|---|---|---|
+| **The vocabulary** | `public.rate_limit_scopes` (migration `20260905120000`), mirrored by `lib/rate-limit/scopes.ts` | Twelve scopes, each with how its subject is keyed (`actor` = the JWT's `auth.uid()`, `client` = a server-derived HMAC), a limit and a fixed window. Inserted by the migration; readable and writable by no browser role. `tests/unit/rate-limit/scopes.test.ts` parses the migration and fails when the mirror drifts. |
+| **The counters** | `public.rate_limit_buckets` | One row per (scope, subject, window): four columns and nothing about the request. RLS on, every privilege revoked from `anon` and `authenticated`. |
+| **The doors** | `consume_rate_limit(scope, subject)`, `peek_rate_limit(scope, subject)` | SECURITY DEFINER (below), `search_path` pinned, EXECUTE for `anon` and `authenticated` only. `consume` is one `INSERT … ON CONFLICT DO UPDATE … RETURNING` under the row lock; `peek` answers without counting. Both return `{status: allowed, remaining}` or `{status: limited, retry_after_seconds}`. Neither can lower a count; nothing can. |
+| **The application door** | `lib/rate-limit/limiter.ts` | Asks, parses the reply with Zod, and reports a third answer, `unavailable`, when the database could not be asked or replied with something unreadable. Logs the scope, never the subject. |
+| **The action helper** | `lib/rate-limit/actions.ts` | `enforceRateLimit(scope, refusalHref)` for the fifty-two redirecting actions; `isRateLimited(scope)` for the four that reply. One line after the guard. |
+| **The sign-in throttle** | `lib/rate-limit/sign-in.ts`, `lib/rate-limit/subject.ts` | The two client-keyed subjects, the peek-before / consume-on-failure shape, and the reset counter. |
+| **The refusal** | `RATE_LIMIT_STATUS = 'for_mange'`, `RATE_LIMIT_MESSAGE` | One code on the redirect, one sentence in every screen's notice table: *"Der er sendt for mange handlinger på kort tid. Vent lidt, og prøv igen."* No count, no window, no threshold. |
+
+**The tiers, and why each number.** Fixed windows aligned to the epoch; the goal is
+that ordinary Staff and Owner work never meets a refusal while an obvious flood does.
+The first draft set the content tiers by instinct (120 saves, 30 publishes, 60
+immediate operations per five minutes) and the certification chain corrected it: the
+chain compresses dozens of complete Staff stories into minutes, and its counters,
+read from the table after the run, showed **98 saves, 31 publishes and 27 immediate
+operations for one actor inside one five-minute window** — the densest
+legitimate-shaped load this system has. The tiers below leave two to three times
+that, which no person reaches, while a script at one request per second is still
+refused inside the window. The account tiers were corrected the same way, from the
+`users-admin` pair.
+
+| Scope | Keyed by | Limit | Reasoning |
+|---|---|---|---|
+| `auth:signin` | client address | 10 failures / 15 min | A few mistyped passwords are nowhere near; a stuffing run through the form is refused after ten. Successes never count (§22). |
+| `auth:signin-account` | account address | 30 failures / 15 min | The backstop against a run spread over many addresses at one account. Deliberately looser than the per-client tier, so knowing the owner's address is not enough to lock the owner out cheaply. |
+| `auth:reset` | client address | 5 / 15 min | Reset e-mails requested. Counted on every request, since the form's answer never distinguishes. |
+| `content:save` | actor | 300 / 5 min | Every draft save and in-place edit, including reorder steps and alt texts. Sized from the measurement above: the chain reached 98 in one window for one actor; a person does not reach a third of this, and a script at one save per second is refused inside the window. |
+| `content:publish` | actor | 120 / 5 min | Every Offentliggør, the dashboard batch, news publish/unpublish. The chain reached 31; the first draft's 30 refused the monthly-burger story on the way. |
+| `news:autosave` | actor | 300 / 5 min | A save after each two-second pause with a change; even a save every second for five minutes — a runaway loop, not a person — is refused. Its own scope so a flood here cannot starve the Gem button. |
+| `operation:immediate` | actor | 120 / 5 min | Sold out and its Fortryd, announcement visibility / replace / restore, override removal, dish deletion and its Fortryd. The chain reached 27. |
+| `image:upload-request` | actor | 60 / 10 min | Signed-upload grants. A batch of photographs for a new menu is a few dozen; the image projects at both widths upload several dozen inside ten minutes. |
+| `image:finalize` | actor | 60 / 10 min | The sharp pipeline over up to 30 megapixels — the expensive step, refused before the original is downloaded. |
+| `image:destructive` | actor | 40 / 10 min | Delete and replace, which move live references. |
+| `accounts:invite` | actor | 15 / hour | Each one sends an e-mail and creates an identity. Sized from evidence rather than instinct: the first draft said five, and the locked `users-admin` pair — two complete Owner sessions within a minute, each with two validation refusals, a duplicate, a real invitation and a re-send — met the refusal on the desktop run. One Owner session is about five submissions; two in an hour must fit. |
+| `accounts:mutation` | actor | 30 / hour | Role changes, deactivation, reactivation — about eight per such session, sixteen for the pair. Still the tightest tiers by a wide margin. |
+
+**SECURITY DEFINER, and why (brief §13).** Browser roles hold no privilege on
+either table, which is what keeps a counter from being read, reset, forged or
+raised — and is also why the doors must be SECURITY DEFINER: an `anon` sign-in
+attempt and an `authenticated` Server Action have to move a row they cannot touch.
+The guards are the repository's usual ones: `search_path = ''`, a closed parameter
+vocabulary (the scope must exist in `rate_limit_scopes`, a client subject must
+match `^[0-9a-f]{64}$`), no identifier interpolated, EXECUTE revoked from PUBLIC,
+the resolver callable by nobody, the service role not involved. What a caller can
+do by calling a door directly through PostgREST is what the application does:
+increase their **own** counter. An `actor` scope ignores any subject the caller
+passes and uses `auth.uid()`; a `client` scope is refused for a caller *with* a
+session, and a caller without one cannot compute anybody's HMAC. pgTAP `029` pins
+each of these from real JWTs. This will be re-read by the final audit.
+
+**Concurrency.** The increment is the `ON CONFLICT DO UPDATE` itself — one
+statement, under the row lock — so two callers near the threshold cannot both read
+the old count and both write the same new one. `029` proves it through two real
+sessions (dblink): A takes four hits of a five-hit tier inside an open transaction,
+B's hit blocks on the row, A commits, and B's answer is the *fifth* hit
+(`remaining` 0), never the first. The sign-in path's two-step shape (peek, then
+consume on failure) has one known edge: two failures arriving in the same instant
+near the threshold may both pass the peek. Both are still counted, so the next
+attempt is refused; a throttle is not made weaker by one extra attempt at its
+boundary, and the alternative — counting successes so that one atomic consume can
+run first — would punish a shared restaurant connection for logging in.
+
+**Growth.** Whenever a call creates a *new* bucket (the upsert returned a count of
+1), it deletes every bucket whose window started more than two hours ago — twice
+the longest window, so nothing that could still be counted is removed. The table
+therefore holds at most the buckets touched in the last two hours; no scheduler,
+no cron. `029` inserts a three-hour-old bucket and an hour-old one, proves a hit on
+an existing bucket prunes nothing, and proves the next new bucket removes the old
+one and keeps the recent one.
+
+### The subjects — privacy by construction (§12)
+
+An `actor` scope stores the profile's uuid, which the audit log already stores. A
+`client` scope stores an HMAC-SHA256, under a server-side secret, of either the
+trusted client address or the normalised account address — 64 hex characters that
+name nobody, cannot be reversed, and cannot be joined across the two kinds (the
+kind is part of the message). No raw address, no e-mail, no user agent, no request
+body is written anywhere, and `029` asserts the bucket table has exactly its four
+columns and that no subject looks like an address.
+
+**Which address is believed.** On Vercel (`VERCEL=1`) the platform's proxy writes
+`x-real-ip` itself, overwriting anything the client sent, so it is read — and
+`x-forwarded-for`'s first entry as the fallback, for the same reason. Anywhere
+else no header is trusted and every client shares one subject, `local`: a
+spoofable `x-forwarded-for` from an untrusted environment would let an attacker
+choose their own bucket, which is the opposite of a limit. The secret is
+`RATE_LIMIT_SECRET` (§10e), read through `lib/env/server.ts` like every secret.
+Locally a fixed development key stands in, so the throttle is exercised for real
+in the browser suites. A hosted deployment without the secret keeps the throttle
+working with a key the process made up — per instance rather than shared, weaker
+than intended — and says so once in the server log without naming the variable.
+Setting it is a deployment prerequisite (below).
+
+### Where the check sits — the order, and what a refusal leaves behind (brief §17)
+
+For every authenticated action, in this order and no other: (1) the guard, so an
+unknown caller is redirected before any counter exists for them and the limiter
+can never answer a question about an account's existence; (2) the limiter, counted
+against the session's own `auth.uid()` through the request-scoped client, so the
+browser names no subject; (3) parsing, after the limiter, so a flood of malformed
+submissions is counted and refused like any other; (4) the entity's own
+authorization, exactly as before — `mayChangeEntity`, the transition's own
+`is_owner()`, RLS; (5) the work. A refusal happens before step 3: no mutation, no
+audit row, no expired cache tag, no consumed transition marker, nothing to roll
+back. The action then redirects to its own screen with `status=for_mange`, and
+the screen's notice table — every one of them gained the one shared entry —
+shows the sentence. The dashboard's batch publish is one hit, not one per item.
+
+For the four replying actions the refusal is a reply: the uploader shows the same
+sentence in its status line for a refused grant or finalisation; a refused
+replacement is its own closed status (`rate_limited`), so the uploader can say the
+true thing — the new image is in the library and the old one is untouched; and the
+autosave answers `for_mange`.
+
+### The sign-in path (brief §20–§23)
+
+`/admin/login` posts to a Server Action, which calls the Auth server with the anon
+key from the server — so the application limiter sits in that action, and only
+there. Before the Auth server is asked, both client-keyed counters are peeked; a
+throttled attempt is redirected with `fejl=for_mange` and its own sentence (*"Der
+er gjort for mange forsøg på kort tid. Vent lidt, og prøv igen."*) without the
+Auth server ever being contacted. A sign-in the Auth server refuses — a wrong
+password, an unknown address and a banned account alike — is then counted against
+both subjects, so the counters move identically for an address that exists and one
+that does not. A successful sign-in counts nothing, and counters expire with their
+window rather than being reset (§22). Phase 11C's deactivated-account wording is
+untouched: it is shown only after an Auth-server answer, and a throttled request
+never gets one. The reset form is counted per client address on every request
+(there is no failure to distinguish), and a throttled request is told so — the one
+thing the form now says differently, and it says it without mentioning the
+address. `setNewPassword` needs a recovery session and changes only the caller's
+own password, and `/admin/bekraeft` exchanges a one-time token the Auth server
+rate-limits itself; neither carries an application counter, deliberately.
+
+**Honestly:** none of this protects the Auth server's own `/auth/v1/token`
+endpoint from somebody who bypasses the site with the public anon key. That path
+is the Auth server's per-IP limit, and the launch checklist (below) is where those
+settings are reviewed.
+
+### News autosave (brief §9)
+
+The autosave is one scope of its own, counted first — before the form is read —
+and answered, never redirected. The machine gained one non-terminal state,
+`for_mange`: the text stays exactly where it was typed, the status line says so
+(*"Der blev gemt for mange gange på kort tid. Dine ændringer er stadig her — vent
+lidt, og skriv videre"*), and the next edit schedules the next attempt, exactly as
+after `fejl`; a conflict is still the only stop. The unit suite pins the state,
+the dirty-during-refusal path, the sentence and the recovery to `gemt` after the
+window. A legitimate session cannot reach the tier: with a two-second debounce and
+a change required for every save, one hundred and twenty saves in five minutes
+would need a save every 2.5 s for the whole five minutes; the locked `news-admin`
+and `news-mobile` suites — long sessions, formatting, a published article's live
+autosave, the stale conflict — ran green under the limiter (regression, below).
+
+### The image pipeline (brief §10)
+
+Three server operations the application controls, three tiers: the grant
+(`image:upload-request`), the finalisation (`image:finalize`, refused before the
+original is downloaded or sharp is started — the uploaded original then stays in
+the private bucket for the person to finalise again after the window, as after a
+lost reply), and the destructive pair (`image:destructive`). The signed PUT itself
+is the Storage server's, and once a URL exists the application limiter cannot
+control its bytes — but a URL exists only after a grant it *did* count, and the
+bucket's own size cap and the 10 MiB / 30 MP rules stand as before. The accepted
+30-megapixel workflow is unchanged (`images-large` integration suite, green).
+Nothing about a filename or a path is ever a subject.
+
+### Account administration (brief §11)
+
+Invitations are the tightest tier, the three transitions the next. The last-owner
+invariant, the version check, the marker and the audit row live in the database
+transitions and are not touched: a refused call never reaches them, so it writes
+nothing, audits nothing and consumes no marker (`029`'s regression assertion; the
+`users-admin` pair, green). These two scopes are also the only ones that **fail
+closed**.
+
+### Fail-open and fail-closed (brief §47)
+
+`unavailable` — the limiter could not answer — is a distinct decision, and each
+tier states what it means (`scopes.ts`, pinned by the unit suite):
+
+- **Sign-in, ordinary saves, autosave, the immediate paths, the image pipeline:
+  fail-open.** If the database is really down the mutation behind the limiter
+  fails on its own; if only the limiter is broken (a missing function after a bad
+  deploy), the administration stays usable and the Auth server's own limits still
+  stand for the sign-in path. A small restaurant's administration is not made
+  unusable by a counter.
+- **The account transitions: fail-closed.** Rare, security-sensitive, and retried
+  by an Owner at no real cost; the screen reports the generic failure sentence.
+
+Every `unavailable` is logged with the scope and the database's sentence, never a
+subject.
+
+### The security-header policy (brief §24–§37)
+
+One pure builder, `lib/security/headers.ts`, attached to `/(.*)` by
+`next.config.ts` `headers()` — in the config rather than in `proxy.ts`, because the
+proxy runs on `/admin` only and a policy that skipped the public site would be no
+policy, and because a static policy leaves the public pages' five-minute caching
+untouched. One set for guest and administration alike: both must resist framing,
+sniffing and injected scripts, and neither needs a capability the other must be
+denied. Draft Mode is a cookie, not an origin, and is unaffected. Measured after
+the change: every response class — the public pages, the article, the 404, the
+sitemap, the login page, the proxy's 307, the preview's 303, the administration,
+the framework's static assets — carries all six headers, and every `Cache-Control`
+is byte-identical to before (`s-maxage=300` public, private no-store admin,
+immutable assets).
+
+| Header | Value | Reason |
+|---|---|---|
+| `Content-Security-Policy` | `default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self'; img-src 'self' <supabase>; font-src 'self'; connect-src 'self' <supabase>; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'` | Below. |
+| `Strict-Transport-Security` | `max-age=63072000` (production builds only) | Two years, the value preload lists require — **without** `includeSubDomains` (the domain and its subdomains are decided at launch, §13 item D) and **without** `preload` (a one-way decision for the owner, not a phase). Vercel sends its own HSTS on HTTPS deployments; pinning it here makes the policy this repository's rather than the host's. A browser ignores HSTS over plain HTTP, so the local `next start` is unaffected while the built site can still be asserted on. |
+| `X-Content-Type-Options` | `nosniff` | On every response including the assets; verified against the JS, CSS and font files. |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Same-origin navigation keeps the full URL; the directions link, the Facebook link and the Storage image requests receive the origin only, and nothing over a downgrade. |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()` | The capabilities the site never uses, off for every origin including our own. The photograph uploader is a file input served by the operating system's picker — a phone's camera included — which needs no `camera` permission; the phone upload stories ran green. |
+| `X-Frame-Options` | `DENY` | The legacy twin of `frame-ancestors 'none'`; no admin or preview workflow embeds the site. |
+
+**The CSP, and the trade-off said plainly (brief §31–§34).** The production HTML
+carries the framework's inline bootstrap scripts on every page. A nonce would
+allow exactly those and no other inline script — but a nonce is a fresh value per
+response, which requires dynamic rendering, which would turn the public site's
+`s-maxage=300` pages into per-request renders and break the §6 / §7a promises the
+`expireTime` configuration exists to keep; the framework's own guide states the
+same consequence. The experimental hash-based alternative (SRI) is experimental
+and build-time only. So production `script-src` is `'self' 'unsafe-inline'`, and
+what that costs is the CSP's protection against an *injected inline script* — a
+class this site has no surface for: no `dangerouslySetInnerHTML`, no HTML parsing,
+structured news bodies, every string rendered by React (§8). What the header still
+does, enforced and not report-only: no script from any other origin, no `eval`
+(`'unsafe-eval'` is development-only, for React's server-stack reconstruction —
+the unit and browser suites both pin its absence from production), no inline style
+(`style-src 'self'`; the measured HTML has none), no object, no `<base>` hijack, no
+form posting elsewhere, no framing parent, images and the uploader's connection
+from this origin and the Supabase origin only, fonts from this origin only.
+`upgrade-insecure-requests` is deliberately absent: production is HTTPS end to end
+and HSTS covers the rest, while locally the site runs over plain HTTP against a
+plain-HTTP Supabase and the directive would break every photograph in development.
+No report-only mode, no reporting endpoint (13C's Sentry is where reporting could
+go if ever wanted).
+
+**In the browser (brief §39).** `tests/e2e/security-headers.spec.ts`, in the
+read-only `desktop` and `mobile` projects: a guest walks the six public pages and
+an article, a staff member walks the dashboard, the menu editor and its picker,
+the news editor, the image library and a Forside Draft Mode preview, and an owner
+walks the Owner-only screens — with the console, page errors and failed requests
+watched. Zero violations at both widths. The `security` tail project adds a real
+upload (the PUT to the signed Storage URL, the derivative rendering from the
+Storage origin in the library and in the picker) under the same watch, also
+zero.
+
+### Tests
+
+- **Unit** — `tests/unit/rate-limit/{scopes,subject,limiter}.test.ts`,
+  `tests/unit/security/headers.test.ts`, and four new cases in
+  `tests/unit/news/autosave.test.ts`: the vocabulary mirrored against the
+  migration file, the tier rules (client vs actor, the account tiers tightest,
+  the per-account backstop looser than per-client, fail-closed only for
+  accounts, no window beyond two hours), the trusted-address reader, the
+  normalisation, the HMAC derivation, the reply parsing and the fail-open /
+  fail-closed mapping, the door's argument shapes and its log hygiene, every
+  header directive, and the autosave's refusal state. Fifty-seven assertions.
+- **pgTAP** — `supabase/tests/029_rate_limiting.test.sql`, 76 assertions from
+  real JWTs: privileges, the closed vocabulary and its errcodes, the threshold
+  and `peek`, the actor subject (a passed subject ignored, Owner and Staff
+  apart), no read / reset / insert / edit of a bucket or a tier for either role,
+  the window reset, the pruning rule, the two-session race, privacy, and the
+  content tables byte-identical afterwards.
+- **Integration** — `tests/integration/rate-limit.test.ts`, 9 cases: the
+  application door over a real Owner session and the anonymous client through
+  PostgREST, the threshold reached at the tier, a filled bucket refusing the
+  next hit, the client-subject grammar, and the test door itself.
+- **Browser** — `security-headers.spec.ts` (8 tests, both widths) and the
+  `security` tail project (4 stories): the headers beside the cache header on
+  every response class, the CSP walks, an upload beyond the tier refused in
+  place with no image created, a form save beyond the tier landing on its
+  screen with the shared notice and no draft written, and the eleventh failed
+  sign-in refused before the Auth server is asked with a real sign-in working
+  once the counters are empty.
+- **The test door** — `tests/support/local-auth-admin.ts` gained
+  `clearLocalRateLimits`, `fillLocalRateLimit` and `listLocalRateLimitBuckets`:
+  loopback-only, service role, the same file and the same rules as the Auth
+  cleanup. The application has no door that lowers a counter, by design, and the
+  suites need one so a story that leaves a full bucket cannot refuse the next
+  run; a filled bucket also lets a UI story meet the refusal without hundreds of
+  requests (the thresholds themselves are `029`'s).
+
+### Source policy and secrets
+
+`RATE_LIMIT_SECRET` joins the secret list in `lib/env/server.ts`,
+`eslint.config.mjs`, `scripts/check-source-policy.mjs` and `.env.example`; the
+scanner refused the first draft's three mentions of the name outside the env
+module — two in comments, one in a log line — and they were reworded rather than
+allow-listed. The two limiter doors and their resolver are the only SECURITY DEFINER
+additions; no new grant to a browser role, no service-role caller, no new
+dependency. Six locked pgTAP suites (`020`–`023`, `025`, `026`) pin the exact
+set of definer functions by name, and the first full chain failed all six on the
+three new ones — the design working as intended; their lists were extended in
+the same commit, as phase 11C extended them for its two.
+
+### Production prerequisites (not configured by this repository)
+
+- **`RATE_LIMIT_SECRET`** in the Vercel environment (any long random string).
+- **Supabase Auth rate limits**, reviewed in the production project's Auth
+  settings before launch: sign-in / token requests per IP, e-mails sent per hour
+  (with Resend as custom SMTP), OTP verifications per IP, token refreshes. The
+  application throttle assumes these are on; it does not replace them.
+- **HSTS scope**: decide `includeSubDomains` once the domain layout is known
+  (§13 item D); do not submit to the preload list from a phase.
+- **Vercel**: the address headers are trusted only when `VERCEL=1`; a different
+  host would need its own trusted-header decision in `lib/rate-limit/sign-in.ts`.
+
+The launch runbook, `docs/runbooks/production-security.md`, states each of these
+as a step.
+
+### Carry-forwards for the final security audit (§13)
+
+- **`'unsafe-inline'` in production `script-src`** — the caching trade-off above.
+  Revisit if the framework's nonce support ever works with cached pages, or if
+  SRI leaves experimental status.
+- **The SECURITY DEFINER doors** — re-read `consume_rate_limit()` and
+  `peek_rate_limit()` with the other definer functions.
+- **The sign-in peek/consume edge** — one extra attempt at the boundary under
+  simultaneous failures; documented, accepted.
+- **The per-account sign-in backstop is a small lock-out surface.** Thirty
+  failures against the owner's address within fifteen minutes refuse the site's
+  form for that address until the window ends — an attacker needs three or more
+  client addresses to get there past the per-client tier, and gains at most a
+  quarter of an hour of the *form*, not of the account. Accepted as the price of
+  refusing a distributed run at one account; the audit may prefer a longer
+  per-account window with a higher count.
+- **The per-instance key fallback** when the secret is missing on a host —
+  documented degradation; the prerequisite closes it.
+- **Refused hits keep counting** in a bucket's `hits` integer; a flood of two
+  billion in one window is not a realistic concern, and the count is honest, but
+  a cap is a one-line change if the audit prefers one.
+- **The test door** can empty and fill counters on a loopback stack through the
+  service role — the same class of door as the Auth cleanup, and no more
+  reachable from the application.
+- **The Auth server's own endpoints** remain the provider's to limit.
+
+### The regression
+
+One clean chain on 2026-09-05, from a tree holding only this increment: every
+port-3100 owner stopped, `npm ci`, `npm run db:reset:full` (the seed and the two
+seeded identities — clean Auth state), `.next` removed, a fresh production build,
+then typecheck, lint, source policy (656 files), the unit suite (**2,716** tests in
+112 files, 57 of them new), pgTAP (**2,106** assertions in 29 files, 76 new), the
+integration suite (**34** in 5 files, 9 new), `playwright test --list` (**1,353**
+tests in 42 files), `npm audit --audit-level=high` (clean), and the complete
+Playwright matrix at `--retries=0`: the read-only trio in one invocation and every
+write project in its own `--no-deps` invocation in the config's order, the new
+`security` project last — **1,346 passed, 7 skipped (the standing skips), 0 failed,
+0 flaky** across 48 projects. Phases 5–12 stayed green. Also verified on the way:
+`Revalidate 5m / Expire 5m` (`public-cache`, and the header spec asserting
+`s-maxage=300` beside the policy), zero public cookies (`public-site`), no browser
+Supabase client (`tests/unit/policy`), the backup tooling untouched (no file under
+`scripts/backup` in the diff), no Sentry, no phase-14 work.
+
+Two earlier launches of the same chain were stopped by the increment itself and
+are recorded rather than hidden. The first failed pgTAP on the six locked suites
+that pin the SECURITY DEFINER set (above). The second failed the `monthly-burger`
+project with the limiter's own sentence: `content:publish` at 30 per five minutes
+had been reached by one Staff actor after `weekly-special` at both widths — the
+measurement that resized the content tiers (the table above). Each launch started
+again from the top; nothing was stitched.
+
+### What 13C should be
+
+Sentry on the server (§10g): Server Actions, route handlers and RSC errors, with
+releases tied to the deployment — no browser SDK, no session replay, and a first
+look at whether the limiter's `unavailable` log lines and any CSP reporting belong
+there. Then the SEO verification against Rich Results, and the final audit over
+§0s–§0ai's carry-forwards. Phase 13 is not locked.
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -6640,7 +7085,9 @@ No map library. No tile provider called at runtime. No JavaScript. The entire ma
 | XSS from staff-entered content | News body is structured JSON rendered by our own components — no HTML parsing, no `dangerouslySetInnerHTML` anywhere, including the new detail page. Tapas list items and all other free text are plain strings. |
 | Open redirect / injected announcement link | `link_type='page'` is an enum of our own routes; `link_type='url'` is validated as `https:` and rendered with `rel="noopener noreferrer"`. The map link is built from the stored address, never from user input. |
 | CSRF | Server Actions carry Next.js's built-in origin check; `serverActions.allowedOrigins` is derived from `lib/config/site.ts`, not hard-coded. |
-| Credential stuffing | Supabase Auth rate limits plus a login-attempt throttle keyed on email. Password reset via a verified Resend domain. |
+| Credential stuffing | Supabase Auth's own per-IP limits on its endpoints, plus — since phase 13B (§0ai) — the application throttle in the sign-in action: failures counted per client address and per account address as HMAC subjects in PostgreSQL, asked before the Auth server is contacted, one sentence for every refusal, successes never counted. Password reset via a verified Resend domain, its request throttled per client. |
+| **A signed-in account floods the administration** | Every Server Action declares its tier and is counted against the session's own `auth.uid()` in `rate_limit_buckets` — one atomic `INSERT … ON CONFLICT` under the row lock, no process memory, no browser-supplied subject or limit; a refusal happens before parsing and performs no mutation, writes no audit row and expires no cache tag (§0ai, migration `20260905120000`, pgTAP `029`). |
+| **Framing, sniffing, injected resources** | One header policy on every response (`lib/security/headers.ts`, phase 13B): CSP with `frame-ancestors 'none'`, no foreign script origin, no `eval`, no inline style, images and the uploader's connection from this origin and the Storage origin only; `X-Frame-Options: DENY`, `nosniff`, `strict-origin-when-cross-origin`, a minimal `Permissions-Policy`, two-year HSTS. The one concession — `'unsafe-inline'` for the framework's inline bootstrap scripts, to keep the public pages cacheable — is recorded in §0ai with its reasoning. |
 | Admin indexed by search engines | `/admin/*` returns `X-Robots-Tag: noindex, nofollow` and is disallowed in `robots.txt`. Preview deployments additionally sit behind Vercel Deployment Protection (§10). |
 | Silent data loss | Every publish and every immediate change writes to `audit_log` with before/after. Soft-delete for dishes. Daily managed database backups **plus** a weekly off-platform export of database *and* storage (§10f). |
 | System left with no owner | Database constraint trigger on `profiles`; the last active owner cannot be demoted, disabled or deleted — and, since phase 11C, the check runs under a transaction-level advisory lock that the account transitions take first, so two concurrent changes cannot both pass it (§0ab, pgTAP `028` through two real sessions). |
@@ -6787,6 +7234,7 @@ The domain is deferred and is **not** a Phase 0 dependency.
 | `SUPABASE_DB_URL` | CI only, per environment | migrations; passed as env, never as an argument |
 | `SITE_URL` | all | canonical URLs, OG, sitemap, allowed origins — the only place a domain lives |
 | `SENTRY_DSN` | server only | |
+| `RATE_LIMIT_SECRET` | server only | keys the sign-in throttle's HMAC subjects (§0ai); read only through `lib/env/server.ts`; a deployment prerequisite — without it the throttle is keyed per instance |
 | `RESEND_API_KEY`, `AUTH_EMAIL_FROM` | Supabase project settings | password reset and invites |
 | `VERCEL_AUTOMATION_BYPASS_SECRET` | CI only | Playwright against protected previews |
 | `BACKUP_S3_*` (endpoint, bucket, region, prefix, key pair) | GitHub `backup` environment only | the weekly export's destination (§10f, §0ah); `SUPABASE_DB_URL`, `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` live there too, for the job |
@@ -6966,7 +7414,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C-1 (done, §0v; hardened, §0w):** image selection in the dish/weekly/monthly/news editors through one shared picker pair, `image_references` as the one definition of "referenced", the draft-aware `delete_image()`/`replace_image()`, and the published `image_id` of the three draft entities guarded in the database — direct PostgREST writes refused, only publish/replace/detach move it (pgTAP `022`, `023`). **10C-2 (done, §0x):** the public `<picture>`/`srcset` rendering on the eight approved surfaces, the public read-model projection inside the tagged reads, the Draft Mode preview of pending images, the news `og:image` and JSON-LD `image`, and the per-entity cache coupling — `delete_image()`/`replace_image()` report the live references they moved (pgTAP `024`), the alt edit expires its live usages, and the first guest request after every public-changing image operation carries the new state (`tests/e2e/public-images.spec.ts`). **Complete and locked** by the completion pass of 2026-09-02 — the two no-image frames built, the cache/reference races classified, one clean regression chain — see §0y | E2E 7 passes whole: `image-library`, `editor-images` and `public-images` at 375 and 1440 |
 | 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Complete and locked** by the completion pass of 2026-09-03 — see §0ac |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B (done, §0ae):** the complete News workflow at 375 px audited against 1z and made phone-first — the pinned editor bar with the badge and the autosave line, the B/Link toolbar and link panel stuck under it, fragment targets below the bar, the stacked confirmations, long titles and addresses that wrap, the public paragraph's wrap — with `tests/e2e/news-mobile.spec.ts` under its own `news-mobile` project. **12C (done, §0af):** the 1x / 1q dashboard — the bar, the band with the phase-4 list beneath it, the announcement card, the role-aware tiles from the entity registry, LIGE NU as a read model — with the phase-4 "Åbn …" vocabulary migrated across the locked suites in the same commit; and the phone audit of Ugens ret, Månedens burger, Besked på hjemmesiden and Åbningstider, whose Fortryd and status notices now sit at the foot of the phone screen through one shared `NoticeFoot`, with `tests/e2e/dashboard-mobile.spec.ts` under its own `dashboard-mobile` project. **Completion pass (§0ag):** the three read as one system, walked as Owner and Staff on a phone, 1x / 1y / 1z / 1q re-checked at 375 / 768 / 1440, the Forhåndsvis and 1 px observations closed, the moved row kept wholly in view, the phase-11 editors and Brugere given the same foot, an empty foot's clearance removed, a dead-autosave defect after the first Gem fixed and pinned | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad), the news half by `news-mobile` (§0ae), the dashboard and the specials by `dashboard-mobile` (§0af). **Complete and locked** by the completion pass of 2026-09-04 — see §0ag |
-| 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill. **13A (done, §0ah):** the backup and restore commands, the scheduled workflow, the drill in CI, the runbooks — the destination provider still to be chosen | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project (13A: proven against the local stack; the hosted scratch run waits for a Pro project) |
+| 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill. **13A (done, §0ah):** the backup and restore commands, the scheduled workflow, the drill in CI, the runbooks — the destination provider still to be chosen. **13B (done, §0ai):** the PostgreSQL-backed limiter over the sign-in path and every Server Action (twelve tiers, one atomic door, HMAC subjects, fail-open except for accounts), and the security-header policy on every response (CSP, HSTS, nosniff, referrer, permissions, frame denial) with the public caching intact | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project (13A: proven against the local stack; the hosted scratch run waits for a Pro project) |
 | 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
@@ -6980,7 +7428,10 @@ administration on a phone as the primary device (1x, 1y, 1z) — as 12A, the Men
 workflow at 375 px (§0ad), 12B, the News workflow at 375 px (§0ae), 12C, the 1x / 1q
 dashboard and the phone audit of the remaining operational screens (§0af), and the
 completion pass over the three (§0ag), which is the current truth of the
-administration on a phone.** Phase 13 has not started. Phase 8's lock pass is
+administration on a phone.** Phase 13 is in progress: 13A — backup and recovery —
+is recorded in §0ah and 13B — rate limiting and the security-header policy — in
+§0ai; Sentry, the SEO verification and the final audit remain, and the phase is not
+locked. Phase 8's lock pass is
 recorded in §0p, and **phase 9's in §0s**: 9A (the news administration's core, §0q) and
 9B (the B/Link body editor, autosave, the `NewsArticle` JSON-LD, canonical metadata and
 the sitemap, §0r) were read as one system, walked as Owner, Staff and guest against a

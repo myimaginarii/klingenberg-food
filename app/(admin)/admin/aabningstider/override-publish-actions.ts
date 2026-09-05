@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 
 import { applyGeneratedAnnouncement } from '@/lib/announcements/generated-operation'
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import type { Profile } from '@/lib/auth/session'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { readAdminAnnouncement } from '@/lib/content/announcement-admin'
@@ -99,6 +101,7 @@ import { openingHoursHref } from './routes'
  */
 export async function saveAndPublishOverride(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:publish', openingHoursHref({ overrideFocus: true, status: RATE_LIMIT_STATUS }))
   const form = readOverrideForm(formData)
 
   // Read before anything is written, and used only after everything is. A submission the
@@ -126,6 +129,7 @@ export async function saveAndPublishOverride(formData: FormData): Promise<void> 
  */
 export async function publishPendingOverride(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:publish', openingHoursHref({ overrideFocus: true, status: RATE_LIMIT_STATUS }))
 
   const date = formData.get(OVERRIDE_FORM.date)
   if (typeof date !== 'string' || !isIsoDate(date)) {

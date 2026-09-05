@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { readAdminTakeawayPage } from '@/lib/content/takeaway-admin'
 import { takeawayCtaWrite, takeawayTextWrite, toTakeawayCta, toTakeawayText } from '@/lib/pages/takeaway'
 import { saveEntityDraft } from '@/lib/publishing/drafts'
@@ -48,6 +50,7 @@ import { CARD_ANCHOR, takeawayHref } from './routes'
  */
 export async function saveTakeawayText(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', takeawayHref({ status: RATE_LIMIT_STATUS }))
 
   const target = draftTargetSchema.safeParse({
     entity: 'page:takeaway',
@@ -98,6 +101,7 @@ export async function saveTakeawayText(formData: FormData): Promise<void> {
 
 export async function saveTakeawayCta(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', takeawayHref({ status: RATE_LIMIT_STATUS }))
 
   const target = draftTargetSchema.safeParse({
     entity: 'page:takeaway',

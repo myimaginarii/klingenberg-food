@@ -13,6 +13,8 @@ import {
   ROLE_OUTCOME_CODES,
 } from '@/lib/accounts/model'
 import { LOGIN_PATH, requireOwner } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 import { readAccountTarget, USERS_FORM } from './forms'
@@ -47,6 +49,7 @@ import { usersHref } from './routes'
 
 export async function changeRole(formData: FormData): Promise<void> {
   const profile = await requireOwner()
+  await enforceRateLimit('accounts:mutation', usersHref({ status: RATE_LIMIT_STATUS }))
 
   const target = readAccountTarget(formData)
   const role = formData.get(USERS_FORM.role)
@@ -78,6 +81,7 @@ export async function changeRole(formData: FormData): Promise<void> {
 
 export async function deactivateAccount(formData: FormData): Promise<void> {
   const profile = await requireOwner()
+  await enforceRateLimit('accounts:mutation', usersHref({ status: RATE_LIMIT_STATUS }))
 
   const target = readAccountTarget(formData)
   if (target === null) {
@@ -121,6 +125,7 @@ export async function deactivateAccount(formData: FormData): Promise<void> {
 
 export async function reactivateAccount(formData: FormData): Promise<void> {
   await requireOwner()
+  await enforceRateLimit('accounts:mutation', usersHref({ status: RATE_LIMIT_STATUS }))
 
   const target = readAccountTarget(formData)
   if (target === null) {

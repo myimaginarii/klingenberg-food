@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { imageExists } from '@/lib/content/images-admin'
 import { readAdminTakeawayPage } from '@/lib/content/takeaway-admin'
 import { imageDraftWrite, readImageSelectionForm } from '@/lib/images/selection'
@@ -31,6 +33,7 @@ import { CARD_ANCHOR, IMAGE_SLOT_ANCHOR, takeawayHref } from './routes'
  */
 export async function saveTakeawayImage(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', takeawayHref({ status: RATE_LIMIT_STATUS }))
 
   const request = readImageSelectionForm(formData)
   if (request === null) redirect(takeawayHref({ status: 'failed', focus: IMAGE_SLOT_ANCHOR }))

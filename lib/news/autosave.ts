@@ -48,6 +48,8 @@ export type AutosavePhase =
   | { readonly kind: 'ufuldstaendig' }
   /** The save failed (network, database). The next edit tries again. */
   | { readonly kind: 'fejl' }
+  /** The limiter refused the save (phase 13B). Nothing was lost; the next edit tries again. */
+  | { readonly kind: 'for_mange' }
   /** Somebody else saved a newer version. Autosave stops; the text stays. Terminal. */
   | { readonly kind: 'konflikt' }
   /** The article no longer exists. Terminal. */
@@ -61,7 +63,14 @@ export type AutosaveEvent =
   /** The in-flight save answered. */
   | { readonly kind: 'svar'; readonly resultat: AutosaveOutcome }
 
-export type AutosaveOutcome = 'gemt' | 'gemt_live' | 'ugyldig' | 'konflikt' | 'vaek' | 'fejl'
+export type AutosaveOutcome =
+  | 'gemt'
+  | 'gemt_live'
+  | 'ugyldig'
+  | 'konflikt'
+  | 'vaek'
+  | 'fejl'
+  | 'for_mange'
 
 export type AutosaveCommand = 'planlaeg' | 'gem' | 'ingen'
 
@@ -126,6 +135,13 @@ export function autosaveNext(state: AutosavePhase, event: AutosaveEvent): Autosa
           return dirty
             ? { state: { kind: 'venter' }, command: 'planlaeg' }
             : { state: { kind: 'fejl' }, command: 'ingen' }
+        case 'for_mange':
+          // A refusal, not a failure: the text is intact and the server wrote nothing.
+          // Like `fejl` it is not terminal — the next edit schedules the next attempt,
+          // and the window the limiter counts in ends on its own (phase 13B).
+          return dirty
+            ? { state: { kind: 'venter' }, command: 'planlaeg' }
+            : { state: { kind: 'for_mange' }, command: 'ingen' }
         case 'konflikt':
           return { state: { kind: 'konflikt' }, command: 'ingen' }
         case 'vaek':
@@ -162,6 +178,11 @@ export function autosaveStatusLine(state: AutosavePhase): AutosaveStatusLine {
       return { text: 'Gemmer ikke endnu — nyheden mangler overskrift eller tekst', tone: 'quiet' }
     case 'fejl':
       return { text: 'Kunne ikke gemme — prøv igen, eller brug Gem-knappen', tone: 'alert' }
+    case 'for_mange':
+      return {
+        text: 'Der blev gemt for mange gange på kort tid. Dine ændringer er stadig her — vent lidt, og skriv videre',
+        tone: 'alert',
+      }
     case 'konflikt':
       return {
         text:

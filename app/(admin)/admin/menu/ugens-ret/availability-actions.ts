@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { setWeeklySpecialSoldOut } from '@/lib/menu/weekly-availability'
 
@@ -49,6 +51,7 @@ import { weeklyHref } from './routes'
  */
 export async function setWeeklyAvailability(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('operation:immediate', weeklyHref({ status: RATE_LIMIT_STATUS }))
 
   const request = readWeeklyAvailabilityForm(formData)
   if (request === null) redirect(weeklyHref({ status: 'ugyldig' }))

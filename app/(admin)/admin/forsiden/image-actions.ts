@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireOwner } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { readAdminHomePage } from '@/lib/content/home-admin'
 import { imageExists } from '@/lib/content/images-admin'
 import { readImageSelectionForm } from '@/lib/images/selection'
@@ -35,6 +37,7 @@ import { homeHref, imageSlotAnchor, SECTION_ANCHOR } from './routes'
  */
 export async function saveHomeImage(formData: FormData): Promise<void> {
   const profile = await requireOwner()
+  await enforceRateLimit('content:save', homeHref({ status: RATE_LIMIT_STATUS }))
 
   const section = readHomeSectionKey(formData.get(HOME_IMAGE_FORM.section))
   if (section === null) redirect(homeHref({ status: 'ugyldig' }))

@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireOwner } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { readAdminHomePage } from '@/lib/content/home-admin'
 import { homeSectionWrite } from '@/lib/pages/home'
 import { saveEntityDraft } from '@/lib/publishing/drafts'
@@ -57,6 +59,7 @@ import { homeHref, SECTION_ANCHOR } from './routes'
  */
 export async function saveHomeSectionDraft(formData: FormData): Promise<void> {
   const profile = await requireOwner()
+  await enforceRateLimit('content:save', homeHref({ status: RATE_LIMIT_STATUS }))
 
   const target = draftTargetSchema.safeParse({
     entity: 'page:home',

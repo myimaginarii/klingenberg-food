@@ -6,6 +6,8 @@ import { inviteAccount, readAccountDirectory } from '@/lib/accounts/admin'
 import { createAuthAdmin } from '@/lib/accounts/auth-admin'
 import { INVITE_OUTCOME_CODES, toInviteSubmission, type InviteIssue } from '@/lib/accounts/model'
 import { requireOwner } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 import { encodeInviteEcho, readInviteForm } from './forms'
@@ -36,6 +38,7 @@ import { usersHref } from './routes'
  */
 export async function inviteUser(formData: FormData): Promise<void> {
   await requireOwner()
+  await enforceRateLimit('accounts:invite', usersHref({ status: RATE_LIMIT_STATUS, focus: 'invite' }))
 
   const form = readInviteForm(formData)
   const submission = toInviteSubmission(form)

@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 
 import { setAnnouncementVisible } from '@/lib/announcements/visibility'
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 
 import { readAnnouncementVisibilityForm } from './forms'
@@ -66,6 +68,7 @@ import { announcementHref } from './routes'
  */
 export async function setAnnouncementVisibility(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('operation:immediate', announcementHref({ focus: true, status: RATE_LIMIT_STATUS }))
 
   const request = readAnnouncementVisibilityForm(formData)
   if (request === null) redirect(announcementHref({ status: 'ugyldig', focus: true }))

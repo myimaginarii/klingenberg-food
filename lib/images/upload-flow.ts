@@ -166,6 +166,8 @@ export type UploadReplaceReply = {
     | 'owner_only'
     | 'forbidden'
     | 'failed'
+    /** The limiter refused the replacement (phase 13B); the new image is in the library. */
+    | 'rate_limited'
 }
 
 export type { ImageRefusalCode }

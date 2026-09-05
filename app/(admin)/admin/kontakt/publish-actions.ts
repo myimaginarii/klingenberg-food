@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireOwner } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { readPendingChanges } from '@/lib/publishing/pending'
 import { publishPendingChanges, tagsToExpire } from '@/lib/publishing/publish'
@@ -36,6 +38,7 @@ import { contactHref } from './routes'
  */
 export async function publishContact(): Promise<void> {
   const profile = await requireOwner()
+  await enforceRateLimit('content:publish', contactHref({ status: RATE_LIMIT_STATUS }))
 
   const pending = (await readPendingChanges()).filter((change) => change.entity === 'site_contact')
 

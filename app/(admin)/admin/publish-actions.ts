@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import {
   publishPendingChanges,
@@ -59,6 +61,7 @@ function resultQuery(results: readonly PublishResult[]): string {
 
 export async function publishSelectedChanges(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:publish', `/admin?${RATE_LIMIT_STATUS}=1`)
 
   const requests = formData
     .getAll(PUBLISH_SELECTION_FIELD)

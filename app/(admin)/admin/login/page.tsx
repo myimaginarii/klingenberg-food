@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { redirect } from 'next/navigation'
 
 import { getCurrentProfile, isActiveStaff } from '@/lib/auth/session'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 
 import { signIn } from '../actions'
 import { AdminShell, Card, Field, Notice, SubmitButton } from '../ui'
@@ -23,6 +24,9 @@ const MESSAGES: Record<string, string> = {
   forkert: 'Forkert e-mail eller adgangskode.',
   mangler: 'Udfyld både e-mail og adgangskode.',
   deaktiveret: 'Din konto er deaktiveret. Kontakt ejeren.',
+  // The sign-in throttle (phase 13B). One sentence for an address that exists and
+  // one that does not; no count, no window.
+  [RATE_LIMIT_STATUS]: 'Der er gjort for mange forsøg på kort tid. Vent lidt, og prøv igen.',
 }
 
 export default async function LoginPage({

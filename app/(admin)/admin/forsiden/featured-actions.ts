@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireOwner } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { readAdminHomePage } from '@/lib/content/home-admin'
 import { readAdminMenuContent } from '@/lib/content/menu-admin'
 import { applyFeaturedEdit, featuredDishesWrite } from '@/lib/pages/home'
@@ -38,6 +40,7 @@ import { featuredSlotAnchor, homeHref, SECTION_ANCHOR } from './routes'
  */
 export async function updateFeaturedDishes(formData: FormData): Promise<void> {
   const profile = await requireOwner()
+  await enforceRateLimit('content:save', homeHref({ status: RATE_LIMIT_STATUS }))
 
   const anchor = SECTION_ANCHOR.featured_dish_ids
 

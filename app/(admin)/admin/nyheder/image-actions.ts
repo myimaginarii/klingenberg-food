@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { imageExists } from '@/lib/content/images-admin'
 import { readAdminArticle } from '@/lib/content/news-admin'
@@ -35,6 +37,7 @@ import { newsHref } from './routes'
  */
 export async function saveNewsImage(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', newsHref({ status: RATE_LIMIT_STATUS }))
 
   const articleId = rowId('Nyheden').safeParse(formData.get(NEWS_FORM.articleId))
   const request = readImageSelectionForm(formData)

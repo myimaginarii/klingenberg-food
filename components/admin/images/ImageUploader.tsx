@@ -156,7 +156,9 @@ export function ImageUploader({
                 ? 'Billedet blev ændret af en anden i mellemtiden, så det blev ikke erstattet. Det nye billede ligger i biblioteket.'
                 : replaced.status === 'owner_only'
                   ? 'Billedet bruges på forsiden, som kun ejeren kan rette, så det blev ikke erstattet. Det nye billede ligger i biblioteket.'
-                  : 'Billedet blev uploadet, men erstatningen mislykkedes. Det gamle billede er uændret, og det nye ligger i biblioteket.',
+                  : replaced.status === 'rate_limited'
+                    ? 'Der er sendt for mange handlinger på kort tid, så billedet blev ikke erstattet. Det nye billede ligger i biblioteket — vent lidt, og erstat derfra.'
+                    : 'Billedet blev uploadet, men erstatningen mislykkedes. Det gamle billede er uændret, og det nye ligger i biblioteket.',
           })
           return
         }

@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { saveImageAltText } from '@/lib/images/admin'
 import { rowId } from '@/lib/schemas/primitives'
@@ -29,6 +31,7 @@ import { imagesHref } from './routes'
  */
 export async function saveAltText(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', imagesHref({ status: RATE_LIMIT_STATUS }))
 
   const id = rowId('Billedet').safeParse(formData.get(IMAGES_FORM.imageId))
   const version = formData.get(IMAGES_FORM.version)

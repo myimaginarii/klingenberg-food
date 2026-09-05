@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { setMonthlyBurgerSoldOut } from '@/lib/menu/monthly-availability'
 
@@ -56,6 +58,7 @@ import { monthlyHref } from './routes'
  */
 export async function setMonthlyAvailability(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('operation:immediate', monthlyHref({ status: RATE_LIMIT_STATUS }))
 
   const request = readMonthlyAvailabilityForm(formData)
   if (request === null) redirect(monthlyHref({ status: 'ugyldig', focus: true }))

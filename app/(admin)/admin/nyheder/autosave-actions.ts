@@ -1,6 +1,7 @@
 'use server'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { isRateLimited } from '@/lib/rate-limit/actions'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { readAdminArticle, readNewsSlugs } from '@/lib/content/news-admin'
 import { createNewsArticle, saveNewsArticle } from '@/lib/news/admin'
@@ -56,6 +57,8 @@ export type NewsAutosaveResponse = {
     | 'vaek'
     /** The write failed — database, network, or a lost slug race. Nothing usable was written. */
     | 'fejl'
+    /** The limiter refused this save (phase 13B). Nothing was written; the text stays. */
+    | 'for_mange'
   /** The row's id — for `oprettet`, the id the editor adopts. */
   readonly articleId: string | null
   /** The row's new `updated_at` — the version token the next save must submit. */
@@ -66,6 +69,11 @@ const REFUSED: Omit<NewsAutosaveResponse, 'status'> = { articleId: null, version
 
 export async function autosaveArticle(formData: FormData): Promise<NewsAutosaveResponse> {
   const profile = await requireStaff()
+
+  // The autosave tier (phase 13B), counted before anything is read or parsed. A
+  // refusal is a reply, never a redirect: the editor keeps every keystroke and the
+  // machine (`lib/news/autosave.ts`) tries again after the next edit.
+  if (await isRateLimited('news:autosave')) return { status: 'for_mange', ...REFUSED }
 
   const form = readNewsForm(formData)
   const rawId = formData.get(NEWS_FORM.articleId)

@@ -1,4 +1,5 @@
 import { Notice, type NoticeTone } from '@/components/admin/Notice'
+import { RATE_LIMIT_NOTICE, RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 
 /**
  * The three things the Åbningstider screen says about itself — design 1aa, 1t; §5, §6.
@@ -78,6 +79,8 @@ const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
     text: 'Ændringerne kunne ikke offentliggøres. Intet blev ændret — prøv igen.',
   },
   failed: { tone: 'error', text: 'Ændringen kunne ikke gemmes. Intet blev ændret — prøv igen.' },
+  // The limiter's refusal (phase 13B): the one code and sentence every screen shares.
+  [RATE_LIMIT_STATUS]: RATE_LIMIT_NOTICE,
 }
 
 export function HoursStatusNotice({ status }: { status?: string }) {

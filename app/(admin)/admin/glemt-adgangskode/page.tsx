@@ -1,5 +1,7 @@
 import Link from 'next/link'
 
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
+
 import { requestPasswordReset } from '../actions'
 import { AdminShell, Card, Field, Notice, SubmitButton } from '../ui'
 
@@ -18,10 +20,13 @@ import { AdminShell, Card, Field, Notice, SubmitButton } from '../ui'
 export default async function ForgotPasswordPage({
   searchParams,
 }: {
-  searchParams: Promise<{ besked?: string }>
+  searchParams: Promise<{ besked?: string; fejl?: string }>
 }) {
   const params = await searchParams
   const sent = params.besked === 'sendt'
+  // The reset throttle (phase 13B): the request was not sent, and the person is told
+  // so — a sentence that says nothing about whether the address has an account.
+  const throttled = params.fejl === RATE_LIMIT_STATUS
 
   return (
     <AdminShell eyebrow="Klingenberg Food · administration" title="Glemt adgangskode">
@@ -33,6 +38,11 @@ export default async function ForgotPasswordPage({
           </Notice>
         ) : (
           <form action={requestPasswordReset} className="flex flex-col gap-4">
+            {throttled ? (
+              <Notice tone="error">
+                Der er bedt om for mange links på kort tid. Vent lidt, og prøv igen.
+              </Notice>
+            ) : null}
             <p className="text-meta text-ink-2">
               Indtast din e-mail, så sender vi et link til at vælge en ny adgangskode.
             </p>

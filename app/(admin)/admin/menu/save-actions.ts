@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { dishDraftDelta, DISH_EDITOR_FIELDS } from '@/lib/menu/admin'
 import { saveEntityDraft } from '@/lib/publishing/drafts'
 import { draftTargetSchema } from '@/lib/publishing/requests'
@@ -51,6 +53,7 @@ import { menuHref } from './routes'
  */
 export async function saveDishDraft(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', menuHref({ status: RATE_LIMIT_STATUS }))
 
   const target = draftTargetSchema.safeParse({
     entity: 'dish',

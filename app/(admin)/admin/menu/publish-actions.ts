@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { isMenuPublishable } from '@/lib/menu/pending'
 import { readPendingChanges } from '@/lib/publishing/pending'
@@ -37,6 +39,7 @@ import { menuHref } from './routes'
  */
 export async function publishMenuChanges(): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:publish', menuHref({ status: RATE_LIMIT_STATUS }))
 
   // The same predicate the screen's own pending banner counts with, so the button and
   // the sentence above it can never disagree about what "this screen's changes" means.

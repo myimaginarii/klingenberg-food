@@ -43,7 +43,15 @@ import {
 
 /** Structural copy of the action's response, so this component imports nothing from `app/`. */
 type AutosaveResponse = {
-  readonly status: 'gemt' | 'gemt_live' | 'oprettet' | 'ugyldig' | 'konflikt' | 'vaek' | 'fejl'
+  readonly status:
+    | 'gemt'
+    | 'gemt_live'
+    | 'oprettet'
+    | 'ugyldig'
+    | 'konflikt'
+    | 'vaek'
+    | 'fejl'
+    | 'for_mange'
   readonly articleId: string | null
   readonly version: string | null
 }

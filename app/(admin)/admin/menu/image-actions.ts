@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { imageExists } from '@/lib/content/images-admin'
 import { readAdminMenuContent } from '@/lib/content/menu-admin'
 import { imageDraftWrite, readImageSelectionForm } from '@/lib/images/selection'
@@ -34,6 +36,7 @@ import { menuHref } from './routes'
  */
 export async function saveDishImage(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', menuHref({ status: RATE_LIMIT_STATUS }))
 
   const rawSection = formData.get('sektion')
   const section = typeof rawSection === 'string' && rawSection.length > 0 ? rawSection : null

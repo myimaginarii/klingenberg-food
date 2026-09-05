@@ -1,4 +1,5 @@
 import { Notice, type NoticeTone } from '@/components/admin/Notice'
+import { RATE_LIMIT_NOTICE, RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 
 /**
  * What just happened on the menu screen — design 1aa ("BESKEDER I ADMIN").
@@ -92,6 +93,8 @@ const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
     tone: 'error',
     text: 'Ændringerne kunne ikke offentliggøres. Intet blev ændret — prøv igen.',
   },
+  // The limiter's refusal (phase 13B): the one code and sentence every screen shares.
+  [RATE_LIMIT_STATUS]: RATE_LIMIT_NOTICE,
 }
 
 export function MenuStatusNotice({ status }: { status?: string }) {

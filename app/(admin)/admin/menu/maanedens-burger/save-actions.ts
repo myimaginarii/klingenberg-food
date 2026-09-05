@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { readAdminMonthlyBurger } from '@/lib/content/monthly-admin'
 import { monthlyDraftWrite } from '@/lib/menu/monthly'
 import { saveEntityDraft } from '@/lib/publishing/drafts'
@@ -59,6 +61,7 @@ import { monthlyHref } from './routes'
  */
 export async function saveMonthlyBurgerDraft(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', monthlyHref({ status: RATE_LIMIT_STATUS }))
 
   const target = draftTargetSchema.safeParse({
     entity: 'monthly_burger',

@@ -8,6 +8,8 @@ import { previewTargetForEntity } from '@/lib/drafts/targets'
 import { HOME_ADMIN_PATH } from '../forsiden/routes'
 import { CONTACT_ADMIN_PATH } from '../kontakt/routes'
 import { TAKEAWAY_ADMIN_PATH } from '../mad-ud-af-huset/routes'
+import { RATE_LIMIT_MESSAGE, RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
+
 import { AdminShell, Card, Notice, SubmitButton } from '../ui'
 import { saveContentDraft } from './actions'
 import { CONTENT_EDITORS, type ContentEditor } from './editors'
@@ -108,6 +110,8 @@ function SaveReport({ status, message }: { status?: string; message?: string }) 
       return <Notice tone="error">{message ?? 'Kladden kunne ikke gemmes.'}</Notice>
     case 'not_found':
       return <Notice tone="error">Indholdet findes ikke længere.</Notice>
+    case RATE_LIMIT_STATUS:
+      return <Notice tone="error">{RATE_LIMIT_MESSAGE}</Notice>
     default:
       return <Notice tone="error">Kladden kunne ikke gemmes. Prøv igen.</Notice>
   }

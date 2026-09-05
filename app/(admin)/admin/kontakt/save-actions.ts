@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireOwner } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { contactDraftWrite, toContactSubmission } from '@/lib/contact/editor'
 import { readAdminContact } from '@/lib/content/contact-admin'
 import { saveEntityDraft } from '@/lib/publishing/drafts'
@@ -42,6 +44,7 @@ import { contactHref } from './routes'
  */
 export async function saveContactDraft(formData: FormData): Promise<void> {
   const profile = await requireOwner()
+  await enforceRateLimit('content:save', contactHref({ status: RATE_LIMIT_STATUS }))
 
   const target = draftTargetSchema.safeParse({
     entity: 'site_contact',

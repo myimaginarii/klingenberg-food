@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { isOwnedByOverride } from '@/lib/announcements/ownership'
 import { readAdminAnnouncement } from '@/lib/content/announcement-admin'
@@ -78,6 +80,7 @@ import { openingHoursHref } from './routes'
  */
 export async function removeOverrideAction(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('operation:immediate', openingHoursHref({ overrideFocus: true, status: RATE_LIMIT_STATUS }))
 
   const id = formData.get(OVERRIDE_ROW_FORM.id)
   const version = formData.get(OVERRIDE_ROW_FORM.version)

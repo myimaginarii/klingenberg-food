@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation'
 import { applyGeneratedAnnouncement } from '@/lib/announcements/generated-operation'
 import { restoreAnnouncement } from '@/lib/announcements/replacement'
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { readAdminOverrides } from '@/lib/content/hours-overrides-admin'
 
@@ -61,6 +63,7 @@ import { openingHoursHref } from './routes'
  */
 export async function replaceGeneratedAnnouncement(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('operation:immediate', openingHoursHref({ overrideFocus: true, status: RATE_LIMIT_STATUS }))
 
   const overrideId = formData.get(OVERRIDE_CONFLICT_FORM.override)
   const overrideVersion = formData.get(OVERRIDE_CONFLICT_FORM.overrideVersion)
@@ -130,6 +133,7 @@ export async function replaceGeneratedAnnouncement(formData: FormData): Promise<
  */
 export async function undoGeneratedAnnouncement(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('operation:immediate', openingHoursHref({ overrideFocus: true, status: RATE_LIMIT_STATUS }))
 
   const version = formData.get(OVERRIDE_UNDO_FORM.version)
 

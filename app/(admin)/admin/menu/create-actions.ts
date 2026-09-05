@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { createDishDraft } from '@/lib/publishing/create'
 import { saveEntityDraft } from '@/lib/publishing/drafts'
 
@@ -34,6 +36,7 @@ import { menuHref } from './routes'
  */
 export async function createDish(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', menuHref({ status: RATE_LIMIT_STATUS }))
 
   const menu = await readMenuEditContext()
   const form = readDishForm(formData)

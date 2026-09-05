@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { imageExists } from '@/lib/content/images-admin'
 import { readAdminWeeklySpecial } from '@/lib/content/weekly-admin'
 import { imageDraftWrite, readImageSelectionForm } from '@/lib/images/selection'
@@ -31,6 +33,7 @@ import { weeklyHref } from './routes'
  */
 export async function saveWeeklyImage(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', weeklyHref({ status: RATE_LIMIT_STATUS }))
 
   const request = readImageSelectionForm(formData)
   if (request === null) redirect(weeklyHref({ status: 'failed', focus: 'image' }))

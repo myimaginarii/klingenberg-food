@@ -3,6 +3,7 @@
 import { z } from 'zod'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { isRateLimited } from '@/lib/rate-limit/actions'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { readImageStorageFacts } from '@/lib/content/images-admin'
 import { replaceLibraryImage } from '@/lib/images/admin'
@@ -42,6 +43,11 @@ const replaceSchema = z.strictObject({
  */
 export async function replaceUploadedImage(input: unknown): Promise<UploadReplaceReply> {
   const profile = await requireStaff()
+
+  // The destructive tier (phase 13B): a replacement moves every live reference.
+  // Refused before anything is read, as its own closed status, so the uploader can
+  // say the true thing — the new image is in the library and the old one untouched.
+  if (await isRateLimited('image:destructive')) return { status: 'rate_limited' }
 
   const parsed = replaceSchema.safeParse(input)
   if (!parsed.success) return { status: 'failed' }

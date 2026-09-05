@@ -3,6 +3,44 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 13B — no dependencies added (2026-09-05)
+
+Rate limiting and the security-header policy (technical plan §0ai). `package.json`
+is unchanged: no limiter library, no Redis client, no header middleware package, no
+CSP builder.
+
+### The three things that would have justified a package, and why none is here
+
+- **A rate-limit store.** The conventional answer is Redis (or a hosted
+  equivalent) with a token-bucket library in front of it. This system already has a
+  durable, shared store that every instance can reach — PostgreSQL — and the whole
+  limiter is two tables and two functions in one migration, with one atomic
+  `INSERT … ON CONFLICT DO UPDATE` as the increment. A second provider would have
+  added credentials, a network dependency and a failure mode for a counter table
+  that stays under a few hundred rows.
+- **A header/CSP helper** (`helmet`, a `next-safe` style builder). The policy is
+  ten CSP directives and five headers, built by one pure function in
+  `lib/security/headers.ts` and attached by `next.config.ts`'s own `headers()`.
+  A helper would have brought a generic default policy that has to be argued out
+  of, and the measured one is shorter than its configuration would be.
+- **An HMAC or hashing library.** `node:crypto`'s `createHmac` is the standard
+  library, and the subject derivation is one call.
+
+### One migration, and what it does not contain
+
+`20260905120000_rate_limiting.sql`: `rate_limit_scopes` (the closed vocabulary,
+twelve rows), `rate_limit_buckets` (four columns), `rate_limit_resolve()`,
+`consume_rate_limit()` and `peek_rate_limit()` — the two doors SECURITY DEFINER with
+`search_path` pinned and EXECUTE for the two browser roles only. No new policy, no
+new grant to a browser role, no change to any existing object, no service-role
+involvement, no cron. Pruning happens inside `consume_rate_limit()` whenever a
+bucket is created.
+
+### `npm audit --audit-level=high` — clean
+
+Re-run on the unchanged lockfile as the last step of the certification chain
+(§0ai).
+
 ## Phase 13A — no dependencies added (2026-09-05)
 
 The backup and restore tooling (`scripts/backup/`, technical plan §0ah) is plain Node

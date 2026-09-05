@@ -4,6 +4,8 @@ import { redirect } from 'next/navigation'
 
 import { announcementPublishOutlook } from '@/lib/announcements/lifecycle'
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { readAdminAnnouncement } from '@/lib/content/announcement-admin'
 import { readPendingChanges } from '@/lib/publishing/pending'
@@ -56,6 +58,7 @@ import { announcementHref } from './routes'
  */
 export async function publishAnnouncement(): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:publish', announcementHref({ status: RATE_LIMIT_STATUS }))
 
   const pending = (await readPendingChanges()).filter(
     (change) => change.entity === 'announcement',

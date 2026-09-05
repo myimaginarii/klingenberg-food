@@ -179,3 +179,44 @@ describe('the snapshot', () => {
     )
   })
 })
+
+describe('the limiter refusal (phase 13B)', () => {
+  const saving: AutosavePhase = { kind: 'gemmer', redigeretUndervejs: false }
+
+  it('is a refusal, not a failure and not a stop: the text stays and the next edit tries again', () => {
+    const refused = autosaveNext(saving, { kind: 'svar', resultat: 'for_mange' })
+    expect(refused.state).toEqual({ kind: 'for_mange' })
+    expect(refused.command).toBe('ingen')
+
+    const edited = autosaveNext(refused.state, { kind: 'redigeret' })
+    expect(edited.state).toEqual({ kind: 'venter' })
+    expect(edited.command).toBe('planlaeg')
+  })
+
+  it('goes straight back to waiting when the person kept typing during the refused save', () => {
+    const dirty: AutosavePhase = { kind: 'gemmer', redigeretUndervejs: true }
+    const refused = autosaveNext(dirty, { kind: 'svar', resultat: 'for_mange' })
+    expect(refused.state).toEqual({ kind: 'venter' })
+    expect(refused.command).toBe('planlaeg')
+  })
+
+  it('says so as an alert, without a count or a window, and promises the text is kept', () => {
+    const line = autosaveStatusLine({ kind: 'for_mange' })
+    expect(line?.tone).toBe('alert')
+    expect(line?.text).toContain('Dine ændringer er stadig her')
+    expect(line?.text).not.toMatch(/\d/)
+  })
+
+  it('recovers after the window: a later successful save is reported as saved', () => {
+    const { state } = run(
+      [
+        { kind: 'svar', resultat: 'for_mange' },
+        { kind: 'redigeret' },
+        { kind: 'tid', aendret: true },
+        { kind: 'svar', resultat: 'gemt' },
+      ],
+      saving,
+    )
+    expect(state).toEqual({ kind: 'gemt', live: false })
+  })
+})

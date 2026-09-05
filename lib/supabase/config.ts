@@ -32,6 +32,24 @@ export function getSupabaseUrl(): string {
 }
 
 /**
+ * The Supabase origin as a CSP source, or `null` when the URL is not configured.
+ *
+ * Read by `next.config.ts` for the security-header policy (phase 13B): the public
+ * derivatives are served from this origin, and the uploader PUTs to it. Tolerant on
+ * purpose — the header policy must not make a build without Supabase values fail
+ * for a reason unrelated to Supabase; the reads that need the URL still throw.
+ */
+export function optionalSupabaseOrigin(): string | null {
+  const value = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim()
+  if (!value) return null
+  try {
+    return new URL(value).origin
+  } catch {
+    return null
+  }
+}
+
+/**
  * The anon key. Its authority is exactly what RLS grants `anon` and `authenticated`:
  * SELECT on published rows, and no INSERT, UPDATE or DELETE on any table (§8).
  */

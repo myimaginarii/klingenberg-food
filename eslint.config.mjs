@@ -12,6 +12,7 @@ const SERVER_ONLY_ENV = [
   'SUPABASE_DB_URL',
   'SENTRY_DSN',
   'RESEND_API_KEY',
+  'RATE_LIMIT_SECRET',
 ]
 
 const secretPattern = `/^(${SERVER_ONLY_ENV.join('|')})$/`

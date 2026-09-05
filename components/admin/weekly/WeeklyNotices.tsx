@@ -1,4 +1,5 @@
 import { Notice, type NoticeTone } from '@/components/admin/Notice'
+import { RATE_LIMIT_NOTICE, RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { UndoStrip, UndoSubmit } from '@/components/admin/menu/UndoStrip'
 import type { WeeklySoldOutTarget } from '@/lib/menu/weekly'
 
@@ -116,6 +117,8 @@ const MESSAGES: Record<string, { tone: NoticeTone; text: string }> = {
   forbidden: { tone: 'error', text: 'Du har ikke adgang til at rette Ugens ret.' },
   not_found: { tone: 'error', text: 'Ugens ret findes ikke.' },
   failed: { tone: 'error', text: 'Ændringen kunne ikke gemmes. Intet blev ændret — prøv igen.' },
+  // The limiter's refusal (phase 13B): the one code and sentence every screen shares.
+  [RATE_LIMIT_STATUS]: RATE_LIMIT_NOTICE,
 }
 
 export function WeeklyStatusNotice({ status }: { status?: string }) {

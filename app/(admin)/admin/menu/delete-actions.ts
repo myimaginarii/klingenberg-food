@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { setDishDeleted } from '@/lib/menu/delete'
 
@@ -51,6 +53,7 @@ import { menuHref } from './routes'
  */
 export async function setDishDeletion(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('operation:immediate', menuHref({ status: RATE_LIMIT_STATUS }))
 
   const request = readDeleteForm(formData)
   if (request === null) redirect(menuHref({ status: 'ugyldig' }))

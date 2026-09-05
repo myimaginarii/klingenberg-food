@@ -6,6 +6,13 @@ import { requireStaff } from '@/lib/auth/guards'
 import { getCurrentProfile } from '@/lib/auth/session'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { absoluteUrl } from '@/lib/config/site'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
+import {
+  noteSignInFailure,
+  resetRequestIsThrottled,
+  signInIsThrottled,
+  signInThrottleSubjects,
+} from '@/lib/rate-limit/sign-in'
 
 /**
  * Authentication Server Actions — technical plan §1 (adjustment 2), §5.
@@ -36,10 +43,23 @@ export async function signIn(formData: FormData): Promise<void> {
     redirect(`/admin/login?fejl=mangler${nextParam(next)}`)
   }
 
+  // The sign-in throttle (phase 13B, `lib/rate-limit/sign-in.ts`): asked before the
+  // Auth server is, and moved only by a failure below. A throttled attempt never
+  // reaches the Auth server, so it can reveal nothing about the address.
+  const throttle = await signInThrottleSubjects(email)
+  if (await signInIsThrottled(throttle)) {
+    redirect(`/admin/login?fejl=${RATE_LIMIT_STATUS}${nextParam(next)}`)
+  }
+
   const supabase = await createSupabaseServerClient()
   const { error } = await supabase.auth.signInWithPassword({ email, password })
 
   if (error) {
+    // Counted for every refusal the Auth server gives — a wrong password, an unknown
+    // address and a banned account alike — so the counters move identically for an
+    // address that exists and one that does not.
+    await noteSignInFailure(throttle)
+
     // A deactivated account is banned at the Auth server (phase 11C), and the Auth
     // server says so before it checks the password. The person is told the truth —
     // they held an account here, and the Owner can reactivate it — which is what the
@@ -93,6 +113,13 @@ export async function requestPasswordReset(formData: FormData): Promise<void> {
   const email = String(formData.get('email') ?? '').trim()
 
   if (email) {
+    // Counted per client address on every request (phase 13B): the form's answer is
+    // the same whether or not an e-mail goes out, so a refusal is the one thing it
+    // has to say differently — and it says it without mentioning the address.
+    if (await resetRequestIsThrottled()) {
+      redirect(`/admin/glemt-adgangskode?fejl=${RATE_LIMIT_STATUS}`)
+    }
+
     const supabase = await createSupabaseServerClient()
     // The result is deliberately not inspected: the response to the visitor is the
     // same either way.

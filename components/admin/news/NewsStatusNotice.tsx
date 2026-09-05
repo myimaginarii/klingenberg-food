@@ -1,4 +1,5 @@
 import { Notice, type NoticeTone } from '@/components/admin/Notice'
+import { RATE_LIMIT_NOTICE, RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 
 /**
  * What the last action did — one sentence, from a closed set of codes the actions in
@@ -67,6 +68,8 @@ const STATUS_NOTICES: Record<string, { tone: NoticeTone; message: string }> = {
   findes_ikke: { tone: 'error', message: 'Nyheden findes ikke længere.' },
   afvist: { tone: 'error', message: 'Du har ikke adgang til at ændre nyheder.' },
   fejl: { tone: 'error', message: 'Noget gik galt. Der blev ikke ændret noget — prøv igen.' },
+  // The limiter's refusal (phase 13B): the one code and sentence every screen shares.
+  [RATE_LIMIT_STATUS]: { tone: RATE_LIMIT_NOTICE.tone, message: RATE_LIMIT_NOTICE.text },
 }
 
 export function NewsStatusNotice({ status }: { status: string | undefined }) {

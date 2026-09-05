@@ -1,4 +1,5 @@
 import { Notice, type NoticeTone } from '@/components/admin/Notice'
+import { RATE_LIMIT_NOTICE, RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 
 /**
  * What the user administration says about itself — phase 11C; design 1aa.
@@ -69,6 +70,8 @@ export const USERS_MESSAGES: Record<string, { tone: NoticeTone; text: string }> 
     text: 'Det er den eneste aktive ejer, så det blev ikke ændret. Gør en anden til ejer først.',
   },
   fejl: { tone: 'error', text: 'Ændringen kunne ikke gennemføres. Intet blev ændret — prøv igen.' },
+  // The limiter's refusal (phase 13B): the one code and sentence every screen shares.
+  [RATE_LIMIT_STATUS]: RATE_LIMIT_NOTICE,
 }
 
 export function UsersStatusNotice({ status }: { status?: string }) {

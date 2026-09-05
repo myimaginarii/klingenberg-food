@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { readAdminArticle, readNewsSlugs } from '@/lib/content/news-admin'
 import {
@@ -66,6 +68,7 @@ export async function createArticle(formData: FormData): Promise<void> {
   }
 
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', newsHref({ status: RATE_LIMIT_STATUS }))
 
   const form = readNewsForm(formData)
   const mapped = toNewsArticleValues(form, { frozenSlug: null })
@@ -103,6 +106,7 @@ export async function createArticle(formData: FormData): Promise<void> {
 
 export async function saveArticle(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', newsHref({ status: RATE_LIMIT_STATUS }))
 
   const id = rowId('Nyheden').safeParse(formData.get(NEWS_FORM.articleId))
   const version = formData.get(NEWS_FORM.version)

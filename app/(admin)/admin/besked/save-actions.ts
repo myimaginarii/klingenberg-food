@@ -5,6 +5,8 @@ import { redirect } from 'next/navigation'
 import { announcementExpirySuggestions } from '@/lib/announcements/expiry-editor'
 import { announcementDraftWrite } from '@/lib/announcements/lifecycle'
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { readAdminAnnouncement } from '@/lib/content/announcement-admin'
 import { readOpeningHours } from '@/lib/content/hours'
 import { saveEntityDraft } from '@/lib/publishing/drafts'
@@ -65,6 +67,7 @@ import { announcementHref } from './routes'
  */
 export async function saveAnnouncementDraft(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', announcementHref({ status: RATE_LIMIT_STATUS }))
 
   const target = draftTargetSchema.safeParse({
     entity: 'announcement',

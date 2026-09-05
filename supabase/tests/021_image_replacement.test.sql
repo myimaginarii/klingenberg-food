@@ -124,7 +124,9 @@ select is(
     where n.nspname = 'public' and p.prosecdef
       and p.proname not in ('is_staff', 'is_owner', 'log_audit', 'editor_name',
                             'enforce_owner_invariant',
-                            'list_accounts', 'revoke_account_sessions')),
+                            'list_accounts', 'revoke_account_sessions',
+                            -- phase 13B: the rate limiter's doors (§0ai, pgTAP 029)
+                            'rate_limit_resolve', 'consume_rate_limit', 'peek_rate_limit')),
   0::bigint,
   'phase 10B adds no SECURITY DEFINER function either');
 

@@ -1,4 +1,5 @@
 import { Notice, type NoticeTone } from '@/components/admin/Notice'
+import { RATE_LIMIT_NOTICE, RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 
 /**
  * What the last image action did — one sentence, from the closed set of codes the
@@ -39,6 +40,8 @@ const STATUS_NOTICES: Record<string, { tone: NoticeTone; message: string }> = {
   },
   afvist: { tone: 'error', message: 'Du har ikke adgang til at ændre billeder.' },
   fejl: { tone: 'error', message: 'Noget gik galt. Der blev ikke ændret noget — prøv igen.' },
+  // The limiter's refusal (phase 13B): the one code and sentence every screen shares.
+  [RATE_LIMIT_STATUS]: { tone: RATE_LIMIT_NOTICE.tone, message: RATE_LIMIT_NOTICE.text },
 }
 
 export function ImagesStatusNotice({ status }: { status: string | undefined }) {

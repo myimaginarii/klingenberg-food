@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { expirePublicCacheTags } from '@/lib/cache/invalidate'
 import { readImageStorageFacts } from '@/lib/content/images-admin'
 import { deleteLibraryImage } from '@/lib/images/admin'
@@ -37,6 +39,7 @@ import { imagesHref } from './routes'
  */
 export async function deleteImage(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('image:destructive', imagesHref({ status: RATE_LIMIT_STATUS }))
 
   const id = rowId('Billedet').safeParse(formData.get(IMAGES_FORM.imageId))
   const version = formData.get(IMAGES_FORM.version)

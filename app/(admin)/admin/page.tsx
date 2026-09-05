@@ -20,6 +20,8 @@ import { ANNOUNCEMENT_PATH } from './besked/routes'
 import { dashboardTilesFor } from './dashboard-tiles'
 import { newsHref } from './nyheder/routes'
 import { publishSelectedChanges } from './publish-actions'
+import { RATE_LIMIT_MESSAGE, RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
+
 import { Notice } from './ui'
 
 /**
@@ -115,6 +117,8 @@ export default async function AdminDashboard({
         {query.intet_valgt === '1' ? (
           <Notice tone="warning">Du valgte ingen ændringer, så intet blev offentliggjort.</Notice>
         ) : null}
+
+        {query[RATE_LIMIT_STATUS] === '1' ? <Notice tone="error">{RATE_LIMIT_MESSAGE}</Notice> : null}
 
         {query.fejl === 'ukendt-forhaandsvisning' ? (
           <Notice tone="error">Den forhåndsvisning findes ikke.</Notice>

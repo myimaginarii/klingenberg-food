@@ -3,6 +3,8 @@
 import { redirect } from 'next/navigation'
 
 import { requireStaff } from '@/lib/auth/guards'
+import { enforceRateLimit } from '@/lib/rate-limit/actions'
+import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
 import { applyTapasGroupEdit, tapasDetailsWrite } from '@/lib/menu/tapas'
 import { saveEntityDraft } from '@/lib/publishing/drafts'
 import { draftTargetSchema } from '@/lib/publishing/requests'
@@ -51,6 +53,7 @@ import { encodeTapasEcho, readTapasForm } from './tapas-form'
  */
 export async function editTapasList(formData: FormData): Promise<void> {
   const profile = await requireStaff()
+  await enforceRateLimit('content:save', menuHref({ status: RATE_LIMIT_STATUS }))
 
   const request = readTapasForm(formData)
   if (request === null) redirect(menuHref({ status: 'ugyldig' }))
