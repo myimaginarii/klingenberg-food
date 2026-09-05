@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 
+import { reportRequestError } from '@/lib/monitoring/request-error'
 import { getSupabaseAnonKey, getSupabaseUrl } from '@/lib/supabase/config'
 
 /**
@@ -33,8 +34,32 @@ import { getSupabaseAnonKey, getSupabaseUrl } from '@/lib/supabase/config'
  * Because Server Actions are POSTs to the route they are used on, and every admin
  * action lives under `/admin`, the matcher covers them too. Even if a future refactor
  * moved one outside, the guards inside it would still refuse the request.
+ *
+ * ONE MONITORING LINE (phase 13C, §0aj). The framework's `onRequestError` hook
+ * covers pages, route handlers and Server Actions, and its type names a `proxy`
+ * route type — but the Node-runtime proxy of this Next.js version never reaches
+ * it: a throw here was measured against the production build to log and answer
+ * 500 without calling the hook. Since an unexpected throw in this file takes the
+ * whole administration down, the error is reported through the same door the
+ * hook uses, with the same redaction (the path without its query, no headers),
+ * and then rethrown so the framework answers exactly as it did before. Nothing
+ * about the response, the cookies or the redirect changes; `redirect` here is a
+ * returned response, never a throw, so no control flow is reported.
  */
 export async function proxy(request: NextRequest) {
+  try {
+    return await refreshAndRoute(request)
+  } catch (error) {
+    reportRequestError(
+      error,
+      { path: request.nextUrl.pathname, method: request.method, headers: {} },
+      { routerKind: 'App Router', routePath: '/admin', routeType: 'proxy', revalidateReason: undefined },
+    )
+    throw error
+  }
+}
+
+async function refreshAndRoute(request: NextRequest) {
   let response = NextResponse.next({ request })
 
   const supabase = createServerClient(getSupabaseUrl(), getSupabaseAnonKey(), {

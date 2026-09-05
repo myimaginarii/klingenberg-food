@@ -80,7 +80,16 @@ with a reason, and the unit and browser suites updated. Never widen a directive 
 `NEXT_PUBLIC_SUPABASE_URL` at build time, so a project move is a rebuild, not a
 code change.
 
-## 6. What to check after the first production deploy
+## 6. Server-side monitoring (Vercel)
+
+Phase 13C (§0aj) reports unexpected server failures to Sentry. It is
+configuration, not code: set `SENTRY_DSN` for the **Production** environment,
+leave Preview unset, redeploy, and run the one controlled test before launch.
+No browser SDK, no CSP change, no source-map token. The whole procedure — what is
+collected, what never is, the events and their repairs — is
+[monitoring.md](monitoring.md).
+
+## 7. What to check after the first production deploy
 
 1. `curl -sI https://<domain>/` shows all six headers and `cache-control:
    s-maxage=300`.
@@ -93,3 +102,7 @@ code change.
 5. A correct sign-in, then a wrong password once, then a correct sign-in again:
    the successful attempts cost nothing (the counters are reserved and released),
    only the failure counts.
+6. The function log's first lines say `Monitoring: Sentry enabled
+   (environment=production, release=<sha>)` — or, if monitoring was deliberately
+   left off, the one-line warning that it is. Neither the DSN nor any other value
+   is printed.

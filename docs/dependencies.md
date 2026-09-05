@@ -3,6 +3,60 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## Phase 13C — one dependency added: `@sentry/nextjs` (2026-09-05)
+
+Server-side error monitoring (technical plan §10g, §0aj). One package, pinned
+exactly, in `dependencies`:
+
+| Package | Version | Purpose |
+|---|---|---|
+| `@sentry/nextjs` | `10.73.0` | The official Sentry SDK for Next.js — used for its **server half only**: `Sentry.init` from `instrumentation.ts`'s `register()`, and `captureRequestError` behind the framework's `onRequestError` hook. Its peer range names the installed framework (`^16.0.0-0`). |
+
+### What it adds, honestly
+
+- **106 packages** in `node_modules` (`npm install` count), 522 audited, **0
+  vulnerabilities** at `--audit-level=high` on the day. The tree is larger than
+  the runtime use because the package is one artefact for three runtimes and a
+  build integration: `@sentry/node` and its OpenTelemetry base (the part this
+  system runs), `@sentry/react` and `@sentry/browser-utils` (the browser half,
+  **never imported** — the policy suite and the browser suite both pin that), and
+  `@sentry/webpack-plugin` / `@sentry/bundler-plugin-core` / `rollup` /
+  `@sentry/cli` (the build integration, **never used**: `next.config.ts` is not
+  wrapped, no source maps are uploaded, no auth token exists).
+- **A postinstall script**: `@sentry/cli` downloads its binary on install unless
+  `SENTRYCLI_SKIP_DOWNLOAD=1` is set. It is a transitive dependency of the unused
+  build plugin. On this machine npm's install-script allow-list left it
+  un-run and nothing needed it; on Vercel the default `npm ci` runs it. It is
+  harmless and unused, recorded here because a network download at install time
+  is a supply-chain fact worth knowing; the final security audit may choose to set
+  the variable in the Vercel build environment.
+- **Nothing in the browser bundle.** `grep -ri sentry .next/static` finds
+  nothing after the build; `tests/e2e/monitoring.spec.ts` reads every JavaScript
+  chunk the walked pages load and asserts the same.
+- **No OpenTelemetry of our own**, no second monitoring library, no
+  `@sentry/node` imported directly (the Next.js package re-exports it), no
+  `@sentry/node-core` (deprecated by the vendor as of this version).
+
+### The alternatives considered, and why not
+
+- **`@sentry/node` alone** in `instrumentation.ts`: pure server, fewer build
+  tools in the tree — but not the vendor's supported path for Next.js, no
+  `captureRequestError`, no tested bundling under Turbopack, and it would pull
+  every OpenTelemetry auto-instrumentation package anyway.
+- **`@sentry/node-core`**: deprecated in this major, per its own README.
+- **A log drain only**: keeps every fact in the Vercel logs but answers no
+  question without somebody reading them; §10g asked for Sentry.
+
+### No migration
+
+Nothing in the database changed. The rate limiter, the Auth Admin boundary and
+the storage boundary gained one call each to a reporting door and no new
+behaviour.
+
+### `npm audit --audit-level=high` — clean
+
+Re-run on the final lockfile as the last step of the certification chain (§0aj).
+
 ## Phase 13B — no dependencies added (2026-09-05)
 
 Rate limiting and the security-header policy (technical plan §0ai). `package.json`

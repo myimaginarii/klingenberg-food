@@ -392,7 +392,17 @@ sign-in throttle). The browser stories fill and empty counters through the
 loopback-only door in `tests/support/local-auth-admin.ts`; a run interrupted mid-story
 can leave a full bucket — `npm run db:reset` empties it.
 
-`npm run check:policy` enforces three repository rules from the technical plan:
+Phase 13C's server-side monitoring has its own suites too: `tests/unit/monitoring`
+(the settings, the sanitizer, the classifier, the storm boundary, and the whole
+boundary driven through the real SDK client over a recording transport — no
+network, no real project), `tests/unit/policy/monitoring-boundary.test.ts` (server
+only, one door, errors only) and `tests/e2e/monitoring.spec.ts` (the built site
+makes no monitoring request, loads no monitoring chunk, sets no monitoring cookie
+and needs no CSP change). Monitoring is off in every test run and in local
+development — there is no DSN — so nothing an automated run does can reach a real
+Sentry project. `docs/runbooks/monitoring.md` is the operator's document.
+
+`npm run check:policy` enforces four repository rules from the technical plan:
 
 1. **No hard-coded domain.** A site origin may only be produced by
    `lib/config/site.ts` (§10d). The restaurant's domain is deferred; choosing it later
@@ -401,6 +411,9 @@ can leave a full bucket — `npm run db:reset` empties it.
 3. **No stray secret access.** The secrets in §10e may only be read through
    `lib/env/server.ts`, which imports `server-only`, so a client import is a build
    error (§8).
+4. **No browser monitoring.** No `instrumentation-client` or client Sentry config
+   file, no build wrapper around `next.config.ts`, no `NEXT_PUBLIC_…SENTRY…`
+   variable, no Replay or browser-tracing integration anywhere (§1, §12, §0aj).
 
 ## Layout
 
@@ -622,10 +635,17 @@ no plan-specific API is used.
 
 ## Deferred to a later phase
 
-The rest of §15's row 13 and beyond: Sentry on the server (phase 13C), the SEO
-verification, the final security audit, and launch (phase 14). The weekly off-platform
-backup workflow and the restore drill are built (phase 13A, §0ah); the destination bucket
-is the one decision still open (§13 item A). **Phase 13B is built and green (§0ai):**
+The rest of §15's row 13 and beyond: the SEO verification, the final security
+audit, and launch (phase 14). The weekly off-platform backup workflow and the restore
+drill are built (phase 13A, §0ah); the destination bucket is the one decision still
+open (§13 item A). **Phase 13C is built and green (§0aj):** the server reports
+unexpected failures to Sentry — pages, route handlers, Server Actions and the proxy
+through the framework's `onRequestError` hook, plus a closed list of operational
+events (the limiter that cannot answer, an account banned in one system and not
+the other, an orphaned file after a commit) — with the release and the environment
+on every event, one central sanitizer, no user identity, and no browser SDK;
+`docs/runbooks/monitoring.md` says what is collected, what never is, and the one
+production test that remains a pre-launch gate. **Phase 13B is built and green (§0ai):**
 every Server Action and the sign-in path are rate-limited by a PostgreSQL-backed limiter
 (twelve tiers, one atomic door, the sign-in attempt reserved before the Auth server is
 asked and released after a success, HMAC subjects, `RATE_LIMIT_SECRET` required on

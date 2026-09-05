@@ -3,6 +3,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 import type { Profile } from '@/lib/auth/session'
+import { reportOperationalEvent } from '@/lib/monitoring/report'
 
 import { derivativePath, derivativePathsFor } from './derivatives'
 import { processImage } from './processing'
@@ -148,6 +149,15 @@ export async function finalizeImageUpload(
     if (error) {
       console.error(`create_image for ${storagePath} was refused: ${error.message}`)
     }
+    // The bytes passed every server-side check and the trusted function still
+    // refused (or answered something this code cannot read): not the person's
+    // doing, and worth an operator's look — the path is the server's own UUID
+    // (phase 13C, `lib/monitoring/report.ts`).
+    reportOperationalEvent('image:create-refused', {
+      detail: error ? error.message : `unexpected status ${row?.status ?? 'none'}`,
+      tags: { code: error?.code ?? 'unexpected_reply' },
+      context: { storage_path: storagePath },
+    })
     await deps.storage.removeDerivatives(derivativePathsFor(storagePath, processed.record))
     await deps.storage.removeOriginal(storagePath)
     return refusal('failed')

@@ -199,8 +199,11 @@ Otherwise:
 - the directory is still uploaded under its own id, so whatever was captured is kept;
 - `latest.json` is **not** moved;
 - the script exits non-zero, the workflow run is red, and GitHub notifies the
-  repository owner of a failed scheduled run. No other notification exists in 13A;
-  operational alerting is the later monitoring increment (§10g).
+  repository owner of a failed scheduled run. **That is the decided notification
+  path** (phase 13C, §0aj): the job runs outside the Next.js runtime and does not
+  use the application's Sentry — no second SDK in the backup tooling, no
+  production DSN in the `backup` environment. Confirm the repository owner's
+  GitHub notification settings deliver failed-workflow e-mails; that is the alert.
 
 Check the Actions tab after the first Monday of any change, and after any credential
 rotation — a backup that fails silently is the normal way backups turn out not to

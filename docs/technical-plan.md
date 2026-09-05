@@ -6503,6 +6503,394 @@ there. Then the SEO verification against Rich Results, and the final audit over
 
 ---
 
+## 0aj. Phase 13C — server-side monitoring (2026-09-05)
+
+The third increment of §15's row 13, and the one §10g names first: Sentry on the
+server, with releases tied to the deployment, and nothing in the browser. Nothing
+about what the administration *does* changed — no screen, no transition, no
+permission, no migration — and 13A's backup tooling and 13B's limiter and headers
+are untouched in behaviour. What changed is that an unexpected server-side failure,
+and a short list of operational failures the application already handled quietly,
+now reach an operator with the release that produced them. The SEO verification,
+the lock pass over 13A–13C and the final security audit remain ahead; phase 13 is
+not locked.
+
+### What was found before anything was built
+
+**The plan's own words.** §1's stack note: "Sentry server-side only. No browser
+SDK on public pages — it would be the single largest script on an otherwise
+JS-free site. It is error monitoring, not analytics." §10g: Server Actions, route
+handlers, RSC, releases tied to the deployment, no session replay. §12: the site
+sets no cookies and runs no analytics, and server-side Sentry "collects no visitor
+behaviour". §10e already reserved `SENTRY_DSN` as a server-only secret and
+`lib/env/server.ts` already typed it; the source policy already refused its name
+outside that file. So the shape was decided; what remained was to build it without
+breaking any of those sentences.
+
+**The framework.** Next.js 16.3.3 has a stable `instrumentation.ts` convention
+with two exports: `register()`, run once per server instance, and
+`onRequestError(error, request, context)`, run once for every error the server
+did not expect, with the route path, the route type (`render`, `route`,
+`action`, `proxy`) and the render source. Read in `node_modules/next/dist/docs`
+and in the server source: pages and layouts call it from the React render's
+error callbacks, route handlers from the route module's catch, Server Actions
+from the app render with the action flag — and the hook is awaited by the server
+but not by the response, so delivery must not depend on the request staying
+alive. The proxy runs on the Node runtime (Next 16 has no edge proxy) and, in
+this version, **never reaches the hook**: the type names `proxy`, but no code path
+on the Node runtime emits it. Measured, below.
+
+**The SDK.** `@sentry/nextjs` 10.73.0 is the vendor's Next.js package (peer
+`^16.0.0-0`), one artefact for three runtimes: a Node half over `@sentry/node`
+and OpenTelemetry, an edge half, a browser half over `@sentry/react`, plus a
+build integration (`withSentryConfig`, the webpack plugin, `@sentry/cli`). Its
+current manual-setup guide is exactly the framework's convention — `register()`
+importing a server config, `onRequestError = Sentry.captureRequestError` — and
+`captureRequestError` was read rather than assumed: it records the request's
+**headers** and method into the event's processing metadata, sets a `nextjs`
+context with the request path *including the query*, and flushes through
+`waitUntil` on the edge and Cloudflare runtimes only. `@sentry/node-core`, the
+lighter package, is deprecated by the vendor in this major. `@sentry/node` alone
+would work but is not the supported Next.js path and pulls the same OpenTelemetry
+tree.
+
+**The mutation surface, restated.** Fifty-eight Server Actions, three route
+handlers, every admin page and loader, and the proxy. None of them throws on
+purpose: every refusal a person can see — validation, a stale version, forbidden,
+`last_owner`, `for_mange`, a wrong password, a duplicate address, too large, wrong
+type, sold out, a hidden page's 404 — is an ordinary result: a status code on a
+redirect or a closed reply vocabulary. What an action does *not* handle, it lets
+propagate, and the framework logs it and answers 500. That is what the hook sees.
+Beside those, the modules that already said "logged for the operator" in their
+notes: the limiter's `unavailable` answer (§0ai), the Auth Admin boundary's ban
+and invite failures (§0ab), the storage boundary's removal failures and the
+finalize flow's refused `create_image()` (§0t, §0y). Those are the operational
+signals: handled for the person, invisible to anybody else until now.
+
+### What it contains
+
+**One package** — `@sentry/nextjs` 10.73.0, pinned, recorded in
+`docs/dependencies.md` with the honest size of its tree and the one transitive
+postinstall script it brings (the CLI binary download, unused here).
+
+**`instrumentation.ts`** at the root: `register()` imports
+`lib/monitoring/sentry.ts` and initialises on the Node runtime only;
+`onRequestError` imports `lib/monitoring/request-error.ts` and hands the error
+over. Both imports are dynamic, so the build and any non-Node bundle never
+evaluate the SDK. There is no `instrumentation-client.ts`, no
+`sentry.client.config`, no `sentry.server.config`, no `sentry.edge.config` and no
+wrapper around `next.config.ts` — the source policy's new fifth rule and the
+policy suite refuse each of them.
+
+**`lib/monitoring/`**, six modules, no `server-only` (the instrumentation layer
+is not the React server layer) and no secret of their own:
+
+- `config.ts` — pure: **enabled** exactly when a DSN is configured and the
+  process is not a test (`VITEST` or `NODE_ENV=test`), so no automated run can
+  reach a real project even with a DSN; **environment** from `VERCEL_ENV`
+  (`production`, `preview`, `development`) on Vercel, `test` or `development`
+  off it, an unknown value ignored rather than trusted; **release** from
+  `SENTRY_RELEASE`, else `VERCEL_GIT_COMMIT_SHA`, else the fixed word
+  `unversioned` — stable across processes, never generated.
+- `sanitize.ts` — the one `beforeSend` and `beforeBreadcrumb`. Subtractive: the
+  request record keeps its method and its path without the query and loses
+  headers, cookies, body, query string and env; the user record keeps an `id` or
+  vanishes; the hostname goes; the transaction name and the framework's
+  `request_path` lose their query; every value under a credential-shaped key
+  (`authorization`, `cookie`, `passw…`, `secret`, `token`, `apikey`, `dsn`,
+  `session`, `service_role`, …) becomes `[Filtered]` wherever it sits; and inside
+  every string — exception values, messages, breadcrumbs, contexts, extra — a
+  JWT, credentials before a host, an e-mail address, a token-carrying parameter,
+  a bearer value and a Supabase auth cookie are redacted. HTTP breadcrumbs are
+  dropped whole; the trail is capped at thirty.
+- `classify.ts` — the framework's control-flow throws (`NEXT_REDIRECT`,
+  `NEXT_NOT_FOUND`, the HTTP fallback, the dynamic-usage and bail-out digests, a
+  React postpone) are not errors. The server never hands them to the hook; the
+  boundary states the rule anyway.
+- `storm.ts` — one event per key per minute per process, with an injectable
+  clock. Not a limiter, holds no subject.
+- `report.ts` — the operational door. A **closed vocabulary of thirteen events**,
+  each with a component, a level and a one-sentence summary that is the message;
+  a fingerprint of `['operational', name, groupBy?]` so one outage is one issue
+  (per limiter scope, per storage bucket); the storm boundary; identifiers in a
+  context, low-cardinality facts in tags; capture synchronous, delivery scheduled
+  after the response through the framework's `after()` (on Vercel, the
+  platform's `waitUntil`), a plain flush outside a request; every step wrapped so
+  that a monitoring fault returns `disabled` and never reaches the caller.
+- `sentry.ts` — the options: `sendDefaultPii: false`, `maxBreadcrumbs: 30`, no
+  `tracesSampleRate`, no `profilesSampleRate`, no Replay; the SDK's default
+  integrations minus `Http` and `NodeFetch` (outgoing-request breadcrumbs and
+  trace headers to Supabase), `LocalVariablesAsync` (variable values at the throw
+  — a password in scope would travel), `Modules`, `ProcessSession`,
+  `ChildProcess` and `ConversationId`; `RequestData` re-added reduced to method
+  and URL; `OnUncaughtException` re-added with
+  `exitEvenIfOtherHandlersAreRegistered: false`, because the framework's router
+  server registers its own handler and keeps the process alive — the SDK's
+  default would have changed that; the SDK's `Dedupe` **not** installed, because
+  it compares message and fingerprint and folded the two halves of one failed
+  cleanup into one event (measured in the boundary suite). One startup line names
+  the environment and the release, never the DSN; a Vercel deployment without a
+  DSN logs one warning and runs.
+- `request-error.ts` — the hook's body: control flow ignored; no client, nothing;
+  otherwise `captureRequestError` inside a scope carrying `component: next`,
+  `operation` (`server-render`, `route-handler`, `server-action`, `proxy`),
+  `route` and `render_source`, handed a request record with **no headers** and
+  the path **without its query** — the sanitizer would strip both again, but the
+  boundary does not rely on that.
+
+**`lib/env/server.ts`** gained `getMonitoringDsn()` — the one reader of
+`SENTRY_DSN`, optional everywhere.
+
+**Five call sites**, each where the module note already said "logged":
+`lib/rate-limit/limiter.ts` (every `unavailable` answer — the scope, the door,
+whether the tier fails open or closed; the release failure), `lib/accounts/
+auth-admin.ts` (a ban or unban that failed after the database transition
+committed, with the account UUID; an invitation or a directory listing the Auth
+server refused technically — never `email_exists` or `validation_failed`, never
+the address), `lib/accounts/admin.ts` (a profile that could not be created behind
+an accepted identity; a transition that failed for a reason other than
+permission), `lib/images/storage.ts` (a signed upload not minted, a derivative
+not written, a removal that failed after a commit — the bucket and the
+server-minted paths, grouped per bucket) and `lib/images/finalize.ts`
+(`create_image()` refusing a server-processed upload). The console lines they
+already wrote are kept; the policy suite pins that these five are the only
+callers and that `captureException`/`captureMessage` appear in `report.ts` alone.
+
+**`proxy.ts`** — one try/catch around the existing body, reporting through the
+same door and rethrowing, because the framework does not (below). Nothing about
+the response changed.
+
+**Tests.** `tests/unit/monitoring/` (config, sanitize, classify and storm, and
+`boundary.test.ts` — the real client, the real sanitizer, the real reporter and
+the real application modules over the SDK's own `createTransport` with a
+recording delivery function, inspecting the envelope the SDK would have sent:
+the framework hook for an action, a render, a route handler, the proxy and a
+no-JavaScript form post; a redirect and a 404 ignored; the limiter over a failing
+database client — scope and door present, subject absent, one event per scope
+for a hundred calls, nothing for `limited`; the Auth boundary over a failing
+Auth Admin API — the ban, the unban, the profile, and the duplicate/malformed/
+forbidden answers that report nothing; the storage boundary over a failing
+Storage API — cleanup, grant and derivative failures, and a user refusal that
+reports nothing; and the reporter's own vocabulary and key filtering);
+`tests/unit/policy/monitoring-boundary.test.ts` (server only, one door, errors
+only, the hook wired and Node-gated, no `setUser` anywhere); the source policy's
+rule 5; `tests/e2e/monitoring.spec.ts` in the read-only `desktop` and `mobile`
+projects (a guest walks the six pages and an article, a staff member the
+dashboard, the menu editor and its picker, the news editor, the library and a
+Draft Mode preview: no request to a monitoring host, no request to any origin
+but this site and Supabase, every loaded chunk read and free of the SDK, no
+cookie for the guest and only the session and draft cookies for staff, empty
+storage, no console error, and the CSP byte-identical to 13B's with no reporting
+header).
+
+**Documentation.** `docs/runbooks/monitoring.md` (what is sent and what never
+is, the user-identity decision, the thirteen events with their repairs, the
+setup steps, the one production test, the source-map decision, orphan cleanup,
+turning it off, and the backup job's separate path); `production-security.md`
+§6 and its post-deploy checklist; `backups.md` §8 (the GitHub-native decision);
+`docs/dependencies.md`; `.env.example` (`SENTRY_DSN` reworded, `SENTRY_RELEASE`
+added); the README; and §10e, §10g, §12 and §13 of this document.
+
+### The readings this increment had to settle
+
+- **Server only, and how it is proved.** No browser SDK file, no client config,
+  no `NEXT_PUBLIC_…SENTRY…`, no build wrapper: refused by the source policy and
+  the policy suite before a build exists. After the build, `grep -ri sentry
+  .next/static` is empty and the browser suite reads every chunk the walked pages
+  load. No CSP directive changed and no reporting endpoint exists (`connect-src`,
+  `script-src` and `img-src` are byte-for-byte 13B's).
+- **The proxy is the framework's gap, closed narrowly.** Against the production
+  build with a loopback ingest, a page throw, a route-handler throw and a Server
+  Action throw each arrived once through the hook; a proxy throw logged and
+  answered 500 and arrived **nowhere**. The one try/catch in `proxy.ts` reports
+  through the same door with the same redaction and rethrows; rebuilt and
+  measured again, the proxy event arrived (`operation: proxy`, `route: /admin`,
+  `request_path: /admin/menu`, method only) from the same initialised client,
+  and the response was the same 500. This is the one place monitoring touches a
+  file outside `lib/monitoring/`, and the policy suite pins it as such.
+- **A form posted without JavaScript is an action.** The framework marks a
+  request as an action by its `Next-Action` header; the progressive-enhancement
+  post (§7e item 11) has none, and the harness proved the framework reports that
+  throw as a *render* of the page with method POST. In this application a POST to
+  a page is a Server Action and nothing else, so the hook tags a render error on
+  a POST `server-action`. Pinned in the boundary suite.
+- **No user identity, not even the UUID.** The audit trail names the actor of
+  every change; a rendering or action error is diagnosed by route, release and
+  message; and the operational events that concern a specific account carry its
+  UUID as a repair identifier in their context, never as the Sentry user.
+  `setUser` appears nowhere, and the policy suite keeps it so.
+- **One capture path per failure.** Actions that catch and report never rethrow;
+  actions that throw never reported. The framework logs a Server Action error
+  twice in its own log; the hook fires once and the harness counted one event.
+- **The query is dropped whole, not filtered by name.** A recovery link's
+  `token_hash` and an invitation's token travel in the query of
+  `/admin/bekraeft`; rather than maintain a list of parameter names, the request
+  path loses its query at the hook and again in the sanitizer, and the
+  framework's own `request_path` context loses it too.
+- **The storm rule is a boundary, not a limiter.** One event per operation (and
+  per limiter scope, per storage bucket) per minute per server process, in
+  memory, with no subject. A database outage during a busy minute is one
+  `rate-limiter:unavailable` issue per scope; the server log still carries every
+  line. The cost is stated in the runbook: several cleanup failures inside one
+  minute report the first per bucket, and the audit trail is the inventory.
+- **Severity, small.** `error` for an unexpected throw, an Auth-side partial
+  state, a refused server-processed upload and a fail-closed limiter refusal;
+  `warning` for a fail-open limiter, a release that could not be given back and an
+  orphaned file. Nothing a person can repair from the screen is either.
+- **No sampling, no tracing, no profiling.** Every unexpected error is sent; the
+  volume of a restaurant administration does not justify less. The options that
+  would enable tracing are absent, and the policy suite refuses their names.
+- **Source maps: not in v1.** Server frames name the compiled chunk, line and
+  column with mangled names; the framework's frames its runtime file. With the
+  route, the operation, the message and the release, the harness events said
+  which code path failed in which deployment. An upload would need a build token,
+  a wrapper around `next.config.ts` and a release step; `next build` already
+  writes server maps beside the chunks, so `NODE_OPTIONS=--enable-source-maps` is
+  the cheaper later option. Recorded in the runbook for the lock pass or launch.
+- **Delivery after the response.** `captureRequestError` flushes through
+  `waitUntil` on the edge only; on the Node runtime the SDK starts the flush and
+  relies on the process. The operational door schedules its flush through the
+  framework's `after()`, which on Vercel is the platform's `waitUntil`, so a
+  function is not frozen with an envelope unsent, and no successful request ever
+  waits for the network.
+- **The uncaught-exception handler must not change the process.** The framework's
+  router server registers its own `uncaughtException` handler and continues; the
+  SDK's default would have exited the process instead. Configured off.
+- **Backups stay GitHub-native.** The weekly job runs in Actions outside the
+  Next.js runtime; a failed run is a red workflow and a GitHub e-mail, `latest.json`
+  is not moved. Wiring the production DSN into the `backup` environment would put
+  an application secret where it has no other business and add a second SDK to
+  tooling that has none; not done, recorded in `backups.md` §8. The restore drill
+  is CI verification and reports through CI.
+- **CSP reporting stays out.** 13B chose no report-only mode and no reporting
+  endpoint; a browser reporting endpoint is browser monitoring by another name.
+  Not added; the browser suite asserts no `report-to`, `report-uri` or
+  `Reporting-Endpoints` header.
+- **Preview deployments are a configuration choice.** Events carry
+  `environment=preview` when a preview has a DSN; the runbook recommends setting
+  the DSN for Production only.
+- **Monitoring is best-effort by construction.** No DSN, no client; a malformed
+  DSN, no client; every reporter step wrapped; the transport asynchronous; a
+  monitoring outage costs nothing but the events. Measured: with the DSN pointed
+  at a closed loopback port the administration served its pages at the same
+  speed as without one (below).
+
+### What was measured
+
+**The harness (removed before the commit).** A throwing page, a throwing route
+handler, a page with a Server Action that throws (posted without JavaScript, as
+a form), and a header-triggered throw in the proxy, built into a production
+bundle, served by `next start` with `SENTRY_DSN` pointing at a loopback HTTP
+server that recorded every envelope, and `SENTRY_RELEASE=harness-2e10528`. Five
+controls first — `/menu`, a 404, the `/admin` redirect, the preview refusal, a
+`/admin/bekraeft` call with a fake `token_hash` — produced **zero events**. The
+four failures produced **one event each** (the first build, without the proxy
+catch: three — the proxy answered 500 and reported nothing). Every event carried
+`release=harness-2e10528`, `environment=development`, `component=next`, the
+operation, the route and the framework context; the request record held the
+method alone; the query strings (`token_hash=…`, `token=…`), the fake cookie, the
+fake `Authorization` header, the harness header and the hidden form field's value
+were **absent from every byte** of every envelope; `user` and `server_name` were
+absent; the SDK identified itself as `sentry.javascript.nextjs` over
+`@sentry/node` from every bundle, the proxy's included. The failing requests
+answered in 13–54 ms. The startup line read `Monitoring: Sentry enabled
+(environment=development, release=harness-2e10528)`.
+
+**The browser bundle.** `grep -ri sentry .next/static`: nothing. 189 server
+source maps are emitted beside the server chunks and none is served.
+
+**Latency (brief §39).** The same production build served twice on one machine,
+once without a DSN and once with a DSN pointing at a closed loopback port (a
+monitoring outage), twenty-five requests each, medians: the cached `/menu`
+15.4 ms and 15.5 ms; the proxy's `/admin` redirect 15.3 ms and 15.2 ms; the
+dynamic `/admin/login` 15.0 ms and 15.6 ms; a real sign-in Server Action with a
+wrong password (the reservation, the Auth server, the release, the redirect —
+four samples, inside the throttle) 144 ms and 159 ms, with the p90 168 ms and
+164 ms. No successful request waits for the network, and an unreachable ingest
+costs nothing measurable.
+
+**Import cost.** `@sentry/nextjs` is imported by three server modules and reaches
+the limiter, the account and the image modules; the unit suites that import
+those now load the SDK, which the certification numbers below include.
+
+### The regression
+
+One clean chain on 2026-09-05 (16:41–17:30), from a tree holding only this
+increment, launched once and never stitched: every port-3100 owner stopped,
+`npm ci`, `npm run db:reset:full` (the seed and the two seeded identities —
+clean Auth state), `.next` removed, a fresh production build (`grep -ri sentry
+.next/static`: nothing), a detached `next start` with no DSN (monitoring off;
+the only transport any test uses is the recording one inside the unit suite),
+then typecheck, lint, source policy (677 files, five rules), the unit suite
+(**2,806** tests in 119 files, 76 of them new in 5 new files), pgTAP (**2,187**
+assertions in 30 files, unchanged), the integration suite (**44** in 6 files,
+unchanged), `playwright test --list` (**1,360** tests in 43 files, 6 new in one
+new file), and the complete Playwright matrix at `--retries=0` — the read-only
+trio in one invocation (371 passed, the monitoring and header suites among
+them at both widths) and every write project in its own `--no-deps` invocation
+in the config's order, `security` last: **1,353 passed, 7 skipped (the standing
+width/device/clock guards), 0 failed, 0 flaky** across 48 projects. `npm audit
+--audit-level=high` on the final lockfile: 0 vulnerabilities. Phases 5–12, 13A
+and 13B stayed green behind the increment: the limiter stories, the header
+suite (byte-identical policy, `s-maxage=300` beside it), the sign-in throttle
+and the upload under the CSP in `security`, `public-cache` (Revalidate 5m /
+Expire 5m), zero guest cookies (`public-site`, `monitoring`), no browser Supabase
+client (`tests/unit/policy`), the backup tooling untouched (no file under
+`scripts/backup` in the diff), no phase-14 work.
+
+### What phase 13C deliberately does not contain
+
+- No browser SDK, no Replay, no browser tracing, no analytics, no monitoring
+  cookie, no CSP change, no reporting endpoint (§1, §12).
+- No tracing, no profiling, no sampling, no session/release-health tracking.
+- No source-map upload, no Sentry auth token, no build wrapper (§7 of the
+  runbook records the two later options).
+- No user identity on any event.
+- No wrapper around any Server Action, route handler or page; no
+  `captureException` outside `lib/monitoring/report.ts`.
+- No monitoring in the backup or restore tooling; no DSN in the `backup`
+  environment.
+- No `error.tsx`/`not-found.tsx` redesign, no uptime ping, no log-drain
+  configuration — provider and design work that §10g lists for launch.
+- No change to any accepted 13A/13B behaviour: the limiter's answers, the
+  fail-open/fail-closed rule, the headers and the caching are as §0ai left them.
+
+### Carry-forwards, for the lock pass and the final audit
+
+- **The one controlled production event** (runbook §6) is a pre-launch gate;
+  the repository proves the integration against a fake ingest and cannot prove a
+  real project receives anything.
+- **Compiled stack frames** in v1; the runtime source-map option or the upload
+  are recorded, not taken.
+- **`@sentry/cli`'s postinstall download** on `npm ci` (unused here); the final
+  audit may set `SENTRYCLI_SKIP_DOWNLOAD=1` in the Vercel build environment.
+- **The storm boundary's blind spot**: several cleanup failures inside one minute
+  report the first per bucket; the audit trail is the inventory (runbook §8).
+- **`ContextLines`** quotes compiled source lines around each frame — code, never
+  data; kept for readability without source maps, noted for the audit.
+- **The SDK's `turbopack: true` tag** appears on every event (set by the SDK);
+  harmless, noted.
+- **Preview deployments** report only where a DSN is set for them; the
+  recommendation is Production only.
+- From 13B, unchanged: the per-account lock-out surface, the four SECURITY
+  DEFINER limiter doors, the provider's own endpoints, `'unsafe-inline'`, and a
+  release the limiter cannot record during an outage — now visible as
+  `rate-limiter:release-failed`.
+
+### What 13D should be
+
+The lock pass over 13A–13C, read as one system: the backup, the limiter and the
+headers, and the monitoring walked together against a production build — the
+runbooks re-read end to end by somebody who has not written them; the
+pre-launch gates listed in one place (the backup destination, the Sentry
+project and its one test event, `RATE_LIMIT_SECRET`, the Auth rate limits, HSTS
+scope); the `error.tsx`/`not-found.tsx` question of §10g answered or
+explicitly deferred to launch; then the SEO verification against Rich Results,
+and the final security audit over §0s–§0aj's carry-forwards. Phase 13 is not
+locked.
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -7346,7 +7734,8 @@ The domain is deferred and is **not** a Phase 0 dependency.
 | `SUPABASE_SERVICE_ROLE_KEY` | server only | never prefixed `NEXT_PUBLIC_`; four call sites (§8: the image storage boundary, the Auth Admin boundary, migrations and seeding, the owner bootstrap) |
 | `SUPABASE_DB_URL` | CI only, per environment | migrations; passed as env, never as an argument |
 | `SITE_URL` | all | canonical URLs, OG, sitemap, allowed origins — the only place a domain lives |
-| `SENTRY_DSN` | server only | |
+| `SENTRY_DSN` | server only | phase 13C (§0aj): read only through `lib/env/server.ts`; **optional everywhere** — no DSN means monitoring is off and nothing fails; set for Production on Vercel, and for Preview only if preview events are wanted (they are labelled `preview`) |
+| `SENTRY_RELEASE` | optional, never secret | overrides the release name; on Vercel the release is `VERCEL_GIT_COMMIT_SHA`, elsewhere without it `unversioned` (§0aj) |
 | `RATE_LIMIT_SECRET` | server only | keys the sign-in throttle's HMAC subjects (§0ai); read only through `lib/env/server.ts`; **required on Vercel** (a deployment without it refuses the sign-in and reset forms), at least 32 characters; a fixed development key stands in locally |
 | `RESEND_API_KEY`, `AUTH_EMAIL_FROM` | Supabase project settings | password reset and invites |
 | `VERCEL_AUTOMATION_BYPASS_SECRET` | CI only | Playwright against protected previews |
@@ -7415,6 +7804,8 @@ still the one open decision. `audit_log` remains the content-level recovery stor
 
 Sentry on the server (Server Actions, route handlers, RSC) with releases tied to the deployment. No browser SDK, no session replay. Vercel log drains retained. `error.tsx` and `not-found.tsx` in both route groups, in the approved visual language. Admin errors surface as the designed inline error state ("Billedet kunne ikke uploades. Prøv igen." with a retry), never as a stack trace. An uptime ping on `/` and `/find-os`.
 
+**Built in phase 13C (§0aj):** `instrumentation.ts` initialises the SDK's server half once per process and hands the framework's `onRequestError` hook to `lib/monitoring/request-error.ts`; the proxy reports through the same door because the Node-runtime proxy of this framework version never reaches the hook; five server modules send a closed list of operational events through `lib/monitoring/report.ts`; one sanitizer (`lib/monitoring/sanitize.ts`) is `beforeSend` and `beforeBreadcrumb`. Errors only — no tracing, no profiling, no user identity, no source-map upload in v1. `docs/runbooks/monitoring.md` is the operator's document. The uptime ping and the log drain remain provider configuration for launch.
+
 ---
 
 ## 11. SEO
@@ -7449,7 +7840,9 @@ is just as well, because the approved design does not contain one and would need
 one.
 
 Server-side Sentry stays. It records server errors, runs nowhere near a visitor's browser, and
-collects no visitor behaviour. Vercel's request logs are operational, not analytical.
+collects no visitor behaviour — built in phase 13C exactly so (§0aj): no monitoring script,
+request or cookie on any page, proven against the production build by
+`tests/e2e/monitoring.spec.ts`. Vercel's request logs are operational, not analytical.
 
 If analytics is reconsidered later, the question is not only "which tool" but whether the chosen tool
 requires a consent banner — because that would be a **design** change, not a configuration one.
@@ -7527,7 +7920,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 10 | Images | **10A (done, §0t):** the storage foundation — buckets, signed upload, client downscale, sharp derivative pipeline, `create_image()`/`delete_image()` with the write guard, pgTAP `020`, and the new storage integration suite. **10B (done, §0u):** the 1w library screen — list, alt text, usage labels, replace/delete confirmations, the upload UI mounting 10A's pipeline, `replace_image()` with pgTAP `021`, the signed-token and large-image integration suites, and the dedicated `image-library` Playwright pair. **10C-1 (done, §0v; hardened, §0w):** image selection in the dish/weekly/monthly/news editors through one shared picker pair, `image_references` as the one definition of "referenced", the draft-aware `delete_image()`/`replace_image()`, and the published `image_id` of the three draft entities guarded in the database — direct PostgREST writes refused, only publish/replace/detach move it (pgTAP `022`, `023`). **10C-2 (done, §0x):** the public `<picture>`/`srcset` rendering on the eight approved surfaces, the public read-model projection inside the tagged reads, the Draft Mode preview of pending images, the news `og:image` and JSON-LD `image`, and the per-entity cache coupling — `delete_image()`/`replace_image()` report the live references they moved (pgTAP `024`), the alt edit expires its live usages, and the first guest request after every public-changing image operation carries the new state (`tests/e2e/public-images.spec.ts`). **Complete and locked** by the completion pass of 2026-09-02 — the two no-image frames built, the cache/reference races classified, one clean regression chain — see §0y | E2E 7 passes whole: `image-library`, `editor-images` and `public-images` at 375 and 1440 |
 | 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Complete and locked** by the completion pass of 2026-09-03 — see §0ac |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B (done, §0ae):** the complete News workflow at 375 px audited against 1z and made phone-first — the pinned editor bar with the badge and the autosave line, the B/Link toolbar and link panel stuck under it, fragment targets below the bar, the stacked confirmations, long titles and addresses that wrap, the public paragraph's wrap — with `tests/e2e/news-mobile.spec.ts` under its own `news-mobile` project. **12C (done, §0af):** the 1x / 1q dashboard — the bar, the band with the phase-4 list beneath it, the announcement card, the role-aware tiles from the entity registry, LIGE NU as a read model — with the phase-4 "Åbn …" vocabulary migrated across the locked suites in the same commit; and the phone audit of Ugens ret, Månedens burger, Besked på hjemmesiden and Åbningstider, whose Fortryd and status notices now sit at the foot of the phone screen through one shared `NoticeFoot`, with `tests/e2e/dashboard-mobile.spec.ts` under its own `dashboard-mobile` project. **Completion pass (§0ag):** the three read as one system, walked as Owner and Staff on a phone, 1x / 1y / 1z / 1q re-checked at 375 / 768 / 1440, the Forhåndsvis and 1 px observations closed, the moved row kept wholly in view, the phase-11 editors and Brugere given the same foot, an empty foot's clearance removed, a dead-autosave defect after the first Gem fixed and pinned | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad), the news half by `news-mobile` (§0ae), the dashboard and the specials by `dashboard-mobile` (§0af). **Complete and locked** by the completion pass of 2026-09-04 — see §0ag |
-| 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill. **13A (done, §0ah):** the backup and restore commands, the scheduled workflow, the drill in CI, the runbooks — the destination provider still to be chosen. **13B (done, §0ai):** the PostgreSQL-backed limiter over the sign-in path and every Server Action (twelve tiers, one atomic door, HMAC subjects, fail-open except for accounts), and the security-header policy on every response (CSP, HSTS, nosniff, referrer, permissions, frame denial) with the public caching intact | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project (13A: proven against the local stack; the hosted scratch run waits for a Pro project) |
+| 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill. **13A (done, §0ah):** the backup and restore commands, the scheduled workflow, the drill in CI, the runbooks — the destination provider still to be chosen. **13B (done, §0ai):** the PostgreSQL-backed limiter over the sign-in path and every Server Action (twelve tiers, one atomic door, HMAC subjects, fail-open except for accounts), and the security-header policy on every response (CSP, HSTS, nosniff, referrer, permissions, frame denial) with the public caching intact. **13C (done, §0aj):** server-side Sentry — the framework hook for pages, route handlers, Server Actions and the proxy, thirteen operational events from five server modules, one sanitizer, release and environment on every event, no browser SDK, no CSP change; the one controlled production event is a pre-launch gate | Rich Results valid; a backup lands off-platform; a restore succeeds into a scratch project (13A: proven against the local stack; the hosted scratch run waits for a Pro project) |
 | 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
@@ -7542,9 +7935,9 @@ workflow at 375 px (§0ad), 12B, the News workflow at 375 px (§0ae), 12C, the 1
 dashboard and the phone audit of the remaining operational screens (§0af), and the
 completion pass over the three (§0ag), which is the current truth of the
 administration on a phone.** Phase 13 is in progress: 13A — backup and recovery —
-is recorded in §0ah and 13B — rate limiting and the security-header policy — in
-§0ai; Sentry, the SEO verification and the final audit remain, and the phase is not
-locked. Phase 8's lock pass is
+is recorded in §0ah, 13B — rate limiting and the security-header policy — in
+§0ai, and 13C — server-side monitoring — in §0aj; the SEO verification, the lock
+pass and the final audit remain, and the phase is not locked. Phase 8's lock pass is
 recorded in §0p, and **phase 9's in §0s**: 9A (the news administration's core, §0q) and
 9B (the B/Link body editor, autosave, the `NewsArticle` JSON-LD, canonical metadata and
 the sitemap, §0r) were read as one system, walked as Owner, Staff and guest against a

@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { reportOperationalEvent } from '@/lib/monitoring/report'
 import { createSupabaseServiceClient } from '@/lib/supabase/service'
 
 import { DERIVATIVES_BUCKET, ORIGINALS_BUCKET } from './rules'
@@ -26,6 +27,15 @@ import { DERIVATIVES_BUCKET, ORIGINALS_BUCKET } from './rules'
  * The exported surface is deliberately capability-shaped (mint, download, upload
  * derivative, remove) rather than a client handle, so no caller can reach an
  * arbitrary bucket or path through it (§16, §22).
+ *
+ * WHAT AN OPERATOR HEARS (phase 13C). The failures this module already logs are
+ * the storage service's, not a person's: a signed upload it would not mint, a
+ * derivative it would not take, and — after a committed delete, replace or refused
+ * finalize — a file it would not remove. The last is the orphan §0y accepts as
+ * garbage rather than a broken page; the operational event names the bucket and
+ * the server-minted paths (a UUID and a size, never a person's filename), so the
+ * leftovers can be removed by hand. A missing original on download is the
+ * `missing_upload` refusal the person sees, and is not reported.
  */
 
 /** A constrained upload target: one path in the originals bucket, one token. */
@@ -67,6 +77,10 @@ export function createImageStorage(): ImageStorage {
         .createSignedUploadUrl(path)
       if (error || !data) {
         console.error(`Minting a signed upload for the originals bucket failed: ${error?.message}`)
+        reportOperationalEvent('image:upload-grant-failed', {
+          detail: error?.message ?? 'no target returned',
+          tags: { bucket: ORIGINALS_BUCKET },
+        })
         return null
       }
       return { path: data.path, token: data.token, url: data.signedUrl }
@@ -90,6 +104,11 @@ export function createImageStorage(): ImageStorage {
       })
       if (error) {
         console.error(`Writing derivative ${path} failed: ${error.message}`)
+        reportOperationalEvent('image:derivative-write-failed', {
+          detail: error.message,
+          tags: { bucket: DERIVATIVES_BUCKET },
+          context: { path },
+        })
         return false
       }
       return true
@@ -101,6 +120,12 @@ export function createImageStorage(): ImageStorage {
         // An orphaned original in a private bucket is stale bytes, never a broken
         // page — log it for the operator rather than failing the caller's cleanup.
         console.error(`Removing original ${path} failed: ${error.message}`)
+        reportOperationalEvent('image:cleanup-failed', {
+          detail: error.message,
+          tags: { bucket: ORIGINALS_BUCKET },
+          context: { bucket: ORIGINALS_BUCKET, paths: [path] },
+          groupBy: ORIGINALS_BUCKET,
+        })
       }
     },
 
@@ -109,6 +134,12 @@ export function createImageStorage(): ImageStorage {
       const { error } = await service.storage.from(DERIVATIVES_BUCKET).remove([...paths])
       if (error) {
         console.error(`Removing ${paths.length} derivative(s) failed: ${error.message}`)
+        reportOperationalEvent('image:cleanup-failed', {
+          detail: error.message,
+          tags: { bucket: DERIVATIVES_BUCKET },
+          context: { bucket: DERIVATIVES_BUCKET, paths: [...paths] },
+          groupBy: DERIVATIVES_BUCKET,
+        })
       }
     },
   }

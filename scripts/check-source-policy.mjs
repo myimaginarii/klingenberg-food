@@ -2,7 +2,7 @@
 /**
  * Repository source-policy checks — technical plan §8, §10d, §10f.
  *
- * Four rules, all cheap, all run in CI before the build:
+ * Five rules, all cheap, all run in CI before the build:
  *
  *   1. no-hard-coded-domain  A site domain literal may appear only in
  *                            lib/config/site.ts. Choosing the restaurant's domain
@@ -15,6 +15,10 @@
  *                            lib/env/server.ts (and documentation).
  *   4. map-provenance        The static map asset must record where it came from, so
  *                            the launch check has something to read (§7g, §13 item C).
+ *   5. no-browser-monitoring Monitoring is server-side only (§1, §12, §0aj): no
+ *                            browser SDK file, no `withSentryConfig`, no
+ *                            `NEXT_PUBLIC_…SENTRY…` variable, no Replay or browser
+ *                            tracing anywhere in the tree.
  *
  * Exit code 1 on any violation, with file:line and the offending text.
  */
@@ -279,6 +283,53 @@ for (const absolute of sourceFiles()) {
   })
 }
 
+// --- 5. no-browser-monitoring (§1, §12, §0aj) -------------------------------------
+//
+// The browser is not monitored, by decision: the public site ships no monitoring
+// script, sets no monitoring cookie and needs no CSP origin for it. The unit policy
+// suite (`tests/unit/policy/monitoring-boundary.test.ts`) pins the import graph;
+// this rule is the cheap version that runs before anything is built.
+
+const BROWSER_MONITORING_FILES = [
+  'instrumentation-client.ts',
+  'instrumentation-client.js',
+  'sentry.client.config.ts',
+  'sentry.client.config.js',
+  'src/instrumentation-client.ts',
+  'src/sentry.client.config.ts',
+]
+const BROWSER_MONITORING_RE =
+  /withSentryConfig|NEXT_PUBLIC_[A-Z_]*SENTRY|replayIntegration|browserTracingIntegration|replaysSessionSampleRate/
+
+for (const file of BROWSER_MONITORING_FILES) {
+  if (existsSync(join(ROOT, file))) {
+    violations.push({
+      rule: 'no-browser-monitoring',
+      where: file,
+      detail: 'a browser monitoring file exists; monitoring is server-side only',
+      line: '',
+    })
+  }
+}
+
+for (const absolute of sourceFiles()) {
+  const relPath = normalise(relative(ROOT, absolute))
+  if (!shouldScan(relPath) || relPath.startsWith('docs/') || relPath === 'README.md') continue
+  if (relPath === 'scripts/check-source-policy.mjs' || relPath === 'package-lock.json') continue
+  if (relPath.startsWith('tests/')) continue
+  let contents
+  try {
+    contents = readFileSync(absolute, 'utf8')
+  } catch {
+    continue
+  }
+  contents.split(/\r?\n/).forEach((line, index) => {
+    if (BROWSER_MONITORING_RE.test(line)) {
+      report('no-browser-monitoring', relPath, index + 1, line, 'browser monitoring is not part of this system')
+    }
+  })
+}
+
 // --- 4. map-provenance (§7g) -------------------------------------------------------
 //
 // The Find os map is a single licensed static image. Until the licensed asset arrives it
@@ -325,7 +376,7 @@ if (scanned === 0) {
 
 if (violations.length === 0) {
   console.log(
-    `source-policy: OK — ${scanned} file(s) scanned; no hard-coded domains, no \`set -x\`, no stray secret access.`,
+    `source-policy: OK — ${scanned} file(s) scanned; no hard-coded domains, no \`set -x\`, no stray secret access, no browser monitoring.`,
   )
   process.exit(0)
 }

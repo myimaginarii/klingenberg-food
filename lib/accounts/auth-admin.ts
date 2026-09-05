@@ -1,5 +1,6 @@
 import 'server-only'
 
+import { reportOperationalEvent } from '@/lib/monitoring/report'
 import { createSupabaseServiceClient } from '@/lib/supabase/service'
 
 /**
@@ -51,6 +52,16 @@ import { createSupabaseServiceClient } from '@/lib/supabase/service'
  * their own on `/admin/ny-adgangskode` after the invitation link establishes a
  * session through `/admin/bekraeft` (phase 1's route, which already accepts
  * `type=invite`).
+ *
+ * WHAT AN OPERATOR HEARS (phase 13C). The three failures this module already
+ * logs are the ones a person cannot repair from the screen: an invitation the
+ * Auth server refused for a technical reason, a directory it could not list, and
+ * — the partial outcome that matters — a ban or unban that failed after the
+ * database transition committed. Each becomes one operational event
+ * (`lib/monitoring/report.ts`) carrying the Auth server's error code and status
+ * and, for the ban, the account's UUID so the Owner can be told which account to
+ * deactivate again. Never the address, never a token. `email_exists` and
+ * `validation_failed` are answers, not failures, and are not reported.
  */
 
 export type AuthIdentity = {
@@ -120,6 +131,10 @@ export function createAuthAdmin(): AuthAdmin {
         if (error.code === 'email_exists') return { status: 'email_exists' }
         if (error.code === 'validation_failed') return { status: 'invalid_email' }
         console.error(`Inviting an account failed: ${error.code ?? 'unknown'} (${error.status ?? '?'})`)
+        reportOperationalEvent('auth-admin:invite-failed', {
+          detail: error.message,
+          tags: { code: error.code ?? 'unknown', status: error.status ?? 0 },
+        })
         return { status: 'failed' }
       }
 
@@ -135,6 +150,10 @@ export function createAuthAdmin(): AuthAdmin {
         const { data, error } = await service.auth.admin.listUsers({ page, perPage: PAGE_SIZE })
         if (error) {
           console.error(`Listing identities failed: ${error.code ?? 'unknown'}`)
+          reportOperationalEvent('auth-admin:lookup-failed', {
+            detail: error.message,
+            tags: { code: error.code ?? 'unknown', status: error.status ?? 0 },
+          })
           return null
         }
 
@@ -155,6 +174,14 @@ export function createAuthAdmin(): AuthAdmin {
         console.error(
           `${banned ? 'Banning' : 'Unbanning'} an identity failed: ${error.code ?? 'unknown'} (${error.status ?? '?'})`,
         )
+        // The database transition has already committed when this runs (see
+        // `./admin.ts`): the account is deactivated (or reactivated) there and not
+        // at the Auth server. That is the partial state the operator must hear about.
+        reportOperationalEvent(banned ? 'auth-admin:ban-failed' : 'auth-admin:unban-failed', {
+          detail: error.message,
+          tags: { code: error.code ?? 'unknown', status: error.status ?? 0 },
+          context: { account_id: userId },
+        })
         return 'failed'
       }
 

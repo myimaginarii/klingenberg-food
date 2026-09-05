@@ -3,6 +3,8 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { z } from 'zod'
 
+import { reportOperationalEvent } from '@/lib/monitoring/report'
+
 import { rateLimitTier, type RateLimitScope } from './scopes'
 
 /**
@@ -20,7 +22,23 @@ import { rateLimitTier, type RateLimitScope } from './scopes'
  * `limited`: the limiter could not answer (a network error, a missing function).
  * What that means for the action is the scope's own decision (`scopes.ts`), applied
  * by {@link refusedByRateLimit} — never a default the caller might forget to make.
+ *
+ * An `unavailable` answer is also the one operational signal this module sends
+ * (phase 13C, `lib/monitoring/report.ts`): the scope, the door and whether the tier
+ * failed open or closed — never the subject, which is a person's id or a key
+ * derived from an address. The storm boundary in the reporter keeps a database
+ * outage to one event per scope per minute per process; the server log still
+ * carries every line.
  */
+
+function reportUnavailable(scope: RateLimitScope, door: string, detail: string): void {
+  const policy = rateLimitTier(scope).unavailable
+  reportOperationalEvent(policy === 'refuse' ? 'rate-limiter:refused' : 'rate-limiter:unavailable', {
+    detail,
+    tags: { scope, door, policy },
+    groupBy: scope,
+  })
+}
 
 export type RateLimitDecision =
   | { readonly status: 'allowed'; readonly remaining: number }
@@ -84,13 +102,20 @@ async function ask(
       // The server log gets the scope and the database's sentence — never the
       // subject, which is either a person's id or a key derived from an address.
       console.error(`Rate limiter unavailable for ${scope}: ${error.message}`)
+      reportUnavailable(scope, fn, error.message)
+      return { status: 'unavailable' }
     }
 
-    return decisionFromReply(data, error)
+    const decision = decisionFromReply(data, null)
+    if (decision.status === 'unavailable') {
+      console.error(`Rate limiter unavailable for ${scope}: unreadable reply`)
+      reportUnavailable(scope, fn, 'unreadable reply')
+    }
+    return decision
   } catch (caught) {
-    console.error(
-      `Rate limiter unavailable for ${scope}: ${caught instanceof Error ? caught.message : 'unknown error'}`,
-    )
+    const detail = caught instanceof Error ? caught.message : 'unknown error'
+    console.error(`Rate limiter unavailable for ${scope}: ${detail}`)
+    reportUnavailable(scope, fn, detail)
     return { status: 'unavailable' }
   }
 }
@@ -111,12 +136,21 @@ export async function reserveSignInAttempt(
       p_client_subject: clientSubject,
       p_account_subject: accountSubject,
     })
-    if (error) console.error(`Rate limiter unavailable for auth:signin: ${error.message}`)
-    return decisionFromReply(data, error)
+    if (error) {
+      console.error(`Rate limiter unavailable for auth:signin: ${error.message}`)
+      reportUnavailable('auth:signin', 'reserve_sign_in_attempt', error.message)
+      return { status: 'unavailable' }
+    }
+    const decision = decisionFromReply(data, null)
+    if (decision.status === 'unavailable') {
+      console.error('Rate limiter unavailable for auth:signin: unreadable reply')
+      reportUnavailable('auth:signin', 'reserve_sign_in_attempt', 'unreadable reply')
+    }
+    return decision
   } catch (caught) {
-    console.error(
-      `Rate limiter unavailable for auth:signin: ${caught instanceof Error ? caught.message : 'unknown error'}`,
-    )
+    const detail = caught instanceof Error ? caught.message : 'unknown error'
+    console.error(`Rate limiter unavailable for auth:signin: ${detail}`)
+    reportUnavailable('auth:signin', 'reserve_sign_in_attempt', detail)
     return { status: 'unavailable' }
   }
 }
@@ -139,13 +173,14 @@ export async function releaseSignInAttempt(
     })
     if (error) {
       console.error(`Rate limiter could not release a sign-in reservation: ${error.message}`)
+      reportOperationalEvent('rate-limiter:release-failed', { detail: error.message, tags: { scope: 'auth:signin' } })
       return false
     }
     return true
   } catch (caught) {
-    console.error(
-      `Rate limiter could not release a sign-in reservation: ${caught instanceof Error ? caught.message : 'unknown error'}`,
-    )
+    const detail = caught instanceof Error ? caught.message : 'unknown error'
+    console.error(`Rate limiter could not release a sign-in reservation: ${detail}`)
+    reportOperationalEvent('rate-limiter:release-failed', { detail, tags: { scope: 'auth:signin' } })
     return false
   }
 }

@@ -3,6 +3,7 @@ import 'server-only'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { cache } from 'react'
 
+import { reportOperationalEvent } from '@/lib/monitoring/report'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 
 import type { AuthAdmin, AuthIdentity } from './auth-admin'
@@ -130,13 +131,35 @@ async function createProfile(
   if (error !== null) {
     if (error.code === '42501') return 'forbidden'
     console.error(`Creating an account profile failed: ${error.code ?? 'unknown'}`)
+    // The identity exists at the Auth server (an invitation was accepted or an
+    // existing address was found) and has no profile — the partial state the
+    // module note above describes, repaired by inviting the address again.
+    reportOperationalEvent('accounts:profile-failed', {
+      detail: error.message,
+      tags: { code: error.code ?? 'unknown' },
+      context: { account_id: identity.userId },
+    })
     return 'failed'
   }
 
   const status = (data as { status?: unknown } | null)?.status
-  return status === 'created' || status === 'exists' || status === 'no_auth_user' || status === 'invalid'
-    ? status
-    : 'failed'
+  if (status === 'created' || status === 'exists' || status === 'invalid') return status
+
+  if (status === 'no_auth_user') {
+    // The Auth server answered `invited` a moment ago and the database cannot see
+    // the identity: not a person's mistake, and not repairable from the screen.
+    reportOperationalEvent('accounts:profile-failed', {
+      tags: { code: 'no_auth_user' },
+      context: { account_id: identity.userId },
+    })
+    return 'no_auth_user'
+  }
+
+  reportOperationalEvent('accounts:profile-failed', {
+    tags: { code: 'unreadable_reply' },
+    context: { account_id: identity.userId },
+  })
+  return 'failed'
 }
 
 /**
@@ -210,9 +233,16 @@ export type TransitionResult = {
   readonly updatedAt: string | null
 }
 
-function transitionFailure(error: { code?: string }): TransitionResult {
+function transitionFailure(
+  transition: 'set_account_role' | 'set_account_active',
+  error: { code?: string; message: string },
+): TransitionResult {
   if (error.code === '42501') return { status: 'forbidden', updatedAt: null }
   console.error(`An account transition failed: ${error.code ?? 'unknown'}`)
+  reportOperationalEvent('accounts:transition-failed', {
+    detail: error.message,
+    tags: { code: error.code ?? 'unknown', transition },
+  })
   return { status: 'failed', updatedAt: null }
 }
 
@@ -227,7 +257,7 @@ export async function changeAccountRole(
     p_expected_updated_at: request.expectedUpdatedAt,
   })
 
-  if (error !== null) return transitionFailure(error)
+  if (error !== null) return transitionFailure('set_account_role', error)
 
   return parseTransitionResult(data)
 }
@@ -254,7 +284,7 @@ export async function setAccountActive(
     p_expected_updated_at: request.expectedUpdatedAt,
   })
 
-  if (error !== null) return { ...transitionFailure(error), authStep: 'skipped' }
+  if (error !== null) return { ...transitionFailure('set_account_active', error), authStep: 'skipped' }
 
   const result = parseTransitionResult(data)
 

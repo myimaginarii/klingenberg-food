@@ -66,6 +66,21 @@ export function getServiceRoleKey(): string {
   return requireSecret('SUPABASE_SERVICE_ROLE_KEY')
 }
 
+/**
+ * The Sentry DSN (§10e, §10g; phase 13C), or `undefined` when this environment does
+ * no monitoring.
+ *
+ * Read by `lib/monitoring/sentry.ts` and nowhere else. Optional everywhere: local
+ * development, the test runs and a local `next build && next start` run without
+ * one, and monitoring is then simply off — nothing throws, nothing is logged per
+ * request, no build fails. A deployment that should report errors sets it in the
+ * hosting provider's environment (`docs/runbooks/monitoring.md`); the value is
+ * never `NEXT_PUBLIC_`-prefixed because no browser code needs it (§1, §12).
+ */
+export function getMonitoringDsn(): string | undefined {
+  return optionalSecret('SENTRY_DSN')
+}
+
 /** The shortest secret the sign-in throttle accepts: `openssl rand -hex 32` gives 64. */
 export const MIN_RATE_LIMIT_KEY_LENGTH = 32
 
