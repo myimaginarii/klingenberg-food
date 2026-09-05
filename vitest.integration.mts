@@ -44,6 +44,12 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['tests/integration/**/*.test.ts'],
+    // One file at a time. Every suite here shares ONE real stack — the Auth
+    // server, the storage buckets and, since the 13B closure, the rate-limit
+    // counters, which two suites (`rate-limit`, `sign-in-throttle`) empty through
+    // the test door as part of their stories. Run in parallel, one suite's clean-up
+    // erases another's fixture mid-assertion (seen once in the closure's chain).
+    fileParallelism: false,
     env: { TZ: 'Europe/Copenhagen' },
     // The pipeline uploads, processes and cleans up against real services; give a
     // slow first container pull room to breathe rather than flaking.

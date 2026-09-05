@@ -126,7 +126,9 @@ select is(
                             'enforce_owner_invariant',
                             'list_accounts', 'revoke_account_sessions',
                             -- phase 13B: the rate limiter's doors (§0ai, pgTAP 029)
-                            'rate_limit_resolve', 'consume_rate_limit', 'peek_rate_limit')),
+                            'rate_limit_resolve', 'consume_rate_limit', 'peek_rate_limit',
+                            -- phase 13B closure: the sign-in reservation (§0ai, pgTAP 030)
+                            'reserve_sign_in_attempt', 'release_sign_in_attempt')),
   0::bigint,
   'phase 10B adds no SECURITY DEFINER function either');
 

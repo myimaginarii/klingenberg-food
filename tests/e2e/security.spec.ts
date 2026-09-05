@@ -1,8 +1,14 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Browser, type Page } from '@playwright/test'
 
 import { RATE_LIMIT_MESSAGE, RATE_LIMIT_SCOPES } from '@/lib/rate-limit/scopes'
+import { deriveClientSubject, LOCAL_CLIENT_ADDRESS, normalizeAccountAddress } from '@/lib/rate-limit/subject'
 
-import { clearLocalRateLimits, fillLocalRateLimit, listLocalProfiles } from '../support/local-auth-admin'
+import {
+  clearLocalRateLimits,
+  fillLocalRateLimit,
+  listLocalProfiles,
+  listLocalRateLimitBuckets,
+} from '../support/local-auth-admin'
 
 import { OWNER, saveDraft, signIn, STAFF } from './support/admin'
 import {
@@ -38,7 +44,15 @@ import { openDish } from './support/menu-admin'
  *   3. **The sign-in throttle.** Ten failures against an address that does not
  *      exist, then the eleventh attempt is refused before the Auth server is asked
  *      — with a sentence that says nothing about the address — and, once the
- *      counters are emptied, the seeded staff member signs in as usual.
+ *      counters are emptied, the seeded staff member signs in as usual, and that
+ *      successful sign-in leaves no failure behind (the 13B closure: reserved,
+ *      then released).
+ *
+ *   4. **The threshold under simultaneous attempts** (the 13B closure). With two
+ *      allowances left, six browsers submit a wrong password at the same moment
+ *      through the real Server Action: exactly two are answered by the Auth
+ *      server and four are refused by the application, whatever the timing, and
+ *      the counter holds exactly the tier.
  */
 
 test.describe.configure({ mode: 'serial' })
@@ -215,4 +229,66 @@ test('the eleventh failed sign-in in a window is refused before the Auth server 
   await clearLocalRateLimits()
   await signIn(page, STAFF)
   await expect(page.getByRole('main')).toBeVisible()
+
+  // The successful sign-in was reserved and then released: both of its buckets
+  // exist for this window and hold nothing. (Locally every browser is the one
+  // client, `local`, under the fixed development key.)
+  const buckets = await listLocalRateLimitBuckets()
+  expect(buckets.find((b) => b.scope === 'auth:signin' && b.subject === localSubjects(STAFF.email).client)?.hits).toBe(0)
+  expect(
+    buckets.find((b) => b.scope === 'auth:signin-account' && b.subject === localSubjects(STAFF.email).account)?.hits,
+  ).toBe(0)
+})
+
+// ---------------------------------------------------------------------------
+// 4. The threshold under simultaneous attempts (the 13B closure)
+// ---------------------------------------------------------------------------
+
+/** The subjects as the local server derives them — the fixed development key, one client. */
+function localSubjects(email: string): { client: string; account: string } {
+  const secret = 'local-development-rate-limit-key'
+  return {
+    client: deriveClientSubject(secret, 'address', LOCAL_CLIENT_ADDRESS),
+    account: deriveClientSubject(secret, 'account', normalizeAccountAddress(email)),
+  }
+}
+
+async function submitWrongPassword(browser: Browser, email: string): Promise<'forkert' | 'for_mange' | string> {
+  const context = await browser.newContext()
+  try {
+    const page = await context.newPage()
+    await page.goto('/admin/login')
+    await page.getByLabel('E-mail').fill(email)
+    await page.getByLabel('Adgangskode').fill('ForkertAdgangskode1')
+    await page.getByRole('button', { name: 'Log ind' }).click()
+    await expect(page).toHaveURL(/fejl=/)
+    return new URL(page.url()).searchParams.get('fejl') ?? ''
+  } finally {
+    await context.close()
+  }
+}
+
+test('with two allowances left, six simultaneous wrong passwords reach the Auth server exactly twice and are refused four times', async ({
+  browser,
+}) => {
+  await clearLocalRateLimits()
+
+  const limit = RATE_LIMIT_SCOPES['auth:signin'].maxHits
+  const left = 2
+  const attempts = 6
+  const subjects = localSubjects(STAFF.email)
+  await fillLocalRateLimit('auth:signin', subjects.client, limit - left)
+
+  const answers = await Promise.all(Array.from({ length: attempts }, () => submitWrongPassword(browser, STAFF.email)))
+
+  expect(answers.filter((a) => a === 'forkert')).toHaveLength(left)
+  expect(answers.filter((a) => a === 'for_mange')).toHaveLength(attempts - left)
+
+  // The counter holds exactly the tier: the two answered failures stayed, the
+  // four refusals added nothing — and the account backstop saw only the two.
+  const buckets = await listLocalRateLimitBuckets()
+  expect(buckets.find((b) => b.scope === 'auth:signin' && b.subject === subjects.client)?.hits).toBe(limit)
+  expect(buckets.find((b) => b.scope === 'auth:signin-account' && b.subject === subjects.account)?.hits).toBe(left)
+
+  await clearLocalRateLimits()
 })

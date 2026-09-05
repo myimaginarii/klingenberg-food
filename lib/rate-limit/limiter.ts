@@ -96,6 +96,61 @@ async function ask(
 }
 
 /**
+ * The sign-in reservation (migration `20260905180000`, the 13B closure): one hit
+ * reserved in BOTH sign-in buckets, all or nothing, under the row locks — or
+ * `limited` with nothing moved. Asked before the Auth server is, by
+ * `lib/rate-limit/sign-in.ts` and nothing else.
+ */
+export async function reserveSignInAttempt(
+  supabase: SupabaseClient,
+  clientSubject: string,
+  accountSubject: string,
+): Promise<RateLimitDecision> {
+  try {
+    const { data, error } = await supabase.rpc('reserve_sign_in_attempt', {
+      p_client_subject: clientSubject,
+      p_account_subject: accountSubject,
+    })
+    if (error) console.error(`Rate limiter unavailable for auth:signin: ${error.message}`)
+    return decisionFromReply(data, error)
+  } catch (caught) {
+    console.error(
+      `Rate limiter unavailable for auth:signin: ${caught instanceof Error ? caught.message : 'unknown error'}`,
+    )
+    return { status: 'unavailable' }
+  }
+}
+
+/**
+ * The reservation given back — one hit off each sign-in bucket, never below zero.
+ * `true` when the database answered; `false` when it could not (the reservation
+ * then stands until its window ends, which is the documented cost of an outage
+ * inside an outage).
+ */
+export async function releaseSignInAttempt(
+  supabase: SupabaseClient,
+  clientSubject: string,
+  accountSubject: string,
+): Promise<boolean> {
+  try {
+    const { error } = await supabase.rpc('release_sign_in_attempt', {
+      p_client_subject: clientSubject,
+      p_account_subject: accountSubject,
+    })
+    if (error) {
+      console.error(`Rate limiter could not release a sign-in reservation: ${error.message}`)
+      return false
+    }
+    return true
+  } catch (caught) {
+    console.error(
+      `Rate limiter could not release a sign-in reservation: ${caught instanceof Error ? caught.message : 'unknown error'}`,
+    )
+    return false
+  }
+}
+
+/**
  * Whether a decision means the action must stop. `limited` always does;
  * `unavailable` does for the scopes whose tier says `refuse` (fail-closed) and not
  * for the rest (fail-open).

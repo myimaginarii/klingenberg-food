@@ -8,16 +8,22 @@ live in the Vercel project, the Supabase project and nowhere else.
 
 ## 1. The rate-limit secret (Vercel)
 
-Set `RATE_LIMIT_SECRET` in the Vercel project's environment for Production (and
-Preview, if previews should throttle like production). Any long random string —
-for example the output of `openssl rand -hex 32`. It keys the HMAC that turns a
-client address or an account address into the sign-in throttle's subject
-(`lib/rate-limit/subject.ts`), so that nothing stored in the database can be turned
-back into an address.
+Set `RATE_LIMIT_SECRET` in the Vercel project's environment for **every**
+environment Vercel deploys — Production and Preview alike. A random string of at
+least 32 characters, for example the output of `openssl rand -hex 32`. It keys the
+HMAC that turns a client address or an account address into the sign-in
+throttle's subject (`lib/rate-limit/subject.ts`), so that nothing stored in the
+database can be turned back into an address — and so that nobody outside the
+server can name a subject to the reservation doors.
 
-- **Without it** the throttle still works, but each instance keys its own
-  buckets, so a stuffing run spread across instances meets a weaker limit. The
-  server log says so once, without naming the variable.
+- **It is required on Vercel.** A deployment without it does not fall back to a
+  key of its own (that would give the same client a different bucket per
+  instance, which is no limit): the first sign-in or reset request throws, the
+  function log names the variable — never a value — and the two forms refuse to
+  work until it is set. Nothing fails at build time.
+- **Locally nothing is needed.** Development, the test runs and a local
+  `next build && next start` use a fixed development key.
+- **Too short is refused** everywhere, the same way, without echoing the value.
 - **Rotating it** is safe at any time: every open window simply starts over. No
   data depends on the old value.
 - It is read only through `lib/env/server.ts`; the source policy fails on any
@@ -81,4 +87,9 @@ code change.
 2. `curl -sI https://<domain>/admin` shows the same six plus `x-robots-tag`.
 3. A wrong password ten times from one machine, then the throttle sentence on the
    eleventh; a correct sign-in from another machine still works.
-4. The server log carries no line about the rate-limit secret being missing.
+4. The server log carries no line naming `RATE_LIMIT_SECRET`: a missing or short
+   value makes every sign-in and reset request fail with that line, and nothing
+   else does.
+5. A correct sign-in, then a wrong password once, then a correct sign-in again:
+   the successful attempts cost nothing (the counters are reserved and released),
+   only the failure counts.

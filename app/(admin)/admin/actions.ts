@@ -7,12 +7,7 @@ import { getCurrentProfile } from '@/lib/auth/session'
 import { createSupabaseServerClient } from '@/lib/supabase/server'
 import { absoluteUrl } from '@/lib/config/site'
 import { RATE_LIMIT_STATUS } from '@/lib/rate-limit/scopes'
-import {
-  noteSignInFailure,
-  resetRequestIsThrottled,
-  signInIsThrottled,
-  signInThrottleSubjects,
-} from '@/lib/rate-limit/sign-in'
+import { resetRequestIsThrottled, signInThrottleSubjects, signInUnderThrottle } from '@/lib/rate-limit/sign-in'
 
 /**
  * Authentication Server Actions — technical plan §1 (adjustment 2), §5.
@@ -43,23 +38,26 @@ export async function signIn(formData: FormData): Promise<void> {
     redirect(`/admin/login?fejl=mangler${nextParam(next)}`)
   }
 
-  // The sign-in throttle (phase 13B, `lib/rate-limit/sign-in.ts`): asked before the
-  // Auth server is, and moved only by a failure below. A throttled attempt never
+  // The sign-in throttle (phase 13B, `lib/rate-limit/sign-in.ts`): one attempt is
+  // reserved in both counters, atomically, before the Auth server is asked. The
+  // reservation stays for every refusal the Auth server gives — a wrong password,
+  // an unknown address and a banned account alike, so the counters move identically
+  // for an address that exists and one that does not — and is released after a
+  // success, or an Auth server that gave no verdict. A throttled attempt never
   // reaches the Auth server, so it can reveal nothing about the address.
   const throttle = await signInThrottleSubjects(email)
-  if (await signInIsThrottled(throttle)) {
+  const supabase = await createSupabaseServerClient()
+  const outcome = await signInUnderThrottle(throttle, () =>
+    supabase.auth.signInWithPassword({ email, password }),
+  )
+
+  if (outcome.status === 'throttled') {
     redirect(`/admin/login?fejl=${RATE_LIMIT_STATUS}${nextParam(next)}`)
   }
 
-  const supabase = await createSupabaseServerClient()
-  const { error } = await supabase.auth.signInWithPassword({ email, password })
+  const { error } = outcome.answer
 
   if (error) {
-    // Counted for every refusal the Auth server gives — a wrong password, an unknown
-    // address and a banned account alike — so the counters move identically for an
-    // address that exists and one that does not.
-    await noteSignInFailure(throttle)
-
     // A deactivated account is banned at the Auth server (phase 11C), and the Auth
     // server says so before it checks the password. The person is told the truth —
     // they held an account here, and the Owner can reactivate it — which is what the

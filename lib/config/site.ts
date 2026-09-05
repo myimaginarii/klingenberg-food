@@ -85,3 +85,17 @@ export function getServerActionAllowedOrigins(): string[] {
 export function isLocalSiteUrl(): boolean {
   return getSiteUrl() === LOCAL_ORIGIN
 }
+
+/**
+ * True when this process is a deployment on Vercel — production or preview.
+ *
+ * The one deployment signal the repository recognises. Vercel sets `VERCEL=1` on
+ * every build and function it runs; a local `next build && next start` never has
+ * it, whatever `NODE_ENV` says. The sign-in throttle believes the platform's address
+ * headers only here (`lib/rate-limit/subject.ts`), and for the same reason requires
+ * its secret only here (`lib/env/server.ts`): this is where client-derived subjects
+ * exist at all.
+ */
+export function isVercelDeployment(): boolean {
+  return process.env.VERCEL === '1'
+}

@@ -627,8 +627,9 @@ verification, the final security audit, and launch (phase 14). The weekly off-pl
 backup workflow and the restore drill are built (phase 13A, §0ah); the destination bucket
 is the one decision still open (§13 item A). **Phase 13B is built and green (§0ai):**
 every Server Action and the sign-in path are rate-limited by a PostgreSQL-backed limiter
-(twelve tiers, one atomic door, HMAC subjects, `RATE_LIMIT_SECRET` as a deployment
-prerequisite), and every response carries the security-header policy — CSP, HSTS,
+(twelve tiers, one atomic door, the sign-in attempt reserved before the Auth server is
+asked and released after a success, HMAC subjects, `RATE_LIMIT_SECRET` required on
+Vercel), and every response carries the security-header policy — CSP, HSTS,
 nosniff, referrer, permissions and frame denial — with the public caching intact;
 `docs/runbooks/production-security.md` lists what the production project must be
 configured with before launch.

@@ -6017,10 +6017,10 @@ limited" is one atomic statement there. No Redis, no new provider, no dependency
 |---|---|---|
 | **The vocabulary** | `public.rate_limit_scopes` (migration `20260905120000`), mirrored by `lib/rate-limit/scopes.ts` | Twelve scopes, each with how its subject is keyed (`actor` = the JWT's `auth.uid()`, `client` = a server-derived HMAC), a limit and a fixed window. Inserted by the migration; readable and writable by no browser role. `tests/unit/rate-limit/scopes.test.ts` parses the migration and fails when the mirror drifts. |
 | **The counters** | `public.rate_limit_buckets` | One row per (scope, subject, window): four columns and nothing about the request. RLS on, every privilege revoked from `anon` and `authenticated`. |
-| **The doors** | `consume_rate_limit(scope, subject)`, `peek_rate_limit(scope, subject)` | SECURITY DEFINER (below), `search_path` pinned, EXECUTE for `anon` and `authenticated` only. `consume` is one `INSERT … ON CONFLICT DO UPDATE … RETURNING` under the row lock; `peek` answers without counting. Both return `{status: allowed, remaining}` or `{status: limited, retry_after_seconds}`. Neither can lower a count; nothing can. |
+| **The doors** | `consume_rate_limit(scope, subject)`, `peek_rate_limit(scope, subject)`; since the closure below, `reserve_sign_in_attempt(client, account)` and `release_sign_in_attempt(client, account)` (migration `20260905180000`, EXECUTE for `anon` only) | SECURITY DEFINER (below), `search_path` pinned, EXECUTE for `anon` and `authenticated` only. `consume` is one `INSERT … ON CONFLICT DO UPDATE … RETURNING` under the row lock; `peek` answers without counting. Both return `{status: allowed, remaining}` or `{status: limited, retry_after_seconds}`. Neither can lower a count; nothing can. |
 | **The application door** | `lib/rate-limit/limiter.ts` | Asks, parses the reply with Zod, and reports a third answer, `unavailable`, when the database could not be asked or replied with something unreadable. Logs the scope, never the subject. |
 | **The action helper** | `lib/rate-limit/actions.ts` | `enforceRateLimit(scope, refusalHref)` for the fifty-two redirecting actions; `isRateLimited(scope)` for the four that reply. One line after the guard. |
-| **The sign-in throttle** | `lib/rate-limit/sign-in.ts`, `lib/rate-limit/subject.ts` | The two client-keyed subjects, the peek-before / consume-on-failure shape, and the reset counter. |
+| **The sign-in throttle** | `lib/rate-limit/sign-in.ts`, `lib/rate-limit/sign-in-attempt.ts`, `lib/rate-limit/subject.ts` | The two client-keyed subjects, the reserve / attempt / settle shape (the closure below; originally peek-before / consume-on-failure), and the reset counter. |
 | **The refusal** | `RATE_LIMIT_STATUS = 'for_mange'`, `RATE_LIMIT_MESSAGE` | One code on the redirect, one sentence in every screen's notice table: *"Der er sendt for mange handlinger på kort tid. Vent lidt, og prøv igen."* No count, no window, no threshold. |
 
 **The tiers, and why each number.** Fixed windows aligned to the epoch; the goal is
@@ -6069,12 +6069,13 @@ statement, under the row lock — so two callers near the threshold cannot both 
 the old count and both write the same new one. `029` proves it through two real
 sessions (dblink): A takes four hits of a five-hit tier inside an open transaction,
 B's hit blocks on the row, A commits, and B's answer is the *fifth* hit
-(`remaining` 0), never the first. The sign-in path's two-step shape (peek, then
-consume on failure) has one known edge: two failures arriving in the same instant
-near the threshold may both pass the peek. Both are still counted, so the next
-attempt is refused; a throttle is not made weaker by one extra attempt at its
-boundary, and the alternative — counting successes so that one atomic consume can
-run first — would punish a shared restaurant connection for logging in.
+(`remaining` 0), never the first. The sign-in path's first shape (peek, then
+consume on failure) was documented here with "one known edge" — two failures in the
+same instant near the threshold both passing the peek — and accepted as one extra
+attempt at the boundary. The closure pass below measured it and found it was not
+one: the gap is the whole Auth round-trip, and everything that arrives inside it
+passes. The shape is now reserve / attempt / settle (below), and this suite's
+sister `030` proves the reservation through the same two-session race.
 
 **Growth.** Whenever a call creates a *new* bucket (the upsert returned a count of
 1), it deletes every bucket whose window started more than two hours ago — twice
@@ -6101,11 +6102,16 @@ else no header is trusted and every client shares one subject, `local`: a
 spoofable `x-forwarded-for` from an untrusted environment would let an attacker
 choose their own bucket, which is the opposite of a limit. The secret is
 `RATE_LIMIT_SECRET` (§10e), read through `lib/env/server.ts` like every secret.
-Locally a fixed development key stands in, so the throttle is exercised for real
-in the browser suites. A hosted deployment without the secret keeps the throttle
-working with a key the process made up — per instance rather than shared, weaker
-than intended — and says so once in the server log without naming the variable.
-Setting it is a deployment prerequisite (below).
+Locally — and in a local `next build && next start` — a fixed development key
+stands in, so the throttle is exercised for real in the browser suites. On Vercel
+(`VERCEL=1`, the one deployment signal the repository recognises, and the one
+place client-derived subjects exist at all) the secret is **required** since the
+closure below: a missing value throws at the first sign-in or reset request,
+naming the variable and never a value, so the two unauthenticated forms refuse to
+run rather than run weakly; nothing throws at build. A value shorter than 32
+characters is refused the same way everywhere. An origin that is neither local nor
+Vercel keeps a per-process stand-in with one warning: no address header is
+believed there, so the only per-instance effect is the account key.
 
 ### Where the check sits — the order, and what a refusal leaves behind (brief §17)
 
@@ -6132,14 +6138,22 @@ autosave answers `for_mange`.
 
 `/admin/login` posts to a Server Action, which calls the Auth server with the anon
 key from the server — so the application limiter sits in that action, and only
-there. Before the Auth server is asked, both client-keyed counters are peeked; a
-throttled attempt is redirected with `fejl=for_mange` and its own sentence (*"Der
-er gjort for mange forsøg på kort tid. Vent lidt, og prøv igen."*) without the
-Auth server ever being contacted. A sign-in the Auth server refuses — a wrong
-password, an unknown address and a banned account alike — is then counted against
-both subjects, so the counters move identically for an address that exists and one
-that does not. A successful sign-in counts nothing, and counters expire with their
-window rather than being reset (§22). Phase 11C's deactivated-account wording is
+there. Before the Auth server is asked, one attempt is **reserved** in both
+client-keyed counters — `reserve_sign_in_attempt()`, one decision under both row
+locks, both counters or neither (the closure below; phase 13B's first shape peeked
+here and consumed on failure). A throttled attempt has moved nothing and is
+redirected with `fejl=for_mange` and its own sentence (*"Der er gjort for mange
+forsøg på kort tid. Vent lidt, og prøv igen."*) without the Auth server ever being
+contacted. The reservation then **stays** for a sign-in the Auth server refuses — a
+wrong password, an unknown address and a banned account alike, so the counters
+move identically for an address that exists and one that does not — and is
+**released** (`release_sign_in_attempt()`, one hit back from each bucket, never
+below zero) after a sign-in the Auth server accepted, or one it could not answer
+(`@supabase/auth-js`'s own retryable class: a network failure or a 5xx), or an
+attempt that threw. So a successful sign-in still counts nothing, an outage burns
+nobody's allowance, and counters expire with their window rather than being
+reset (§22). The rule is `lib/rate-limit/sign-in-attempt.ts`, pure, and proved
+over fake doors before it runs against the real ones. Phase 11C's deactivated-account wording is
 untouched: it is shown only after an Auth-server answer, and a throttled request
 never gets one. The reset form is counted per client address on every request
 (there is no failure to distinguish), and a throttled request is told so — the one
@@ -6299,6 +6313,26 @@ zero.
   suites need one so a story that leaves a full bucket cannot refuse the next
   run; a filled bucket also lets a UI story meet the refusal without hundreds of
   requests (the thresholds themselves are `029`'s).
+- **The closure (2026-09-05)** — `tests/unit/rate-limit/sign-in-attempt.test.ts`
+  (9: the settle rule over fake doors, every outcome, no double release, nothing
+  released that was not reserved), `tests/unit/env/rate-limit-secret.test.ts` (5:
+  required on Vercel, optional off it, the length rule, no value echoed),
+  `supabase/tests/030_sign_in_reservation.test.sql` (81 assertions: EXECUTE for
+  `anon` only, the grammar, all-or-nothing at both tiers with neither counter
+  moved by a refusal, the release one-back-never-below-zero and nobody else's,
+  the window, the pruning, the dblink race where B is *limited* after A's commit,
+  direct table access refused, content byte-identical),
+  `tests/integration/sign-in-throttle.test.ts` (10, the key proof: the real
+  module over the real doors and a REAL `signInWithPassword()`, the Auth requests
+  counted at the fetch — eight simultaneous wrong passwords with two allowances
+  left reach the Auth server exactly twice; the right password at the threshold
+  reaches it not at all; a success leaves both buckets at zero; a wrong password
+  leaves one; an unreachable Auth server and a thrown attempt leave the count
+  unchanged; the doors through PostgREST refuse a session and a bare address and
+  give nothing back for a key nobody holds), and `security.spec.ts` (story 3 now
+  asserts zero hits after the real sign-in; story 4 submits six wrong passwords
+  from six browsers at once through the real Server Action with two allowances
+  left: exactly two `fejl=forkert`, four `fejl=for_mange`, the counter at the tier).
 
 ### Source policy and secrets
 
@@ -6306,16 +6340,20 @@ zero.
 `eslint.config.mjs`, `scripts/check-source-policy.mjs` and `.env.example`; the
 scanner refused the first draft's three mentions of the name outside the env
 module — two in comments, one in a log line — and they were reworded rather than
-allow-listed. The two limiter doors and their resolver are the only SECURITY DEFINER
-additions; no new grant to a browser role, no service-role caller, no new
-dependency. Six locked pgTAP suites (`020`–`023`, `025`, `026`) pin the exact
+allow-listed. The two limiter doors and their resolver were the only SECURITY DEFINER
+additions of the first pass; the closure added the two sign-in doors, EXECUTE for
+`anon` only (and extended the six pinned lists again in the same commit). No new
+grant to a browser role beyond that, no service-role caller, no new dependency. Six locked pgTAP suites (`020`–`023`, `025`, `026`) pin the exact
 set of definer functions by name, and the first full chain failed all six on the
 three new ones — the design working as intended; their lists were extended in
 the same commit, as phase 11C extended them for its two.
 
 ### Production prerequisites (not configured by this repository)
 
-- **`RATE_LIMIT_SECRET`** in the Vercel environment (any long random string).
+- **`RATE_LIMIT_SECRET`** in the Vercel environment — **required** since the
+  closure: at least 32 characters (`openssl rand -hex 32`). A Vercel deployment
+  without it refuses every sign-in and reset request, with the variable named in
+  the function log; nothing is generated in its place.
 - **Supabase Auth rate limits**, reviewed in the production project's Auth
   settings before launch: sign-in / token requests per IP, e-mails sent per hour
   (with Resend as custom SMTP), OTP verifications per IP, token refreshes. The
@@ -6333,10 +6371,9 @@ as a step.
 - **`'unsafe-inline'` in production `script-src`** — the caching trade-off above.
   Revisit if the framework's nonce support ever works with cached pages, or if
   SRI leaves experimental status.
-- **The SECURITY DEFINER doors** — re-read `consume_rate_limit()` and
-  `peek_rate_limit()` with the other definer functions.
-- **The sign-in peek/consume edge** — one extra attempt at the boundary under
-  simultaneous failures; documented, accepted.
+- **The SECURITY DEFINER doors** — re-read `consume_rate_limit()`,
+  `peek_rate_limit()`, `reserve_sign_in_attempt()` and
+  `release_sign_in_attempt()` with the other definer functions.
 - **The per-account sign-in backstop is a small lock-out surface.** Thirty
   failures against the owner's address within fifteen minutes refuse the site's
   form for that address until the window ends — an attacker needs three or more
@@ -6344,8 +6381,15 @@ as a step.
   quarter of an hour of the *form*, not of the account. Accepted as the price of
   refusing a distributed run at one account; the audit may prefer a longer
   per-account window with a higher count.
-- **The per-instance key fallback** when the secret is missing on a host —
-  documented degradation; the prerequisite closes it.
+- **Only Vercel is a recognised deployment.** There the secret is required and
+  the address headers are believed; locally a fixed development key stands in;
+  an origin that is neither gets a per-process key with one warning and one
+  shared client subject. Another host needs its own header-trust and secret
+  decision (`lib/config/site.ts`, `lib/rate-limit/sign-in.ts`) before it is a
+  deployment.
+- **A release inside an outage.** When the limiter itself cannot be reached
+  after a success, the reservation stands until its window ends — one allowance,
+  fifteen minutes, logged; the fail-open tier's honest cost.
 - **Refused hits keep counting** in a bucket's `hits` integer; a flood of two
   billion in one window is not a realistic concern, and the count is honest, but
   a cap is a one-line change if the audit prefers one.
@@ -6379,6 +6423,75 @@ project with the limiter's own sentence: `content:publish` at 30 per five minute
 had been reached by one Staff actor after `weekly-special` at both widths — the
 measurement that resized the content tiers (the table above). Each launch started
 again from the top; nothing was stitched.
+
+### The closure pass (2026-09-05, later the same day)
+
+Two of the carry-forwards above were reopened before 13C and closed narrowly, in
+one commit on top of the phase's own (`fix: harden authentication rate limiting`).
+
+**The race, measured rather than assumed.** The "one extra attempt at the
+boundary" wording was tested against the real local Auth server: the per-client
+counter at nine of ten, eight simultaneous wrong passwords through the real
+throttle functions and a real `signInWithPassword()`, the Auth requests counted
+at the fetch and again in the Auth container's own log. All eight passed the
+peek, all eight reached the Auth server, and the bucket ended at seventeen —
+seven attempts past the threshold, not one. The gap between the peek and the
+consume is the whole Auth round-trip, and everything inside it goes through.
+
+**What changed.** Migration `20260905180000` adds `reserve_sign_in_attempt()`
+and `release_sign_in_attempt()` (SECURITY DEFINER, EXECUTE for `anon` only): the
+reservation locks both current-window rows in a fixed order and moves both
+counters or neither; the release lowers each by one, never below zero, for the
+two sign-in scopes it names itself. `consume`, `peek` and the reset path are
+untouched — the reset request was already consumed atomically before the e-mail
+is sent, so it had no gap to close. The Server Action now runs
+`lib/rate-limit/sign-in-attempt.ts`: reserve, attempt, settle — the reservation
+stays for every verdict the Auth server gives (a wrong password, an unknown
+address, a banned account, its own 429) and is released after a success, after
+an Auth server that gave no verdict (`AuthRetryableFetchError`: a network
+failure or a 5xx), or after an attempt that threw. Successes still never count;
+an outage burns nobody's allowance; a refused attempt moves neither counter, so
+a run refused per client cannot push the per-account backstop. No enumeration
+difference was introduced: the refusal, the generic sentence and the
+deactivated-account sentence are exactly phase 11C's and 13B's.
+
+**The secret.** `RATE_LIMIT_SECRET` is required on Vercel — `VERCEL=1` is the
+one deployment signal, and the one place client-derived subjects exist —
+and must be at least 32 characters wherever it is set; a missing or short value
+throws at the first sign-in or reset request, naming the variable and never a
+value, so the deployment refuses the two unauthenticated forms rather than
+keying them per instance. Locally, and in a local `next build && next start`,
+the fixed development key stands in as before. This matters twice now: the
+subjects are also what the reservation doors accept through PostgREST, and
+nobody outside the server can compute one.
+
+**Also found and fixed on the way.** The integration suites ran in parallel and
+two of them now empty the shared counter table as part of their stories;
+`vitest.integration.mts` runs them one file at a time.
+
+**The regression.** One clean chain on 2026-09-05 from a tree holding only this
+closure, restarted from the top twice — once for the parallel-suite interference
+above (a real defect, in the harness), once because the machine slept for eight
+hours inside a forty-second project and the first assertion after the resume
+failed; nothing was stitched. The third run, with the machine held awake: every
+port-3100 owner stopped, `npm ci`, `npm run db:reset:full`, `.next` removed, a
+fresh production build, typecheck, lint, source policy (662 files), the unit
+suite (**2,730** tests in 114 files, 14 new), pgTAP (**2,187** assertions in 30
+files, 81 new), the integration suite (**44** in 6 files, 10 new), `playwright
+test --list` (**1,354** tests in 42 files), `npm audit --audit-level=high`
+(clean), and the complete Playwright matrix at `--retries=0` in the config's
+order with `security` last: **1,347 passed, 7 skipped (the standing skips), 0
+failed, 0 flaky** across 48 projects. Phases 5–12 and 13A stayed green; the
+header suite was untouched and green; the account, news-autosave and image
+tiers were not changed and their stories ran as before.
+
+**Carry-forwards, restated.** The sign-in peek/consume edge is closed and removed
+from the list above. The per-instance fallback is replaced by the rule above:
+only Vercel is a recognised deployment, where the secret is required. Kept: the
+per-account lock-out surface, the SECURITY DEFINER doors (now four limiter
+doors), the provider's own endpoints, `'unsafe-inline'`, and one new narrow
+limitation — a release the limiter cannot record during an outage leaves one
+hit until its window ends.
 
 ### What 13C should be
 
@@ -7085,7 +7198,7 @@ No map library. No tile provider called at runtime. No JavaScript. The entire ma
 | XSS from staff-entered content | News body is structured JSON rendered by our own components — no HTML parsing, no `dangerouslySetInnerHTML` anywhere, including the new detail page. Tapas list items and all other free text are plain strings. |
 | Open redirect / injected announcement link | `link_type='page'` is an enum of our own routes; `link_type='url'` is validated as `https:` and rendered with `rel="noopener noreferrer"`. The map link is built from the stored address, never from user input. |
 | CSRF | Server Actions carry Next.js's built-in origin check; `serverActions.allowedOrigins` is derived from `lib/config/site.ts`, not hard-coded. |
-| Credential stuffing | Supabase Auth's own per-IP limits on its endpoints, plus — since phase 13B (§0ai) — the application throttle in the sign-in action: failures counted per client address and per account address as HMAC subjects in PostgreSQL, asked before the Auth server is contacted, one sentence for every refusal, successes never counted. Password reset via a verified Resend domain, its request throttled per client. |
+| Credential stuffing | Supabase Auth's own per-IP limits on its endpoints, plus — since phase 13B (§0ai) — the application throttle in the sign-in action: failures counted per client address and per account address as HMAC subjects in PostgreSQL, one attempt reserved in both atomically before the Auth server is contacted and released after a success, one sentence for every refusal, successes never counted. Password reset via a verified Resend domain, its request throttled per client. |
 | **A signed-in account floods the administration** | Every Server Action declares its tier and is counted against the session's own `auth.uid()` in `rate_limit_buckets` — one atomic `INSERT … ON CONFLICT` under the row lock, no process memory, no browser-supplied subject or limit; a refusal happens before parsing and performs no mutation, writes no audit row and expires no cache tag (§0ai, migration `20260905120000`, pgTAP `029`). |
 | **Framing, sniffing, injected resources** | One header policy on every response (`lib/security/headers.ts`, phase 13B): CSP with `frame-ancestors 'none'`, no foreign script origin, no `eval`, no inline style, images and the uploader's connection from this origin and the Storage origin only; `X-Frame-Options: DENY`, `nosniff`, `strict-origin-when-cross-origin`, a minimal `Permissions-Policy`, two-year HSTS. The one concession — `'unsafe-inline'` for the framework's inline bootstrap scripts, to keep the public pages cacheable — is recorded in §0ai with its reasoning. |
 | Admin indexed by search engines | `/admin/*` returns `X-Robots-Tag: noindex, nofollow` and is disallowed in `robots.txt`. Preview deployments additionally sit behind Vercel Deployment Protection (§10). |
@@ -7234,7 +7347,7 @@ The domain is deferred and is **not** a Phase 0 dependency.
 | `SUPABASE_DB_URL` | CI only, per environment | migrations; passed as env, never as an argument |
 | `SITE_URL` | all | canonical URLs, OG, sitemap, allowed origins — the only place a domain lives |
 | `SENTRY_DSN` | server only | |
-| `RATE_LIMIT_SECRET` | server only | keys the sign-in throttle's HMAC subjects (§0ai); read only through `lib/env/server.ts`; a deployment prerequisite — without it the throttle is keyed per instance |
+| `RATE_LIMIT_SECRET` | server only | keys the sign-in throttle's HMAC subjects (§0ai); read only through `lib/env/server.ts`; **required on Vercel** (a deployment without it refuses the sign-in and reset forms), at least 32 characters; a fixed development key stands in locally |
 | `RESEND_API_KEY`, `AUTH_EMAIL_FROM` | Supabase project settings | password reset and invites |
 | `VERCEL_AUTOMATION_BYPASS_SECRET` | CI only | Playwright against protected previews |
 | `BACKUP_S3_*` (endpoint, bucket, region, prefix, key pair) | GitHub `backup` environment only | the weekly export's destination (§10f, §0ah); `SUPABASE_DB_URL`, `NEXT_PUBLIC_SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` live there too, for the job |

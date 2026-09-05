@@ -4,11 +4,17 @@ import { randomBytes } from 'node:crypto'
 
 import { headers } from 'next/headers'
 
-import { isLocalSiteUrl } from '@/lib/config/site'
+import { isLocalSiteUrl, isVercelDeployment } from '@/lib/config/site'
 import { getRateLimitSecret } from '@/lib/env/server'
 import { createSupabasePublicClient } from '@/lib/supabase/server'
 
-import { consumeRateLimit, peekRateLimit, refusedByRateLimit } from './limiter'
+import { consumeRateLimit, refusedByRateLimit, releaseSignInAttempt, reserveSignInAttempt } from './limiter'
+import {
+  runThrottledSignIn,
+  type AuthAnswer,
+  type SignInReservation,
+  type ThrottledSignInOutcome,
+} from './sign-in-attempt'
 import type { ClientRateLimitScope } from './scopes'
 import { deriveClientSubject, normalizeAccountAddress, trustedClientAddress } from './subject'
 
@@ -26,25 +32,31 @@ import { deriveClientSubject, normalizeAccountAddress, trustedClientAddress } fr
  * the site's login form as a stuffing tool: without it, the form is an unlimited
  * proxy to the Auth server from a single origin.
  *
- * TWO COUNTERS, FAILURES ONLY
+ * TWO COUNTERS, FAILURES ONLY — RESERVED FIRST
  *
  *   * per client address (`auth:signin`) — the tight one;
  *   * per account address (`auth:signin-account`) — the loose backstop.
  *
- * Both are asked BEFORE the Auth server is contacted (`peek`) and moved only when a
- * sign-in FAILS (`consume`): a successful sign-in never counts, so a person who logs
- * in from a shared restaurant connection several times a day inherits nothing
- * (brief §22). The two-step shape has one known edge: two failures arriving in the
- * same instant near the threshold may both pass the peek. Both are still counted,
- * so the next attempt is refused; a throttle is not made weaker by one extra
- * attempt at its boundary, and the alternative — counting successes — would be.
+ * An attempt is RESERVED in both before the Auth server is contacted — one atomic
+ * decision under the row locks (`reserve_sign_in_attempt()`), so that once the
+ * tier's last allowance is taken every simultaneous attempt after it is refused
+ * before any Auth request is made. The reservation then STAYS when the Auth server
+ * refuses (a failure) and is RELEASED when it accepts, so a successful sign-in
+ * still never counts: a person who logs in from a shared restaurant connection
+ * several times a day inherits nothing (brief §22). The full rule, outage included,
+ * is `sign-in-attempt.ts`.
+ *
+ * Phase 13B's first shape — peek, then Auth, then consume on failure — left the
+ * whole Auth round-trip between the read and the write; eight simultaneous wrong
+ * passwords with one allowance left all reached the Auth server (§0ai, the
+ * closure). The reservation closes that gap.
  *
  * ENUMERATION (brief §21)
  *
  * The refusal is one sentence, the same for an address that exists and one that
- * does not, and the per-account counter moves identically for both. A throttled
- * request is reported before the Auth server is asked, so it reveals nothing the
- * generic "Forkert e-mail eller adgangskode." did not already conceal. The
+ * does not, and both counters move identically for both. A throttled request is
+ * reported before the Auth server is asked, so it reveals nothing the generic
+ * "Forkert e-mail eller adgangskode." did not already conceal. The
  * deactivated-account wording of phase 11C is untouched: it is shown only after an
  * Auth-server answer, and a throttled request never gets one.
  */
@@ -54,24 +66,26 @@ export type SignInThrottleSubjects = {
   readonly account: string
 }
 
-/** The secret, or a stand-in — never logged, never returned to a caller. */
+/** The stand-in key of a host that is neither local nor Vercel — never logged, never returned. */
 let processKey: string | null = null
 
 function subjectSecret(): string {
+  // On Vercel this throws when the secret is missing (`lib/env/server.ts`): a
+  // deployment where client-derived subjects exist does not get a made-up key.
   const configured = getRateLimitSecret()
   if (configured !== undefined) return configured
 
   if (isLocalSiteUrl()) {
-    // Local development and the test runs: a fixed key, so the derivation is
-    // deterministic on one machine and the throttle is exercised for real.
+    // Local development, the test runs, and a local production build: a fixed key,
+    // so the derivation is deterministic on one machine and the throttle is
+    // exercised for real.
     return 'local-development-rate-limit-key'
   }
 
-  // A hosted deployment without the secret: keep the throttle working with a key
-  // this process made up. Buckets are then per instance rather than shared, which
-  // is weaker than intended and is why the secret is a deployment prerequisite
-  // (technical plan §10e). Said once, in the server log — without the name, which
-  // the source policy keeps in `lib/env/server.ts`.
+  // An origin that is neither local nor Vercel: no address header is believed here
+  // (every client is `local`), so the only per-instance effect is the account key.
+  // Said once, in the server log — without the name, which the source policy keeps
+  // in `lib/env/server.ts`.
   if (processKey === null) {
     processKey = randomBytes(32).toString('hex')
     console.warn('The rate-limit secret is not configured; the sign-in throttle is keyed per instance until it is.')
@@ -81,7 +95,7 @@ function subjectSecret(): string {
 
 /** On Vercel the platform's proxy writes the address headers itself; nowhere else are they believed. */
 function trustAddressHeaders(): boolean {
-  return process.env.VERCEL === '1'
+  return isVercelDeployment()
 }
 
 /** The two subjects for this request — derived, never stored in the clear. */
@@ -95,33 +109,42 @@ export async function signInThrottleSubjects(email: string): Promise<SignInThrot
   }
 }
 
-/** True when this sign-in attempt must be refused before the Auth server is asked. */
-export async function signInIsThrottled(subjects: SignInThrottleSubjects): Promise<boolean> {
-  const supabase = createSupabasePublicClient()
-
-  const [client, account] = await Promise.all([
-    peekRateLimit(supabase, 'auth:signin', subjects.client),
-    peekRateLimit(supabase, 'auth:signin-account', subjects.account),
-  ])
-
-  return (
-    refusedByRateLimit(client, 'auth:signin') || refusedByRateLimit(account, 'auth:signin-account')
-  )
+/**
+ * One attempt reserved in both buckets, or refused with nothing moved. When the
+ * limiter cannot answer, the tier's fail-open rule lets the attempt go on without
+ * a reservation (`scopes.ts`).
+ */
+export async function reserveSignIn(subjects: SignInThrottleSubjects): Promise<SignInReservation> {
+  const decision = await reserveSignInAttempt(createSupabasePublicClient(), subjects.client, subjects.account)
+  if (decision.status === 'allowed') return 'reserved'
+  return refusedByRateLimit(decision, 'auth:signin') ? 'refused' : 'unreserved'
 }
 
-/** A sign-in the Auth server refused: count it against both subjects. */
-export async function noteSignInFailure(subjects: SignInThrottleSubjects): Promise<void> {
-  const supabase = createSupabasePublicClient()
+/** The reservation given back — after a success, or an Auth server that gave no verdict. */
+export async function releaseSignIn(subjects: SignInThrottleSubjects): Promise<void> {
+  await releaseSignInAttempt(createSupabasePublicClient(), subjects.client, subjects.account)
+}
 
-  await Promise.all([
-    consumeRateLimit(supabase, 'auth:signin', subjects.client),
-    consumeRateLimit(supabase, 'auth:signin-account', subjects.account),
-  ])
+/**
+ * The sign-in attempt as the Server Action runs it: reserve, ask the Auth server,
+ * settle. `attempt` is the one Auth request; the caller reads the answer exactly as
+ * it would have without the throttle.
+ */
+export async function signInUnderThrottle<T extends AuthAnswer>(
+  subjects: SignInThrottleSubjects,
+  attempt: () => Promise<T>,
+): Promise<ThrottledSignInOutcome<T>> {
+  return runThrottledSignIn({
+    reserve: () => reserveSignIn(subjects),
+    release: () => releaseSignIn(subjects),
+    attempt,
+  })
 }
 
 /**
  * The password-reset request: counted on every request (there is no failure to
  * distinguish — the form always reports success), against the client address.
+ * Consumed BEFORE the e-mail is requested, atomically, so it has no gap to close.
  */
 export async function resetRequestIsThrottled(): Promise<boolean> {
   const scope: ClientRateLimitScope = 'auth:reset'
