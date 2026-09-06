@@ -42,8 +42,8 @@ export default async function MenuPage() {
 
   return (
     <>
-      <PageContainer className="pt-7 pb-4 md:pt-10">
-        <h1 className="font-display text-[2.375rem] tracking-[-0.03em] md:text-display-sm">Menu</h1>
+      <PageContainer className="pt-page-mobile pb-4 md:pt-page">
+        <h1 className="font-display text-page">Menu</h1>
         <p className="text-ink-2 mt-2 max-w-[52ch] hidden md:block">{PRICE_NOTE}</p>
         <p className="text-ink-2 mt-2.5 flex items-center gap-2.5">
           <span aria-hidden="true" className="border-rule size-4.5 shrink-0 rounded-full border-[1.5px]" />

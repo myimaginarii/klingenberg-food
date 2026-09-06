@@ -22,7 +22,7 @@ const NEUTRAL_TONE = 'bg-neutral-surface text-neutral-ink'
 export function DishLabelBadge({ label }: { label: string }) {
   return (
     <span
-      className={`rounded-badge px-2.5 py-1.5 text-micro leading-none font-medium ${
+      className={`rounded-badge px-2.5 py-1.5 text-chip leading-none font-medium ${
         LABEL_TONES[label] ?? NEUTRAL_TONE
       }`}
     >
@@ -43,7 +43,7 @@ export function DishLabelBadge({ label }: { label: string }) {
  */
 export function SoldOutBadge() {
   return (
-    <span className="bg-error-surface border-error-border text-error-ink rounded-badge inline-flex items-center gap-1.5 border px-2.5 py-1.5 text-micro leading-none font-semibold">
+    <span className="bg-error-surface border-error-border text-error-ink rounded-badge inline-flex items-center gap-1.5 border px-2.5 py-1.5 text-chip leading-none font-semibold">
       <span aria-hidden="true" className="border-error size-2 rounded-full border-2" />
       Udsolgt i dag
     </span>

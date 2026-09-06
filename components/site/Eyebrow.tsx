@@ -31,7 +31,7 @@ export function Eyebrow({
   const toneClass = tone === 'inverse' ? 'text-white/65' : 'text-ink-3'
 
   return (
-    <Element id={id} className={`font-mono text-label uppercase ${toneClass} ${className}`}>
+    <Element id={id} className={`font-mono text-eyebrow uppercase ${toneClass} ${className}`}>
       {children}
     </Element>
   )

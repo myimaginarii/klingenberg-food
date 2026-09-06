@@ -25,7 +25,7 @@ export function TakeawayCallToAction({
         <div className="flex-1">
           <h2
             id="mad-ud-af-huset-cta"
-            className="font-display text-[1.625rem] text-white md:text-[1.875rem]"
+            className="font-display text-statement text-white"
           >
             {HEADING}
           </h2>

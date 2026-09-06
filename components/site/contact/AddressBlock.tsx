@@ -18,13 +18,13 @@ export function AddressBlock({
 }) {
   return (
     <address className={`not-italic ${className}`}>
-      <span className="font-display block text-[1.5rem] leading-snug font-semibold">
+      <span className="font-display text-card block">
         {address.addressLine1}
         <br />
         {`${address.postalCode} ${address.city}`}
       </span>
       {venueName ? (
-        <span className="text-ink-2 mt-1 block">{`${venueName} · Danmark`}</span>
+        <span className="text-ink-2 text-detail mt-1.5 block">{`${venueName} · Danmark`}</span>
       ) : null}
     </address>
   )

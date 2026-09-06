@@ -32,12 +32,12 @@ export async function PreviewBar() {
       className="bg-warning-surface border-warning-border text-warning-ink px-gutter border-b py-2 md:px-8"
     >
       <div className="max-w-content mx-auto flex flex-wrap items-center gap-x-3 gap-y-1">
-        <p className="text-meta font-semibold">
+        <p className="text-detail font-semibold">
           <span aria-hidden="true">● </span>
           Forhåndsvisning — ikke live endnu
         </p>
 
-        <p className="text-meta text-warning-ink-2">
+        <p className="text-detail text-warning-ink-2">
           Du ser kladder som {preview.profile.name}. Gæster ser det offentliggjorte indhold.
         </p>
 
@@ -48,7 +48,7 @@ export async function PreviewBar() {
             guarantees (§7e). */}
         {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
         <a
-          className="text-meta min-h-tap ml-auto inline-flex items-center font-semibold underline"
+          className="text-detail min-h-tap ml-auto inline-flex items-center font-semibold underline"
           href="/api/preview/stop"
         >
           Afslut forhåndsvisning

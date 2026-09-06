@@ -51,9 +51,9 @@ const VARIANT_CLASSES: Record<ActionVariant, string> = {
 }
 
 const SIZE_CLASSES: Record<ActionSize, string> = {
-  compact: 'min-h-tap px-[18px] text-[0.90625rem]',
+  compact: 'min-h-tap px-[18px] text-nav',
   default: 'min-h-12 px-6 text-base',
-  large: 'min-h-[3.375rem] px-7 text-[1.0625rem]',
+  large: 'min-h-[3.375rem] px-7 text-body',
 }
 
 /**

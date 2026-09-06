@@ -38,7 +38,7 @@ export function SiteFooter({
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-[1.2fr_1fr_1fr_1fr] lg:gap-10">
           <div>
             <SiteLogo size="compact" tone="inverse" />
-            <address className="mt-3 text-meta leading-relaxed not-italic">
+            <address className="text-detail mt-3 leading-relaxed not-italic">
               {contact.venueName ? (
                 <>
                   {contact.venueName}
@@ -51,7 +51,7 @@ export function SiteFooter({
               {contact.primaryPhone ? (
                 <a
                   href={telHref(contact.primaryPhone)}
-                  className="mt-1 inline-flex min-h-tap items-center font-semibold text-white tabular-nums no-underline hover:underline"
+                  className="mt-1 flex min-h-tap w-fit items-center font-semibold text-white tabular-nums no-underline hover:underline"
                 >
                   {contact.primaryPhone}
                 </a>
@@ -59,7 +59,7 @@ export function SiteFooter({
               {contact.secondaryPhone ? (
                 <a
                   href={telHref(contact.secondaryPhone)}
-                  className="inline-flex min-h-tap items-center text-meta text-white/78 tabular-nums no-underline hover:underline"
+                  className="text-detail flex min-h-tap w-fit items-center text-white/78 tabular-nums no-underline hover:underline"
                 >
                   {`Ekstra nummer ${contact.secondaryPhone}`}
                 </a>

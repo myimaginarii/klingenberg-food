@@ -21,9 +21,9 @@ export type OpenStatusVariant =
   | 'on-brand'
 
 const CONTAINER_CLASSES: Record<OpenStatusVariant, string> = {
-  inline: 'text-meta font-medium md:text-[0.90625rem]',
-  pill: 'rounded-badge border px-3.5 py-2 text-meta font-semibold md:text-nav',
-  'on-brand': 'rounded-badge bg-white/15 px-3.5 py-2 text-meta font-semibold text-white',
+  inline: 'text-detail font-medium',
+  pill: 'rounded-badge border px-3.5 py-2 text-nav font-semibold',
+  'on-brand': 'rounded-badge bg-white/15 px-3.5 py-2 text-nav font-semibold text-white',
 }
 
 const OPEN_TONE: Record<OpenStatusVariant, string> = {

@@ -47,15 +47,23 @@ export function GoogleMap({
 }) {
   const line = formatAddressLine(address)
 
+  /* The frame is the wrapper's box and the iframe simply fills it, rather than the
+     iframe carrying the aspect ratio itself. Same drawn result, but it lets a caller
+     that has a column to fill override the ratio (Find os passes `md:aspect-auto`
+     with `md:flex-1`) without reaching inside this component. The iframe's own
+     attributes — the embed `src`, the title, lazy loading, fullscreen and the referrer
+     policy — are untouched. */
   return (
-    <div className={className}>
+    <div
+      className={`rounded-card-lg border-border overflow-hidden border ${FRAME_CLASSES[frame]} ${className}`}
+    >
       <iframe
         src={MAP_EMBED_SRC}
         title={`Kort over ${line}`}
         loading="lazy"
         allowFullScreen
         referrerPolicy="strict-origin-when-cross-origin"
-        className={`rounded-card-lg border-border block w-full border ${FRAME_CLASSES[frame]}`}
+        className="block size-full"
       />
     </div>
   )

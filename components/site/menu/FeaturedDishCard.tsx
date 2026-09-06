@@ -36,18 +36,12 @@ export function FeaturedDishCard({ dish }: { dish: DishView }) {
 
       <div className="min-w-0 flex-1 p-2.5 md:p-4.5">
         <div className="flex items-baseline justify-between gap-3">
-          <h3 className="font-display text-[1.125rem] font-semibold md:text-[1.3125rem]">
-            {dish.name}
-          </h3>
-          <DishPrice
-            priceOre={dish.priceOre}
-            soldOut={dish.soldOut}
-            className="md:text-[1.3125rem]"
-          />
+          <h3 className="font-display text-card">{dish.name}</h3>
+          <DishPrice priceOre={dish.priceOre} soldOut={dish.soldOut} />
         </div>
 
         {dish.description ? (
-          <p className="text-ink-2 mt-1.5 text-[0.90625rem]">{dish.description}</p>
+          <p className="text-ink-2 mt-1.5 text-support">{dish.description}</p>
         ) : null}
 
         {dish.soldOut || dish.labels.length > 0 ? (

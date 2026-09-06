@@ -25,24 +25,33 @@ export function MenuOrderBar({
 }) {
   return (
     <section aria-label="Bestilling" className="bg-section border-border border-t">
-      <PageContainer className="flex flex-col gap-4 py-7 md:flex-row md:items-center">
-        {contact.primaryPhone ? (
-          <PhoneAction phone={contact.primaryPhone} label="Bestil på telefon" showNumber />
-        ) : null}
-        {address ? (
-          <ActionLink href={directionsUrl(address)} variant="secondary">
-            Vis vej
-          </ActionLink>
-        ) : null}
-        <p className="text-ink-2 text-nav tabular-nums">
-          {formatWeeklyHoursLines(schedule).join(' · ')}
-          {contact.secondaryPhone ? (
-            <>
-              <br />
-              {`Ekstra nummer ${contact.secondaryPhone}`}
-            </>
+      <PageContainer className="flex flex-col gap-5 py-7 md:flex-row md:items-center md:gap-7">
+        <div className="flex flex-col gap-2.5 md:flex-row md:items-center">
+          {contact.primaryPhone ? (
+            <PhoneAction phone={contact.primaryPhone} label="Bestil på telefon" showNumber />
           ) : null}
-        </p>
+          {address ? (
+            <ActionLink href={directionsUrl(address)} variant="secondary">
+              Vis vej
+            </ActionLink>
+          ) : null}
+        </div>
+
+        {/* The hours and the second number are reference, not actions: they sit apart from
+            the two controls and each takes its own line, rather than running together into
+            one long middot sentence beside them. */}
+        <div className="md:ml-auto md:text-right">
+          <ul className="text-ink-2 text-detail flex flex-col gap-0.5 tabular-nums">
+            {formatWeeklyHoursLines(schedule).map((line) => (
+              <li key={line}>{line}</li>
+            ))}
+          </ul>
+          {contact.secondaryPhone ? (
+            <p className="text-ink-3 text-detail mt-1.5 tabular-nums">
+              {`Ekstra nummer ${contact.secondaryPhone}`}
+            </p>
+          ) : null}
+        </div>
       </PageContainer>
     </section>
   )

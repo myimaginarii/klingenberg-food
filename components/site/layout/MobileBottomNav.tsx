@@ -56,7 +56,7 @@ function BottomNavItem({
 }) {
   if (href === null) return null
 
-  const classes = `flex min-h-[3.75rem] flex-col items-center justify-center gap-1 pt-1 text-micro no-underline ${
+  const classes = `flex min-h-[3.75rem] flex-col items-center justify-center gap-1 pt-1 text-chip no-underline ${
     highlighted ? 'bg-brand-700 font-semibold text-white' : 'text-neutral-ink font-medium'
   }`
 

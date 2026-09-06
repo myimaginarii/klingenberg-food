@@ -29,7 +29,7 @@ export function FollowUsCard({ facebookUrl }: { facebookUrl: string | null }) {
           Facebook
         </a>
       </p>
-      <p className="text-ink-3 mt-2 font-mono text-[0.8125rem]">
+      <p className="text-ink-3 text-detail mt-2.5 font-mono">
         {facebookUrl.replace(/^https:\/\/(www\.)?/, '')}
       </p>
     </section>

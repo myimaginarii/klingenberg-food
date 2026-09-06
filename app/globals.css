@@ -9,6 +9,11 @@
    Nothing in this file may be changed without a corresponding change to the
    approved design. Values are copied verbatim from 1aa; the comment beside each
    token records the Danish label it carries in the design.
+
+   Two blocks are additions rather than edits, and each states its reason where it
+   sits: the accessibility correction to --color-ink-3, and the public type scale,
+   which gives the public site the middle steps 1b never enumerated. No approved
+   value is overwritten by either.
    ========================================================================== */
 
 @theme {
@@ -149,11 +154,88 @@
   --text-label--letter-spacing: 0.16em;
   --text-label--font-weight: 500;
 
+  /* ---- Public type scale -------------------------------------------------
+     DEPARTURE FROM THE APPROVED TOKENS, recorded rather than silent.
+
+     The scale above is the design's, and the administration still uses it verbatim.
+     The *public* site had drifted away from it: the H1s, the section headings, the
+     card titles and the helper text were typed as one-off arbitrary sizes in the
+     components rather than taken from a token — 28 distinct font sizes across
+     `components/site` and `app/(site)`, from 8.5 px to 66 px, with no steps between
+     them. The visible symptoms were the ones the polish pass was asked to fix: the
+     Menu H1 was 52 px and bold while every other page H1 was 48 px and *regular*
+     (an arbitrary size carries no weight, so those headings silently fell to 400);
+     "Holdet" was 32/700 beside "Fra køkkenet" at 30/400 on the same page; the jump
+     from a 66 px hero to 11 px labels had nothing in the middle.
+
+     These nine steps are that middle. They are fluid — `clamp(min, rem + vw, max)`,
+     never bare `vw`, so the rem term still answers the reader's own font size and
+     text scales to 200 % (WCAG 1.4.4) — and each one interpolates between the 375 px
+     and 1440 px frames rather than jumping at `md`. Sizes follow the design's intent
+     (display and title are Bricolage 700) with the page H1 brought back under
+     control: 44 px rather than 48–66.
+
+     The admin tokens above are untouched on purpose. The two surfaces have genuinely
+     different densities — a dense editing UI against a menu a guest reads across the
+     room — and sharing one scale between them is what forced the arbitrary values in
+     the first place. Nothing here is referenced by `components/admin`.              */
+  --text-hero: clamp(2.5rem, 2.1479rem + 1.5023vw, 3.5rem); /* 40 → 56 · Forside only */
+  --text-hero--line-height: 1.02;
+  --text-hero--letter-spacing: -0.03em;
+  --text-hero--font-weight: 700;
+
+  --text-page: clamp(2.125rem, 1.9049rem + 0.939vw, 2.75rem); /* 34 → 44 · every page H1 */
+  --text-page--line-height: 1.06;
+  --text-page--letter-spacing: -0.025em;
+  --text-page--font-weight: 700;
+
+  --text-statement: clamp(1.75rem, 1.618rem + 0.5634vw, 2.125rem); /* 28 → 34 · band headings */
+  --text-statement--line-height: 1.12;
+  --text-statement--letter-spacing: -0.02em;
+  --text-statement--font-weight: 700;
+
+  --text-subhead: clamp(1.625rem, 1.537rem + 0.3756vw, 1.875rem); /* 26 → 30 · section headings. NOT `--text-section`: --color-section already
+     owns that name, and Tailwind resolves a colliding `text-*` to the colour. */
+  --text-subhead--line-height: 1.18;
+  --text-subhead--letter-spacing: -0.015em;
+  --text-subhead--font-weight: 700;
+
+  --text-card: clamp(1.25rem, 1.206rem + 0.1878vw, 1.375rem); /* 20 → 22 · card titles, prices */
+  --text-card--line-height: 1.25;
+  --text-card--letter-spacing: -0.01em;
+  --text-card--font-weight: 600;
+
+  --text-lead: clamp(1.0625rem, 1.0185rem + 0.1878vw, 1.1875rem); /* 17 → 19 · intro paragraphs */
+  --text-lead--line-height: 1.6;
+
+  --text-support: clamp(0.9375rem, 0.9155rem + 0.0939vw, 1rem); /* 15 → 16 · dish descriptions */
+  --text-support--line-height: 1.55;
+
+  /* 14 — the floor for helper text on the public site. Nothing a guest has to read
+     goes below it; the two smaller steps beneath are chips and mono labels, which are
+     glanced at rather than read. */
+  --text-detail: 0.875rem; /* 14 */
+  --text-detail--line-height: 1.5;
+
+  --text-chip: 0.78125rem; /* 12.5 — badges, the wordmark's venue line */
+  --text-chip--line-height: 1.35;
+
+  --text-eyebrow: 0.75rem; /* 12 — the spaced mono label; was 11 and read as texture */
+  --text-eyebrow--line-height: 1;
+  --text-eyebrow--letter-spacing: 0.14em;
+  --text-eyebrow--font-weight: 500;
+
   /* ---- Spacing — the 4-scale (1aa "MELLEMRUM · 4-SKALA") ------------------
      4 · 8 · 12 · 16 · 24 · 32 · 44 come from Tailwind's 0.25rem base
      (1 2 3 4 6 8 11). These are the named steps the design calls out.        */
   --spacing-section: 2.75rem; /* 44 — sektion desktop */
   --spacing-section-mobile: 1.5rem; /* 24 — sektion mobil */
+  /* The band of space above and below a page's own heading block, before the first
+     `Section`. It was typed by hand on each route and had drifted to three different
+     values (Menu 40, Find os / Nyheder / Mad ud af huset 44, Om os 48), which is what
+     made the pages read at different densities. One name, one number, one rhythm. */
+  --spacing-page: 2.75rem; /* 44 — sidehoved desktop */
+  --spacing-page-mobile: 1.75rem; /* 28 — sidehoved mobil */
   --spacing-tap: 2.75rem; /* 44 — mindste tryk-mål */
   --spacing-gutter: 1rem; /* 16 — mobil gutter */
   --spacing-bottom-nav: 3.75rem; /* 60 — mobil bundnavigation, uden safe-area (1l) */

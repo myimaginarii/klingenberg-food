@@ -23,13 +23,13 @@ export function MenuCategoryNav({ categories }: { categories: readonly MenuCateg
       aria-label="Menuens kategorier"
       className="border-border bg-bg/95 sticky top-0 z-20 border-b backdrop-blur-[6px]"
     >
-      <PageContainer className="py-2.5 md:py-3">
+      <PageContainer className="py-3">
         <ul className="chip-scroller flex gap-2 overflow-x-auto md:flex-wrap md:overflow-x-visible">
           {categories.map((category) => (
             <li key={category.id} className="shrink-0">
               <a
                 href={`#${category.anchorId}`}
-                className="border-border bg-surface text-ink rounded-badge hover:border-brand-700 hover:text-brand-700 flex min-h-tap items-center border px-4 text-[0.875rem] font-medium whitespace-nowrap no-underline md:text-[0.90625rem]"
+                className="border-border bg-surface text-ink rounded-badge hover:border-brand-700 hover:text-brand-700 flex min-h-tap items-center border px-4.5 text-nav font-medium whitespace-nowrap no-underline"
               >
                 {category.name}
               </a>

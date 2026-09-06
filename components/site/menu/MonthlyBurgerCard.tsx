@@ -1,6 +1,5 @@
 import type { MonthlyBurgerView } from '@/lib/menu/view'
 
-import { MediaPlaceholder } from '../MediaPlaceholder'
 import { SiteImage } from '../SiteImage'
 import { DishLabelBadge, SoldOutBadge } from './DishBadge'
 import { DishPrice } from './DishPrice'
@@ -18,8 +17,14 @@ import { DishPrice } from './DishPrice'
  *    published dates (§7d) — a read-time comparison, never a scheduled job.
  *
  * The editor that fills it in is phase 6; its photograph (phase 10C-2) is the row's
- * library image in the same 4:3 / 1:1 frame the dish cards use, and the empty state
- * keeps the reserved frame — an unconfigured burger has no image to show.
+ * library image in the same 4:3 / 1:1 frame the dish cards use.
+ *
+ * The empty state draws **no image frame at all**. It used to reserve the hatched box
+ * the filled card's photograph occupies, which read as a burger card whose picture had
+ * failed to load rather than as a slot the kitchen has not filled in — the dashed border
+ * and the "Skiftende" chip already say that, and they say it without looking broken. The
+ * text takes the card's width instead, the same way `WeeklySpecial` handles a week with
+ * no photograph (1af, "Uden foto flytter teksten helt ud til kanten").
  */
 const EMPTY_STATE_TEXT =
   'Denne måneds burger er ikke oplyst endnu. Feltet står tomt, indtil restauranten udfylder navn, beskrivelse og pris — og hele kortet forsvinder fra menuen uden for perioden.'
@@ -27,25 +32,14 @@ const EMPTY_STATE_TEXT =
 export function MonthlyBurgerCard({ burger }: { burger: MonthlyBurgerView | null }) {
   if (burger === null) {
     return (
-      <article className="border-rule bg-field-bg rounded-card-lg flex gap-3 border-[1.5px] border-dashed p-2.5 md:gap-5 md:p-4">
-        <MediaPlaceholder
-          ratio="square"
-          label="Månedens burger"
-          className="w-24 shrink-0 self-start rounded-[0.5rem] md:aspect-card md:w-[9.375rem] md:self-center"
-        />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-baseline gap-2.5">
-            <h3 className="font-display text-[1.125rem] font-semibold md:text-2xl">
-              Månedens burger
-            </h3>
-            <span className="bg-warning-surface text-warning-ink rounded-badge px-2.5 py-1.5 text-micro leading-none font-medium">
-              Skiftende
-            </span>
-          </div>
-          <p className="text-ink-2 mt-1.5 max-w-[66ch] text-meta md:text-[0.96875rem]">
-            {EMPTY_STATE_TEXT}
-          </p>
+      <article className="border-rule bg-field-bg rounded-card-lg border-[1.5px] border-dashed p-3.5 md:p-4">
+        <div className="flex flex-wrap items-baseline gap-2.5">
+          <h3 className="font-display text-card">Månedens burger</h3>
+          <span className="bg-warning-surface text-warning-ink rounded-badge px-2.5 py-1.5 text-chip leading-none font-medium">
+            Skiftende
+          </span>
         </div>
+        <p className="text-ink-2 text-support mt-1.5 max-w-[66ch]">{EMPTY_STATE_TEXT}</p>
       </article>
     )
   }
@@ -67,11 +61,11 @@ export function MonthlyBurgerCard({ burger }: { burger: MonthlyBurgerView | null
       />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-3">
-          <h3 className="font-display text-[1.125rem] font-semibold md:text-2xl">{burger.name}</h3>
+          <h3 className="font-display text-card">{burger.name}</h3>
           <DishPrice priceOre={burger.priceOre} soldOut={burger.soldOut} />
         </div>
         {burger.description ? (
-          <p className="text-ink-2 mt-1.5 max-w-[66ch] text-meta md:text-[0.96875rem]">
+          <p className="text-ink-2 text-support mt-1.5 max-w-[66ch]">
             {burger.description}
           </p>
         ) : null}

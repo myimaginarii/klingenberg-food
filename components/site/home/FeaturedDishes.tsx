@@ -27,7 +27,7 @@ export function FeaturedDishes({ dishes }: { dishes: DishView[] }) {
       <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
         <div>
           <Eyebrow>Udvalgte</Eyebrow>
-          <h2 id="udvalgte-titel" className="font-display mt-2 text-[1.75rem] md:text-title-sm">
+          <h2 id="udvalgte-titel" className="font-display text-subhead mt-2">
             Tre fra menuen
           </h2>
         </div>

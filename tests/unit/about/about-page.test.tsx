@@ -74,7 +74,7 @@ describe('the words', () => {
 describe('the venue frame without an image', () => {
   it('draws the reserved placeholder exactly as before, hidden from assistive technology', () => {
     const html = render(WORDS)
-    expect(html.match(/media-placeholder/g)).toHaveLength(2) // the venue slot and the award band's frame
+    expect(html.match(/media-placeholder/g)).toHaveLength(1) // the venue slot; the award band draws no frame without a photograph
     expect(html).toContain('>Stedet<')
     expect(html).toContain('facade / indgang ved hallen · dagslys')
     expect(html).not.toContain('<picture')
@@ -114,8 +114,8 @@ describe('the three frames with an image', () => {
     expect(html).toContain(`sizes="${IMAGE_SIZES.aboutVenue}"`)
     expect(html).toContain(`sizes="${IMAGE_SIZES.aboutTeam}"`)
     expect(html).toContain(`sizes="${IMAGE_SIZES.aboutKitchen}"`)
-    // The three slots draw pictures; only the award band keeps its reserved frame.
-    expect(html.match(/media-placeholder/g)).toHaveLength(1)
+    // The three slots draw pictures, and the award band has no photograph to draw.
+    expect(html).not.toContain('media-placeholder')
   })
 
   it('uses the library\'s own description as alt — and an empty alt for an undescribed image, never the page\'s words', () => {

@@ -53,10 +53,10 @@ export default async function FindOsPage() {
   const address = toPostalAddress(contact)
 
   return (
-    <PageContainer className="py-7 md:py-11">
+    <PageContainer className="py-page-mobile md:py-page">
       <div className="grid gap-8 md:grid-cols-[1fr_1.15fr] md:gap-9">
         <div>
-          <h1 className="font-display text-[2.25rem] tracking-[-0.03em] md:text-[3rem]">Find os</h1>
+          <h1 className="font-display text-page">Find os</h1>
 
           <OpenStatus
             initialStatus={openStatus}
@@ -66,7 +66,7 @@ export default async function FindOsPage() {
             className="mt-4"
           />
 
-          <div className="mt-4 flex flex-col gap-2.5 md:flex-row">
+          <div className="mt-5 flex flex-col gap-2.5 md:flex-row">
             {contact.primaryPhone ? (
               <PhoneAction
                 phone={contact.primaryPhone}
@@ -91,20 +91,20 @@ export default async function FindOsPage() {
           </div>
 
           {address ? (
-            <div className="mt-6">
+            <div className="mt-7">
               <Eyebrow>Adresse</Eyebrow>
-              <AddressBlock address={address} venueName={contact.venueName} className="mt-2" />
+              <AddressBlock address={address} venueName={contact.venueName} className="mt-2.5" />
             </div>
           ) : null}
 
           {contact.primaryPhone ? (
-            <div className="mt-6">
+            <div className="mt-7">
               <Eyebrow>Telefon</Eyebrow>
               <PhoneNumbers
                 primaryPhone={contact.primaryPhone}
                 secondaryPhone={contact.secondaryPhone}
                 size="prominent"
-                className="mt-2"
+                className="mt-2.5"
               />
             </div>
           ) : null}
@@ -112,7 +112,7 @@ export default async function FindOsPage() {
           <section
             id="aabningstider"
             aria-labelledby="find-os-tider"
-            className="bg-surface border-border rounded-card-lg mt-6 scroll-mt-4 border p-4 md:p-5"
+            className="bg-surface border-border rounded-card-lg mt-7 scroll-mt-4 border p-4 md:p-5"
           >
             <Eyebrow as="h2" id="find-os-tider">
               Åbningstider
@@ -125,8 +125,12 @@ export default async function FindOsPage() {
           </section>
         </div>
 
-        <div className="flex flex-col gap-4">
-          {address ? <GoogleMap address={address} frame="card" /> : null}
+        <div className="flex flex-col gap-4.5">
+          {/* The map takes the height the left column sets, so the two columns end level
+              instead of leaving a block of empty page under the Følg os card. */}
+          {address ? (
+            <GoogleMap address={address} frame="card" className="md:aspect-auto md:flex-1" />
+          ) : null}
 
           <FollowUsCard facebookUrl={contact.facebookUrl} />
         </div>

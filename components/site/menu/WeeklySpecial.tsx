@@ -60,18 +60,18 @@ function WeekDishCard({ weekly }: { weekly: WeeklySpecialView }) {
       <div className="flex-1 p-4 md:p-5">
         <p className="flex flex-wrap items-center gap-2.5">
           {weekly.isoWeek === null ? null : (
-            <span className="bg-brand-50 text-brand-700 rounded-badge px-2.5 py-1.5 text-micro leading-none font-medium tabular-nums">
+            <span className="bg-brand-50 text-brand-700 rounded-badge px-2.5 py-1.5 text-chip leading-none font-medium tabular-nums">
               {`Uge ${weekly.isoWeek}`}
             </span>
           )}
           {weekly.daysLabel ? (
-            <span className="text-ink-3 text-[0.84375rem]">{weekly.daysLabel}</span>
+            <span className="text-ink-3 text-detail">{weekly.daysLabel}</span>
           ) : null}
           {weekly.soldOut ? <SoldOutBadge /> : null}
         </p>
 
         <h3
-          className={`font-display mt-2 text-[1.375rem] font-semibold md:text-2xl ${
+          className={`font-display text-card mt-2 ${
             weekly.soldOut ? 'text-ink-2' : 'text-ink'
           }`}
         >
@@ -106,7 +106,7 @@ function PortionPrice({
 
   return (
     <p>
-      <span className="text-ink-3 block text-[0.8125rem]">{label}</span>
+      <span className="text-ink-3 text-detail block">{label}</span>
       <DishPrice priceOre={priceOre} soldOut={soldOut} size="portion" />
     </p>
   )
@@ -118,8 +118,8 @@ function SaturdayCard({ weekly }: { weekly: WeeklySpecialView }) {
   if (!saturday.enabled || saturday.name === null) {
     return (
       <aside className="border-rule bg-field-bg rounded-card-lg flex flex-1 flex-col justify-center border-[1.5px] border-dashed p-4 md:p-5">
-        <h3 className="font-mono text-label text-ink-3 uppercase">Lørdagsmenu</h3>
-        <p className="text-ink-2 mt-2.5 text-[1.0625rem] font-semibold">{NO_SATURDAY_MENU}</p>
+        <h3 className="font-mono text-eyebrow text-ink-3 uppercase">Lørdagsmenu</h3>
+        <p className="text-ink-2 text-card mt-2.5">{NO_SATURDAY_MENU}</p>
       </aside>
     )
   }
@@ -130,10 +130,10 @@ function SaturdayCard({ weekly }: { weekly: WeeklySpecialView }) {
         saturday.soldOut ? 'bg-surface-muted' : 'bg-surface'
       }`}
     >
-      <h3 className="font-mono text-label text-ink-3 uppercase">Lørdagsmenu</h3>
-      <p className="font-display mt-2.5 text-[1.3125rem] font-semibold">{saturday.name}</p>
+      <h3 className="font-mono text-eyebrow text-ink-3 uppercase">Lørdagsmenu</h3>
+      <p className="font-display text-card mt-2.5">{saturday.name}</p>
       {saturday.description ? (
-        <p className="text-ink-2 mt-1.5 text-[0.9375rem]">{saturday.description}</p>
+        <p className="text-ink-2 text-support mt-1.5">{saturday.description}</p>
       ) : null}
       {saturday.soldOut ? (
         <p className="mt-2.5">
@@ -142,7 +142,7 @@ function SaturdayCard({ weekly }: { weekly: WeeklySpecialView }) {
       ) : null}
       <div className="mt-3 flex items-baseline justify-between gap-4">
         {saturday.deadline ? (
-          <span className="text-ink-3 text-[0.84375rem]">{saturday.deadline}</span>
+          <span className="text-ink-3 text-detail">{saturday.deadline}</span>
         ) : null}
         <DishPrice priceOre={saturday.priceOre} soldOut={saturday.soldOut} size="portion" />
       </div>

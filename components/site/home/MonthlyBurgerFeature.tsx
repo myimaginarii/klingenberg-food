@@ -84,7 +84,7 @@ export function MonthlyBurgerFeature({
                   aria-hidden="true"
                   className="bg-rule hidden size-1 shrink-0 rounded-full md:block"
                 />
-                <span className="text-ink-3 font-mono text-label tabular-nums uppercase">
+                <span className="text-ink-3 font-mono text-eyebrow tabular-nums uppercase">
                   {period}
                 </span>
               </>
@@ -93,7 +93,7 @@ export function MonthlyBurgerFeature({
 
           <h2
             id={HEADING_ID}
-            className={`font-display mt-3 text-[1.75rem] md:text-title-sm ${
+            className={`font-display text-subhead mt-3 ${
               soldOut ? 'text-ink-2' : ''
             }`}
           >

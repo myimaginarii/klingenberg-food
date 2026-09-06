@@ -58,7 +58,7 @@ export function PhoneAction({
         className={`flex-col gap-0.5 py-2 ${className ?? ''}`}
       >
         <span>{label}</span>
-        <span className="text-meta font-medium tabular-nums opacity-85">{phone}</span>
+        <span className="text-detail font-medium tabular-nums opacity-85">{phone}</span>
       </ActionLink>
     )
   }

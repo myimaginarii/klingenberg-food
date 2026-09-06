@@ -44,16 +44,16 @@ const AWARD = {
 export function AboutPageContent({ about }: { about: AboutDocument | null }) {
   return (
     <>
-      <PageContainer className="py-7 md:py-12">
+      <PageContainer className="py-page-mobile md:py-page">
         <div className="flex flex-col gap-8 md:flex-row md:items-start md:gap-9">
           <div className="flex-1 lg:flex-[1.1]">
             <Eyebrow>Om os</Eyebrow>
-            <h1 className="font-display mt-3 text-[2.25rem] leading-[1.02] tracking-[-0.03em] break-words md:text-[3rem]">
+            <h1 className="font-display text-page mt-3 break-words">
               {about?.heading ?? ABOUT_DEFAULT_HEADING}
             </h1>
             <div className="mt-4 flex flex-col gap-3.5">
               {(about?.storyBlocks ?? []).map((block, index) => (
-                <p key={index} className="text-neutral-ink max-w-[52ch] break-words md:text-[1.125rem]">
+                <p key={index} className="text-neutral-ink text-lead max-w-[54ch] break-words">
                   {block}
                 </p>
               ))}
@@ -74,7 +74,7 @@ export function AboutPageContent({ about }: { about: AboutDocument | null }) {
       <AwardBand headingId="om-os-udmaerkelse" title={AWARD.title} text={AWARD.text} sealFirst />
 
       <Section ariaLabelledBy="om-os-holdet">
-        <h2 id="om-os-holdet" className="font-display text-[1.75rem] md:text-title-sm">
+        <h2 id="om-os-holdet" className="font-display text-subhead">
           {TEAM_HEADING}
         </h2>
         {about?.team.image ? (
@@ -91,7 +91,7 @@ export function AboutPageContent({ about }: { about: AboutDocument | null }) {
         ) : null}
         {about?.team.text ? (
           <p
-            className={`text-neutral-ink max-w-[62ch] break-words md:text-[1.125rem] ${about?.team.image ? 'mt-5' : 'mt-4'}`}
+            className={`text-neutral-ink text-lead max-w-[62ch] break-words ${about?.team.image ? 'mt-5' : 'mt-4'}`}
           >
             {about.team.text}
           </p>
@@ -114,12 +114,12 @@ export function AboutPageContent({ about }: { about: AboutDocument | null }) {
             />
           ) : null}
           <div className={about?.method.image ? 'flex-1 lg:flex-[1.1]' : undefined}>
-            <h2 id="om-os-metode" className="font-display text-[1.625rem] break-words md:text-[1.875rem]">
+            <h2 id="om-os-metode" className="font-display text-subhead break-words">
               {about?.method.heading ?? ABOUT_DEFAULT_METHOD_HEADING}
             </h2>
             {about?.method.text ? (
               <p
-                className={`text-neutral-ink mt-3 break-words md:text-[1.0625rem] ${about?.method.image ? 'max-w-[48ch]' : 'max-w-[62ch]'}`}
+                className={`text-neutral-ink text-lead mt-3 break-words ${about?.method.image ? 'max-w-[48ch]' : 'max-w-[62ch]'}`}
               >
                 {about.method.text}
               </p>

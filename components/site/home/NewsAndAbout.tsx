@@ -59,11 +59,11 @@ export function NewsAndAbout({
             />
             <div className="flex-1">
               {aboutHeading ? (
-                <h3 className="font-display text-[1.3125rem] leading-snug font-semibold md:text-[1.375rem]">
+                <h3 className="font-display text-card">
                   {aboutHeading}
                 </h3>
               ) : null}
-              {aboutText ? <p className="text-ink-2 mt-2 text-[0.90625rem]">{aboutText}</p> : null}
+              {aboutText ? <p className="text-ink-2 mt-2 text-support">{aboutText}</p> : null}
               <p className="mt-2">
                 <InlineLink href="/om-os">Læs vores historie</InlineLink>
               </p>

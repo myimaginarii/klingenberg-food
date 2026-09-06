@@ -49,7 +49,7 @@ export function DishCard({
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-3">
           <h3
-            className={`font-display text-[1.125rem] font-semibold md:text-2xl ${
+            className={`font-display text-card ${
               dish.soldOut ? 'text-ink-2' : 'text-ink'
             }`}
           >
@@ -60,7 +60,7 @@ export function DishCard({
 
         {dish.description ? (
           <p
-            className={`mt-1 max-w-[66ch] text-meta md:mt-1.5 md:text-[0.96875rem] ${
+            className={`text-support mt-1.5 max-w-[66ch] ${
               dish.soldOut ? 'text-ink-3' : 'text-ink-2'
             }`}
           >
@@ -69,7 +69,7 @@ export function DishCard({
         ) : null}
 
         {dish.secondaryNote ? (
-          <p className="text-ink-3 mt-1.5 text-[0.78125rem] font-medium tabular-nums md:text-[0.875rem]">
+          <p className="text-ink-3 text-detail mt-2 font-medium tabular-nums">
             {dish.secondaryNote}
           </p>
         ) : null}

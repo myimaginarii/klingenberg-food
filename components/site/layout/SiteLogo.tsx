@@ -44,7 +44,7 @@ export function SiteLogo({
         </span>
         {showVenue ? (
           <span
-            className={`text-micro ${inverse ? 'text-white/70' : 'text-ink-3'}`}
+            className={`text-chip ${inverse ? 'text-white/70' : 'text-ink-3'}`}
           >
             Carl Nielsen Hallen
           </span>

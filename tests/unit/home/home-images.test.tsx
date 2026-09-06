@@ -101,16 +101,21 @@ describe('the award photograph (1u "Udmærkelsesfoto")', () => {
     expect(html).toMatch(/<picture class="[^"]*aspect-card[^"]*md:w-\[13\.75rem\]/)
   })
 
-  it('keeps the inverse frame for none — and Om os, which passes nothing, keeps it too', () => {
+  it('draws no frame for none — the band is seal and words, on both pages', () => {
     const forside = renderToStaticMarkup(
       <AwardBand headingId="t" title="Vinder" text="Tekst" image={null} />,
     )
     const omOs = renderToStaticMarkup(<AwardBand headingId="t" title="Vinder" text="Tekst" sealFirst />)
 
     for (const html of [forside, omOs]) {
-      expect(html).toContain('media-placeholder')
-      expect(html).toContain('Udmærkelse')
+      // No reserved photo frame: a hatched box on the burgundy band read as a diploma
+      // that had failed to load rather than as a slot nobody has filled in yet.
+      expect(html).not.toContain('media-placeholder')
       expect(html).not.toContain('<picture')
+      // The award itself is untouched — the eyebrow, the wording and the seal all stay.
+      expect(html).toContain('Udmærkelse')
+      expect(html).toContain('Vinder')
+      expect(html).toContain('DANMARKS BEDSTE')
     }
   })
 })

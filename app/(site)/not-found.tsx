@@ -12,8 +12,8 @@ import { PageContainer } from '@/components/site/PageContainer'
 export default function SiteNotFound() {
   return (
     <PageContainer className="py-12 md:py-20">
-      <p className="font-mono text-label text-ink-3 uppercase">Siden findes ikke</p>
-      <h1 className="font-display mt-3 text-[2.25rem] tracking-[-0.03em] md:text-[3rem]">
+      <p className="font-mono text-eyebrow text-ink-3 uppercase">Siden findes ikke</p>
+      <h1 className="font-display text-page mt-3">
         Vi kunne ikke finde siden
       </h1>
       <p className="text-ink-2 mt-3 max-w-[52ch]">

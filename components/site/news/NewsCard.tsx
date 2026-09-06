@@ -37,10 +37,10 @@ export function NewsCard({
 
   return (
     <article
-      className={`bg-surface border-border rounded-card-lg flex border p-3.5 md:gap-5 md:p-4.5 ${
+      className={`bg-surface border-border rounded-card-lg flex border ${
         dateCircle
-          ? 'flex-row items-start gap-3.5 md:items-center'
-          : 'flex-col gap-4 md:flex-row'
+          ? 'flex-row items-start gap-3.5 p-3.5 md:items-center md:gap-5 md:p-4'
+          : 'flex-col gap-4 p-3.5 md:flex-row md:gap-5 md:p-4.5'
       }`}
     >
       {article.image === null ? (
@@ -59,13 +59,13 @@ export function NewsCard({
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         <NewsMeta article={article} />
 
-        <h2 className="font-display mt-2 text-[1.375rem] leading-tight font-semibold md:text-[1.75rem]">
+        <h2 className="font-display text-card mt-2">
           {article.title}
         </h2>
 
-        {excerpt ? <p className="text-ink-2 mt-2 max-w-[56ch]">{excerpt}</p> : null}
+        {excerpt ? <p className="text-ink-2 text-support mt-1.5 max-w-[56ch]">{excerpt}</p> : null}
 
-        <p className="mt-3">
+        <p className="mt-1.5">
           <Link
             href={`/nyheder/${article.slug}`}
             className="text-brand-700 border-brand-700 inline-flex min-h-tap items-center gap-1.5 border-b-[1.5px] text-nav font-medium no-underline"
@@ -90,13 +90,13 @@ function NewsDateCircle({ date }: { date: IsoDate }) {
   return (
     <div
       aria-hidden="true"
-      className="news-date-circle border-border flex shrink-0 items-center justify-center md:h-30 md:w-65 md:border-r"
+      className="news-date-circle border-border flex shrink-0 items-center justify-center md:w-28 md:self-stretch md:border-r"
     >
-      <span className="border-border flex size-14 flex-col items-center justify-center rounded-full border-[1.5px] md:size-[4.625rem]">
-        <span className="font-display text-ink text-[1.125rem] leading-none font-bold md:text-[1.375rem]">
+      <span className="border-border flex size-14 flex-col items-center justify-center rounded-full border-[1.5px] md:size-16">
+        <span className="font-display text-ink text-[1.125rem] leading-none font-bold md:text-[1.25rem]">
           {day}
         </span>
-        <span className="text-ink-3 font-mono text-[0.5625rem] leading-none md:text-[0.625rem] mt-1">
+        <span className="text-ink-3 mt-1 font-mono text-[0.625rem] leading-none">
           {month}
         </span>
       </span>

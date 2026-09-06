@@ -30,19 +30,19 @@ export function TapasTable({ dish }: { dish: DishView }) {
         {base ? (
           <div className="md:max-w-[52ch]">
             <TapasHeading group={base} tone="brand" />
-            <p className="mt-2.5 text-[0.96875rem] leading-[1.85]">{base.items.join(' · ')}</p>
+            <p className="text-support mt-2.5 leading-[1.8]">{base.items.join(' · ')}</p>
           </div>
         ) : null}
 
         <p className="shrink-0 md:text-right">
-          <span className="text-brand-700/75 block text-[0.84375rem]">Til to personer</span>
+          <span className="text-brand-700/75 text-detail block">Til to personer</span>
           {dish.priceOre === null ? null : (
-            <b className="tabular-price text-brand-700 block text-[1.75rem] leading-tight md:text-[2rem]">
+            <b className="tabular-price text-brand-700 text-statement block">
               {formatPrice(dish.priceOre)}
             </b>
           )}
           {dish.secondaryNote ? (
-            <span className="text-brand-700/75 block text-[0.84375rem] tabular-nums">
+            <span className="text-brand-700/75 text-detail block tabular-nums">
               {dish.secondaryNote}
             </span>
           ) : null}
@@ -55,7 +55,7 @@ export function TapasTable({ dish }: { dish: DishView }) {
         ))}
       </div>
 
-      <p className="bg-bg border-border text-ink-2 border-t px-5 py-3.5 text-[0.90625rem]">
+      <p className="bg-bg border-border text-ink-2 text-detail border-t px-5 py-3.5">
         {CHOICE_NOTE}
       </p>
     </div>
@@ -74,7 +74,7 @@ function TapasHeading({
   return (
     <h3
       id={id}
-      className={`font-mono text-label uppercase ${
+      className={`font-mono text-eyebrow uppercase ${
         tone === 'brand' ? 'text-brand-700/70' : 'text-ink-3'
       }`}
     >
@@ -96,7 +96,7 @@ function TapasChoiceList({ group }: { group: TapasGroup }) {
       <TapasHeading group={group} tone="default" id={headingId} />
       <ul
         aria-labelledby={headingId}
-        className={`mt-2.5 text-[0.96875rem] leading-[1.85] ${wide ? 'md:columns-2 md:gap-8' : ''}`}
+        className={`text-support mt-2.5 leading-[1.8] ${wide ? 'md:columns-2 md:gap-8' : ''}`}
       >
         {group.items.map((item) => (
           <li key={item}>{item}</li>

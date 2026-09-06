@@ -63,8 +63,8 @@ export function MediaPlaceholder({
       aria-hidden="true"
       className={`media-placeholder flex flex-col items-center justify-center gap-1 border p-3 text-center ${RATIO_CLASSES[ratio]} ${TONE_CLASSES[tone]} ${className}`}
     >
-      <span className="font-mono text-label uppercase">{label}</span>
-      {detail ? <span className="font-mono text-[0.65625rem] leading-relaxed">{detail}</span> : null}
+      <span className="font-mono text-eyebrow uppercase">{label}</span>
+      {detail ? <span className="font-mono text-chip leading-relaxed">{detail}</span> : null}
     </div>
   )
 }

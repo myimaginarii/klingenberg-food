@@ -13,15 +13,15 @@ import { DishPrice } from './DishPrice'
  */
 export function DishPriceRow({ dish }: { dish: DishView }) {
   return (
-    <div className="border-border flex items-baseline justify-between gap-4 border-b py-3">
+    <div className="border-border flex min-h-13 items-baseline justify-between gap-4 border-b py-3.5">
       <div className="min-w-0">
         <h3
-          className={`text-[1.0625rem] font-semibold ${dish.soldOut ? 'text-ink-3' : 'text-ink'}`}
+          className={`font-semibold ${dish.soldOut ? 'text-ink-3' : 'text-ink'}`}
         >
           {dish.name}
         </h3>
         {dish.secondaryNote ? (
-          <p className="text-ink-2 text-[0.90625rem]">{dish.secondaryNote}</p>
+          <p className="text-ink-2 text-detail mt-0.5">{dish.secondaryNote}</p>
         ) : null}
         {dish.soldOut ? (
           <p className="mt-1.5">

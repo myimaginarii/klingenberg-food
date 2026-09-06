@@ -48,7 +48,7 @@ export function OpeningHours({
               </div>
             ))}
           </dl>
-          <span className="border-border bg-surface rounded-button mt-3 flex min-h-tap items-center justify-between border px-3.5 text-meta font-medium">
+          <span className="border-border bg-surface rounded-button mt-3 flex min-h-tap items-center justify-between border px-3.5 text-detail font-medium">
             Vis alle syv dage
             <span aria-hidden="true" className="text-ink-3 group-open:hidden">
               +

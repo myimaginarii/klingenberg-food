@@ -35,12 +35,12 @@ export function NewsTeaserCard({
 
       <div className="min-w-0 flex-1">
         <NewsMeta article={article} />
-        <h3 className="font-display mt-1.5 text-[1.1875rem] leading-snug font-semibold">
+        <h3 className="font-display mt-1.5 text-card leading-snug font-semibold">
           <Link href={`/nyheder/${article.slug}`} className="text-ink no-underline hover:underline">
             {article.title}
           </Link>
         </h3>
-        {excerpt ? <p className="text-ink-2 mt-1.5 text-meta">{excerpt}</p> : null}
+        {excerpt ? <p className="text-ink-2 text-support mt-1.5">{excerpt}</p> : null}
       </div>
     </article>
   )

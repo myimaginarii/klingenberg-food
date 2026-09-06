@@ -17,10 +17,17 @@ import { SiteImage } from './SiteImage'
  * the only difference between the two, so it is a prop rather than a second component.
  *
  * The photograph (phase 11A) is the Forside document's award image — 1u's
- * "Udmærkelsesfoto (valgfrit)" — in the 4:3 frame the band reserved; `null` is the
- * reserved frame as before. Om os passes nothing, deliberately: the award photograph is
- * the Forside's one fact, and the Om os document carries no second copy of it (§0am), so
- * the band there draws the frame it always drew.
+ * "Udmærkelsesfoto (valgfrit)" — in the 4:3 frame the band reserves for it. Om os passes
+ * nothing, deliberately: the award photograph is the Forside's one fact, and the Om os
+ * document carries no second copy of it (§0am).
+ *
+ * WITHOUT A PHOTOGRAPH THERE IS NO FRAME. The slot is optional in the editor, and a
+ * hatched box on the burgundy band read as a diploma that had failed to load — the one
+ * placeholder on the site a guest could mistake for breakage rather than for a
+ * development marker, because it is the only one on a coloured field. So the band falls
+ * back to a deliberate text-only layout: the seal, the words, and the paragraph allowed
+ * to run wider now that nothing sits beside it. Selecting an image restores the
+ * image-capable layout on the next publish, with no change here.
  */
 export function AwardBand({
   title,
@@ -42,15 +49,16 @@ export function AwardBand({
       <AwardSeal size={sealFirst ? 'compact' : 'default'} />
     </div>
   )
-  const photo = (
-    <SiteImage
-      image={image}
-      ratio="card"
-      sizes="homeAward"
-      placeholder={{ label: 'Udmærkelse', detail: 'diplom eller pokal · afventer', tone: 'inverse' }}
-      className="rounded-card w-full shrink-0 md:w-[13.75rem]"
-    />
-  )
+  const photo =
+    image === null ? null : (
+      <SiteImage
+        image={image}
+        ratio="card"
+        sizes="homeAward"
+        placeholder={{ label: 'Udmærkelse', detail: 'diplom eller pokal · afventer', tone: 'inverse' }}
+        className="rounded-card w-full shrink-0 md:w-[13.75rem]"
+      />
+    )
 
   return (
     <Section tone="brand" ariaLabelledBy={headingId}>
@@ -60,11 +68,15 @@ export function AwardBand({
           <Eyebrow tone="inverse">Udmærkelse</Eyebrow>
           <h2
             id={headingId}
-            className="font-display mt-3 text-title-sm text-white md:text-title text-balance"
+            className="font-display text-statement mt-3 text-white text-balance"
           >
             {title}
           </h2>
-          <p className="mt-3 max-w-[58ch] text-white/85">{text}</p>
+          {/* With a photograph the wording is a column beside it; without one the band is
+              seal and words alone, and the line may run wider before it wraps. */}
+          <p className={`mt-3 text-white/85 ${photo === null ? 'max-w-[68ch]' : 'max-w-[58ch]'}`}>
+            {text}
+          </p>
         </div>
         {sealFirst ? photo : seal}
       </div>

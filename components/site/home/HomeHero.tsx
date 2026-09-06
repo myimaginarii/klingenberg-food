@@ -52,13 +52,13 @@ export function HomeHero({
 
           <h1
             id="forside-titel"
-            className="font-display text-[2.5rem] leading-none tracking-[-0.03em] text-balance md:text-[4.125rem]"
+            className="font-display text-hero text-balance"
           >
             {heading}
           </h1>
 
           {intro ? (
-            <p className="text-neutral-ink max-w-[44ch] md:text-[1.125rem]">{intro}</p>
+            <p className="text-neutral-ink text-lead max-w-[44ch]">{intro}</p>
           ) : null}
 
           <div className="flex flex-col gap-2.5 md:flex-row md:flex-wrap md:items-center">

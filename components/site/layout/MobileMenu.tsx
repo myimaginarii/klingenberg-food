@@ -103,7 +103,7 @@ export function MobileMenu({
           </div>
 
           {address ? (
-            <p className="mt-6 text-meta leading-relaxed text-white/70">
+            <p className="text-detail mt-6 leading-relaxed text-white/70">
               {address.addressLine1}
               <br />
               {`${address.postalCode} ${address.city}`}

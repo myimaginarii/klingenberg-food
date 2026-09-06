@@ -88,7 +88,7 @@ export default async function NyhedPage({ params }: ArticleParams) {
       <article className="max-w-[62ch]">
         <NewsMeta article={article} />
 
-        <h1 className="font-display mt-3 text-[2rem] leading-tight tracking-[-0.02em] md:text-[2.5rem]">
+        <h1 className="font-display text-statement mt-3">
           {article.title}
         </h1>
 

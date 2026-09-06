@@ -23,9 +23,9 @@ export default async function NyhederPage() {
   const articles = await readPublishedNews()
 
   return (
-    <PageContainer className="py-7 md:py-11">
-      <h1 className="font-display text-[2.25rem] tracking-[-0.03em] md:text-[3rem]">Nyheder</h1>
-      <p className="text-ink-2 mt-2 max-w-[62ch]">{INTRO}</p>
+    <PageContainer className="py-page-mobile md:py-page">
+      <h1 className="font-display text-page">Nyheder</h1>
+      <p className="text-ink-2 text-lead mt-2 max-w-[62ch]">{INTRO}</p>
 
       {articles.length === 0 ? (
         <p className="text-ink-2 mt-6">{EMPTY_STATE}</p>

@@ -11,11 +11,11 @@ export type DishPriceSize = 'card' | 'row' | 'portion'
 
 const SIZE_CLASSES: Record<DishPriceSize, string> = {
   /** The burger cards on the menu and the Forside. */
-  card: 'text-[1.0625rem] md:text-[1.625rem]',
+  card: 'text-card',
   /** The two-column price lists. */
-  row: 'text-[1.1875rem]',
+  row: 'text-lead font-semibold',
   /** Ugens ret's Lille / Stor portions, and the Lørdagsmenu. */
-  portion: 'text-[1.375rem] font-bold',
+  portion: 'text-card font-bold',
 }
 
 export function DishPrice({

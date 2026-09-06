@@ -16,13 +16,13 @@ export function NewsMeta({ article }: { article: NewsArticle }) {
       {article.displayDate ? (
         <time
           dateTime={article.displayDate}
-          className="text-ink-3 font-mono text-[0.78125rem] tabular-nums"
+          className="text-ink-3 font-mono text-detail tabular-nums"
         >
           {formatDanishDate(article.displayDate)}
         </time>
       ) : null}
       {article.category ? (
-        <span className="bg-brand-50 text-brand-700 rounded-badge px-2.5 py-1.5 text-micro leading-none font-medium">
+        <span className="bg-brand-50 text-brand-700 rounded-badge px-2.5 py-1.5 text-chip leading-none font-medium">
           {article.category}
         </span>
       ) : null}

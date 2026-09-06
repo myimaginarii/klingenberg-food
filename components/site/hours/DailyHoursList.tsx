@@ -21,7 +21,7 @@ export function DailyHoursList({
   todayWeekday: WeekdayKey
 }) {
   return (
-    <dl className="text-[0.96875rem]">
+    <dl className="text-support">
       {formatDailyHours(schedule).map((row, index, rows) => {
         const isToday = row.weekday === todayWeekday
 

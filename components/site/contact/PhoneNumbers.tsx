@@ -26,13 +26,13 @@ export function PhoneNumbers({
     <div className={className}>
       <p
         className={`font-display text-brand-700 tabular-nums ${
-          prominent ? 'text-[1.75rem] font-bold' : 'text-[1.375rem] font-semibold'
+          prominent ? 'text-subhead' : 'text-card'
         }`}
       >
         {primaryPhone}
       </p>
       {secondaryPhone ? (
-        <p className={prominent ? 'text-neutral-ink mt-1 tabular-nums' : 'text-ink-3 text-meta tabular-nums'}>
+        <p className={`text-detail mt-1.5 tabular-nums ${prominent ? 'text-neutral-ink' : 'text-ink-3'}`}>
           Ekstra nummer{' '}
           {prominent ? <strong className="font-semibold">{secondaryPhone}</strong> : secondaryPhone}
         </p>

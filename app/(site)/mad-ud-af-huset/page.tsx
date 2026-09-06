@@ -45,15 +45,15 @@ export default async function MadUdAfHusetPage() {
 
   return (
     <>
-      <PageContainer className="py-7 md:py-11">
+      <PageContainer className="py-page-mobile md:py-page">
         <div className="flex flex-col gap-8 md:flex-row md:items-center md:gap-9">
           <div className="flex-1 lg:flex-[1.1]">
             <Eyebrow>Mad ud af huset</Eyebrow>
-            <h1 className="font-display mt-3 text-[2.25rem] leading-[1.02] tracking-[-0.03em] text-balance md:text-[3rem]">
+            <h1 className="font-display text-page mt-3 text-balance">
               {takeaway.heading ?? 'Mad ud af huset'}
             </h1>
             {takeaway.intro ? (
-              <p className="text-neutral-ink mt-4 max-w-[50ch] md:text-[1.125rem]">
+              <p className="text-neutral-ink text-lead mt-4 max-w-[50ch]">
                 {takeaway.intro}
               </p>
             ) : null}
@@ -81,7 +81,7 @@ export default async function MadUdAfHusetPage() {
               ) : null}
             </div>
 
-            <p className="text-ink-3 mt-2.5 text-meta">{NO_FORM_NOTE}</p>
+            <p className="text-ink-3 text-detail mt-2.5">{NO_FORM_NOTE}</p>
           </div>
 
           {takeaway.image === null ? null : (
