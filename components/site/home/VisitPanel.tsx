@@ -2,10 +2,10 @@ import { ActionLink } from '@/components/site/ActionLink'
 import { AddressBlock } from '@/components/site/contact/AddressBlock'
 import { PhoneNumbers } from '@/components/site/contact/PhoneNumbers'
 import { Eyebrow } from '@/components/site/Eyebrow'
+import { GoogleMap } from '@/components/site/GoogleMap'
 import { OpeningHours } from '@/components/site/hours/OpeningHours'
 import { OpenStatus } from '@/components/site/OpenStatus'
 import { PhoneAction } from '@/components/site/PhoneAction'
-import { StaticMap } from '@/components/site/StaticMap'
 import { Section } from '@/components/site/Section'
 import type { SiteContact } from '@/lib/content/types'
 import type { OpenStatusSnapshot } from '@/lib/hours/status'
@@ -18,7 +18,8 @@ import { type PostalAddress, directionsUrl } from '@/lib/site/links'
  * The three things a guest standing outside the hall actually wants: when it is open,
  * where it is, and how to call. The hours come from the same engine as the badge at the
  * top of the page, the address is real text beside the map rather than baked into it,
- * and the whole map is one link to directions (§7g).
+ * and the map itself is a Google Maps embed (§7g); "Vis vej" is the separate directions
+ * link.
  */
 export function VisitPanel({
   contact,
@@ -80,12 +81,7 @@ export function VisitPanel({
         </div>
 
         {address ? (
-          <StaticMap
-            address={address}
-            frame="hero"
-            attribution={contact.mapAttribution}
-            className="md:col-span-2 lg:col-span-1"
-          />
+          <GoogleMap address={address} frame="hero" className="md:col-span-2 lg:col-span-1" />
         ) : null}
       </div>
     </Section>

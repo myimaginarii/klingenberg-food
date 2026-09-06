@@ -11,11 +11,11 @@ import { AddressBlock } from '@/components/site/contact/AddressBlock'
 import { FollowUsCard } from '@/components/site/contact/FollowUsCard'
 import { PhoneNumbers } from '@/components/site/contact/PhoneNumbers'
 import { Eyebrow } from '@/components/site/Eyebrow'
+import { GoogleMap } from '@/components/site/GoogleMap'
 import { OpeningHours } from '@/components/site/hours/OpeningHours'
 import { OpenStatus } from '@/components/site/OpenStatus'
 import { PageContainer } from '@/components/site/PageContainer'
 import { PhoneAction } from '@/components/site/PhoneAction'
-import { StaticMap } from '@/components/site/StaticMap'
 
 /**
  * The description names the address, so it is read from `site_contact` like every
@@ -40,8 +40,8 @@ export async function generateMetadata(): Promise<Metadata> {
  *
  * The two things a guest arrives here for are at the top and full width on a phone: ring
  * and vis vej. The address is real text, the hours are the site's one schedule, and the
- * map is a single static image wrapped in a directions link with no map library and no
- * tile request (§7g).
+ * map is a Google Maps embed centred on the stored address, with no map library and no
+ * tile request from this origin (§7g).
  *
  * The "Følg os" card appears only when the Facebook link is filled in — an empty field
  * removes the whole card rather than leaving a gap (1k, 1o).
@@ -126,9 +126,7 @@ export default async function FindOsPage() {
         </div>
 
         <div className="flex flex-col gap-4">
-          {address ? (
-            <StaticMap address={address} frame="card" attribution={contact.mapAttribution} />
-          ) : null}
+          {address ? <GoogleMap address={address} frame="card" /> : null}
 
           <FollowUsCard facebookUrl={contact.facebookUrl} />
         </div>

@@ -17,8 +17,13 @@
  * **no** inline `<style>` and **no** `style=""` attribute. Fonts are self-hosted by
  * `next/font`; images come from this origin and from the Supabase Storage origin;
  * the one browser request that leaves the page is the uploader's PUT to a signed
- * Storage URL; the two external origins on the public site (a directions link and
- * the Facebook page) are links, not resources.
+ * Storage URL; the directions link and the Facebook page are links, not resources.
+ *
+ * The one resource this origin does embed from elsewhere is the Google Maps frame
+ * that replaced the static map image (§7g, phase 14B3): `frame-src` therefore names
+ * `https://www.google.com` — nothing else changes, because the iframe is a separate
+ * browsing context with Google's own policy, not a resource this page's `img-src` or
+ * `connect-src` needs to widen.
  *
  * So the script policy is `'self' 'unsafe-inline'`, and the reason is the caching
  * architecture, not convenience: a nonce needs a fresh value per response, which
@@ -83,6 +88,7 @@ export function contentSecurityPolicy(input: SecurityHeaderInput): string {
     ['base-uri', ["'self'"]],
     ['form-action', ["'self'"]],
     ['frame-ancestors', ["'none'"]],
+    ['frame-src', ["'self'", 'https://www.google.com']],
   ]
 
   return directives.map(([name, sources]) => `${name} ${sources.join(' ')}`).join('; ')

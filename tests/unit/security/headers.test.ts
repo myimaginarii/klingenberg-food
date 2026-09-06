@@ -43,9 +43,14 @@ describe('the production Content-Security-Policy', () => {
       'base-uri',
       'form-action',
       'frame-ancestors',
+      'frame-src',
     ])
     // No `*`, and no bare scheme source (`https:` alone would admit every origin).
     expect(contentSecurityPolicy(production)).not.toMatch(/\*|https?:(?=[\s;]|$)/)
+  })
+
+  it('embeds the Google Maps frame and nothing else', () => {
+    expect(csp.get('frame-src')).toEqual(["'self'", 'https://www.google.com'])
   })
 
   it("allows the framework's inline bootstrap scripts and nothing from another origin — and never eval", () => {

@@ -425,7 +425,7 @@ and needs no CSP change). Monitoring is off in every test run and in local
 development — there is no DSN — so nothing an automated run does can reach a real
 Sentry project. `docs/runbooks/monitoring.md` is the operator's document.
 
-`npm run check:policy` enforces six repository rules from the technical plan:
+`npm run check:policy` enforces five repository rules from the technical plan:
 
 1. **No hard-coded domain.** A site origin may only be produced by
    `lib/config/site.ts` (§10d). The restaurant's domain is deferred; choosing it later
@@ -437,11 +437,7 @@ Sentry project. `docs/runbooks/monitoring.md` is the operator's document.
 4. **No browser monitoring.** No `instrumentation-client` or client Sentry config
    file, no build wrapper around `next.config.ts`, no `NEXT_PUBLIC_…SENTRY…`
    variable, no Replay or browser-tracing integration anywhere (§1, §12, §0aj).
-5. **Map provenance recorded** (`public/map/LICENSE.md`, §7g) — and, since phase 14A,
-   a **Vercel production build** is refused while it still says `placeholder`
-   (`lib/site/map-launch-guard.ts`, run by `next.config.ts`); local, CI and preview
-   builds pass with it.
-6. **No development seed in the launch path** (phase 14A). No launch tool and no
+5. **No development seed in the launch path** (phase 14A). No launch tool and no
    workflow names `supabase/seed/development.sql` or the local user seeder, and
    `supabase/seed/confirmed.sql` holds no `@example.test` identity.
 
@@ -679,9 +675,11 @@ no plan-specific API is used. What the repository *does* hold since phase 14A (�
 the wiring a production project is brought up with: the migration door
 (`npm run launch:migrate`, and `.github/workflows/production-migrate.yml`, dispatch-only
 until phase 14C creates the protected `production` environment and adds the push
-trigger), the one-time confirmed-content load, the one-time Owner bootstrap, and the
-launch map guard — each proven against the local stack only, none of them run against
-anything hosted.
+trigger), the one-time confirmed-content load, and the one-time Owner bootstrap — each proven
+against the local stack only, none of them run against anything hosted. The static
+map and its launch guard, also wired in phase 14A, were retired in phase 14B3 and
+replaced with a Google Maps embed (`lib/site/map-embed.ts`,
+`components/site/GoogleMap.tsx`) — no licensed asset was ever needed after all.
 
 ## Deferred to a later phase
 
@@ -692,9 +690,10 @@ invitation (no password generated, ever; inert once an Owner exists; its partial
 repaired by rerunning), the seed split into `supabase/seed/confirmed.sql` and
 `supabase/seed/development.sql`, the one-time confirmed-content loader with its
 fresh-state guard and single transaction, the migration door with the restore
-tooling's history discipline and a dispatch-only production workflow, the launch map
-guard, and the three runbooks (`domain-cutover.md`, `owner-handover.md`,
-`launch-notes.md`). **Phase 14B1 — the Om os editor at `/admin/om-os` — is built and
+tooling's history discipline and a dispatch-only production workflow, and the three
+runbooks (`domain-cutover.md`, `owner-handover.md`, `launch-notes.md`). The launch
+map guard built in this phase was retired in phase 14B3 along with the static map
+it protected. **Phase 14B1 — the Om os editor at `/admin/om-os` — is built and
 green (§0am):** Staff and Owner edit 1i's story, team and method words and choose the
 facade, team and kitchen photographs through the shared picker; the about document is
 strict at every level, its three image paths live in `image_references`, the guard and

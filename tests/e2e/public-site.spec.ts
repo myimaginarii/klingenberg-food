@@ -305,19 +305,19 @@ test.describe('the menu', () => {
 })
 
 test.describe('Find os', () => {
-  test('the whole map is one link to directions', async ({ page }) => {
+  test('the map is a Google Maps embed centred on the address, and "Vis vej" still opens directions', async ({
+    page,
+  }) => {
     await page.goto('/find-os')
 
-    const mapLink = page.getByRole('main').locator('a[href*="google.com/maps/dir"]:has(img)')
-    await expect(mapLink).toBeVisible()
+    const frame = page.getByRole('main').locator('iframe[title^="Kort over"]')
+    await expect(frame).toBeVisible()
+    expect(decodeURIComponent((await frame.getAttribute('src')) ?? '')).toContain(ADDRESS_LINE)
 
-    const href = await mapLink.getAttribute('href')
+    const directions = page.getByRole('main').getByRole('link', { name: 'Vis vej' })
+    const href = await directions.getAttribute('href')
     expect(href).toContain('api=1')
     expect(decodeURIComponent(href ?? '')).toContain(ADDRESS_LINE)
-
-    await expect(mapLink.locator('img')).toHaveCount(1)
-    await expect(mapLink.locator('img')).toHaveAttribute('width', '1200')
-    await expect(mapLink.locator('img')).toHaveAttribute('height', '900')
   })
 
   test('the address is real text beside the map, not only inside the image', async ({ page }) => {

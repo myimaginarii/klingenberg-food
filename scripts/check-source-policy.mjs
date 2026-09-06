@@ -2,7 +2,7 @@
 /**
  * Repository source-policy checks — technical plan §8, §10d, §10f.
  *
- * Six rules, all cheap, all run in CI before the build:
+ * Five rules, all cheap, all run in CI before the build:
  *
  *   1. no-hard-coded-domain  A site domain literal may appear only in
  *                            lib/config/site.ts. Choosing the restaurant's domain
@@ -13,13 +13,11 @@
  *                            echoes commands and can spill secrets into logs.
  *   3. server-secrets        Secrets named in §10e may only be referenced in
  *                            lib/env/server.ts (and documentation).
- *   4. map-provenance        The static map asset must record where it came from, so
- *                            the launch check has something to read (§7g, §13 item C).
- *   5. no-browser-monitoring Monitoring is server-side only (§1, §12, §0aj): no
+ *   4. no-browser-monitoring Monitoring is server-side only (§1, §12, §0aj): no
  *                            browser SDK file, no `withSentryConfig`, no
  *                            `NEXT_PUBLIC_…SENTRY…` variable, no Replay or browser
  *                            tracing anywhere in the tree.
- *   6. launch-content-boundary The production launch tooling (`scripts/launch/`)
+ *   5. launch-content-boundary The production launch tooling (`scripts/launch/`)
  *                            and the workflows never name the development seed
  *                            layer or the local user seeder, and the confirmed
  *                            content file carries no `@example.test` identity
@@ -27,6 +25,10 @@
  *                            (`tests/unit/policy/launch-boundary.test.ts`) holds
  *                            the fuller set; this is the cheap version that runs
  *                            before anything is built.
+ *
+ * The static-map provenance check that used to live here (§7g) was retired with the
+ * static map itself (phase 14B3): the map is now a Google Maps embed with nothing to
+ * license or verify at build time.
  *
  * Exit code 1 on any violation, with file:line and the offending text.
  */
@@ -292,7 +294,7 @@ for (const absolute of sourceFiles()) {
   })
 }
 
-// --- 5. no-browser-monitoring (§1, §12, §0aj) -------------------------------------
+// --- 4. no-browser-monitoring (§1, §12, §0aj) -------------------------------------
 //
 // The browser is not monitored, by decision: the public site ships no monitoring
 // script, sets no monitoring cookie and needs no CSP origin for it. The unit policy
@@ -339,42 +341,7 @@ for (const absolute of sourceFiles()) {
   })
 }
 
-// --- 4. map-provenance (§7g) -------------------------------------------------------
-//
-// The Find os map is a single licensed static image. Until the licensed asset arrives it
-// is a placeholder, and the plan makes shipping that placeholder a launch-blocking
-// mistake. This check keeps the record it will be caught by: the provenance field must
-// exist and must say something. Phase 14 tightens the same check to reject the value
-// `placeholder` in a production build.
-
-const MAP_LICENCE = 'public/map/LICENSE.md'
-const PROVENANCE_RE = /^\|\s*\*\*Provenance\*\*\s*\|\s*`?([^|`]+?)`?\s*\|/m
-
-const licencePath = join(ROOT, MAP_LICENCE)
-if (!existsSync(licencePath)) {
-  violations.push({
-    rule: 'map-provenance',
-    where: MAP_LICENCE,
-    detail: 'the static map asset has no provenance record',
-    line: '',
-  })
-} else {
-  const licence = readFileSync(licencePath, 'utf8')
-  const provenance = PROVENANCE_RE.exec(licence)?.[1]?.trim()
-
-  if (!provenance) {
-    violations.push({
-      rule: 'map-provenance',
-      where: MAP_LICENCE,
-      detail: 'no **Provenance** row — record where the map image came from',
-      line: '',
-    })
-  } else {
-    console.log(`source-policy: map asset provenance is "${provenance}".`)
-  }
-}
-
-// --- 6. launch-content-boundary (§10a, §10b; phase 14A) ---------------------------
+// --- 5. launch-content-boundary (§10a, §10b; phase 14A) ---------------------------
 //
 // Production never runs the development seed. The loader reads one constant file,
 // the migration door reads the migration directory, and neither — nor the Owner

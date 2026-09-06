@@ -9,8 +9,7 @@ import { describe, expect, it } from 'vitest'
  * Held over the real source tree, in the family of `accounts-boundary.test.ts`:
  *
  *   1. **The launch tools are outside the runtime import graph.** Nothing under
- *      `app/`, `components/` or `lib/` imports from `scripts/`, and the map
- *      launch guard is reached from `next.config.ts` alone.
+ *      `app/`, `components/` or `lib/` imports from `scripts/`.
  *   2. **Migration ≠ content load ≠ Owner bootstrap.** Three scripts, none
  *      importing another, none naming another's subject: the migration door
  *      knows no seed file, no profile and no invitation; the loader knows no
@@ -97,17 +96,6 @@ describe('the launch tools sit outside the runtime', () => {
   it('nothing under app/, components/ or lib/ imports from scripts/', () => {
     const importers = runtimeFiles.filter((f) => /from\s+['"][^'"]*scripts\//.test(codeOf(f.source))).map((f) => f.path)
     expect(importers).toEqual([])
-  })
-
-  it('the map launch guard is reached from next.config.ts alone, and reads the one descriptor', () => {
-    const importers = runtimeFiles.filter((f) => /map-launch-guard/.test(codeOf(f.source))).map((f) => f.path)
-    expect(importers).toEqual([])
-    const config = codeOf(readFileSync(join(ROOT, 'next.config.ts'), 'utf8'))
-    expect(config).toMatch(/assertLaunchMapProvenance\(\)/)
-    expect(config).toMatch(/PHASE_PRODUCTION_BUILD/)
-    const staticMap = codeOf(readFileSync(join(ROOT, 'components/site/StaticMap.tsx'), 'utf8'))
-    expect(staticMap).toContain("from '@/lib/site/map-asset'")
-    expect(staticMap).not.toMatch(/src:\s*'\/map\//)
   })
 })
 

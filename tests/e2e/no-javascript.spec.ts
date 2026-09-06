@@ -105,12 +105,15 @@ test('the opening hours are readable, and the seven-day view still opens', async
   await expect(page.getByRole('main').getByText('Onsdag', { exact: false }).first()).toBeVisible()
 })
 
-test('the map is still a link to directions', async ({ page }) => {
+test('the map embed and the directions link both render without scripting', async ({ page }) => {
   await page.goto('/find-os')
 
-  const mapLink = page.getByRole('main').locator('a[href*="google.com/maps/dir"]:has(img)')
-  await expect(mapLink).toBeVisible()
-  expect(decodeURIComponent((await mapLink.getAttribute('href')) ?? '')).toContain(ADDRESS_LINE)
+  const frame = page.getByRole('main').locator('iframe[title^="Kort over"]')
+  await expect(frame).toBeVisible()
+  expect(decodeURIComponent((await frame.getAttribute('src')) ?? '')).toContain(ADDRESS_LINE)
+
+  const directions = page.getByRole('main').getByRole('link', { name: 'Vis vej' })
+  await expect(directions).toHaveAttribute('href', /google\.com\/maps\/dir/)
 })
 
 test('the open/closed badge degrades to the server-rendered value, not to nothing', async ({
