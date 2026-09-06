@@ -22,6 +22,10 @@ export const SECONDARY_TEL_HREF = 'tel:+4551794566'
 
 export const ADDRESS_LINE = 'Lumbyvej 62, 5792 Nørre Lyndelse'
 
+/** The public e-mail address, confirmed in the C4 factual check and printed on Find os. */
+export const PUBLIC_EMAIL = 'soebylarsen@gmail.com'
+export const PUBLIC_EMAIL_HREF = 'mailto:soebylarsen@gmail.com'
+
 /** The nine confirmed menu sections, in the approved order (1h, 1m). */
 export const MENU_CATEGORIES = [
   { name: 'Burgere', anchor: 'menu-burgere' },

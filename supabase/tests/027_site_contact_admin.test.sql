@@ -269,7 +269,7 @@ select is(pg_temp.hours_state(), current_setting('test.hours_before')::jsonb, 't
 
 select pg_temp.fixture_phone('+45 63 90 83 00');
 select pg_temp.fixture_draft(null);
-update public.site_contact set email = null, city = 'Nørre Lyndelse';
+update public.site_contact set email = 'soebylarsen@gmail.com', city = 'Nørre Lyndelse';
 select is(pg_temp.row_state(), current_setting('test.row_before')::jsonb, 'the row is as the seed left it');
 
 select * from finish();

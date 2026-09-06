@@ -1,11 +1,12 @@
 import type { SiteContact } from '@/lib/content/types'
 
 /**
- * The two outbound links the public site builds — technical plan §7g, §8.
+ * The outbound links the public site builds — technical plan §7g, §8.
  *
- * Both are constructed here rather than at the call site so there is exactly one place
- * that decides what a phone link and a directions link look like, and exactly one place
- * a reviewer has to read to be sure neither is built from visitor input.
+ * Each one is constructed here rather than at the call site so there is exactly one
+ * place that decides what a phone link, an e-mail link and a directions link look like,
+ * and exactly one place a reviewer has to read to be sure none of them is built from
+ * visitor input.
  */
 
 /**
@@ -25,6 +26,24 @@ export function telHref(phone: string): string {
   }
 
   return `tel:${plus}${digits}`
+}
+
+/**
+ * `mailto:` href for the stored public e-mail address.
+ *
+ * The address is a stored contact fact, validated on the way in by
+ * `siteContactDraft.email` (§4), so nothing is escaped or re-shaped here beyond the
+ * surrounding whitespace a paste can leave behind. There is no subject, no body and no
+ * second recipient: the link opens an empty message to the restaurant and nothing else.
+ */
+export function mailtoHref(email: string): string {
+  const trimmed = email.trim()
+
+  if (trimmed.length === 0) {
+    throw new TypeError('An e-mail address must not be empty.')
+  }
+
+  return `mailto:${trimmed}`
 }
 
 /** A postal address, as the site stores and prints it. */

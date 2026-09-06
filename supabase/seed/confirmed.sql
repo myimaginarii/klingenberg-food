@@ -50,11 +50,12 @@ update public.site_contact
        primary_phone   = '+45 63 90 83 00',
        secondary_phone = '+45 51 79 45 66',
        facebook_url    = 'https://www.facebook.com/carlnielsencafeen',
-       -- No public email address is among the confirmed facts (§11 lists it as
-       -- "omitted until supplied"), and the map asset is a placeholder whose licence
-       -- requires no credit (public/map/LICENSE.md). Both stay null rather than
-       -- invented.
-       email           = null,
+       -- The public email address was supplied by the restaurant in the C4 factual
+       -- check (2026-09-06) and is a confirmed fact like the two numbers; Find os
+       -- prints it as a `mailto:` link. The map asset is still a placeholder whose
+       -- licence requires no credit (public/map/LICENSE.md), so the credit stays null
+       -- rather than invented.
+       email           = 'soebylarsen@gmail.com',
        map_attribution = null;
 
 -- Mon closed, Tue closed, Wed–Fri 15:00–20:00, Sat–Sun 17:00–20:00.
@@ -131,12 +132,11 @@ select c.id, d.name, d.price_ore, d.sort_order
   join (values
     ('Fish n'' chips', 8500, 1),
     ('Ekstra fisk', 4200, 2),
-    ('Salat efter sæson', 1900, 3),
-    ('½ grillkylling med pommes frites', 8500, 4),
-    ('Dürum', 6600, 5),
-    ('Chiliolie og/eller hvidløgsolie', 500, 6),
-    ('Sandwich, kylling/bacon', 5300, 7),
-    ('Sandwich, frikadelle', 5300, 8)
+    ('½ grillkylling med pommes frites', 8500, 3),
+    ('Dürum', 6600, 4),
+    ('Chiliolie og/eller hvidløgsolie', 500, 5),
+    ('Sandwich, kylling/bacon', 5300, 6),
+    ('Sandwich, frikadelle', 5300, 7)
   ) as d(name, price_ore, sort_order) on true
  where c.slug = 'andre-retter';
 

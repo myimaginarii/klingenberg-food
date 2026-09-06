@@ -111,6 +111,9 @@ export type FindOsSnapshot = {
   readonly directionsHref: string | null
   readonly addressText: string | null
   readonly facebookHref: string | null
+  /** The `mailto:` link, or null when the field is empty and the block is gone. */
+  readonly emailHref: string | null
+  readonly emailText: string | null
 }
 
 async function readShell(page: Page): Promise<ContactSnapshot> {
@@ -159,6 +162,7 @@ async function readFindOs(page: Page): Promise<FindOsSnapshot> {
   const directions = main.locator('a[href*="google.com/maps/dir"]').first()
   const address = main.locator('address').first()
   const facebook = main.getByRole('link', { name: 'Facebook' })
+  const email = main.locator('a[href^="mailto:"]').first()
 
   return {
     ringHref: (await ring.count()) === 0 ? null : await ring.getAttribute('href'),
@@ -167,6 +171,8 @@ async function readFindOs(page: Page): Promise<FindOsSnapshot> {
     directionsHref: (await directions.count()) === 0 ? null : await directions.getAttribute('href'),
     addressText: (await address.count()) === 0 ? null : (await address.innerText()).trim(),
     facebookHref: (await facebook.count()) === 0 ? null : await facebook.first().getAttribute('href'),
+    emailHref: (await email.count()) === 0 ? null : await email.getAttribute('href'),
+    emailText: (await email.count()) === 0 ? null : (await email.innerText()).trim(),
   }
 }
 

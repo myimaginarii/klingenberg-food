@@ -20,7 +20,14 @@ import {
 } from './support/contact-admin'
 import { ownerRestClient } from './support/home-admin'
 import { staffRestClient } from './support/images-admin'
-import { PRIMARY_PHONE, PRIMARY_TEL_HREF, SECONDARY_PHONE, SECONDARY_TEL_HREF } from './support/site'
+import {
+  PRIMARY_PHONE,
+  PRIMARY_TEL_HREF,
+  PUBLIC_EMAIL,
+  PUBLIC_EMAIL_HREF,
+  SECONDARY_PHONE,
+  SECONDARY_TEL_HREF,
+} from './support/site'
 
 /**
  * Kontaktoplysninger administration — phase 11B (brief §29); designs 1v, 1g, 1k, 1o;
@@ -102,7 +109,7 @@ test('the Owner opens 1v: the five facts under their labels, Offentliggør greye
   }
   await expect(form.getByLabel(CONTACT_LABELS.primary_phone, { exact: true })).toHaveValue(PRIMARY_PHONE)
   await expect(form.getByLabel(CONTACT_LABELS.facebook_url, { exact: true })).toHaveValue(SEEDED_FACEBOOK)
-  await expect(form.getByLabel(CONTACT_LABELS.email, { exact: true })).toHaveValue('')
+  await expect(form.getByLabel(CONTACT_LABELS.email, { exact: true })).toHaveValue(PUBLIC_EMAIL)
 
   // 1v's sentences, and no Instagram field.
   await expect(ownerPage.getByText('Bruges af alle Ring-knapper og står størst på Find os.')).toBeVisible()
@@ -290,7 +297,7 @@ test('a second Owner tab that started from an older version is refused, not over
 
   // Reloading gives the current version; saving the live value takes the field back out.
   await openContactAdmin(ownerPage)
-  await saveContact(ownerPage, { [CONTACT_LABELS.email]: '' })
+  await saveContact(ownerPage, { [CONTACT_LABELS.email]: PUBLIC_EMAIL })
   await expect(statusNotice(ownerPage)).toContainText('venter ingen ændring')
   expect((await storedContact()).draft).toBeNull()
 
@@ -350,7 +357,7 @@ test('the run restores the seed through the editor, and the guest reads it on th
     [CONTACT_LABELS.primary_phone]: PRIMARY_PHONE,
     [CONTACT_LABELS.secondary_phone]: SECONDARY_PHONE,
     [CONTACT_LABELS.facebook_url]: SEEDED_FACEBOOK,
-    [CONTACT_LABELS.email]: '',
+    [CONTACT_LABELS.email]: PUBLIC_EMAIL,
   })
   await publishContact(ownerPage)
 
@@ -359,7 +366,13 @@ test('the run restores the seed through the editor, and the guest reads it on th
   expect(shell.footerSecondary).toEqual({ text: `Ekstra nummer ${SECONDARY_PHONE}`, href: SECONDARY_TEL_HREF })
   expect(shell.footerFacebookHref).toBe(SEEDED_FACEBOOK)
 
+  // The confirmed e-mail is back too, and Find os prints it as a `mailto:` link on
+  // the first guest request — the one page that carries it (C4).
+  const findOs = await guestFindOs(browser)
+  expect(findOs.emailText).toBe(PUBLIC_EMAIL)
+  expect(findOs.emailHref).toBe(PUBLIC_EMAIL_HREF)
+
   const stored = await storedContact()
   expect(stored.draft).toBeNull()
-  expect(stored.email).toBeNull()
+  expect(stored.email).toBe(PUBLIC_EMAIL)
 })

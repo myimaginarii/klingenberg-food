@@ -8,6 +8,7 @@ import { directionsUrl, formatAddressLine, toPostalAddress } from '@/lib/site/li
 
 import { ActionLink } from '@/components/site/ActionLink'
 import { AddressBlock } from '@/components/site/contact/AddressBlock'
+import { EmailBlock } from '@/components/site/contact/EmailBlock'
 import { FollowUsCard } from '@/components/site/contact/FollowUsCard'
 import { PhoneNumbers } from '@/components/site/contact/PhoneNumbers'
 import { Eyebrow } from '@/components/site/Eyebrow'
@@ -108,6 +109,11 @@ export default async function FindOsPage() {
               />
             </div>
           ) : null}
+
+          {/* Beside the numbers, and after them: the telephone is the confirmed way to
+              order (1k), and an e-mail address is the slower alternative, not a rival
+              call to action. It is the only place on the site that prints it. */}
+          <EmailBlock email={contact.email} className="mt-7" />
 
           <section
             id="aabningstider"

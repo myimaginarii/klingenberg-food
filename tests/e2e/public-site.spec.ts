@@ -7,6 +7,8 @@ import {
   MENU_CATEGORIES,
   PRIMARY_PHONE,
   PRIMARY_TEL_HREF,
+  PUBLIC_EMAIL,
+  PUBLIC_EMAIL_HREF,
   PUBLIC_ROUTES,
   SECONDARY_TEL_HREF,
 } from './support/site'
@@ -335,6 +337,28 @@ test.describe('Find os', () => {
     const main = page.getByRole('main')
     await expect(main.getByText(PRIMARY_PHONE).first()).toBeVisible()
     await expect(main.getByText('Ekstra nummer', { exact: false })).toBeVisible()
+  })
+
+  test('prints the confirmed e-mail address as a mailto link, once', async ({ page }) => {
+    await page.goto('/find-os')
+
+    const main = page.getByRole('main')
+    const email = main.locator('a[href^="mailto:"]')
+
+    // One address, one link: the value is the stored one, and it is beside the telephone
+    // information rather than repeated down the page (C4).
+    await expect(email).toHaveCount(1)
+    await expect(email).toHaveAttribute('href', PUBLIC_EMAIL_HREF)
+    await expect(email).toHaveText(PUBLIC_EMAIL)
+    await expect(main.getByText('E-mail', { exact: true })).toBeVisible()
+  })
+
+  test('the e-mail address is on Find os and on no other public page', async ({ page }) => {
+    for (const route of PUBLIC_ROUTES) {
+      await page.goto(route.path)
+      const expected = route.path === '/find-os' ? 1 : 0
+      await expect(page.locator('a[href^="mailto:"]'), route.path).toHaveCount(expected)
+    }
   })
 
   test('links to the restaurant Facebook page and nowhere else off-site', async ({ page }) => {

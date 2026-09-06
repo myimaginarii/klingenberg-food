@@ -126,12 +126,12 @@ describe('the loader', () => {
     expect(await state()).toEqual(empty)
 
     const run = await harness()
-    expect(run.output).toContain('loaded: 9 section(s), 47 dish(es)')
+    expect(run.output).toContain('loaded: 9 section(s), 46 dish(es)')
     expect(run.code).toBe(0)
 
     const after = await state()
-    expect(after).toMatchObject({ categories: 9, dishes: 47, markers: 1, contactEmpty: false })
-    expect(after.marker).toMatchObject({ source: CONFIRMED_CONTENT_FILE, sha256: confirmedSha, categories: 9, dishes: 47 })
+    expect(after).toMatchObject({ categories: 9, dishes: 46, markers: 1, contactEmpty: false })
+    expect(after.marker).toMatchObject({ source: CONFIRMED_CONTENT_FILE, sha256: confirmedSha, categories: 9, dishes: 46 })
     // The development layer did not run: the placeholder news and the accounts are untouched.
     expect(after.news).toBe(empty.news)
     expect(after.profiles).toBe(empty.profiles)

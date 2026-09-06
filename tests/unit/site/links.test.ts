@@ -4,6 +4,7 @@ import type { SiteContact } from '@/lib/content/types'
 import {
   directionsUrl,
   formatAddressLine,
+  mailtoHref,
   telHref,
   toPostalAddress,
 } from '@/lib/site/links'
@@ -22,7 +23,7 @@ const CONTACT: SiteContact = {
   city: 'Nørre Lyndelse',
   primaryPhone: '+45 63 90 83 00',
   secondaryPhone: '+45 51 79 45 66',
-  email: null,
+  email: 'soebylarsen@gmail.com',
   facebookUrl: 'https://www.facebook.com/carlnielsencafeen',
   mapAttribution: null,
 }
@@ -40,6 +41,24 @@ describe('telHref', () => {
 
   it('refuses a number with no digits rather than producing a dead link', () => {
     expect(() => telHref('  ')).toThrow(TypeError)
+  })
+})
+
+describe('mailtoHref', () => {
+  it('links the confirmed public address', () => {
+    expect(mailtoHref(CONTACT.email as string)).toBe('mailto:soebylarsen@gmail.com')
+  })
+
+  it('drops the whitespace a paste leaves behind', () => {
+    expect(mailtoHref('  soebylarsen@gmail.com \n')).toBe('mailto:soebylarsen@gmail.com')
+  })
+
+  it('carries no subject, no body and no second recipient', () => {
+    expect(mailtoHref('soebylarsen@gmail.com')).not.toMatch(/[?&,]/)
+  })
+
+  it('refuses an empty address rather than producing a dead link', () => {
+    expect(() => mailtoHref('   ')).toThrow(TypeError)
   })
 })
 
