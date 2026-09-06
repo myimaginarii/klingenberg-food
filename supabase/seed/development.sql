@@ -124,12 +124,18 @@ update public.pages
        'Placeholder. Fire-fem linjer om hvordan Klingenberg Food blev til, og hvorfor stedet ligger i Carl Nielsen Hallen. Teksten skrives, når restauranten leverer indholdet.',
        'Placeholder — anden tekstblok.'
      ),
+     -- The three photo slots (phase 14B1) are whole keys of the strict document and
+     -- empty on purpose: 1ab's facade, team and kitchen photographs are selected
+     -- through the editor in 14B2, never seeded.
+     'venue_image_id', null,
      'team', jsonb_build_object(
-       'text', 'Placeholder — tre-fire linjer om holdet som helhed: hvem der står bag disken, og hvad de går op i. Ingen navne, ingen titler.'
+       'text', 'Placeholder — tre-fire linjer om holdet som helhed: hvem der står bag disken, og hvad de går op i. Ingen navne, ingen titler.',
+       'image_id', null
      ),
      'method', jsonb_build_object(
        'heading', 'Sådan laver vi burgere',
-       'text', 'Placeholder — tre-fire linjer om råvarer, brød og tilberedning.'
+       'text', 'Placeholder — tre-fire linjer om råvarer, brød og tilberedning.',
+       'image_id', null
      )
    )
  where key = 'about';

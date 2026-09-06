@@ -1,0 +1,120 @@
+import { ActionLink } from '@/components/site/ActionLink'
+import { AwardBand } from '@/components/site/AwardBand'
+import { Eyebrow } from '@/components/site/Eyebrow'
+import { PageContainer } from '@/components/site/PageContainer'
+import { Section } from '@/components/site/Section'
+import { SiteImage } from '@/components/site/SiteImage'
+import type { AboutDocument } from '@/lib/content/types'
+import { ABOUT_DEFAULT_HEADING, ABOUT_DEFAULT_METHOD_HEADING } from '@/lib/pages/about'
+
+/**
+ * Om os — design 1i, rendered from the published (or previewed) document.
+ *
+ * Pure server markup over the document the route reads, so the page can be asserted as
+ * HTML without a database (`tests/unit/about/about-page.test.tsx`). Nothing about the
+ * layout changed for phase 14B1: the three frames 1i reserves — "Stedet" beside the
+ * story, "Ét holdfoto — fuld bredde", "Køkken / tilberedning" beside the method — are
+ * now real image slots, drawn by the one public renderer in exactly the boxes the
+ * placeholders reserved; with no image selected each frame renders as it always did. The
+ * one other change is `break-words` on the headings and paragraphs: the editor admits a
+ * 120-character heading and 2,000-character paragraphs, and a long unbroken word in one
+ * of them must wrap inside the 375 px column rather than scroll the page sideways.
+ *
+ * "Forenklet i denne version: ét holdfoto og ét kort afsnit. Ingen portrætter, navne
+ * eller roller" (1i). That simplification is respected: there is no team-member list.
+ *
+ * THE AWARD BAND IS NOT THE DOCUMENT'S. Its words are the confirmed competition result
+ * (1ab) and are stated here, once; its photograph is the Forside document's own
+ * (`home.award.image_id`, the Owner's). Om os carries no second award source, so the
+ * band draws the reserved frame it has always drawn (§0am).
+ */
+
+const TEAM_HEADING = 'Holdet'
+const AWARD = {
+  title: 'Vinder af Fyn & Øer — nr. 4 i Danmark',
+  text: 'Danmarks Bedste Burger 2026. På konkurrencens liste står stedet som Carl Nielsen Caféen, Årslev — Klingenberg Food er navnet på hjemmesiden.',
+}
+
+export function AboutPageContent({ about }: { about: AboutDocument | null }) {
+  return (
+    <>
+      <PageContainer className="py-7 md:py-12">
+        <div className="flex flex-col gap-8 md:flex-row md:items-start md:gap-9">
+          <div className="flex-1 lg:flex-[1.1]">
+            <Eyebrow>Om os</Eyebrow>
+            <h1 className="font-display mt-3 text-[2.25rem] leading-[1.02] tracking-[-0.03em] break-words md:text-[3rem]">
+              {about?.heading ?? ABOUT_DEFAULT_HEADING}
+            </h1>
+            <div className="mt-4 flex flex-col gap-3.5">
+              {(about?.storyBlocks ?? []).map((block, index) => (
+                <p key={index} className="text-neutral-ink max-w-[52ch] break-words md:text-[1.125rem]">
+                  {block}
+                </p>
+              ))}
+            </div>
+          </div>
+
+          <SiteImage
+            image={about?.venueImage ?? null}
+            ratio="portrait"
+            sizes="aboutVenue"
+            loading="eager"
+            placeholder={{ label: 'Stedet', detail: 'facade / indgang ved hallen · dagslys' }}
+            className="rounded-card-lg w-full flex-1 md:max-w-[26rem] md:self-start"
+          />
+        </div>
+      </PageContainer>
+
+      <AwardBand headingId="om-os-udmaerkelse" title={AWARD.title} text={AWARD.text} sealFirst />
+
+      <Section ariaLabelledBy="om-os-holdet">
+        <h2 id="om-os-holdet" className="font-display text-[1.75rem] md:text-title-sm">
+          {TEAM_HEADING}
+        </h2>
+        <SiteImage
+          image={about?.team.image ?? null}
+          ratio="team"
+          sizes="aboutTeam"
+          placeholder={{
+            label: 'Ét holdfoto — fuld bredde',
+            detail: 'hele holdet samlet i køkkenet, naturligt lys',
+          }}
+          className="rounded-card-lg mt-4 w-full"
+        />
+        {about?.team.text ? (
+          <p className="text-neutral-ink mt-5 max-w-[62ch] break-words md:text-[1.125rem]">{about.team.text}</p>
+        ) : null}
+      </Section>
+
+      <Section tone="beige" ariaLabelledBy="om-os-metode">
+        <div className="flex flex-col gap-8 md:flex-row md:items-center md:gap-9">
+          <SiteImage
+            image={about?.method.image ?? null}
+            ratio="hero"
+            sizes="aboutKitchen"
+            placeholder={{ label: 'Køkken / tilberedning' }}
+            className="rounded-card-lg w-full flex-1"
+          />
+          <div className="flex-1 lg:flex-[1.1]">
+            <h2 id="om-os-metode" className="font-display text-[1.625rem] break-words md:text-[1.875rem]">
+              {about?.method.heading ?? ABOUT_DEFAULT_METHOD_HEADING}
+            </h2>
+            {about?.method.text ? (
+              <p className="text-neutral-ink mt-3 max-w-[48ch] break-words md:text-[1.0625rem]">
+                {about.method.text}
+              </p>
+            ) : null}
+            <div className="mt-5 flex flex-col gap-2.5 md:flex-row">
+              <ActionLink href="/menu" block className="md:w-auto">
+                Se menuen
+              </ActionLink>
+              <ActionLink href="/find-os" variant="secondary" block className="md:w-auto">
+                Find os
+              </ActionLink>
+            </div>
+          </div>
+        </div>
+      </Section>
+    </>
+  )
+}

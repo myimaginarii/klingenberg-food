@@ -212,10 +212,20 @@ export type TakeawayDocument = {
   ctaLabel: string | null
 }
 
-/** `pages.published` for `about`. */
+/**
+ * `pages.published` for `about` (§4, "Document shapes").
+ *
+ * The three photographs (phase 14B1) are 1i's own reserved frames — the facade beside
+ * the story ("Stedet"), the one team photo ("Ét holdfoto") and the kitchen beside the
+ * method ("Køkken / tilberedning") — resolved through the same public projection every
+ * entity image uses, inside the `page:about`-tagged read. `null` renders the reserved
+ * frame the page has always drawn. The award band's words and picture are not here:
+ * the words are the confirmed result (1ab) and the picture is the Forside's.
+ */
 export type AboutDocument = {
   heading: string | null
   storyBlocks: string[]
-  team: { text: string | null }
-  method: { heading: string | null; text: string | null }
+  venueImage: PublicImage | null
+  team: { text: string | null; image: PublicImage | null }
+  method: { heading: string | null; text: string | null; image: PublicImage | null }
 }

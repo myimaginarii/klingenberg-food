@@ -37,11 +37,12 @@ export const HOME_HEADING_MAX = HEADING_MAX
 export const HOME_TEXT_MAX = INTRO_MAX
 
 /**
- * The three Forside image slots (phase 11A) — 1u's "Hovedbillede", "Udmærkelsesfoto"
- * and "Holdfoto". Each is an `image_id` and nothing else: no path, no derivative, no
- * alt text (the library owns the description, §0y). The key is **required** in every
- * section, for the reason stated at the top of this file — a section without it would
- * shallow-merge over the published section and silently drop the live photo.
+ * A section's image slot — the three Forside slots (phase 11A: 1u's "Hovedbillede",
+ * "Udmærkelsesfoto" and "Holdfoto") and Om os's team and kitchen (phase 14B1). Each is
+ * an `image_id` and nothing else: no path, no derivative, no alt text (the library owns
+ * the description, §0y). The key is **required** in every section, for the reason
+ * stated at the top of this file — a section without it would shallow-merge over the
+ * published section and silently drop the live photo.
  *
  * `null` is a value ("no image") and is what a pending removal stores; the public
  * read renders the reserved frame for it.
@@ -168,29 +169,58 @@ export const takeawayDraft = defineDraft({
   is_visible: z.boolean({ error: 'Synligheden skal være til eller fra.' }).optional(),
 })
 
+/** The Om os editor's limits (1i; phase 14B1), stated once for the form and the schema. */
+export const ABOUT_HEADING_MAX = HEADING_MAX
+export const ABOUT_TEXT_MAX = BODY_MAX
+export const ABOUT_STORY_BLOCK_LIMIT = 10
+
 /**
- * Om os (Staff). Design 1i / 1o.
+ * Om os (Staff). Design 1i; the editor is phase 14B1's `/admin/om-os`.
  *
- * `team` and `method` are still ordinary `z.object()`s and therefore strip an unknown
- * nested key rather than refusing it — the same finding phase 11B closed for the
- * Mad ud af huset sections. Left as it is on purpose: the Om os editor is not built
- * yet, this shape is the phase-4 placeholder editor's, and the phase that builds 1i's
- * editor owns the strictness of its sections (recorded in technical plan §0aa).
+ * §4's shape — `heading`, `story_blocks []`, `team {text, image_id}`, `method {heading,
+ * text, image_id}`, `venue_image_id` — and **strict at every level a browser can write**.
+ * Phase 11B's completion pass recorded that `team` and `method` were still ordinary
+ * `z.object()`s, stripping an unknown nested key rather than refusing it, and left the
+ * closure to the phase that built 1i's editor (§0aa, §0ac). This is that phase: the two
+ * sections are `z.strictObject`s on both parses, so a key the editor did not draw is a
+ * refusal on the way in and `malformed` / `invalid_draft` on the way out — exactly as
+ * the Forside's sections and Mad ud af huset's are.
+ *
+ * THE THREE PHOTOGRAPHS (phase 14B1). 1i reserves three frames — "Stedet" (the facade
+ * beside the story), "Ét holdfoto — fuld bredde" (the team) and "Køkken / tilberedning"
+ * (beside the method) — and §4 names their paths. The team and kitchen ids sit inside
+ * their sections, so a section is whole only with its `image_id` (the top-of-file
+ * rule); the facade id is a top-level key, like Mad ud af huset's, so a pending
+ * selection is the key alone and a cleared one its absence. Each is an id and nothing
+ * else: the library owns the description (§0y).
+ *
+ * §4 also listed an `award_image_id`. It is deliberately **not** here: the award band
+ * on Om os states the confirmed competition result (1ab) and its photograph is the
+ * Forside document's own (`home.award.image_id`, Owner); a second award source on a
+ * Staff page would be two owners for one fact (§0am).
  */
 export const aboutDraft = defineDraft({
-  heading: optionalText(HEADING_MAX, 'Overskriften').optional(),
+  heading: optionalText(ABOUT_HEADING_MAX, 'Overskriften').optional(),
 
   story_blocks: z
-    .array(optionalText(BODY_MAX, 'Et tekstafsnit'))
-    .max(10, { error: 'Historien kan højst have 10 afsnit.' })
+    .array(optionalText(ABOUT_TEXT_MAX, 'Et tekstafsnit'))
+    .max(ABOUT_STORY_BLOCK_LIMIT, { error: `Historien kan højst have ${ABOUT_STORY_BLOCK_LIMIT} afsnit.` })
     .optional(),
 
-  team: z.object({ text: optionalText(BODY_MAX, 'Teksten om holdet') }).optional(),
+  venue_image_id: optionalRowId('Billedet af stedet').optional(),
+
+  team: z
+    .strictObject({
+      text: optionalText(ABOUT_TEXT_MAX, 'Teksten om holdet'),
+      image_id: sectionImage(),
+    })
+    .optional(),
 
   method: z
-    .object({
-      heading: optionalText(HEADING_MAX, 'Overskriften'),
-      text: optionalText(BODY_MAX, 'Teksten'),
+    .strictObject({
+      heading: optionalText(ABOUT_HEADING_MAX, 'Overskriften'),
+      text: optionalText(ABOUT_TEXT_MAX, 'Teksten'),
+      image_id: sectionImage(),
     })
     .optional(),
 })

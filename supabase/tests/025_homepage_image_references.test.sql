@@ -775,11 +775,11 @@ select is(
   'three references moved in all');
 select is(
   (current_setting('test.rep')::jsonb -> 'affected' -> 'live'),
-  '{"dish": 1, "weekly": 0, "monthly": 0, "news": 0, "page:home": 1, "page:takeaway": 0}'::jsonb,
+  '{"dish": 1, "weekly": 0, "monthly": 0, "news": 0, "page:home": 1, "page:takeaway": 0, "page:about": 0}'::jsonb,
   'affected.live: Thor and the Forside');
 select is(
   (current_setting('test.rep')::jsonb -> 'affected' -> 'draft'),
-  '{"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 1, "page:takeaway": 0}'::jsonb,
+  '{"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 1, "page:takeaway": 0, "page:about": 0}'::jsonb,
   'affected.draft: the pending award selection');
 select is(
   (select count(*) from public.images where id = pg_temp.img('test.a')), 0::bigint,

@@ -1,14 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test'
 
-import {
-  DRAFT_COOKIE,
-  editorForm,
-  OWNER,
-  publishOnly,
-  saveDraft,
-  signIn,
-  STAFF,
-} from './support/admin'
+import { ABOUT_CARDS, aboutForm, openAboutAdmin, saveAboutCard, statusNotice } from './support/about-admin'
+import { DRAFT_COOKIE, OWNER, publishOnly, signIn, STAFF } from './support/admin'
 
 /**
  * Kladde → Forhåndsvis → Offentliggør, in a real browser — technical plan §6, §9.
@@ -19,7 +12,9 @@ import {
  *
  * So every test below is written from a guest's side of that line as much as from the
  * administration's. The field the tests move is the "Sådan laver vi burgere" heading on
- * Om os, which no other spec asserts.
+ * Om os, which no other spec asserts — since phase 14B1 through the Om os editor's own
+ * "Køkken og tilberedning" card (the phase-4 content screen is gone), and published from
+ * the dashboard's pending list, which is what this suite is about.
  *
  * The tests run in order and share one signed-in page, because they are one story: a
  * draft has to exist before it can be previewed, and be previewed before it is
@@ -39,8 +34,7 @@ const BASELINE_HEADING = 'Sådan laver vi burgere'
 const DRAFT_HEADING = 'Kladde — sådan laver vi burgere'
 const PUBLISHED_HEADING = 'Sådan laver vi burgere hos Klingenberg'
 
-/** The label of the field that carries it, and the entity's row in the dashboard. */
-const METHOD_FIELD = 'Overskrift på metodeafsnit'
+/** The entity's row in the dashboard. */
 const ABOUT_PENDING = 'Om os'
 const HOME_PENDING = 'Forsiden'
 
@@ -50,6 +44,31 @@ const HOME_PENDING = 'Forsiden'
  */
 function methodHeading(page: Page) {
   return page.locator('h2#om-os-metode')
+}
+
+/** The method card's heading field in the editor. */
+function methodField(page: Page) {
+  return aboutForm(page, ABOUT_CARDS.method).getByLabel('Overskrift', { exact: true })
+}
+
+/** Save the method heading as a draft, on a freshly loaded editor (the current version). */
+async function saveMethodHeading(page: Page, heading: string): Promise<void> {
+  await openAboutAdmin(page)
+  await saveAboutCard(page, ABOUT_CARDS.method, { Overskrift: heading })
+}
+
+/**
+ * Publish the Om os draft from the dashboard when one is pending. Saving a heading that
+ * the hjemmeside already shows writes no draft at all (the §4 delta), so there may be
+ * nothing to publish — which is the state this suite wants.
+ */
+async function publishAboutIfPending(page: Page): Promise<void> {
+  await page.goto('/admin')
+  const form = page.getByRole('form', { name: 'Ændringer der venter' })
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  if ((await form.getByRole('checkbox', { name: ABOUT_PENDING }).count()) > 0) {
+    await publishOnly(page, [ABOUT_PENDING])
+  }
 }
 
 /** A visitor: a browser that has never signed in and holds no cookie. */
@@ -69,11 +88,9 @@ test.beforeAll(async ({ browser }) => {
   await signIn(staffPage, STAFF)
 
   // Publish the baseline before anything else, so the suite starts from a known live
-  // value however the previous run ended. Saving and publishing the same value it
-  // already holds is a no-op for a guest and costs one audit row.
-  await staffPage.goto('/admin/indhold')
-  await saveDraft(staffPage, 'Om os', { [METHOD_FIELD]: BASELINE_HEADING })
-  await publishOnly(staffPage, [ABOUT_PENDING])
+  // value however the previous run ended.
+  await saveMethodHeading(staffPage, BASELINE_HEADING)
+  await publishAboutIfPending(staffPage)
 })
 
 test.afterAll(async () => {
@@ -85,14 +102,13 @@ test.afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 test('editing a content field saves a draft rather than changing anything', async () => {
-  await staffPage.goto('/admin/indhold')
+  await openAboutAdmin(staffPage)
+  await expect(methodField(staffPage)).toHaveValue(BASELINE_HEADING)
 
-  await expect(editorForm(staffPage, 'Om os').getByLabel(METHOD_FIELD)).toHaveValue(BASELINE_HEADING)
+  await saveAboutCard(staffPage, ABOUT_CARDS.method, { Overskrift: DRAFT_HEADING })
 
-  await saveDraft(staffPage, 'Om os', { [METHOD_FIELD]: DRAFT_HEADING })
-
-  await expect(staffPage.getByRole('status')).toContainText('Kladden er gemt')
-  await expect(staffPage.getByText('Kladde — ikke offentliggjort').first()).toBeVisible()
+  await expect(statusNotice(staffPage)).toContainText('Gemt som kladde')
+  await expect(staffPage.getByRole('banner').getByText('Kladde', { exact: true })).toBeVisible()
 })
 
 test('the draft appears in the dashboard with who edited it and when', async () => {
@@ -143,9 +159,8 @@ test('an ordinary visitor is unaffected by somebody else previewing', async ({ b
 // ---------------------------------------------------------------------------
 
 test('publishing puts the draft live', async () => {
-  await staffPage.goto('/admin/indhold')
-  await saveDraft(staffPage, 'Om os', { [METHOD_FIELD]: PUBLISHED_HEADING })
-  await expect(staffPage.getByRole('status')).toContainText('Kladden er gemt')
+  await saveMethodHeading(staffPage, PUBLISHED_HEADING)
+  await expect(statusNotice(staffPage)).toContainText('Gemt som kladde')
 
   await publishOnly(staffPage, [ABOUT_PENDING])
 
@@ -192,8 +207,7 @@ test('exiting the preview returns the staff member to ordinary browsing', async 
   const cookies = await staffPage.context().cookies()
   expect(cookies.map((cookie) => cookie.name)).not.toContain(DRAFT_COOKIE)
 
-  await staffPage.goto('/admin/indhold')
-  await saveDraft(staffPage, 'Om os', { [METHOD_FIELD]: DRAFT_HEADING })
+  await saveMethodHeading(staffPage, DRAFT_HEADING)
 
   await staffPage.goto('/om-os')
   await expect(methodHeading(staffPage)).toHaveText(PUBLISHED_HEADING)
@@ -227,7 +241,7 @@ test('a preview cannot be aimed at an address outside this site', async () => {
   const forged = [
     'https:' + '//andet-sted.test',
     '//andet-sted.test',
-    '/admin/indhold',
+    '/admin/om-os',
     '../../etc/passwd',
     '',
   ]
@@ -327,27 +341,25 @@ test('a second editor who started from an older version is refused, not overwrit
   await signIn(ownerPage, OWNER)
 
   // Both people open the same editor, so both forms carry the same version.
-  await staffPage.goto('/admin/indhold')
-  await ownerPage.goto('/admin/indhold')
+  await openAboutAdmin(staffPage)
+  await openAboutAdmin(ownerPage)
 
   // The staff member saves first.
-  await saveDraft(staffPage, 'Om os', { [METHOD_FIELD]: 'Medarbejderens rettelse' })
-  await expect(staffPage.getByRole('status')).toContainText('Kladden er gemt')
+  await saveAboutCard(staffPage, ABOUT_CARDS.method, { Overskrift: 'Medarbejderens rettelse' })
+  await expect(statusNotice(staffPage)).toContainText('Gemt som kladde')
 
   // The owner submits the form they loaded before that, and is told so.
-  await saveDraft(ownerPage, 'Om os', { [METHOD_FIELD]: 'Ejerens rettelse' })
-  await expect(ownerPage.getByRole('status')).toContainText('Nogen andre har rettet dette')
+  await saveAboutCard(ownerPage, ABOUT_CARDS.method, { Overskrift: 'Ejerens rettelse' })
+  await expect(statusNotice(ownerPage)).toContainText('Nogen andre har rettet dette')
 
   // Nothing of the first person's work was lost.
-  await staffPage.goto('/admin/indhold')
-  await expect(editorForm(staffPage, 'Om os').getByLabel(METHOD_FIELD)).toHaveValue(
-    'Medarbejderens rettelse',
-  )
+  await openAboutAdmin(staffPage)
+  await expect(methodField(staffPage)).toHaveValue('Medarbejderens rettelse')
 
   // Reloading gives the owner the current version, and their save then works.
-  await ownerPage.goto('/admin/indhold')
-  await saveDraft(ownerPage, 'Om os', { [METHOD_FIELD]: 'Ejerens rettelse' })
-  await expect(ownerPage.getByRole('status')).toContainText('Kladden er gemt')
+  await openAboutAdmin(ownerPage)
+  await saveAboutCard(ownerPage, ABOUT_CARDS.method, { Overskrift: 'Ejerens rettelse' })
+  await expect(statusNotice(ownerPage)).toContainText('Gemt som kladde')
 
   await ownerContext.close()
 })
@@ -357,9 +369,8 @@ test('a second editor who started from an older version is refused, not overwrit
 // ---------------------------------------------------------------------------
 
 test('the seeded Om os heading is restored', async () => {
-  await staffPage.goto('/admin/indhold')
-  await saveDraft(staffPage, 'Om os', { [METHOD_FIELD]: BASELINE_HEADING })
-  await publishOnly(staffPage, [ABOUT_PENDING])
+  await saveMethodHeading(staffPage, BASELINE_HEADING)
+  await publishAboutIfPending(staffPage)
 
   await staffPage.goto('/om-os')
   await expect(methodHeading(staffPage)).toHaveText(BASELINE_HEADING)

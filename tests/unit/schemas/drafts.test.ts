@@ -431,6 +431,109 @@ describe("Mad ud af huset's sections are strict objects (phase 11B)", () => {
   })
 })
 
+describe("Om os's document is strict at every level (phase 14B1 — the §0aa carry-forward closed)", () => {
+  /**
+   * Phase 11B's completion pass recorded that `aboutDraft.team` and `aboutDraft.method`
+   * were still ordinary `z.object()`s — stripping an unknown nested key rather than
+   * refusing it — and left the closure to the phase that built 1i's editor. This block
+   * is that closure: both sections are strict on both parses, the three image slots are
+   * ids or null and nothing else, and the document the editor writes parses unaltered.
+   */
+  const IMAGE = '66666666-6666-4666-8666-666666666666'
+
+  const DOCUMENT = {
+    heading: 'Vores historie',
+    story_blocks: ['Første afsnit.', 'Andet afsnit.'],
+    venue_image_id: IMAGE,
+    team: { text: 'Holdet bag disken.', image_id: IMAGE },
+    method: { heading: 'Sådan laver vi burgere', text: 'Råvarer, brød og tilberedning.', image_id: null },
+  }
+
+  it('the whole document, and a document with every text cleared, parse unaltered on both paths', () => {
+    expect(aboutDraft.input.parse(DOCUMENT)).toEqual(DOCUMENT)
+    expect(aboutDraft.stored.parse(DOCUMENT)).toEqual(DOCUMENT)
+
+    const cleared = {
+      heading: null,
+      story_blocks: [],
+      venue_image_id: null,
+      team: { text: null, image_id: null },
+      method: { heading: null, text: null, image_id: null },
+    }
+    expect(aboutDraft.input.parse(cleared)).toEqual(cleared)
+    expect(aboutDraft.stored.parse(cleared)).toEqual(cleared)
+  })
+
+  it('a single-key or single-section draft — the shape every Gem writes — parses and carries only that key', () => {
+    for (const key of Object.keys(DOCUMENT) as (keyof typeof DOCUMENT)[]) {
+      const parsed = aboutDraft.input.parse({ [key]: DOCUMENT[key] })
+      expect(Object.keys(parsed)).toEqual([key])
+    }
+  })
+
+  it.each(['team', 'method'] as const)('a valid %s plus one unexpected nested key is refused on the way in, naming the section', (section) => {
+    for (const key of ['storage_path', 'alt_text', 'derivatives', 'url', 'name', 'role', 'html']) {
+      const result = aboutDraft.input.safeParse({ [section]: { ...DOCUMENT[section], [key]: 'x' } })
+      expect(result.success, key).toBe(false)
+      expect(
+        result.error?.issues.some(
+          (issue) => issue.code === 'unrecognized_keys' && issue.path.join('.') === section,
+        ),
+        key,
+      ).toBe(true)
+    }
+  })
+
+  it.each(['team', 'method'] as const)('a stored %s with an unexpected key is malformed, not half-applied', (section) => {
+    // The read path is what `overlayDraft` (editor, preview) and `storedDraftIsValid`
+    // (publish) parse with: a section written past the application is `malformed` on
+    // screen and `invalid_draft` at publish — never merged.
+    expect(aboutDraft.stored.safeParse({ [section]: { ...DOCUMENT[section], smuglet: 1 } }).success).toBe(false)
+  })
+
+  it('a section without its image key is refused — the shallow merge would drop the live photo', () => {
+    expect(aboutDraft.input.safeParse({ team: { text: 'x' } }).success).toBe(false)
+    expect(aboutDraft.input.safeParse({ method: { heading: 'x', text: null } }).success).toBe(false)
+    // A stored draft the retired phase-4 editor wrote is exactly this shape.
+    expect(aboutDraft.stored.safeParse({ heading: 'x', method: { heading: 'Gammel', text: null } }).success).toBe(false)
+  })
+
+  it('a key that belongs to a sibling section is refused', () => {
+    expect(aboutDraft.input.safeParse({ team: { ...DOCUMENT.team, heading: 'x' } }).success).toBe(false)
+    expect(aboutDraft.input.safeParse({ method: { ...DOCUMENT.method, story_blocks: [] } }).success).toBe(false)
+  })
+
+  it.each([
+    ['venue_image_id', (value: unknown) => ({ venue_image_id: value })],
+    ['team.image_id', (value: unknown) => ({ team: { ...DOCUMENT.team, image_id: value } })],
+    ['method.image_id', (value: unknown) => ({ method: { ...DOCUMENT.method, image_id: value } })],
+  ] as const)('%s accepts a uuid or null and refuses a path, a URL, an object, a number or an empty string', (_name, at) => {
+    expect(aboutDraft.input.safeParse(at(IMAGE)).success).toBe(true)
+    expect(aboutDraft.input.safeParse(at(null)).success).toBe(true)
+    for (const value of ['abc/original.jpg', 'https://example.test/foto.webp', { id: IMAGE }, 42, '', [IMAGE]]) {
+      expect(aboutDraft.input.safeParse(at(value)).success, JSON.stringify(value)).toBe(false)
+      expect(aboutDraft.stored.safeParse(at(value)).success, JSON.stringify(value)).toBe(false)
+    }
+  })
+
+  it('the story is at most ten paragraphs of at most two thousand characters, and nothing but text', () => {
+    expect(aboutDraft.input.safeParse({ story_blocks: Array.from({ length: 10 }, () => 'x'.repeat(2000)) }).success).toBe(true)
+    expect(aboutDraft.input.safeParse({ story_blocks: Array.from({ length: 11 }, () => 'x') }).success).toBe(false)
+    expect(aboutDraft.input.safeParse({ story_blocks: ['x'.repeat(2001)] }).success).toBe(false)
+    expect(aboutDraft.input.safeParse({ story_blocks: [{ text: 'x' }] }).success).toBe(false)
+    expect(aboutDraft.input.safeParse({ story_blocks: 'ét afsnit' }).success).toBe(false)
+  })
+
+  it('refuses an award key — the award is the Forside\'s and the confirmed result\'s, not this document\'s', () => {
+    expect(aboutDraft.input.safeParse({ award_image_id: IMAGE }).success).toBe(false)
+    expect(aboutDraft.input.safeParse({ award: { title: 'x', text: null, image_id: null } }).success).toBe(false)
+  })
+
+  it('the top-level read path still drops an unknown *key* rather than refusing it', () => {
+    expect(aboutDraft.stored.parse({ noget_helt_andet: 1, heading: 'Vores historie' })).toEqual({ heading: 'Vores historie' })
+  })
+})
+
 describe('malformed values are refused with a Danish message', () => {
   it('refuses a price that is not a whole number of øre', () => {
     const result = dishDraft.input.safeParse({ price_ore: 129.5 })

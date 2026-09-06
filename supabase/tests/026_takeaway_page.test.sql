@@ -655,11 +655,11 @@ select is(pg_temp.draft() ->> 'heading', 'Pending', 'and its pending words are u
 select is((current_setting('test.rep')::jsonb ->> 'references'), '2', 'two references moved in all');
 select is(
   (current_setting('test.rep')::jsonb -> 'affected' -> 'live'),
-  '{"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0, "page:takeaway": 1}'::jsonb,
+  '{"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0, "page:takeaway": 1, "page:about": 0}'::jsonb,
   'affected.live: the page');
 select is(
   (current_setting('test.rep')::jsonb -> 'affected' -> 'draft'),
-  '{"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0, "page:takeaway": 1}'::jsonb,
+  '{"dish": 0, "weekly": 0, "monthly": 0, "news": 0, "page:home": 0, "page:takeaway": 1, "page:about": 0}'::jsonb,
   'affected.draft: the pending selection');
 select is((select count(*) from public.images where id = pg_temp.img('test.a')), 0::bigint, 'and A is gone');
 

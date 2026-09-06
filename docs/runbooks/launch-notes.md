@@ -26,7 +26,7 @@ copying the row.
 | # | Item | Status | Owner | Date · evidence |
 |---|---|---|---|---|
 | A1 | Real photographs from the 1ab checklist uploaded through the image library and selected in the editors | Not started (14B) | The restaurant supplies; the Owner or the developer uploads | |
-| A2 | Real copy for Forsiden, Mad ud af huset and Om os written through the administration; the Om os editor built (14B) | Not started (14B) | The restaurant writes; 14B builds the Om os editor | |
+| A2 | Real copy for Forsiden, Mad ud af huset and Om os written through the administration | Not started (14B2) — the Om os editor is **repository proven** (`/admin/om-os`, phase 14B1, §0am: `tests/e2e/about-admin.spec.ts`, pgTAP `031`) | The restaurant writes; the Owner or the developer enters it | 2026-09-06 · the editor (14B1) |
 | A3 | **Final map asset and its licence** in `public/map/`, `LICENSE.md` completed (provenance, file, source, licence, date), `map_attribution` set if the licence requires credit (§7g, §13 item C) | Not started (14B) — the guard is **repository proven**: a Vercel production build refuses the placeholder (`lib/site/map-launch-guard.ts`) | The developer | |
 | A4 | Placeholder News removed or replaced by the restaurant's own articles; the weekly dish written by the kitchen | Not started (the restaurant, after 14C) | The restaurant | |
 

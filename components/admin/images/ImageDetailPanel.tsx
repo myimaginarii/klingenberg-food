@@ -2,10 +2,11 @@ import { TextAreaField } from '@/components/admin/Field'
 import { SubmitButton } from '@/components/admin/SubmitButton'
 import type { AdminImage } from '@/lib/content/images-admin'
 import {
-  imageDisplayName,
-  HOMEPAGE_OWNER_ONLY_NOTE,
-  UNUSED_LABEL,
   ALT_TEXT_MAX_LENGTH,
+  HOMEPAGE_OWNER_ONLY_NOTE,
+  imageDisplayName,
+  UNUSED_LABEL,
+  usageDisplayNames,
 } from '@/lib/images/library'
 
 import { ImageThumbnail } from './ImageThumbnail'
@@ -113,8 +114,8 @@ export function ImageDetailPanel({
                 className="bg-warning size-3.5 flex-none rotate-45"
               />
               <span>
-                Billedet bruges på: {image.usages.map((usage) => usage.name).join(' · ')}. Sletter
-                du det, forsvinder det også der.
+                Billedet bruges på: {usageDisplayNames(image.usages).join(' · ')}. Sletter du
+                det, forsvinder det også der.
               </span>
             </p>
           ) : (

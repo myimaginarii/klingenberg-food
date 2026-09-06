@@ -236,6 +236,8 @@ describe('image_id is owned by exactly the 10C-1 selection paths (§29)', () => 
     'app/(admin)/admin/menu/maanedens-burger/image-actions.ts',
     'app/(admin)/admin/menu/ugens-ret/image-actions.ts',
     'app/(admin)/admin/nyheder/image-actions.ts',
+    // Phase 14B1: Om os's three slots, one action, Staff and Owner.
+    'app/(admin)/admin/om-os/image-actions.ts',
   ]
 
   it('stays outside every content editor field list — the picker owns it', async () => {

@@ -24,7 +24,8 @@ import { publishableEntity, type EntityKey } from '@/lib/publishing/entities'
  * entity under a new tag, the registry changes and this mapping follows. The
  * Forside document's own three photographs (phase 11A) are a fifth kind,
  * `page:home`, rendered under the `page:home` tag alone; Mad ud af huset's one
- * photograph (phase 11B) is a sixth, `page:takeaway`, under `page:takeaway`.
+ * photograph (phase 11B) is a sixth, `page:takeaway`, under `page:takeaway`; Om os's
+ * three (phase 14B1) are a seventh, `page:about`, under `page:about`.
  *
  * THE AFFECTED SET IS THE DATABASE'S. `delete_image()` and `replace_image()`
  * return `affected` — per-kind counts of the rows their own live statements
@@ -37,7 +38,15 @@ import { publishableEntity, type EntityKey } from '@/lib/publishing/entities'
  * that makes it live, which expires its own tags.
  */
 
-export const REFERENCE_KINDS = ['dish', 'weekly', 'monthly', 'news', 'page:home', 'page:takeaway'] as const
+export const REFERENCE_KINDS = [
+  'dish',
+  'weekly',
+  'monthly',
+  'news',
+  'page:home',
+  'page:takeaway',
+  'page:about',
+] as const
 
 export type ReferenceKind = (typeof REFERENCE_KINDS)[number]
 
@@ -53,6 +62,9 @@ const ENTITY_OF_KIND: Record<ReferenceKind, EntityKey> = {
   // Mad ud af huset (phase 11B): its one image path, rendered into the
   // `page:takeaway`-tagged read alone.
   'page:takeaway': 'page:takeaway',
+  // Om os (phase 14B1): its three image paths, rendered into the `page:about`-tagged
+  // read alone.
+  'page:about': 'page:about',
 }
 
 const countsSchema = z.object({
@@ -62,6 +74,7 @@ const countsSchema = z.object({
   news: z.number().int().min(0),
   'page:home': z.number().int().min(0),
   'page:takeaway': z.number().int().min(0),
+  'page:about': z.number().int().min(0),
 })
 
 /**

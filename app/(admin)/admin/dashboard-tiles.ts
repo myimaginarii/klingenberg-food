@@ -13,6 +13,7 @@ import { TAKEAWAY_ADMIN_PATH } from './mad-ud-af-huset/routes'
 import { MONTHLY_PATH } from './menu/maanedens-burger/routes'
 import { WEEKLY_PATH } from './menu/ugens-ret/routes'
 import { NEWS_PATH } from './nyheder/routes'
+import { ABOUT_ADMIN_PATH } from './om-os/routes'
 
 /**
  * The dashboard's tiles, as data — design 1x / 1q; technical plan §5, §15 (phase 12C).
@@ -25,8 +26,8 @@ import { NEWS_PATH } from './nyheder/routes'
  * Four tiles are not in either frame and are drawn in the frames' language because the
  * destinations exist and a person has to be able to reach them: **Ugens ret** and
  * **Månedens burger** (phase 6's two screens, otherwise reachable only through the menu
- * screen's chip and its notice), **Brugere** (phase 11C, Owner) and **Om os** (the one
- * page still edited on the phase-4 content screen). They are recorded as entity-driven
+ * screen's chip and its notice), **Brugere** (phase 11C, Owner) and **Om os** (its own
+ * editor since phase 14B1, `/admin/om-os`). They are recorded as entity-driven
  * additions, not as design.
  *
  * WHO SEES WHICH TILE — THE §5 MATRIX AS DATA, STATED ONCE
@@ -131,8 +132,8 @@ const TILES: readonly TileDefinition[] = [
   {
     key: 'om-os',
     label: 'Om os',
-    description: 'Teksten om restauranten og holdet',
-    href: '/admin/indhold',
+    description: 'Historien, holdet og billederne',
+    href: ABOUT_ADMIN_PATH,
     glyph: 'about',
     access: { entity: 'page:about' },
   },

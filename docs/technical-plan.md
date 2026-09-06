@@ -4021,7 +4021,7 @@ pgTAP `028` asserts no secret-shaped key. A refused, stale, unchanged or
   configured by anything in this repository; until both are, an invitation from
   production would use the Auth server's built-in sender, which §10c forbids.
 - The standing findings of §0aa carry forward unchanged: `aboutDraft.team` /
-  `aboutDraft.method` belong to the future Om os editor phase.
+  `aboutDraft.method` belong to the future Om os editor phase *(closed in 14B1, §0am)*.
 
 ### The regression
 
@@ -4272,7 +4272,7 @@ and the no-JavaScript run used it.
 - **Strict schemas**: `homeDraft`'s three sections and `takeawaySection` are
   `z.strictObject` on both parses; unknown nested keys are refused on the way in and
   `malformed` / `invalid_draft` on the way out. `aboutDraft.team` / `.method` stay
-  ordinary objects, owned by the Om os editor phase.
+  ordinary objects, owned by the Om os editor phase *(closed in 14B1, §0am)*.
 - **Page image references** are rows of the one `image_references` view under
   `page:home` and `page:takeaway`, moved by the same two transitions, counted in the
   same `affected`, mapped by the same `cache-impact.ts`. The walkthrough deleted a
@@ -4308,7 +4308,7 @@ e-mail points at the wrong host. Neither exists yet; launch readiness is not cla
   the test-only Auth cleanup exception.
 - **Pages**: a Staff JWT (Owner for the Forside) may still write `pages.draft`
   directly — the strict schema is the application's door and such a draft goes
-  nowhere; `aboutDraft.team` / `.method` non-strict until the Om os editor;
+  nowhere; `aboutDraft.team` / `.method` non-strict until the Om os editor *(14B1, §0am)*;
   `site_contact.email` stored and never rendered; `venue_name` / `map_attribution`
   without an editor.
 - **Test harness** (for the code-quality / test-harness audit, not security): the
@@ -7583,6 +7583,187 @@ Recorded as `feat: implement phase 14a production wiring`.
 
 ---
 
+## 0am. Phase 14B1 — the Om os editor (2026-09-06)
+
+The phase-14 planning pass found one product capability still missing for launch: the
+public Om os page (1i) renders a story, a team paragraph, a method and three reserved
+photographs — the facade beside the story ("STEDET"), the one team photo ("ÉT HOLDFOTO
+— FULD BREDDE") and the kitchen beside the method ("KØKKEN / TILBEREDNING") — and the
+administration could edit only the heading and the method through the phase-4 content
+screen, and none of the pictures. 14B1 closes that gap and nothing else: **no
+photograph, no copy, no map asset, no hosted account, no SEO, no 14C work.** The real
+content arrives in 14B2 through this editor.
+
+### What was found before anything was built
+
+- **The document.** `pages.about.published` in the development seed carried
+  `heading`, `story_blocks[]`, `team {text}` and `method {heading, text}`; the public
+  read (`readAboutDocument`) mapped exactly those four, and the page rendered its three
+  frames as `MediaPlaceholder`s with no id behind them. §4 named the intended shape —
+  `team {text, image_id}`, `method {heading, text, image_id}`, `venue_image_id`,
+  `award_image_id` — and the 11A and 11B migrations both left a note that "a later
+  page adds its paths here, explicitly".
+- **The strictness carry-forward.** `aboutDraft.team` and `aboutDraft.method` were
+  ordinary `z.object()`s, recorded in §0aa and §0ac as "owned by the phase that builds
+  1i's editor".
+- **The role.** The registry (`lib/publishing/entities.ts`) marks `page:about`
+  `staff`; the phase-1 `pages_update_scoped` policy admits every page but `home` to
+  `public.is_staff()`; the §5 matrix lists Om os under no Owner row. **Om os is Staff
+  and Owner alike**, and this phase preserves that rather than inventing an Owner gate.
+- **The award band.** Its words on Om os are the confirmed competition result (1ab),
+  stated in the page; its photograph is the Forside document's own
+  (`home.award.image_id`, the Owner's, 1u's "Udmærkelsesfoto"). The band draws the
+  reserved frame on Om os and passes no image.
+- **The destination.** The dashboard's "Om os" tile (12C) opened `/admin/indhold`,
+  the phase-4 screen whose last remaining form was Om os; `draft-publish`,
+  `security` and `a11y/admin-pages` drove Om os through it.
+
+### Decisions
+
+| | Question | Decision |
+|---|---|---|
+| A | **Which document model?** | §4's, minus one key. `heading`, `story_blocks[]`, `venue_image_id` (top-level, like Mad ud af huset's `image_id`), `team {text, image_id}`, `method {heading, text, image_id}` (nested, like the Forside's sections). **`award_image_id` is deliberately not added**: the award photograph is one fact owned by the Forside document, and a second copy on a Staff-writable page would be two owners for it (§7e item 3's rule against copying a dynamic section). §4 is corrected in place. |
+| B | **Strict at every level.** | `team` and `method` are `z.strictObject`s on both parses; the three image slots are `optionalRowId` (a uuid or `null`) and nothing else. Validated at the three doors the 11A closure used: the incoming write (`saveEntityDraft` → `aboutDraft.input`), the stored draft (`overlayDraft` → `aboutDraft.stored`, so a smuggled key or a malformed id is `malformed` on screen and absent from the preview) and publish (`storedDraftIsValid` → `invalid_draft`, nothing merged). Nothing is silently discarded: a section written past the editor is refused and the screen says so. A stored draft the phase-4 editor wrote (`method` without `image_id`) is exactly this case, as 11A's was for the Forside. |
+| C | **The story as one field.** | `story_blocks` is edited as one textarea, paragraphs separated by a blank line (`textToStoryBlocks` / `storyBlocksToText`, pure). No markup, no formatting — the public page renders one `<p>` per block, and the schema's limits (10 blocks × 2,000 characters) are unchanged. A refused save echoes the typed text back through the address only while it fits a 6,000-character budget (`ABOUT_ECHO_BUDGET`): the other page editors echo everything because their fields are short, and a story of ten full paragraphs would exceed the server's header limit before it reached the page. The codes always travel; the field then shows the stored words. |
+| D | **Three cards, one component.** | "Historien" (the page heading, the story, the facade slot), "Holdet" (the paragraph, the team slot — the heading is 1i's fixed "Holdet"), "Køkken og tilberedning" (the method's heading and paragraph, the kitchen slot). One `AboutSectionCard` — an optional heading field, one textarea, the shared `ImagePickerField` as a sibling of the Gem form — rather than three cards or a copy of `HomeSectionCard`, which carries the Forside's hidden section field. Explicit Gem per card, `NoticeFoot` for the status at the phone's foot, `PendingBand` / `StateBadge` / `CardPendingBadge` shared — the established language (1u, 1aj), nothing invented. |
+| E | **The deltas.** | The story card's two keys are top-level, so its save is the per-key rule (`aboutStoryWrite`); the team and method are written whole with the slot's *current* image from the merged document (`aboutSectionWrite`), so a pending photo survives a Gem of the words and a pending edit survives choosing a photo. The facade slot follows the one-field rule, the two nested slots the whole-section rule (`aboutImageWrite`). A section pending only for its picture badges the slot, not the words (`pendingAboutCards` compares merged with published). |
+| F | **The SQL, in the same objects.** | Migration `20260906120000_about_page_admin.sql`: `image_references` gains six `page:about` rows named "Om os"; the page guard learns the three about paths (spelled dotted and split, because they differ in depth within one row and PostgreSQL has no ragged array); `delete_image()` and `replace_image()` move them live under the trusted transitions and pending as a selection, and report `page:about` in `affected`. The draft detach mixes the two established rules because the document does: the top-level facade key leaves the draft (11B), a nested selection returns to the published value and an unchanged section leaves (11A). No `owner_only`: the page is Staff-writable, as Mad ud af huset is. `publish_page()` is unchanged. |
+| G | **The phase-4 content screen is retired.** | Two editors for one document would be two saving conventions for one draft — §0aa's reason for retiring it for the other two pages. `/admin/indhold` is deleted; the dashboard tile points at `/admin/om-os`; `draft-publish`, `security` and `a11y/admin-pages` drive Om os through the new editor (the a11y half as its own `about-admin.spec.ts`). The `saveDraft`/`editorForm` helpers left `support/admin.ts` with it. |
+| H | **The public page.** | Not redesigned. `AboutPageContent` is the page's body, extracted so it can be asserted as HTML without a database; the three frames render through `SiteImage` in exactly the boxes the placeholders reserved, with three new `IMAGE_SIZES` presets (`aboutVenue`, `aboutTeam`, `aboutKitchen`) for the real rendered widths, and the reserved frames when no id is stored. The facade loads eagerly as the page's primary image. `alt` is the library's description through the one renderer — an undescribed photograph renders `alt=""` (§0y) — and the document carries no alt of its own. |
+| I | **The development seed.** | The about document gains the three image keys as `null`, so it is the strict document whole; no prose changed, nothing moved to `confirmed.sql` (pinned by `launch-boundary` and the new `about-boundary`). |
+| J | **Two narrow fixes the new suite found.** | (1) 1w's detail panel composed its warning from the raw usage rows — "Billedet bruges på: Om os · Om os" for one image in two slots — where the grid caption already deduplicated through `usageDisplayNames`; the panel now uses the same helper (a latent defect for the Forside's three slots too, never reached because no locked suite put one image in two Forside slots). (2) The public Om os headings and paragraphs gain `break-words`: the editor admits a 120-character heading and 2,000-character paragraphs, and a long unbroken word in one of them scrolled the 375 px page sideways in the long-content story. Neither changes the design for ordinary content. |
+
+### What it contains
+
+`lib/pages/about.ts` (the pure model: normalisation, the story split, the deltas, the
+slots, the sentences), `lib/content/about-admin.ts` (the uncached editor read),
+`app/(admin)/admin/om-os/` (`page.tsx`, `routes.ts`, `forms.ts`, `save-actions.ts`,
+`image-actions.ts`, `publish-actions.ts` — three text vocabularies and the shared
+picker vocabulary plus a slot name, disjoint), `components/admin/about/`
+(`AboutSectionCard`, `AboutNotices`), `components/site/about/AboutPageContent.tsx`,
+the migration, the seed's three null keys, `page:about` in `REFERENCE_KINDS`, the
+`ImageUsage` kinds and the `affected` schema, and the strict `aboutDraft`.
+
+### Tests
+
+- `tests/unit/schemas/drafts.test.ts` — the about block: whole and cleared documents
+  parse unaltered on both paths, single-key drafts carry only their key, a smuggled
+  nested key is refused naming the section and `malformed` on the way out, a section
+  without its image key is refused (the phase-4 draft shape), sibling keys refused,
+  each slot a uuid or null on both parses, the story's limits, `award_image_id` and
+  `award` refused, the top-level read path still drops an unknown key.
+- `tests/unit/pages/about.test.ts`, `about-forms.test.ts`, `about-notices.test.tsx` —
+  the model, the vocabularies and addresses (the echo budget included), the sentences.
+- `tests/unit/about/about-page.test.tsx` — the public markup: the words, the reserved
+  frames, the three pictures in their boxes with the library's alt, `alt=""` for an
+  undescribed image, derivatives only, the award stated once.
+- `tests/unit/policy/about-boundary.test.ts` — one Om os editor and no `/admin/indhold`;
+  no raw JSON editor; the shared picker pair and no `<dialog>`/`<picture>`/storage URL/
+  client component under the about files; no Supabase client; `aboutDraft` without a
+  non-strict object and without `award_image_id`; the confirmed seed clear of Om os.
+  `images-boundary` and `cache-impact` extended with the seventh kind and the seventh
+  selection action.
+- `supabase/tests/031_about_page.test.sql` (82) — structure; the six view rows; the
+  guard on all three paths for Staff, Owner and anon with a text write still open;
+  publish moving three images under the marker; the `delete_image()` matrix for the
+  top-level and the nested keys, the same image in all three slots, the unconfirmed
+  refusal counting six; `replace_image()` over four references in one call; audit;
+  unrelated content byte-identical. 024/025/026's exact `affected` shapes widened
+  by the new key.
+- `tests/e2e/about-admin.spec.ts` under `about-admin-mobile` and `about-admin` (after
+  the takeaway pair, before the contact pair): the editor accessibly with 44 px
+  targets and 16 px fields, a story draft with the foot in view on the phone, the
+  unchanged first guest request, the preview, a refusal bound to two fields with its
+  echo, the three cards pending, two uploads and one description, all three slots
+  chosen (keyboard first) with the library's caption "Om os (kladde)" once, the
+  preview with the library's alt and an empty alt, publish → the FIRST guest request
+  with words and three pictures and no private original, no-JS, an alt edit reaching
+  the guest, Staff's replacement moving both slots that shared the image, a pending
+  removal, a draft-only deletion clearing exactly the selection, a live deletion
+  clearing both slots, a stale second tab refused, three drafts written past the
+  editor (a smuggled role, a malformed id, the phase-4 shape) unreadable / absent
+  from the preview / `invalid_draft`, anonymous refused the editor and the row, the
+  guard refusing a direct move of each published path, the longest valid content
+  legible at both widths, the seed restored.
+- `tests/a11y/about-admin.spec.ts` (read-only, both generic projects): axe clean,
+  labels, the three slot names, the picker modal, no overflow, 16 px fields.
+- `tests/e2e/draft-publish.spec.ts` re-pointed at the editor's method card; the
+  baseline publish now handles the §4 delta (saving the live value writes no draft).
+
+### Security, reviewed narrowly
+
+Forged access: an anonymous request is sent to the login page, a plain POST writes
+nothing, and RLS refuses the row (`about-admin`); a Staff JWT may write `pages.draft`
+directly — as it always could — and such a draft goes nowhere (strict `stored` parse
+at overlay and publish). Draft leakage: the guest read never selects `draft`, and
+the preview needs an active staff session (`draft-publish`). Malformed JSON: refused
+at three doors; the public normalisation is lenient and throws on nothing. Image
+reference bypass: a direct move of any published path is refused for Staff and Owner
+by the guard (pgTAP 031, `about-admin`), the draft paths are in the view, and the
+transitions move them. Direct PostgREST modification of `published`: a text write is
+still admitted for Staff (002's promise), an image movement is not. Service role: not
+involved anywhere — every read and write is the caller's own JWT. Private originals:
+never composed (the renderer, `images-boundary`, `about-boundary`; asserted on the
+guest and the preview). Publish authorization: `requireStaff()`, `mayChangeEntity`,
+RLS — three refusals, as on every page.
+
+### What phase 14B1 deliberately does not contain
+
+No photograph, no copy, no humanized text, no map asset, no award field, no team
+members, no rich text, no mobile-specific action, no second publish path, no
+`/security-review`, no SEO change (metadata as before), no 14C work. The phase-13
+carry-forwards of §0ak stand as recorded.
+
+### Code quality, inspected at the end
+
+`app/(admin)/admin/om-os/page.tsx` is 330 lines — the Forside's is 440, Mad ud af
+huset's 290 — and holds no rule: the deltas, the story split, the slot table and the
+sentences are `lib/pages/about.ts` (unit-tested), the vocabularies and echoes
+`forms.ts`. One card component rather than three; no copy of `HomeSectionCard` (it
+carries the Forside's hidden section field). The picker pair is imported, never
+redrawn (pinned). The schema is nine lines in `page-documents.ts`, not in the UI. Two
+duplications are recorded and deliberately left: the three page editors each carry the
+same 20-line `one`/`many`/`searchParamsOf`/`cardKey` helpers, and `lib/pages/{home,
+takeaway,about}.ts` each carry the same `imageField` uuid check — the first two copies
+belong to locked phases, and a shared module for four small functions was not worth
+touching them for; a later pass may lift both once. No generic CMS abstraction was
+introduced.
+
+### The regression — one authoritative chain (2026-09-06)
+
+From a clean intended tree with no site server: `npm ci`; typecheck; lint; source
+policy (727 files, six rules); **unit 2,959 / 2,959 in 131 files** (the five Om os
+suites and the widened image fixtures among them); `db:reset:full`; **pgTAP 2,269 /
+2,269 in 31 files** (`031` is 82); **integration 44 / 44 in 6 files**; **the backup
+drill 8 / 8**; **the launch drill 28 / 28 in 3 files**; `db:reset:full` again, `.next`
+removed, a fresh production build; `next start` on 3100; `playwright --list` **1,408
+tests in 45 files** (`about-admin.spec.ts` under exactly `about-admin-mobile` and
+`about-admin`, 22 each; `a11y/about-admin.spec.ts` under the two generic projects);
+the complete matrix with `--retries=0` — the read-only trio in one invocation, then
+every one of the 47 write projects in its own invocation in config order — **1,401
+passed, 7 skipped, 0 failed, 0 flaky**, the seven skips being the standing viewport-,
+touch- and date-conditional ones (`public-site` ×3, `menu-reorder` ×3, the override
+reset's day-of-week case); `npm audit --audit-level=high` **0 vulnerabilities**.
+Phases 5–13 and 14A stayed green throughout: the five-minute revalidate/expire
+contract (`public-cache`), no guest cookie and no browser monitoring (`monitoring`,
+`public-site`), the six security headers (`security-headers`), the sign-in throttle
+(`security`), the launch tooling's own drill and the confirmed-content boundary
+unchanged in outcome; no photograph, no copy and no map asset introduced. Recorded as
+`feat: implement phase 14b about administration`.
+
+### What 14B2 owes
+
+Through this editor and the library, by the restaurant and the Owner (or the
+developer on their behalf): the facade photograph (4:5, daylight), the one team
+photograph (16:7, the whole team, natural light), the kitchen photograph (3:2), each
+with a description written in the library; the story (up to ten paragraphs), the
+team paragraph (no names, no roles) and the method's heading and paragraph. Outside
+this editor: the Forside's hero, award and team-excerpt photographs and words
+(`/admin/forsiden`), Mad ud af huset's words and photograph, the map asset and its
+licence (`public/map/`), and the placeholder News. None of it is seeded.
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -7690,6 +7871,7 @@ app/
     forsiden/page.tsx           # (1u)
     mad-ud-af-huset/page.tsx    # (1aj)
     kontakt/page.tsx            # (1v)
+    om-os/page.tsx              # the editor for 1i's page — built in phase 14B1 (§0am)
     billeder/page.tsx           # (1w)
     brugere/page.tsx            # owner only — not in the approved design, built in its language
   api/preview/[start|stop]/route.ts
@@ -7785,7 +7967,7 @@ Deliberately **not** created:
 
 - **home** — `hero {heading, intro, image_id}`, `award {title, text, image_id}`, `featured_dish_ids [3]`, `about_excerpt {heading, text, image_id}` — *`heading` on the excerpt is 1g's own (§0z reading A); every section key is required, `null` allowed (§0z).*
 - **takeaway** — `heading`, `intro`, `image_id`, `sections [{id, heading, body, sort}]`, `cta_label`
-- **about** — `heading`, `story_blocks []`, `team {text, image_id}`, `method {heading, text, image_id}`, `venue_image_id`, `award_image_id`
+- **about** — `heading`, `story_blocks []`, `venue_image_id`, `team {text, image_id}`, `method {heading, text, image_id}` — *the two sections are strict and whole (§0am reading B); `award_image_id`, listed here until phase 14B1, was deliberately not added: the award photograph is the Forside document's one fact (§0am reading A).*
 
 `dishes.details` — `null` for ordinary dishes; for Tapas (decision 3):
 
@@ -8626,7 +8808,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Complete and locked** by the completion pass of 2026-09-03 — see §0ac |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B (done, §0ae):** the complete News workflow at 375 px audited against 1z and made phone-first — the pinned editor bar with the badge and the autosave line, the B/Link toolbar and link panel stuck under it, fragment targets below the bar, the stacked confirmations, long titles and addresses that wrap, the public paragraph's wrap — with `tests/e2e/news-mobile.spec.ts` under its own `news-mobile` project. **12C (done, §0af):** the 1x / 1q dashboard — the bar, the band with the phase-4 list beneath it, the announcement card, the role-aware tiles from the entity registry, LIGE NU as a read model — with the phase-4 "Åbn …" vocabulary migrated across the locked suites in the same commit; and the phone audit of Ugens ret, Månedens burger, Besked på hjemmesiden and Åbningstider, whose Fortryd and status notices now sit at the foot of the phone screen through one shared `NoticeFoot`, with `tests/e2e/dashboard-mobile.spec.ts` under its own `dashboard-mobile` project. **Completion pass (§0ag):** the three read as one system, walked as Owner and Staff on a phone, 1x / 1y / 1z / 1q re-checked at 375 / 768 / 1440, the Forhåndsvis and 1 px observations closed, the moved row kept wholly in view, the phase-11 editors and Brugere given the same foot, an empty foot's clearance removed, a dead-autosave defect after the first Gem fixed and pinned | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad), the news half by `news-mobile` (§0ae), the dashboard and the specials by `dashboard-mobile` (§0af). **Complete and locked** by the completion pass of 2026-09-04 — see §0ag |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill. **13A (done, §0ah):** the backup and restore commands, the scheduled workflow, the drill in CI, the runbooks — the destination provider still to be chosen. **13B (done, §0ai):** the PostgreSQL-backed limiter over the sign-in path and every Server Action (twelve tiers, one atomic door, HMAC subjects, fail-open except for accounts), and the security-header policy on every response (CSP, HSTS, nosniff, referrer, permissions, frame denial) with the public caching intact. **13C (done, §0aj):** server-side Sentry — the framework hook for pages, route handlers, Server Actions and the proxy, thirteen operational events from five server modules, one sanitizer, release and environment on every event, no browser SDK, no CSP change; the one controlled production event is a pre-launch gate. **Lock pass (§0ak, 2026-09-05):** the three read as one operational layer, the error and not-found states of both route groups built (§10g), the sanitizer widened to the non-JWT service key and the Danish credential words, the storm boundary grouped per account, the Sentry CLI download switched off, the pre-launch gates consolidated in `docs/runbooks/pre-launch-checklist.md`, one clean certification chain. **Complete and locked.** The SEO verification against Rich Results and the final security audit are the next increments, not this phase's | Rich Results valid (ahead); a backup lands off-platform and a restore succeeds into a scratch project — proven against the local stack and a local S3 endpoint; the hosted runs are pre-launch gates B6/B7, deliberately not claimed by the repository |
-| 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover. Planned as four increments: **14A (done, §0al) — production wiring in the repository:** the Owner bootstrap through the phase-11 invitation, the confirmed/development seed split, the one-time confirmed-content loader, the migration door and its dispatch-only workflow, the launch map guard, and the three runbooks (`domain-cutover.md`, `owner-handover.md`, `launch-notes.md`) — no hosted account touched. **14B** — real assets and copy, and the Om os editor. **14C** — hosted production deployment, bootstrap and verification (the migration run, the content load, the Owner, the workflow's push trigger). **14D** — the phase-14 lock | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
+| 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover. Planned as four increments: **14A (done, §0al) — production wiring in the repository:** the Owner bootstrap through the phase-11 invitation, the confirmed/development seed split, the one-time confirmed-content loader, the migration door and its dispatch-only workflow, the launch map guard, and the three runbooks (`domain-cutover.md`, `owner-handover.md`, `launch-notes.md`) — no hosted account touched. **14B1 (done, §0am) — the Om os editor** at `/admin/om-os`: the strict about document, the three photo slots through the shared picker, the page's image paths in `image_references`, the guard and the two transitions, the phase-4 content screen retired. **14B2** — the real photographs and copy, entered through the editors. **14C** — hosted production deployment, bootstrap and verification (the migration run, the content load, the Owner, the workflow's push trigger). **14D** — the phase-14 lock | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 

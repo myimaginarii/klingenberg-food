@@ -37,7 +37,7 @@ const JWT =
 const ACCOUNT_ID = '7a4b1e6c-0000-4000-8000-000000000001'
 const STORAGE_PATH = '0b8f6c2e-1111-4222-8333-444455556666/original.jpg'
 const EMAIL = 'ny.medarbejder@example.test'
-const ZERO_COUNTS = { dish: 0, weekly: 0, monthly: 0, news: 0, 'page:home': 0, 'page:takeaway': 0 }
+const ZERO_COUNTS = { dish: 0, weekly: 0, monthly: 0, news: 0, 'page:home': 0, 'page:takeaway': 0, 'page:about': 0 }
 
 type Sent = { type: string; payload: Record<string, unknown> }
 const sent: Sent[] = []

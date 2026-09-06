@@ -10,7 +10,8 @@ import {
   listLocalRateLimitBuckets,
 } from '../support/local-auth-admin'
 
-import { OWNER, saveDraft, signIn, STAFF } from './support/admin'
+import { ABOUT_CARDS, openAboutAdmin, saveAboutCard } from './support/about-admin'
+import { OWNER, signIn, STAFF } from './support/admin'
 import {
   deleteImageNamed,
   gridCard,
@@ -164,26 +165,27 @@ test('a form save beyond the tier lands on the screen with the shared notice, an
   await signIn(page, OWNER)
   await fillLocalRateLimit('content:save', await ownerUserId(), RATE_LIMIT_SCOPES['content:save'].maxHits)
 
-  await page.goto('/admin/indhold')
-  const form = page.getByRole('form', { name: 'Rediger Om os' })
-  const field = form.getByLabel('Overskrift på metodeafsnit')
+  await openAboutAdmin(page)
+  const form = page.getByRole('form', { name: ABOUT_CARDS.method, exact: true })
+  const field = form.getByLabel('Overskrift', { exact: true })
   const current = await field.inputValue()
 
-  await saveDraft(page, 'Om os', { 'Overskrift på metodeafsnit': `${current} (afvist)` })
+  await saveAboutCard(page, ABOUT_CARDS.method, { Overskrift: `${current} (afvist)` })
 
   await expect(page).toHaveURL(/status=for_mange/)
   await expect(page.getByText(RATE_LIMIT_MESSAGE)).toBeVisible()
   // Nothing was written: the form reloads with the value it had.
-  await expect(form.getByLabel('Overskrift på metodeafsnit')).toHaveValue(current)
+  await expect(form.getByLabel('Overskrift', { exact: true })).toHaveValue(current)
 
   await clearLocalRateLimits()
 
   // After the window (here: the emptied counter) the same save goes through, and
-  // is then reverted, so the seed is as found.
-  await saveDraft(page, 'Om os', { 'Overskrift på metodeafsnit': `${current} (afvist)` })
-  await expect(page).toHaveURL(/status=saved/)
-  await saveDraft(page, 'Om os', { 'Overskrift på metodeafsnit': current })
-  await expect(page).toHaveURL(/status=saved/)
+  // is then reverted — the §4 delta takes the section back out of the draft — so
+  // the seed is as found.
+  await saveAboutCard(page, ABOUT_CARDS.method, { Overskrift: `${current} (afvist)` })
+  await expect(page).toHaveURL(/status=gemt/)
+  await saveAboutCard(page, ABOUT_CARDS.method, { Overskrift: current })
+  await expect(page).toHaveURL(/status=uaendret/)
 })
 
 // ---------------------------------------------------------------------------

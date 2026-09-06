@@ -29,36 +29,6 @@ export async function signIn(page: Page, user: AdminUser): Promise<void> {
 /** The Draft Mode bypass cookie, by the name Next.js gives it. */
 export const DRAFT_COOKIE = '__prerender_bypass'
 
-/** One editor form on /admin/indhold, addressed by its accessible name. */
-export function editorForm(page: Page, heading: string) {
-  return page.getByRole('form', { name: `Rediger ${heading}` })
-}
-
-/**
- * Save a draft through one of the phase-4 editor forms.
- *
- * The form carries the version it was rendered from in a hidden field, so reloading
- * the page before each save is what makes a save use the *current* version — and
- * deliberately not reloading is how the concurrency test produces a stale one.
- */
-export async function saveDraft(
-  page: Page,
-  heading: string,
-  fields: Record<string, string>,
-): Promise<void> {
-  const form = editorForm(page, heading)
-
-  for (const [label, value] of Object.entries(fields)) {
-    await form.getByLabel(label).fill(value)
-  }
-
-  await form.getByRole('button', { name: 'Gem kladde' }).click()
-
-  // The action redirects back with a status. Waiting for it here means a caller can
-  // navigate away immediately afterwards without racing the save.
-  await page.waitForURL(/\/admin\/indhold\?status=/)
-}
-
 /** Publish exactly the listed pending changes, and nothing else. */
 export async function publishOnly(page: Page, titles: readonly string[]): Promise<void> {
   await page.goto('/admin')

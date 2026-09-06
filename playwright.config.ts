@@ -106,6 +106,10 @@ export default defineConfig({
         // own two projects.
         'e2e/takeaway-admin.spec.ts',
         'e2e/contact-admin.spec.ts',
+        // The Om os administration suite (phase 14B1) — owned by its dedicated pair
+        // after the takeaway pair. `--list` check: the file appears under exactly
+        // `about-admin-mobile` and `about-admin`.
+        'e2e/about-admin.spec.ts',
         // The user-administration suite (phase 11C) — creates and deletes a real
         // Auth identity, so it must never race itself. `--list` check: the file
         // appears under exactly `users-admin-mobile` and `users-admin`.
@@ -151,6 +155,7 @@ export default defineConfig({
         'e2e/homepage-admin.spec.ts',
         'e2e/takeaway-admin.spec.ts',
         'e2e/contact-admin.spec.ts',
+        'e2e/about-admin.spec.ts',
         'e2e/users-admin.spec.ts',
         'e2e/menu-mobile.spec.ts',
         'e2e/news-mobile.spec.ts',
@@ -635,7 +640,29 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
     },
     /*
-     * Kontaktoplysninger (phase 11B), at both widths, and the new tail of the chain.
+     * Om os administration (phase 14B1), at both widths, after the takeaway pair. It
+     * publishes the about document — expiring the `page:about` tag — uploads, replaces
+     * and deletes real library images through the three slots, and asserts the FIRST
+     * guest request after each, so it owns the page and the library while it runs. Two
+     * widths because the phone is the primary admin device (§15) and the editor is new:
+     * the mobile run asserts the stacking rules — 44 px targets, 16 px fields, no
+     * sideways scrolling, the foot in view — as its own promises. Mobile runs first and
+     * hands its state (the seeded page, an empty library) to the desktop project.
+     */
+    {
+      name: 'about-admin-mobile',
+      testMatch: 'e2e/about-admin.spec.ts',
+      dependencies: ['takeaway-admin'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
+    },
+    {
+      name: 'about-admin',
+      testMatch: 'e2e/about-admin.spec.ts',
+      dependencies: ['about-admin-mobile'],
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
+    /*
+     * Kontaktoplysninger (phase 11B), at both widths, after the Om os pair.
      * It publishes the contact facts — expiring the `contact` tag, which is on every
      * public page — and asserts the FIRST guest request on the header, the footer, the
      * bottom bar, Find os and Mad ud af huset's button, so it must not run beside any
@@ -645,7 +672,7 @@ export default defineConfig({
     {
       name: 'contact-admin-mobile',
       testMatch: 'e2e/contact-admin.spec.ts',
-      dependencies: ['takeaway-admin'],
+      dependencies: ['about-admin'],
       use: { ...devices['Desktop Chrome'], viewport: { width: 375, height: 812 } },
     },
     {

@@ -3,11 +3,11 @@ import 'server-only'
 import { CACHE_TAGS, type CacheTag } from '@/lib/cache/tags'
 import { isPlainObject, overlayDraft } from '@/lib/drafts/overlay'
 import type { DraftSpec } from '@/lib/schemas/define'
+import { aboutValuesOf } from '@/lib/pages/about'
 import { homeValuesOf } from '@/lib/pages/home'
 import { takeawayValuesOf, takeawayVisibility } from '@/lib/pages/takeaway'
 import { aboutDraft, homeDraft, takeawayDraft } from '@/lib/schemas/page-documents'
 
-import { objectField, stringArrayField, stringField } from './document'
 import { imageFor, readPublicImages } from './images'
 import { assertNoQueryError, columns, definePublicRead, type ContentAccess } from './source'
 import type { AboutDocument, HomeDocument, TakeawayDocument } from './types'
@@ -76,15 +76,11 @@ async function queryPageDocument(access: ContentAccess, key: PageKey): Promise<u
 /**
  * One cached, individually tagged read per page.
  *
- * The Forside's and Mad ud af huset's reads map the document *inside* the tagged
- * entry (phases 11A and 11B), because their photographs are resolved there: the
- * image rows have to be part of the page's cache entry for a library edit — a
- * description, a replacement, a deletion — to be expirable through that one tag
- * (§0x, "The cache coupling"). Om os carries no image yet and keeps the raw document.
+ * All three reads map the document *inside* the tagged entry (phases 11A, 11B and
+ * 14B1), because their photographs are resolved there: the image rows have to be part
+ * of the page's cache entry for a library edit — a description, a replacement, a
+ * deletion — to be expirable through that one tag (§0x, "The cache coupling").
  */
-const readAboutPageDocument = definePublicRead('page-about', [PAGE_DRAFTS.about.tag], (access) =>
-  queryPageDocument(access, 'about'),
-)
 
 /** The Forside document with its three photographs resolved. Tag: `page:home`. */
 export const readHomeDocument = definePublicRead(
@@ -156,23 +152,37 @@ export const readTakeawayDocument = definePublicRead(
   },
 )
 
-export async function readAboutDocument(): Promise<AboutDocument | null> {
-  const document = await readAboutPageDocument()
-  if (document === null) return null
+/** Om os with its three photographs resolved. Tag: `page:about`. */
+export const readAboutDocument = definePublicRead(
+  'page-about',
+  [PAGE_DRAFTS.about.tag],
+  async (access: ContentAccess): Promise<AboutDocument | null> => {
+    const document = await queryPageDocument(access, 'about')
+    if (document === null) return null
 
-  const team = objectField(document, 'team')
-  const method = objectField(document, 'method')
+    // The same normalisation the editor reads (`lib/pages/about.ts`), then the same
+    // projection every entity image uses — over the *overlaid* ids, so a preview
+    // resolves the pending selections (§0x, "Draft Mode").
+    const values = aboutValuesOf(document)
+    const images = await readPublicImages(access, [
+      values.venue_image_id,
+      values.team.image_id,
+      values.method.image_id,
+    ])
 
-  return {
-    heading: stringField(document, 'heading'),
-    storyBlocks: stringArrayField(document, 'story_blocks'),
-    team: { text: stringField(team, 'text') },
-    method: {
-      heading: stringField(method, 'heading'),
-      text: stringField(method, 'text'),
-    },
-  }
-}
+    return {
+      heading: values.heading,
+      storyBlocks: [...values.story_blocks],
+      venueImage: imageFor(images, values.venue_image_id),
+      team: { text: values.team.text, image: imageFor(images, values.team.image_id) },
+      method: {
+        heading: values.method.heading,
+        text: values.method.text,
+        image: imageFor(images, values.method.image_id),
+      },
+    }
+  },
+)
 
 /**
  * Which optional pages are switched off right now.

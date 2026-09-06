@@ -18,8 +18,9 @@ import { SiteImage } from './SiteImage'
  *
  * The photograph (phase 11A) is the Forside document's award image — 1u's
  * "Udmærkelsesfoto (valgfrit)" — in the 4:3 frame the band reserved; `null` is the
- * reserved frame as before. Om os passes nothing yet: its document carries no image
- * until phase 11C, so it draws the frame it always drew.
+ * reserved frame as before. Om os passes nothing, deliberately: the award photograph is
+ * the Forside's one fact, and the Om os document carries no second copy of it (§0am), so
+ * the band there draws the frame it always drew.
  */
 export function AwardBand({
   title,

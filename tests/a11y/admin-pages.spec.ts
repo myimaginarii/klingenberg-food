@@ -8,9 +8,10 @@ import { signIn, STAFF } from '../e2e/support/admin'
  *
  * §9 asks for axe on "the dashboard, menu editor and conflict sheet, at 375 px and
  * 1440 px". The menu editor and the conflict sheet are phases 5 and 8; what phase 4
- * builds is the dashboard's publishing half, the content editor and the preview bar, so
- * those are what is scanned here. Both projects run this file, which is what gives the
- * two widths.
+ * builds is the dashboard's publishing half and the preview bar, so those are what is
+ * scanned here (the phase-4 content editor retired in 14B1; its last form, Om os, is
+ * `tests/a11y/about-admin.spec.ts`). Both projects run this file, which is what gives
+ * the two widths.
  *
  * Nothing here changes any content: the pages are loaded and read. The suite that
  * writes runs afterwards, in its own project.
@@ -64,24 +65,6 @@ test.describe('the administration', () => {
     }
   })
 
-  test('the content editor has no accessibility violations', async ({ page }) => {
-    await signIn(page, STAFF)
-    await page.goto('/admin/indhold')
-
-    expect(await violations(page)).toEqual([])
-  })
-
-  test('every field in the content editor has a label', async ({ page }) => {
-    await signIn(page, STAFF)
-    await page.goto('/admin/indhold')
-
-    for (const field of await page.locator('input:not([type=hidden]), textarea').all()) {
-      const id = await field.getAttribute('id')
-
-      expect(id, 'every visible field carries an id its label points at').not.toBeNull()
-      await expect(page.locator(`label[for="${id}"]`)).toHaveCount(1)
-    }
-  })
 })
 
 test.describe('the preview bar', () => {

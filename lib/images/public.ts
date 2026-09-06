@@ -186,6 +186,15 @@ export const IMAGE_SIZES = {
    * column slightly wider from `lg` (`flex-[1.1]`), so just under half the measure.
    */
   takeawayHero: '(min-width: 90rem) 36rem, (min-width: 48rem) 46vw, calc(100vw - 2rem)',
+  /**
+   * 1i's three Om os frames (phase 14B1). The facade ("Stedet", 4:5) is full width on a
+   * phone and a column capped at 26rem beside the story from `md`; the team photo (16:7)
+   * is the whole content measure at every width; the kitchen (3:2) is the first of two
+   * flex columns beside the method, the text column slightly wider from `lg`.
+   */
+  aboutVenue: '(min-width: 64rem) 26rem, (min-width: 48rem) 46vw, calc(100vw - 2rem)',
+  aboutTeam: '(min-width: 90rem) 75rem, (min-width: 48rem) calc(100vw - 5rem), calc(100vw - 2rem)',
+  aboutKitchen: '(min-width: 90rem) 36rem, (min-width: 48rem) 46vw, calc(100vw - 2rem)',
 } as const
 
 export type ImageSizesPreset = keyof typeof IMAGE_SIZES

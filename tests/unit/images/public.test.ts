@@ -209,7 +209,7 @@ describe('seoImageOf — the one derivative every SEO surface names (brief §14�
 })
 
 describe('IMAGE_SIZES — one sizes string per approved slot (brief §7)', () => {
-  it('names exactly the public surfaces the frames draw an image in — the entity slots and the Forside\'s three (11A)', () => {
+  it('names exactly the public surfaces the frames draw an image in — the entity slots, the Forside\'s three (11A), Mad ud af huset\'s (11B) and Om os\'s three (14B1)', () => {
     expect(Object.keys(IMAGE_SIZES).sort()).toEqual(
       [
         'dishCard',
@@ -224,6 +224,10 @@ describe('IMAGE_SIZES — one sizes string per approved slot (brief §7)', () =>
         'homeTeam',
         // Phase 11B: Mad ud af huset's own photograph (1ai/1aj).
         'takeawayHero',
+        // Phase 14B1: Om os's three frames (1i).
+        'aboutVenue',
+        'aboutTeam',
+        'aboutKitchen',
       ].sort(),
     )
   })

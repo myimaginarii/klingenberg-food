@@ -104,7 +104,7 @@ function thumbnailOf(
 
 type ImageReferenceRow = {
   image_id: string
-  kind: 'dish' | 'weekly' | 'monthly' | 'news' | 'page:home' | 'page:takeaway'
+  kind: 'dish' | 'weekly' | 'monthly' | 'news' | 'page:home' | 'page:takeaway' | 'page:about'
   name: string
   pending: boolean
 }

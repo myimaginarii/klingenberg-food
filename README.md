@@ -489,7 +489,12 @@ app/
     kontakt/          Kontaktoplysninger (phase 11B) — frame 1v, Owner only; one form
                       over the phase-1 site_contact row, Kladde → Offentliggør, with
                       Offentliggør greyed until something waits
-    indhold/ login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
+    om-os/            Om os (phase 14B1) — the editor for frame 1i's page, Staff and
+                      Owner; three cards (Historien, Holdet, Køkken og tilberedning),
+                      each with its photo slot (the 10C-1 picker pair), three
+                      vocabularies in three action files; the phase-4 content screen
+                      (`indhold/`) retired with it
+    login/ ejer/ ingen-adgang/ glemt-adgangskode/ ny-adgangskode/ bekraeft/
   api/preview/        start and stop Draft Mode — staff session required
 proxy.ts              session refresh + unauthenticated redirect. Authorizes nothing.
 components/
@@ -689,9 +694,15 @@ repaired by rerunning), the seed split into `supabase/seed/confirmed.sql` and
 fresh-state guard and single transaction, the migration door with the restore
 tooling's history discipline and a dispatch-only production workflow, the launch map
 guard, and the three runbooks (`domain-cutover.md`, `owner-handover.md`,
-`launch-notes.md`). Phase 14 is **not** complete: 14B (real assets and copy, the Om os
-editor), 14C (the hosted deployment, the migration run, the content load, the Owner,
-the workflow trigger) and 14D (the lock) remain, and nothing hosted is provisioned.
+`launch-notes.md`). **Phase 14B1 — the Om os editor at `/admin/om-os` — is built and
+green (§0am):** Staff and Owner edit 1i's story, team and method words and choose the
+facade, team and kitchen photographs through the shared picker; the about document is
+strict at every level, its three image paths live in `image_references`, the guard and
+the two image transitions like every other page's, and the phase-4 content screen is
+gone. Phase 14 is **not** complete: 14B2 (the real photographs and copy, entered
+through the editors), 14C (the hosted deployment, the migration run, the content load,
+the Owner, the workflow trigger) and 14D (the lock) remain, and nothing hosted is
+provisioned.
 **Phase 13 is locked (§0ak):** the
 runbooks under `docs/runbooks/` are current, and `pre-launch-checklist.md` is the one
 list of gates the repository cannot close by itself — the backup destination (§13 item
@@ -735,7 +746,7 @@ the navigation item and the sitemap entry together; the Owner edits 1v's five fa
 over the phase-1 `site_contact` draft row, and a published number reaches every
 Ring control as a derived `tel:` link on the first request. The 11A finding about
 nested keys is closed for the takeaway sections (strict objects, refused at every
-door) and deliberately left open for Om os. **Phase 11C — the user administration
+door) and was left open for Om os until phase 14B1 closed it. **Phase 11C — the user administration
 at `/admin/brugere` — is built and green (§0ab)**: the Owner invites by name,
 e-mail and role (the Auth server sends the Danish e-mail; the person chooses their
 own password), changes a role, deactivates — never deletes — and reactivates, with

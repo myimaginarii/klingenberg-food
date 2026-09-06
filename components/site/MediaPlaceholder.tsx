@@ -20,9 +20,10 @@
  *
  * Since phase 10C-2 the entity slots (dish, Ugens ret, Månedens burger, news) render a
  * real library photograph through `SiteImage` when one is selected, and this frame
- * when none is — or when a stored record cannot be rendered safely. The frames the
- * restaurant has not supplied an editor for yet (hero, award, team) still render
- * this directly.
+ * when none is — or when a stored record cannot be rendered safely. The page documents'
+ * frames followed: the Forside's three (11A), Mad ud af huset's one (11B) and Om os's
+ * three (14B1). Every public frame now goes through `SiteImage`; this component is the
+ * no-image half of it.
  */
 
 export type MediaRatio = 'hero' | 'card' | 'square' | 'portrait' | 'team'
