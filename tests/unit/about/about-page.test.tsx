@@ -71,16 +71,25 @@ describe('the words', () => {
   })
 })
 
-describe('the three frames without an image', () => {
-  it('draws the three reserved placeholders exactly as before, hidden from assistive technology', () => {
+describe('the venue frame without an image', () => {
+  it('draws the reserved placeholder exactly as before, hidden from assistive technology', () => {
     const html = render(WORDS)
-    expect(html.match(/media-placeholder/g)).toHaveLength(4) // the three slots and the award band's frame
+    expect(html.match(/media-placeholder/g)).toHaveLength(2) // the venue slot and the award band's frame
     expect(html).toContain('>Stedet<')
     expect(html).toContain('facade / indgang ved hallen · dagslys')
-    expect(html).toContain('Ét holdfoto — fuld bredde')
-    expect(html).toContain('hele holdet samlet i køkkenet, naturligt lys')
-    expect(html).toContain('Køkken / tilberedning')
     expect(html).not.toContain('<picture')
+  })
+})
+
+describe('the team and kitchen sections without an image', () => {
+  it('render text-only — no reserved photo frame — when the restaurant has not supplied that photograph', () => {
+    const html = render(WORDS)
+    expect(html).not.toContain('Ét holdfoto — fuld bredde')
+    expect(html).not.toContain('hele holdet samlet i køkkenet, naturligt lys')
+    expect(html).not.toContain('Køkken / tilberedning')
+    expect(html).toContain('Holdet bag disken.')
+    expect(html).toContain('Sådan laver vi burgere')
+    expect(html).toContain('Råvarer og brød.')
   })
 })
 

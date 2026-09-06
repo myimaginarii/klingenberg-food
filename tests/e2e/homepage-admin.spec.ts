@@ -140,7 +140,7 @@ test('the Owner opens the Forsiden editor: 1u\'s four cards, accessibly, and not
   await expect(ownerPage.locator(HOME_SLOT_ANCHOR.hero)).toHaveText('Vælg billede')
   await expect(ownerPage.getByText('Hovedbillede', { exact: true })).toBeVisible()
   await expect(ownerPage.getByText('Udmærkelsesfoto (valgfrit)', { exact: true })).toBeVisible()
-  await expect(ownerPage.getByText('Holdfoto', { exact: true })).toBeVisible()
+  await expect(ownerPage.getByText('Billede', { exact: true })).toBeVisible()
   await expect(ownerPage.getByText('Et bredt billede virker bedst. Mindst 2000 px.')).toBeVisible()
 
   expect(await violations(ownerPage)).toEqual([])

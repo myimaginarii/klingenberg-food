@@ -7890,6 +7890,70 @@ uploads and selections against the production image library, since none of it is
 seeded (`docs/runbooks/launch-notes.md` §1 records the mapping to reproduce). Phase
 14 is **not** complete or locked by this pass.
 
+## 0ao. Phase 14B2 cleanup — text-only Om os sections for unsupplied photography (2026-09-06)
+
+§0an's own record already said it plainly and this pass takes it at its word: the
+restaurant has no team group photograph and no dedicated kitchen photograph, and
+none is invented. What §0an left unfinished is that the *public page* still drew
+the hatched "awaiting photo" frame for those two sections — the correct look for a
+photograph the restaurant is expected to supply before launch, the wrong look for
+one it does not have and is not required to. This pass narrows required launch
+photography to what the restaurant actually supplied and makes the public page say
+so honestly.
+
+- **The venue photograph is unchanged and does its one job.** `about.venue_image_id`
+  is the Owner's facade/interior photograph (14B2, §0an) in the Om os "Stedet" slot;
+  it is never relabelled as a team or kitchen photo.
+- **The Forside about-excerpt slot now reuses that same photograph** (`home.about_excerpt.image_id`,
+  selected through `/admin/forsiden`, published) rather than staying the accepted
+  no-image frame it held since 11A. The source image is square (1254×1254); its
+  existing crop into the excerpt's `card` (4:3) frame reads as a normal interior
+  shot, not a strained crop, so this is one photograph doing double duty rather
+  than a second upload — `docs/runbooks/launch-notes.md` §1 records the reuse. The
+  admin picker's label for that slot, hard-coded as "Holdfoto" since 11A, is
+  corrected to the generic "Billede" now that the slot is not always a team photo
+  (`app/(admin)/admin/forsiden/page.tsx`; `tests/e2e/homepage-admin.spec.ts`
+  updated to match).
+- **`team.image_id` and `method.image_id` null is a text-only layout, not a
+  reserved frame.** `AboutPageContent` (`components/site/about/AboutPageContent.tsx`)
+  now renders `SiteImage` for those two sections only when an image is selected;
+  with none, the heading and paragraph sit alone at the section's full measure
+  (Holdet keeps its existing 62ch paragraph width; the kitchen's paragraph widens
+  from 48ch, the width chosen for a column beside a photograph, to the same 62ch
+  when it has the full column to itself, so a stray narrow column does not sit
+  in an otherwise empty band). The moment the Owner selects a photograph for
+  either slot the reserved-frame, side-by-side layout returns automatically —
+  nothing about the admin editor, `image_references`, or the two documents'
+  shape changed; `/admin/om-os`'s "Holdfoto (valgfrit)" and "Køkkenfoto (valgfrit)"
+  slots are exactly as 14B1 left them. This is the same pattern the phase-10 lock
+  pass already established for a dish or article without a photo (no reserved
+  image slot, `tests/unit/site/no-image-cards.test.tsx`) — not a new one.
+- **The award photograph stays exactly what §0am decided**: optional, no second
+  copy of the Forside's own award image on Om os, the accepted reserved frame
+  when there is none. Nothing about it changed or needed to.
+- **Regression.** Presentation-only — no migration, no `image_references` change,
+  no admin form change beyond the one label. Typecheck, lint, source policy (727
+  files), the full unit suite (2,960 / 2,960 across 131 files, `about-page.test.tsx`
+  and `home-images.test.tsx` updated for the new text-only assertions), a fresh
+  production build, and the read-only public accessibility suite
+  (`tests/a11y/public-pages.spec.ts`, 30 / 30, both projects — no violations, no
+  interactive target under 44 px, one first-level heading per page, no horizontal
+  overflow) all green. The write-project E2E matrix was deliberately **not**
+  re-run: doing so from a clean reset would discard 14B2's already-entered launch
+  content (the facade, hero, dish and logo selections) exactly as §0an's own
+  regression note describes needing to re-enter it afterward, which is
+  disproportionate to a presentation-only change and is not required by it — the
+  unit suite already covers the changed component directly, image by image and
+  text by text, without a database.
+
+**What this does not change.** Required launch photography is now scoped to what
+the restaurant supplied: the venue photograph (present), the two confirmed dish
+photographs and Tapas's own (present, §0an), the logo (present, §0an). The team
+photograph, the kitchen photograph and the award photograph are optional and the
+public page already has an honest look for their absence. **The licensed static
+map remains the one real outstanding photography/asset blocker** (§13 item A3,
+`docs/runbooks/launch-notes.md`) — nothing here supplies or sources it.
+
 ---
 
 ## 1. Stack verdict
@@ -8936,14 +9000,18 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Complete and locked** by the completion pass of 2026-09-03 — see §0ac |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B (done, §0ae):** the complete News workflow at 375 px audited against 1z and made phone-first — the pinned editor bar with the badge and the autosave line, the B/Link toolbar and link panel stuck under it, fragment targets below the bar, the stacked confirmations, long titles and addresses that wrap, the public paragraph's wrap — with `tests/e2e/news-mobile.spec.ts` under its own `news-mobile` project. **12C (done, §0af):** the 1x / 1q dashboard — the bar, the band with the phase-4 list beneath it, the announcement card, the role-aware tiles from the entity registry, LIGE NU as a read model — with the phase-4 "Åbn …" vocabulary migrated across the locked suites in the same commit; and the phone audit of Ugens ret, Månedens burger, Besked på hjemmesiden and Åbningstider, whose Fortryd and status notices now sit at the foot of the phone screen through one shared `NoticeFoot`, with `tests/e2e/dashboard-mobile.spec.ts` under its own `dashboard-mobile` project. **Completion pass (§0ag):** the three read as one system, walked as Owner and Staff on a phone, 1x / 1y / 1z / 1q re-checked at 375 / 768 / 1440, the Forhåndsvis and 1 px observations closed, the moved row kept wholly in view, the phase-11 editors and Brugere given the same foot, an empty foot's clearance removed, a dead-autosave defect after the first Gem fixed and pinned | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad), the news half by `news-mobile` (§0ae), the dashboard and the specials by `dashboard-mobile` (§0af). **Complete and locked** by the completion pass of 2026-09-04 — see §0ag |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill. **13A (done, §0ah):** the backup and restore commands, the scheduled workflow, the drill in CI, the runbooks — the destination provider still to be chosen. **13B (done, §0ai):** the PostgreSQL-backed limiter over the sign-in path and every Server Action (twelve tiers, one atomic door, HMAC subjects, fail-open except for accounts), and the security-header policy on every response (CSP, HSTS, nosniff, referrer, permissions, frame denial) with the public caching intact. **13C (done, §0aj):** server-side Sentry — the framework hook for pages, route handlers, Server Actions and the proxy, thirteen operational events from five server modules, one sanitizer, release and environment on every event, no browser SDK, no CSP change; the one controlled production event is a pre-launch gate. **Lock pass (§0ak, 2026-09-05):** the three read as one operational layer, the error and not-found states of both route groups built (§10g), the sanitizer widened to the non-JWT service key and the Danish credential words, the storm boundary grouped per account, the Sentry CLI download switched off, the pre-launch gates consolidated in `docs/runbooks/pre-launch-checklist.md`, one clean certification chain. **Complete and locked.** The SEO verification against Rich Results and the final security audit are the next increments, not this phase's | Rich Results valid (ahead); a backup lands off-platform and a restore succeeds into a scratch project — proven against the local stack and a local S3 endpoint; the hosted runs are pre-launch gates B6/B7, deliberately not claimed by the repository |
-| 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover. Planned as four increments: **14A (done, §0al) — production wiring in the repository:** the Owner bootstrap through the phase-11 invitation, the confirmed/development seed split, the one-time confirmed-content loader, the migration door and its dispatch-only workflow, the launch map guard, and the three runbooks (`domain-cutover.md`, `owner-handover.md`, `launch-notes.md`) — no hosted account touched. **14B1 (done, §0am) — the Om os editor** at `/admin/om-os`: the strict about document, the three photo slots through the shared picker, the page's image paths in `image_references`, the guard and the two transitions, the phase-4 content screen retired. **14B2 (done, §0an) — real launch assets and temporary factual copy:** the real logo (`public/brand/logo.svg`, `app/icon.svg`), the Forside hero/excerpt words and hero photograph, the Om os story/team/method words and facade photograph, Mad ud af huset's words and photograph, two confirmed dish photographs (Odin, Ragnar) and Tapas's own — the map, the award, the team and kitchen photographs remain launch blockers; nothing seeded. **14C** — hosted production deployment, bootstrap and verification (the migration run, the content load, the Owner, the workflow's push trigger, and reproducing 14B2's photo uploads against the production library). **14D** — the phase-14 lock | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
+| 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover. Planned as four increments: **14A (done, §0al) — production wiring in the repository:** the Owner bootstrap through the phase-11 invitation, the confirmed/development seed split, the one-time confirmed-content loader, the migration door and its dispatch-only workflow, the launch map guard, and the three runbooks (`domain-cutover.md`, `owner-handover.md`, `launch-notes.md`) — no hosted account touched. **14B1 (done, §0am) — the Om os editor** at `/admin/om-os`: the strict about document, the three photo slots through the shared picker, the page's image paths in `image_references`, the guard and the two transitions, the phase-4 content screen retired. **14B2 (done, §0an–§0ao) — real launch assets and temporary factual copy:** the real logo (`public/brand/logo.svg`, `app/icon.svg`), the Forside hero/excerpt words and hero photograph (the excerpt photograph reusing the Om os venue image, §0ao), the Om os story/team/method words and facade photograph, Mad ud af huset's words and photograph, two confirmed dish photographs (Odin, Ragnar) and Tapas's own — required photography scoped to what the restaurant supplied (§0ao): the team and kitchen photographs are optional and render text-only when absent, the award stays its own accepted no-image frame; **the licensed static map remains the one real launch blocker**; nothing seeded. **14C** — hosted production deployment, bootstrap and verification (the migration run, the content load, the Owner, the workflow's push trigger, and reproducing 14B2's photo uploads against the production library). **14D** — the phase-14 lock | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
 **Status, 2026-09-06: phase 14A (§0al) and 14B1 (§0am) are built and green; 14B2 —
 the real logo, two confirmed dish photographs, and the Forside/Om os/Mad ud af huset
-launch copy — is built and green (§0an), through a clean complete-matrix regression.
-The map, the award, and the team and kitchen photographs remain launch blockers.
+launch copy — is built and green (§0an), through a clean complete-matrix regression;
+§0ao then scoped required launch photography to what the restaurant actually
+supplied and gave Om os's team and kitchen sections an honest text-only look for
+the photograph neither exists nor is required. The award stays its own accepted
+no-image frame, unchanged. The licensed static map is the one real remaining
+launch photography/asset blocker.
 Phase 14 is not complete and nothing hosted is provisioned.** Before it: **phases 0–13 are
 complete and locked.** Phase 13 — the
 production-hardening layer — as 13A, backup and recovery (§0ah), 13B, rate limiting and

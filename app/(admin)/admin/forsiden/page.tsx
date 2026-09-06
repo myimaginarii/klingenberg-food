@@ -68,7 +68,8 @@ import { saveHomeSectionDraft } from './save-actions'
  * SCOPE. The Forside document's four sections, exactly as 1u draws them and §4 shapes
  * them: "Øverst på siden" (heading, intro, hero image), "Udmærkelsen" (title, text,
  * award image), "Udvalgte burgere (vælg 3)" (three dish ids from the menu) and "Om os
- * (uddrag)" (heading, text, team image). Kladde → Forhåndsvis → Offentliggør through
+ * (uddrag)" (heading, text, an optional photograph — a team photo or a reused venue
+ * shot, whichever the Owner picks). Kladde → Forhåndsvis → Offentliggør through
  * phase 4's machinery, unchanged; the three photographs through phase 10's picker pair,
  * unchanged.
  *
@@ -382,7 +383,7 @@ export default async function HomeAdminPage({
           errorFor={errorFor('about_excerpt')}
           eyebrow={HOME_SECTION_LABELS.about_excerpt}
           fieldNames={HOME_SECTION_FORM}
-          imageSlot={imageSlot('about_excerpt', 'Holdfoto')}
+          imageSlot={imageSlot('about_excerpt', 'Billede')}
           key={cardKey({ about: formValuesFor('about_excerpt') })}
           labels={HOME_SECTION_LABELS_FOR_FIELDS.about_excerpt}
           pending={pendingSections.has('about_excerpt')}

@@ -450,7 +450,7 @@ test('a staff member may replace a page image in the library â€” no owner_only â
   imageA = stored.published.venue_image_id as string
 })
 
-test('Fjern billede on the kitchen is a pending removal; published, the reserved frame returns', async ({ browser }) => {
+test('Fjern billede on the kitchen is a pending removal; published, the section renders text-only', async ({ browser }) => {
   await openAboutAdmin(staffPage)
   await removeSlotImage(staffPage, ABOUT_CARDS.method)
   await expect(statusNotice(staffPage)).toContainText('bliver i billedbiblioteket')

@@ -15,8 +15,9 @@ import type { PublicImage } from '@/lib/images/public'
  * whole column disappears when there is no published article rather than showing an
  * empty card.
  *
- * The "Om os" photograph (phase 11A) is the Forside document's team image — 1u's
- * "Holdfoto" — in the 4:3 frame 1g draws for "HOLDET"; `null` is the reserved frame.
+ * The "Om os" photograph (phase 11A) is the Forside document's own image slot — 1u's
+ * picker — in the 4:3 frame 1g draws for this excerpt. It may be a team photo or (14B2)
+ * a venue photograph reused from the Om os page; `null` is the reserved frame.
  */
 export function NewsAndAbout({
   latestArticle,

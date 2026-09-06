@@ -11,14 +11,20 @@ import { ABOUT_DEFAULT_HEADING, ABOUT_DEFAULT_METHOD_HEADING } from '@/lib/pages
  * Om os — design 1i, rendered from the published (or previewed) document.
  *
  * Pure server markup over the document the route reads, so the page can be asserted as
- * HTML without a database (`tests/unit/about/about-page.test.tsx`). Nothing about the
- * layout changed for phase 14B1: the three frames 1i reserves — "Stedet" beside the
- * story, "Ét holdfoto — fuld bredde", "Køkken / tilberedning" beside the method — are
- * now real image slots, drawn by the one public renderer in exactly the boxes the
- * placeholders reserved; with no image selected each frame renders as it always did. The
- * one other change is `break-words` on the headings and paragraphs: the editor admits a
- * 120-character heading and 2,000-character paragraphs, and a long unbroken word in one
- * of them must wrap inside the 375 px column rather than scroll the page sideways.
+ * HTML without a database (`tests/unit/about/about-page.test.tsx`). The three frames 1i
+ * reserves — "Stedet" beside the story, "Ét holdfoto — fuld bredde", "Køkken /
+ * tilberedning" beside the method — are real image slots, drawn by the one public
+ * renderer in exactly the boxes the placeholders reserved. The venue slot always has a
+ * photograph (the restaurant supplied its facade/interior shot, 14B2) and keeps its
+ * reserved frame if that ever changes. The restaurant has no team or kitchen photograph
+ * yet, and does not treat either as required launch photography (14B2, §0an) — so those
+ * two frames are the no-image state's own thing: with `team.image_id` or
+ * `method.image_id` null, the section renders text-only (no reserved photo frame) rather
+ * than the hatched placeholder, and the reserved-frame layout returns automatically the
+ * moment the Owner selects a photograph for that slot. `break-words` on the headings and
+ * paragraphs is unrelated: the editor admits a 120-character heading and 2,000-character
+ * paragraphs, and a long unbroken word in one of them must wrap inside the 375 px column
+ * rather than scroll the page sideways.
  *
  * "Forenklet i denne version: ét holdfoto og ét kort afsnit. Ingen portrætter, navne
  * eller roller" (1i). That simplification is respected: there is no team-member list.
@@ -71,36 +77,50 @@ export function AboutPageContent({ about }: { about: AboutDocument | null }) {
         <h2 id="om-os-holdet" className="font-display text-[1.75rem] md:text-title-sm">
           {TEAM_HEADING}
         </h2>
-        <SiteImage
-          image={about?.team.image ?? null}
-          ratio="team"
-          sizes="aboutTeam"
-          placeholder={{
-            label: 'Ét holdfoto — fuld bredde',
-            detail: 'hele holdet samlet i køkkenet, naturligt lys',
-          }}
-          className="rounded-card-lg mt-4 w-full"
-        />
+        {about?.team.image ? (
+          <SiteImage
+            image={about.team.image}
+            ratio="team"
+            sizes="aboutTeam"
+            placeholder={{
+              label: 'Ét holdfoto — fuld bredde',
+              detail: 'hele holdet samlet i køkkenet, naturligt lys',
+            }}
+            className="rounded-card-lg mt-4 w-full"
+          />
+        ) : null}
         {about?.team.text ? (
-          <p className="text-neutral-ink mt-5 max-w-[62ch] break-words md:text-[1.125rem]">{about.team.text}</p>
+          <p
+            className={`text-neutral-ink max-w-[62ch] break-words md:text-[1.125rem] ${about?.team.image ? 'mt-5' : 'mt-4'}`}
+          >
+            {about.team.text}
+          </p>
         ) : null}
       </Section>
 
       <Section tone="beige" ariaLabelledBy="om-os-metode">
-        <div className="flex flex-col gap-8 md:flex-row md:items-center md:gap-9">
-          <SiteImage
-            image={about?.method.image ?? null}
-            ratio="hero"
-            sizes="aboutKitchen"
-            placeholder={{ label: 'Køkken / tilberedning' }}
-            className="rounded-card-lg w-full flex-1"
-          />
-          <div className="flex-1 lg:flex-[1.1]">
+        <div
+          className={
+            about?.method.image ? 'flex flex-col gap-8 md:flex-row md:items-center md:gap-9' : undefined
+          }
+        >
+          {about?.method.image ? (
+            <SiteImage
+              image={about.method.image}
+              ratio="hero"
+              sizes="aboutKitchen"
+              placeholder={{ label: 'Køkken / tilberedning' }}
+              className="rounded-card-lg w-full flex-1"
+            />
+          ) : null}
+          <div className={about?.method.image ? 'flex-1 lg:flex-[1.1]' : undefined}>
             <h2 id="om-os-metode" className="font-display text-[1.625rem] break-words md:text-[1.875rem]">
               {about?.method.heading ?? ABOUT_DEFAULT_METHOD_HEADING}
             </h2>
             {about?.method.text ? (
-              <p className="text-neutral-ink mt-3 max-w-[48ch] break-words md:text-[1.0625rem]">
+              <p
+                className={`text-neutral-ink mt-3 break-words md:text-[1.0625rem] ${about?.method.image ? 'max-w-[48ch]' : 'max-w-[62ch]'}`}
+              >
                 {about.method.text}
               </p>
             ) : null}

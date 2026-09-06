@@ -162,7 +162,10 @@ async function snapshot(page: Page): Promise<AboutSnapshot> {
 
   const story = storyContainer.locator('p.max-w-\\[52ch\\]')
   const teamText = teamSection.locator('p.max-w-\\[62ch\\]')
-  const methodText = methodSection.locator('p.max-w-\\[48ch\\]')
+  // The paragraph's max-width varies with whether the kitchen photo is selected (a wider
+  // reading measure when the text-only layout has the full column to itself), so this
+  // matches on the classes both variants share rather than either max-width utility.
+  const methodText = methodSection.locator('p.mt-3.text-neutral-ink')
 
   return {
     heading: (await main.getByRole('heading', { level: 1 }).innerText()).trim(),
