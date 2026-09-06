@@ -13,6 +13,13 @@ next-env.d.ts
 /coverage
 /test-results
 /playwright-report
+/.playwright-mcp
+
+# operator-supplied launch source material (phase 14B2) — an input folder, not a
+# runtime asset location. What belongs in the repository (the logo, a licensed map)
+# is copied into public/ or app/ by hand; this directory itself is never read by the
+# application and never ships.
+/launch-assets
 
 # local env — never commit secrets. Names only live in .env.example
 .env

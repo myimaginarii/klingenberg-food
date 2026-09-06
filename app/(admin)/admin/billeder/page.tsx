@@ -206,7 +206,13 @@ export default async function ImagesAdminPage({
             </p>
           </section>
         ) : (
+          // `key` forces a remount when the selected image changes: the alt-text field
+          // is an uncontrolled `defaultValue` textarea (ImageDetailPanel), and without a
+          // key React reuses the same DOM node across a client-side navigation from one
+          // image's panel to another's — the new panel would render with the previous
+          // image's typed or saved description still in the box (phase 14B2 finding).
           <ImageDetailPanel
+            key={selected.id}
             altAction={saveAltText}
             altDefault={echoedAlt ?? selected.altText ?? ''}
             altError={altError}

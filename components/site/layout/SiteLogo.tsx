@@ -1,12 +1,14 @@
 /**
  * The masthead — design 1g, 1l, 1n and the footer.
  *
- * The restaurant's logo file has not been supplied in a usable format yet (1ab lists
- * "Logofil i vektor (SVG/AI)" and the favicon crop as outstanding), so the circular mark
- * renders as the design's own placeholder hatching. The name is real text either way,
- * which is what a search engine, a screen reader and a copy-paste actually need.
- *
- * Swapping in the real mark is a change to this one component.
+ * The mark is the restaurant's real logo (phase 14B2, `public/brand/logo.svg` — the
+ * supplied handmade K, unaltered: no redraw, no smoothing, no reinterpretation). It is
+ * already a self-contained circular badge — a dark red K inside a dark red circular
+ * border with an opaque white interior and a transparent exterior — so it is placed
+ * directly at each caller's size with no wrapping border or fill of our own. The name
+ * beside it is real text either way, which is what a search engine, a screen reader and
+ * a copy-paste actually need; the mark itself is decorative (`alt=""`) for exactly that
+ * reason.
  */
 export function SiteLogo({
   size = 'default',
@@ -23,11 +25,14 @@ export function SiteLogo({
 
   return (
     <span className="flex items-center gap-3">
-      <span
+      {/* eslint-disable-next-line @next/next/no-img-element -- a static brand asset, not a library photograph; SiteImage is for the image library only. */}
+      <img
+        src="/brand/logo.svg"
+        alt=""
         aria-hidden="true"
-        className={`media-placeholder border-border shrink-0 rounded-full border ${
-          compact ? 'size-10' : 'size-10 md:size-13'
-        }`}
+        width={1254}
+        height={1254}
+        className={`shrink-0 ${compact ? 'size-10' : 'size-10 md:size-13'}`}
       />
       <span className="flex flex-col leading-tight">
         <span

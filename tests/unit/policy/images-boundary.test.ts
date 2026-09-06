@@ -351,8 +351,9 @@ describe('public rendering is derivative-only, through one renderer (phase 10C-2
   })
 
   it('no public component renders a raw <img> of its own', () => {
-    // The public site's photographs go through SiteImage; the only other <img> on
-    // the public site is the static map (§7g), which is not a library image.
+    // The public site's photographs go through SiteImage; the only other <img>s on
+    // the public site are static, non-library assets: the map (§7g) and the real
+    // brand mark (`public/brand/logo.svg`, phase 14B2) `SiteLogo` renders.
     const rawImages = sourceFiles
       .filter((file) => file.path.startsWith('components/site/') || file.path.startsWith('app/(site)/'))
       .filter((file) => file.path !== 'components/site/SiteImage.tsx')
@@ -360,7 +361,7 @@ describe('public rendering is derivative-only, through one renderer (phase 10C-2
       .map((file) => file.path)
       .sort()
 
-    expect(rawImages).toEqual(['components/site/StaticMap.tsx'])
+    expect(rawImages).toEqual(['components/site/StaticMap.tsx', 'components/site/layout/SiteLogo.tsx'])
   })
 
   it('the public image model is composed in one module, over the central path builder', () => {

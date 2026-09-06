@@ -25,10 +25,31 @@ copying the row.
 
 | # | Item | Status | Owner | Date · evidence |
 |---|---|---|---|---|
-| A1 | Real photographs from the 1ab checklist uploaded through the image library and selected in the editors | Not started (14B) | The restaurant supplies; the Owner or the developer uploads | |
-| A2 | Real copy for Forsiden, Mad ud af huset and Om os written through the administration | Not started (14B2) — the Om os editor is **repository proven** (`/admin/om-os`, phase 14B1, §0am: `tests/e2e/about-admin.spec.ts`, pgTAP `031`) | The restaurant writes; the Owner or the developer enters it | 2026-09-06 · the editor (14B1) |
-| A3 | **Final map asset and its licence** in `public/map/`, `LICENSE.md` completed (provenance, file, source, licence, date), `map_attribution` set if the licence requires credit (§7g, §13 item C) | Not started (14B) — the guard is **repository proven**: a Vercel production build refuses the placeholder (`lib/site/map-launch-guard.ts`) | The developer | |
+| A1 | Real photographs from the 1ab checklist uploaded through the image library and selected in the editors | Requires one manual step — **performed once against the local stack** (14B2, §0an): Odin, Ragnar and Tapas — the three dish photographs whose filename clearly identifies them — uploaded and selected; the Forside hero, Om os facade and Mad ud af huset photographs also selected (below). Repeating it against the production library is still owed (14C). The award, Om os team, Om os kitchen and Forside about-excerpt photographs are **not supplied** and remain the approved no-image state — a launch blocker. Seventeen other supplied photographs carry no confirmed dish identity and were deliberately left out of the library | The restaurant supplies; the Owner or the developer uploads | 2026-09-06 · `launch-assets/`, the local image library, complete Playwright matrix green (§1 below for the mapping) |
+| A2 | Real copy for Forsiden, Mad ud af huset and Om os written through the administration | Requires one manual step — **performed once against the local stack** (14B2, §0an) for all three pages, from `launch-assets/launch-copy.md`, unrewritten beyond joining each field's source paragraphs. Repeating it against production is still owed (14C). The Om os editor itself is **repository proven** (`/admin/om-os`, phase 14B1, §0am: `tests/e2e/about-admin.spec.ts`, pgTAP `031`) | The restaurant writes; the Owner or the developer enters it | 2026-09-06 · the three editors, complete Playwright matrix green (14B2, §0an) |
+| A3 | **Final map asset and its licence** in `public/map/`, `LICENSE.md` completed (provenance, file, source, licence, date), `map_attribution` set if the licence requires credit (§7g, §13 item C) | Not started — `launch-assets/` (2026-09-06) held no map image and no licence, source or date record; checked and confirmed absent by 14B2 (§0an). The guard is **repository proven**: a Vercel production build refuses the placeholder (`lib/site/map-launch-guard.ts`) | The developer, once the restaurant or a licensed provider supplies the image and its licence | |
 | A4 | Placeholder News removed or replaced by the restaurant's own articles; the weekly dish written by the kitchen | Not started (the restaurant, after 14C) | The restaurant | |
+| A5 | The real logo integrated in the public header/footer, the mobile menu, the admin bar and the favicon | **Repository proven** (14B2, §0an): `launch-assets/logo.svg` (the supplied handmade K, unaltered) copied to `public/brand/logo.svg` and `app/icon.svg` — committed, so nothing further is owed in 14C; `SiteLogo` and `DashboardBar` render it; legible checked at 16/32/48 px raster | The developer | 2026-09-06 · `components/site/layout/SiteLogo.tsx`, `components/admin/dashboard/DashboardBar.tsx`, `app/icon.svg`, complete Playwright matrix green |
+
+### The 14B2 asset mapping, to reproduce in production (14C)
+
+`launch-assets/` is the Owner's own source folder, never read by the running
+application (excluded from the repository by `.gitignore`). This table is the whole
+record of what went where, so the same uploads and selections can be repeated by
+hand against the production image library — no automation was built for it, by
+instruction.
+
+| Supplied file | Where it went | How |
+|---|---|---|
+| `logo.svg` | `public/brand/logo.svg`, `app/icon.svg` (repository files, committed) | Copied in directly; not through the image library |
+| `odin.png` | The **Odin** dish's photograph | Image library upload → `/admin/menu`, Odin's "Vælg billede" |
+| `ragnar.png` | The **Ragnar** dish's photograph | Image library upload → `/admin/menu`, Ragnar's "Vælg billede" |
+| `tapaz.png` | The **Tapas** dish's photograph (stored; the public Tapas board does not render a dish photo by design, 1h/1m) | Image library upload → `/admin/menu`, Tapas's "Vælg billede" |
+| `bacon-egg-burger.png` | The Forside hero photograph (an unnamed dish; the hero makes no dish claim) | Image library upload → `/admin/forsiden`, "Hovedbillede" |
+| `facade.png` | The Om os facade/venue slot (the dining room, not an exterior — the only photograph the Owner marked for this slot) | Image library upload → `/admin/om-os`, "Billede af stedet" |
+| `sandwich-trio.png` | The Mad ud af huset page's optional photograph | Image library upload → `/admin/mad-ud-af-huset`, "Billede" |
+| The other 14 photographs (`bacon-red-onion-burger`, `bestla`, `boefsandwich`, `chicken-red-cabbage-sandwich`, `double-crispy-chicken-burger`, `freja`, `ivar`, `jacksparrow`, `norden`, `pulled-pork-crispy-burger`, `shwarma`, `valhalla`, `wienerschnitzel`, `ydun`) | Not uploaded | No confirmed dish identity and no reserved slot they clearly fit; quality over quantity (§7 of the phase-14B2 brief) — available for the restaurant to identify later |
+| — (none supplied) | The award photo, the Om os team photo, the Om os kitchen photo, the Forside about-excerpt photo, the licensed static map | **Launch blockers** — the approved no-image / placeholder state stands |
 
 ## 2. Production migration (the door: 14A; the run: 14C)
 

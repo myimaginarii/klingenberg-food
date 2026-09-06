@@ -18,9 +18,8 @@ import type { Role } from '@/lib/auth/session'
  * a write, not a navigation — and the action is handed in as a prop, because a component
  * in `components/` importing from `app/` would be the dependency the wrong way round.
  *
- * The logo is the same reserved circle the public header draws (`SiteLogo`): the file
- * has not been supplied in a usable format yet (1ab), and a placeholder that looks like
- * the frame's white disc is honest about that.
+ * The logo is the same real mark the public header draws (`SiteLogo`, phase 14B2):
+ * the supplied handmade K, `public/brand/logo.svg`, unaltered.
  */
 export function DashboardBar({
   name,
@@ -35,9 +34,14 @@ export function DashboardBar({
     <header className="bg-brand-900 text-white">
       <div className="mx-auto flex max-w-content flex-wrap items-center gap-x-4 gap-y-1 px-gutter py-3 md:px-8 md:py-3.5">
         <p className="mr-auto flex min-w-0 items-center gap-2.5 md:gap-3">
-          <span
+          {/* eslint-disable-next-line @next/next/no-img-element -- a static brand asset, not a library photograph. */}
+          <img
+            src="/brand/logo.svg"
+            alt=""
             aria-hidden="true"
-            className="media-placeholder size-8 shrink-0 rounded-full border border-white/30 md:size-[2.375rem]"
+            width={1254}
+            height={1254}
+            className="size-8 shrink-0 md:size-[2.375rem]"
           />
           <span className="flex min-w-0 flex-col leading-tight">
             <span className="hidden font-semibold md:block">Klingenberg Food</span>
