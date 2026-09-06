@@ -8,6 +8,14 @@ configured and verified before launch is listed once, in
 [pre-launch-checklist.md](pre-launch-checklist.md) (rows B1–B8); this document holds
 the procedures those rows point at.
 
+**Status on 2026-09-06 (phase 14C).** The tooling is proven and the destination does
+not exist: no S3-compatible bucket, no credentials, no protected `backup` environment,
+and therefore **no recovery point has ever been shipped** and none can be restored
+(rows B1–B8, all open). `npm run backup:drill` passed against the local stack on this
+date, which proves the code, not a production backup. Setting the destination up is
+manual Group 4 in [launch-notes.md](launch-notes.md) §9b; the hosted restore drill
+(B7) is Group 6 and needs a scratch project that does not exist either.
+
 ## 1. Two layers, two failures
 
 | Layer | What it protects against | What it does **not** cover |

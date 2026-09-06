@@ -8045,6 +8045,151 @@ third-party Google content stays exactly as open as it was, recorded in
 
 ---
 
+## 0ar. Phase 14C — certification done, hosted deployment blocked (2026-09-06)
+
+14C is the hosted increment: the production Supabase project, the migration run, the
+confirmed-content load, the Owner bootstrap, the production media re-upload, the Vercel
+deployment, Sentry, the off-platform backup, the restore drill, the domain and the
+hosted smoke test. **None of it could run, because none of the external infrastructure
+it acts on exists yet.** This pass established that as a measured fact rather than an
+assumption, did every piece of 14C that lives inside the repository, and stopped at the
+boundary.
+
+### What was measured, not assumed
+
+| Service | State on 2026-09-06 | How it was checked |
+|---|---|---|
+| GitHub repository | **Absent** — the checkout has no remote at all | `git remote -v` prints nothing |
+| Vercel project | **Absent** | no `.vercel/` directory; nothing has ever been linked |
+| Production Supabase project | **Absent** | `supabase status` reports `linked_project: null`; `.env.local` holds only `http://127.0.0.1:*` |
+| Resend / custom SMTP | **Absent** | no account exists to configure; Auth mail is the local Mailpit catcher |
+| Sentry project | **Absent** | no DSN anywhere; `SENTRY_DSN` unset, monitoring correctly inert |
+| Off-platform backup destination | **Absent** | no `BACKUP_S3_*` value exists to hold |
+| Domain / DNS | **Absent** | `SITE_URL` unset; the site resolves to `localhost` by design |
+| Owner e-mail address | **Not supplied** | the bootstrap has no address to invite, and none was invented |
+
+Because the repository can neither create nor prove any of these, rows M2–M4, C3–C4,
+O2–O5 and D0–D8 of `docs/runbooks/launch-notes.md`, and every "Requires production
+infrastructure" row of `docs/runbooks/pre-launch-checklist.md`, stay open. They are
+reported to the operator as one grouped, ordered set of manual steps rather than being
+marked done. **No credential, project reference, address or DSN was invented to make a
+gate look closed.**
+
+### The migration workflow stays dispatch-only — a decision, not an omission
+
+`.github/workflows/production-migrate.yml` names four activation steps in its own
+header, and step 4 (adding the `push: main` trigger) is explicitly the *last* of them:
+it may only follow a protected `production` environment holding `SUPABASE_DB_URL` and
+`MIGRATE_CONFIRM_HOST`, and one successful dispatch run against the real project.
+Neither the environment nor the repository exists, so adding the trigger now would arm
+a job that fails on every merge and points at nothing. **The workflow is unchanged.**
+The condition is documented and simply not met; 14C's judgement is that the architecture
+already approved is correct and that its ordering must be honoured.
+
+### The environment audit
+
+Every variable named in `.env.example` was cross-checked against the source, the launch
+scripts, the three workflows and `lib/env/server.ts`. The set is exact: no variable is
+documented that nothing reads, and no secret is read outside `lib/env/server.ts` and
+`scripts/`. `GOOGLE_MAPS_EMBED_API_KEY` is confirmed **absent everywhere** and was not
+re-added — §0aq retired it, the embed is a fixed Google-generated `src`, and the map
+needs no key. The retired launch-map guard (`lib/site/map-launch-guard.ts`,
+`lib/site/map-asset.ts`, `public/map/`) is confirmed gone from the tree and from
+`next.config.ts`, so no stale build guard can refuse a production build. Nothing in the
+audit required a documentation change: no stale variable was found.
+
+### The deferred E2E failures, investigated rather than waived again
+
+The visual pass had recorded 22 read-only E2E failures against the previous baseline and
+deferred them. They split cleanly into two causes, and neither was waived:
+
+**Cause 1 — local database drift, not a product defect.** 14B2 entered the real launch
+copy through the administration, against the same local stack the E2E fixtures read. The
+`pages` rows for `about` and `takeaway` therefore held the launch headings (*"Mad fra
+Carl Nielsen Hallen"*, *"Mad ud af huset"*) where `tests/e2e/support/site.ts` expects the
+development seed's (*"Vores historie"*, *"Mad til fester og store selskaber"*). A clean
+`npm run db:reset:full` restored the seed baseline and every one of these disappeared —
+proving the drift was environmental. **No test and no fixture was changed for these**:
+changing them would have pinned one operator's hand-entered content as the suite's
+expectation.
+
+**Cause 2 — a deliberate product change the tests had not caught up with.** Two
+assertions still demanded that *nothing at all* leave this origin, which §0ap/§0aq
+knowingly ended by embedding Google's map: `tests/e2e/public-site.spec.ts`'s *"no
+third-party script, pixel or tag manager is loaded"*, and `tests/e2e/monitoring.spec.ts`'s
+foreign-request assertion in both of its walks. Measured against the running site, the
+embed pulls 47 foreign requests across six Google hosts (`www.google.com`,
+`maps.googleapis.com`, `maps.gstatic.com`, `fonts.googleapis.com`, `fonts.gstatic.com`,
+`places.googleapis.com`) — a list Google changes at will, so allow-listing hosts would
+pin somebody else's deployment detail.
+
+The rule these suites now assert is **whose frame asked**, in one shared helper,
+`tests/e2e/support/map-embed.ts`. A request is Google's business if it is the embed's own
+navigation request, or if walking from the requesting frame up through its parents finds
+the embed's URL. Everything else off-origin still fails. The guarantee worth keeping is
+kept intact and is arguably sharper than before: an analytics script, a pixel or a tag
+manager added to the site would sit in the **main** frame, whose URL is this origin's,
+and would still fail — while the accepted embed is excepted without naming a single
+Google host. `monitoring.spec.ts` additionally stops collecting Google's frame scripts
+for its chunk scan: those are Google's bundle, not this build's, and fetching them over
+the network on every run would test somebody else's code for the Sentry SDK.
+
+**The privacy question is untouched.** That the embed puts third-party Google content in
+a guest's browser at all remains open and remains the later privacy/cookie review's, as
+§0ap opened it and `docs/runbooks/launch-notes.md` §8 records it. This pass changed what
+the tests *assert*, not what the site *does*.
+
+**Cause 3 — found only because the brief insisted the deferred specs actually run.** The
+first complete matrix stopped in `about-admin-mobile` at *"the first guest request is
+unchanged — a draft moves nothing"*: the guest's `/om-os` returned an **empty story**
+where two published paragraphs were expected, and 139 later tests never ran behind it.
+The page was measured directly and renders both paragraphs correctly — the fault was in
+`tests/e2e/support/about-admin.ts`, whose snapshot selected the story by the arbitrary
+utility `p.max-w-[52ch]`. The frozen visual pass (`0c9acc6`) had retuned that reading
+measure to `text-lead max-w-[54ch]`, so the selector matched nothing and the helper
+returned `[]` rather than failing loudly. **The public design is frozen and correct; the
+test was stale**, so the test was fixed and the component was not touched.
+
+The fix is the lesson the same file had already written down for the method paragraph,
+applied to all three: select body text by the type-scale class it shares
+(`p.text-lead.text-neutral-ink`, scoped to its own container, which holds no other body
+paragraph) rather than by a max-width a presentation pass may legitimately retune. A
+sweep confirmed **no other class-pinned selector remains anywhere under `tests/`**. This
+is exactly the failure mode the 14C brief was guarding against by refusing to let
+`about-admin.spec.ts` and `homepage-admin.spec.ts` stay deferred a second time: a spec
+that does not run cannot report that a frozen design moved out from under it.
+
+### Full local certification (2026-09-06)
+
+Run after a deliberate clean local reset, against a production build, with
+`--retries=0`. This certifies the **codebase**; it certifies nothing about a production
+environment, because there is none (the opening table above).
+
+| Gate | Result |
+|---|---|
+| `npm run typecheck` | pass |
+| `npm run lint` | pass |
+| `npm run check:policy` | pass — 724 files |
+| Unit suite | **2,949 passed** / 130 files |
+| pgTAP | **2,269 passed** / 31 files |
+| Integration | **44 passed** / 6 files |
+| Backup drill | **8 passed** |
+| Launch drill | **28 passed** |
+| Production build | pass |
+| Playwright, complete matrix, `--retries=0` | recorded in `docs/runbooks/launch-notes.md` §9 |
+| `npm audit` | **0 vulnerabilities** |
+
+The two specs the visual pass had left unexecuted — `tests/e2e/homepage-admin.spec.ts`
+and `tests/e2e/about-admin.spec.ts` — ran in this matrix, in all four of their projects.
+
+### What this pass deliberately did not do
+
+Not phase 14D, not the security review, not SEO, not the `noindex` lift (verified still
+served as `<meta name="robots" content="noindex, nofollow">`), no copy humanization, no
+design change, and no public launch. **Phase 14 is not complete and not locked.**
+
+---
+
 ## 1. Stack verdict
 
 **Use the proposed stack.** Next.js (App Router) + TypeScript + Tailwind + Supabase (Postgres/Auth/Storage) + Vercel + Vitest + Playwright is a good fit for this system, with four concrete adjustments.
@@ -9110,7 +9255,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Complete and locked** by the completion pass of 2026-09-03 — see §0ac |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B (done, §0ae):** the complete News workflow at 375 px audited against 1z and made phone-first — the pinned editor bar with the badge and the autosave line, the B/Link toolbar and link panel stuck under it, fragment targets below the bar, the stacked confirmations, long titles and addresses that wrap, the public paragraph's wrap — with `tests/e2e/news-mobile.spec.ts` under its own `news-mobile` project. **12C (done, §0af):** the 1x / 1q dashboard — the bar, the band with the phase-4 list beneath it, the announcement card, the role-aware tiles from the entity registry, LIGE NU as a read model — with the phase-4 "Åbn …" vocabulary migrated across the locked suites in the same commit; and the phone audit of Ugens ret, Månedens burger, Besked på hjemmesiden and Åbningstider, whose Fortryd and status notices now sit at the foot of the phone screen through one shared `NoticeFoot`, with `tests/e2e/dashboard-mobile.spec.ts` under its own `dashboard-mobile` project. **Completion pass (§0ag):** the three read as one system, walked as Owner and Staff on a phone, 1x / 1y / 1z / 1q re-checked at 375 / 768 / 1440, the Forhåndsvis and 1 px observations closed, the moved row kept wholly in view, the phase-11 editors and Brugere given the same foot, an empty foot's clearance removed, a dead-autosave defect after the first Gem fixed and pinned | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad), the news half by `news-mobile` (§0ae), the dashboard and the specials by `dashboard-mobile` (§0af). **Complete and locked** by the completion pass of 2026-09-04 — see §0ag |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill. **13A (done, §0ah):** the backup and restore commands, the scheduled workflow, the drill in CI, the runbooks — the destination provider still to be chosen. **13B (done, §0ai):** the PostgreSQL-backed limiter over the sign-in path and every Server Action (twelve tiers, one atomic door, HMAC subjects, fail-open except for accounts), and the security-header policy on every response (CSP, HSTS, nosniff, referrer, permissions, frame denial) with the public caching intact. **13C (done, §0aj):** server-side Sentry — the framework hook for pages, route handlers, Server Actions and the proxy, thirteen operational events from five server modules, one sanitizer, release and environment on every event, no browser SDK, no CSP change; the one controlled production event is a pre-launch gate. **Lock pass (§0ak, 2026-09-05):** the three read as one operational layer, the error and not-found states of both route groups built (§10g), the sanitizer widened to the non-JWT service key and the Danish credential words, the storm boundary grouped per account, the Sentry CLI download switched off, the pre-launch gates consolidated in `docs/runbooks/pre-launch-checklist.md`, one clean certification chain. **Complete and locked.** The SEO verification against Rich Results and the final security audit are the next increments, not this phase's | Rich Results valid (ahead); a backup lands off-platform and a restore succeeds into a scratch project — proven against the local stack and a local S3 endpoint; the hosted runs are pre-launch gates B6/B7, deliberately not claimed by the repository |
-| 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover. Planned as four increments: **14A (done, §0al) — production wiring in the repository:** the Owner bootstrap through the phase-11 invitation, the confirmed/development seed split, the one-time confirmed-content loader, the migration door and its dispatch-only workflow, the launch map guard, and the three runbooks (`domain-cutover.md`, `owner-handover.md`, `launch-notes.md`) — no hosted account touched. **14B1 (done, §0am) — the Om os editor** at `/admin/om-os`: the strict about document, the three photo slots through the shared picker, the page's image paths in `image_references`, the guard and the two transitions, the phase-4 content screen retired. **14B2 (done, §0an–§0ao) — real launch assets and temporary factual copy:** the real logo (`public/brand/logo.svg`, `app/icon.svg`), the Forside hero/excerpt words and hero photograph (the excerpt photograph reusing the Om os venue image, §0ao), the Om os story/team/method words and facade photograph, Mad ud af huset's words and photograph, two confirmed dish photographs (Odin, Ragnar) and Tapas's own — required photography scoped to what the restaurant supplied (§0ao): the team and kitchen photographs are optional and render text-only when absent, the award stays its own accepted no-image frame; nothing seeded. **14B3 (done, §0ap; finalised, §0aq) — the static map replaced by a Google Maps embed:** `components/site/GoogleMap.tsx` over the retired launch guard and asset descriptor, `frame-src` added to the CSP, rendering the official Google-generated embed link for the restaurant's own listing as a fixed constant — no API key, ever; closes the licensed-map launch blocker outright, leaving only a privacy-review question for later, no production configuration step. **14C** — hosted production deployment, bootstrap and verification (the migration run, the content load, the Owner, the workflow's push trigger, and reproducing 14B2's photo uploads against the production library). **14D** — the phase-14 lock | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
+| 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover. Planned as four increments: **14A (done, §0al) — production wiring in the repository:** the Owner bootstrap through the phase-11 invitation, the confirmed/development seed split, the one-time confirmed-content loader, the migration door and its dispatch-only workflow, the launch map guard, and the three runbooks (`domain-cutover.md`, `owner-handover.md`, `launch-notes.md`) — no hosted account touched. **14B1 (done, §0am) — the Om os editor** at `/admin/om-os`: the strict about document, the three photo slots through the shared picker, the page's image paths in `image_references`, the guard and the two transitions, the phase-4 content screen retired. **14B2 (done, §0an–§0ao) — real launch assets and temporary factual copy:** the real logo (`public/brand/logo.svg`, `app/icon.svg`), the Forside hero/excerpt words and hero photograph (the excerpt photograph reusing the Om os venue image, §0ao), the Om os story/team/method words and facade photograph, Mad ud af huset's words and photograph, two confirmed dish photographs (Odin, Ragnar) and Tapas's own — required photography scoped to what the restaurant supplied (§0ao): the team and kitchen photographs are optional and render text-only when absent, the award stays its own accepted no-image frame; nothing seeded. **14B3 (done, §0ap; finalised, §0aq) — the static map replaced by a Google Maps embed:** `components/site/GoogleMap.tsx` over the retired launch guard and asset descriptor, `frame-src` added to the CSP, rendering the official Google-generated embed link for the restaurant's own listing as a fixed constant — no API key, ever; closes the licensed-map launch blocker outright, leaving only a privacy-review question for later, no production configuration step. **14C (repository half done, hosted half blocked, §0ar) — hosted production deployment, bootstrap and verification:** the environment audit (the variable set is exact; no `GOOGLE_MAPS_EMBED_API_KEY`, no stale map guard), the 22 deferred E2E failures investigated and closed for cause (local seed drift, cleared by a clean reset and no fixture changed; plus the two "nothing leaves this origin" assertions rewritten around `tests/e2e/support/map-embed.ts`, which excepts Google's frame by *who asked* rather than by host), and a full local certification. Every hosted step — the migration run, the content load, the Owner, the production media re-upload, Vercel, Sentry, the backup destination, the restore drill, the domain, the workflow's push trigger — is **blocked on infrastructure that does not exist**: no GitHub remote, Vercel project, hosted Supabase, Resend, Sentry or bucket. Measured, not assumed, and recorded with an ordered manual setup plan in `docs/runbooks/launch-notes.md` §9. **14D** — the phase-14 lock | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 

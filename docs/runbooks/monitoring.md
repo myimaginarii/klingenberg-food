@@ -9,6 +9,15 @@ when an event arrives. The companion documents are
 and [backups.md](backups.md) §8 (how the backup job reports failure — not through
 this mechanism).
 
+**Status on 2026-09-06 (phase 14C).** No Sentry project exists and `SENTRY_DSN` is set
+nowhere, so **monitoring is not active** and no event has ever been received (rows
+M1–M4 open). That is the designed inert state, not a fault: the DSN is optional
+everywhere and a server without one simply reports nothing. The wiring itself was
+re-certified on this date by the unit, policy and `tests/e2e/monitoring.spec.ts`
+suites — server-side only, no browser SDK, no Replay, no tracing, `sendDefaultPii:
+false`. Creating the project is manual Group 4 in
+[launch-notes.md](launch-notes.md) §9b.
+
 ## 1. What monitoring is here, in one paragraph
 
 The Next.js server reports **unexpected server-side failures** to Sentry: a page,

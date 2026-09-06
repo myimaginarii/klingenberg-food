@@ -136,15 +136,25 @@ Once the Owner is signed in, on their own phone if that is how they will work
 (phase 12 made the phone the primary device), they complete these three tasks
 **unaided** — the person running the launch watches and does not touch:
 
-| Task | Where | Done when |
-|---|---|---|
-| Change one price | Rediger menu → a dish → Pris → Gem → Offentliggør | The new price is on the public menu on the next request |
-| Mark one dish sold out | Rediger menu → the dish's Udsolgt switch | The public menu shows *Udsolgt i dag* within five minutes; the strip's Fortryd was understood |
-| Create and edit an announcement | Besked på hjemmesiden → write, set the expiry, Forhåndsvis, Offentliggør; then edit and publish again | The bar shows on the public site; the edited text replaces it |
+Each task is a **pair** — do the thing, then undo it — so the acceptance proves the
+Owner can work the administration *and* leaves the live site exactly as it was found.
+A price left wrong or a test announcement left up is a failed acceptance, not a
+finished one.
 
-Record the date and who watched in the launch notes. This is §15 row 14's
-acceptance: *"the owner completes a price change, a sell-out and an announcement
-unaided"*.
+| # | Task | Where | Done when |
+|---|---|---|---|
+| 1 | Change one price | Rediger menu → a dish → Pris → Gem → Offentliggør | The new price is on the public menu on the next request |
+| 2 | Restore the original price | The same dish, the same way | The public menu shows the original price again |
+| 3 | Mark one dish sold out | Rediger menu → the dish's Udsolgt switch | The public menu shows *Udsolgt i dag* within five minutes; the strip's Fortryd was understood |
+| 4 | Restore the dish | The same switch | *Udsolgt i dag* is gone from the public menu |
+| 5 | Create a temporary announcement | Besked på hjemmesiden → write, set the expiry, Forhåndsvis, Offentliggør; then edit and publish again | The bar shows on the public site; the edited text replaces it |
+| 6 | Remove the announcement | The same screen → remove it | The bar is gone from the public site and nothing test-shaped is left live |
+
+Record the date and who watched in the launch notes (rows T1–T3, §5 there). This is
+§15 row 14's acceptance: *"the owner completes a price change, a sell-out and an
+announcement unaided"*. It requires a real Owner on a real deployment and cannot be
+performed, simulated or approximated from the repository — see
+[launch-notes.md](launch-notes.md) §9e for its status.
 
 ## 7. Account ownership and handover responsibilities
 

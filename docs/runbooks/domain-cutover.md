@@ -12,6 +12,13 @@ through `lib/config/site.ts` (`SITE_URL`, else the Vercel host), and the source
 policy refuses a domain literal anywhere else, so the cutover below is
 configuration in four places and a DNS zone — never a commit.
 
+**Status on 2026-09-06 (phase 14C).** Not started, and not startable: there is no
+domain, no registrar named, no Vercel project and no Supabase project for steps 1–6 to
+configure. `SITE_URL` is unset and the site resolves to `localhost`, which is the
+designed fallback rather than a fault. Rows D0–D8 in
+[launch-notes.md](launch-notes.md) §6 stay open; §9b there records this as manual
+setup Group 5. Nothing below has been performed.
+
 ## 0. Prerequisite: who owns the domain
 
 Before anything else: the restaurant (or its named delegate) holds the domain

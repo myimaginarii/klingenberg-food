@@ -20,6 +20,13 @@ and are deliberately not here.
 | **Requires production infrastructure** | A value or a setting that lives in Vercel, Supabase, GitHub or the destination provider. The repository cannot set it and cannot prove it is set. |
 | **Requires one manual pre-launch verification** | A step a person performs once against the real projects, and records with a date in the launch notes. Until it is done, the capability is **unproven in production**, however green CI is. |
 
+**Status on 2026-09-06 (phase 14C).** Every "Requires production infrastructure" row
+below is still open, and measurably so: no Supabase production project, no Vercel
+project, no GitHub repository, no Resend account, no Sentry project and no backup
+destination exists yet. The inventory and the ordered manual setup groups that close
+them are in [launch-notes.md](launch-notes.md) §9. The "Repository proven" rows were
+re-certified on the same date by a full local run (§9 there, and technical plan §0ar).
+
 Nothing below is marked done. A row is closed by writing the date and the release
 beside it in the launch notes — [launch-notes.md](launch-notes.md) §7, by row id —
 never by editing this file. Phase 14's own items (assets, the Owner bootstrap, the

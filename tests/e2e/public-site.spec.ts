@@ -10,6 +10,7 @@ import {
   PUBLIC_ROUTES,
   SECONDARY_TEL_HREF,
 } from './support/site'
+import { belongsToMapEmbed } from './support/map-embed'
 import { waitForPublicShell } from './support/public-shell'
 
 /**
@@ -382,12 +383,21 @@ test.describe('privacy', () => {
     expect(await context.cookies()).toEqual([])
   })
 
+  /*
+   * §12, as revised by phase 14B3 (§0ap, §0aq). The site itself must still load nothing
+   * from anybody — no analytics, no pixel, no tag manager, no font from a CDN. The one
+   * accepted exception is Google's map frame, and it is excluded by *who asked* rather
+   * than by host, so the guarantee survives Google changing its own hosts and a tracker
+   * added to the site's own document still fails here (`./support/map-embed`).
+   */
   test('no third-party script, pixel or tag manager is loaded', async ({ page }) => {
     const external: string[] = []
 
     page.on('request', (request) => {
       const url = new URL(request.url())
-      if (!['localhost', '127.0.0.1'].includes(url.hostname)) external.push(request.url())
+      if (['localhost', '127.0.0.1'].includes(url.hostname)) return
+      if (belongsToMapEmbed(request)) return
+      external.push(request.url())
     })
 
     for (const route of PUBLIC_ROUTES) {

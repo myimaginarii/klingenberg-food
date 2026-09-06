@@ -6,6 +6,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { contentSecurityPolicy } from '@/lib/security/headers'
 
 import { DRAFT_COOKIE, signIn, STAFF } from './support/admin'
+import { belongsToMapEmbed } from './support/map-embed'
 import { openDish } from './support/menu-admin'
 import { openNewEditor } from './support/news-admin'
 
@@ -18,7 +19,9 @@ import { openNewEditor } from './support/news-admin'
  * Draft Mode preview — and asserts what the built site must never do:
  *
  *   * no request leaves the page for a monitoring host, and no request at all
- *     leaves for an origin other than this site and the Supabase Storage origin;
+ *     leaves for an origin other than this site and the Supabase Storage origin —
+ *     Google's map frame excepted, and excepted by frame rather than by host
+ *     (phase 14B3, `./support/map-embed`);
  *   * no framework chunk the page loads contains the SDK — the browser bundle is
  *     inspected by content, not by name;
  *   * a guest still receives no cookie and the page writes nothing to storage;
@@ -46,14 +49,24 @@ type Watch = {
   readonly scripts: string[]
 }
 
+/*
+ * Google's map frame is excluded at the point of capture rather than filtered out of
+ * each assertion below (phase 14B3; `./support/map-embed`). Both things this suite
+ * measures are about the *site's* browser half, and neither question is asked of
+ * Google's frame: its requests are not this page reaching off-origin, and its scripts
+ * are not this build's chunks — fetching and scanning them for the Sentry SDK would
+ * test Google's bundle over the network on every run.
+ */
 function watch(page: Page): Watch {
   const requests: string[] = []
   const errors: string[] = []
   const scripts: string[] = []
   page.on('request', (request) => {
+    if (belongsToMapEmbed(request)) return
     requests.push(request.url())
   })
   page.on('response', (response) => {
+    if (belongsToMapEmbed(response.request())) return
     const type = response.headers()['content-type'] ?? ''
     if (/javascript/.test(type) && response.status() === 200) scripts.push(response.url())
   })

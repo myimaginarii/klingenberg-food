@@ -699,10 +699,18 @@ green (§0am):** Staff and Owner edit 1i's story, team and method words and choo
 facade, team and kitchen photographs through the shared picker; the about document is
 strict at every level, its three image paths live in `image_references`, the guard and
 the two image transitions like every other page's, and the phase-4 content screen is
-gone. Phase 14 is **not** complete: 14B2 (the real photographs and copy, entered
-through the editors), 14C (the hosted deployment, the migration run, the content load,
-the Owner, the workflow trigger) and 14D (the lock) remain, and nothing hosted is
-provisioned.
+gone. **Phase 14B2 is done (§0an, §0ao):** the real logo and the supplied photographs
+went in through the editors, with temporary factual Danish launch copy; the team and
+kitchen sections render text-only where the restaurant has no photograph, by design.
+**Phase 14B3 is done (§0ap, §0aq):** the licensed static map and its build guard are
+replaced by the official Google-generated embed — no API key, ever. **Phase 14C did
+its repository half and stopped (§0ar):** the environment audit, the deferred-E2E
+investigation and a full local certification are complete, but every hosted step is
+blocked because **no external infrastructure exists yet** — no GitHub remote, no
+Vercel project, no hosted Supabase, no Resend, no Sentry, no backup destination and no
+domain. `docs/runbooks/launch-notes.md` §9 holds the measured inventory and the ordered
+manual setup groups. Phase 14 is **not** complete: 14C's hosted half and 14D (the lock)
+remain, and nothing hosted is provisioned.
 **Phase 13 is locked (§0ak):** the
 runbooks under `docs/runbooks/` are current, and `pre-launch-checklist.md` is the one
 list of gates the repository cannot close by itself — the backup destination (§13 item

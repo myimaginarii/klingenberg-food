@@ -160,12 +160,15 @@ async function snapshot(page: Page): Promise<AboutSnapshot> {
   const teamSection = main.locator('section[aria-labelledby="om-os-holdet"]')
   const methodSection = main.locator('section[aria-labelledby="om-os-metode"]')
 
-  const story = storyContainer.locator('p.max-w-\\[52ch\\]')
-  const teamText = teamSection.locator('p.max-w-\\[62ch\\]')
-  // The paragraph's max-width varies with whether the kitchen photo is selected (a wider
-  // reading measure when the text-only layout has the full column to itself), so this
-  // matches on the classes both variants share rather than either max-width utility.
-  const methodText = methodSection.locator('p.mt-3.text-neutral-ink')
+  /* Matched on the body-text classes rather than on a max-width utility. The reading
+     measure is a presentation choice that a visual pass may retune — the phase-14
+     hierarchy pass moved the story's from 52ch to 54ch and would have broken a selector
+     pinned to it, while the page rendered perfectly — and the method paragraph's varies
+     with whether the kitchen photo is selected. `text-lead` is the type-scale step all
+     three take, and the story container holds no other body paragraph. */
+  const story = storyContainer.locator('p.text-lead.text-neutral-ink')
+  const teamText = teamSection.locator('p.text-lead.text-neutral-ink')
+  const methodText = methodSection.locator('p.text-lead.text-neutral-ink')
 
   return {
     heading: (await main.getByRole('heading', { level: 1 }).innerText()).trim(),
