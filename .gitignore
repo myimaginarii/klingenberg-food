@@ -21,7 +21,18 @@ next-env.d.ts
 # application and never ships.
 /launch-assets
 
-# local env — never commit secrets. Names only live in .env.example
+# local env — never commit secrets. Names only live in .env.example.
+#
+# `.env.*` already covers every private environment file this repository uses, and
+# the two that exist are deliberately separate (see .env.example):
+#
+#   .env.local             the LOCAL Supabase stack — development, the drills, the
+#                          integration and E2E suites
+#   .env.production.local  the PRODUCTION project — `npm run launch:*`,
+#                          `npm run backup:production`, `npm run backup:restore:production`
+#
+# Neither is ever committed, and no command loads both: a shell that can reach the
+# local stack must not also be holding production credentials.
 .env
 .env.*
 !.env.example

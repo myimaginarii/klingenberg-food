@@ -1,10 +1,14 @@
 /**
  * Where a backup comes from and where a restore goes — technical plan §8, §10f;
- * phase 13A (brief §18, §28).
+ * phase 13A (brief §18, §28); the backup-source guard added 2026-09-06.
  *
- * A backup source needs no confirmation: reading is safe. A restore target is a
- * database that is about to be truncated and reloaded, so this module is where
- * "be careful" is replaced by rules:
+ * Both commands are handed the same three values — a database URL, an API origin
+ * and a service-role key — and both must know that those values describe ONE
+ * Supabase project. `assessProjectIdentity()` is that shared question, and the two
+ * guards below are the answers each command needs:
+ *
+ * A RESTORE truncates and reloads a database, so `assessRestoreTarget()` adds a
+ * typed confirmation on top of the identity check:
  *
  *   1. A loopback target (the local stack, the drill) needs nothing further.
  *   2. Any other target is refused unless the operator has named its exact database
@@ -14,6 +18,23 @@
  *      when both name a Supabase project ref the refs must agree — a restore that
  *      loads one project's database and another project's Storage is the
  *      cross-environment confusion this guard exists for.
+ *
+ * A BACKUP only reads, so it asks for no confirmation — but it COMBINES what it
+ * reads into one recovery point, and a recovery point that pairs one project's
+ * database with another project's Storage is a lie that is only discovered at
+ * restore time. `assessBackupSource()` therefore fails closed on identity alone:
+ *
+ *   1. A loopback source (the local stack, the drill) is one project by definition.
+ *   2. A hosted source must PROVE it is one project: a ref readable from the
+ *      database URL, a ref readable from the API origin, and the two equal.
+ *   3. Everything else — a half-loopback pair, disagreeing refs, or a host from
+ *      which no ref can be read — is refused before a single byte is dumped. An
+ *      unprovable source is not a partial backup; it is no backup at all.
+ *
+ * Rule 2 is deliberately stricter than the restore guard's, and the difference is
+ * the confirmation: a restore operator types the target host, which is a statement
+ * about a host a human looked at. A backup has no such statement, so the only
+ * evidence it can act on is the configuration itself.
  *
  * Nothing here ever returns a password. `describeDbUrl()` is what the commands print.
  */
@@ -91,13 +112,32 @@ export function projectRefFromDbUrl(dbUrl) {
   return fromUser ? fromUser[1] : null
 }
 
+/** How each command joins its two halves, for the one refusal that names the act. */
+const PAIRING = Object.freeze({ backup: 'combine', restore: 'load' })
+
 /**
- * Decide whether a restore may proceed against this target.
+ * Do the two halves of a configuration — the database and the Storage API —
+ * describe one Supabase project? The question both commands ask, in one place, so
+ * that "which project am I pointing at" is answered identically for a backup, a
+ * restore and (through `scripts/launch/lib/target.mjs`) a launch tool.
  *
- * @param {{ dbUrl: string, apiUrl: string, confirmHost?: string | undefined }} target
- * @returns {{ ok: boolean, reasons: string[], dbHost: string, apiHost: string, loopback: boolean, projectRef: string | null, description: string }}
+ * The two rules here are the ones that hold whatever the command is: the halves
+ * must be on the same side of the loopback line, and two readable refs must agree.
+ * What a command does about a ref it cannot read is the command's own decision —
+ * see the two guards below.
+ *
+ * `verb` names the operation in the refusals, because "a restore must load" and
+ * "a backup must combine" are the same rule seen from two directions.
+ *
+ * @param {{ dbUrl: string, apiUrl: string, verb?: string }} config
+ * @returns {{
+ *   ok: boolean, reasons: string[], dbHost: string, apiHost: string,
+ *   dbLoopback: boolean, apiLoopback: boolean, loopback: boolean,
+ *   dbRef: string | null, apiRef: string | null, projectRef: string | null,
+ *   description: string,
+ * }}
  */
-export function assessRestoreTarget({ dbUrl, apiUrl, confirmHost }) {
+export function assessProjectIdentity({ dbUrl, apiUrl, verb = 'operation' }) {
   const db = parseDbUrl(dbUrl)
   const apiHost = apiHostOf(apiUrl)
   const dbLoopback = isLoopbackHost(db.host)
@@ -110,7 +150,7 @@ export function assessRestoreTarget({ dbUrl, apiUrl, confirmHost }) {
   if (dbLoopback !== apiLoopback) {
     reasons.push(
       `The database (${db.host}) and the API (${apiHost}) are not on the same side of the ` +
-        'loopback line. A restore must load one project’s database and that same ' +
+        `loopback line. A ${verb} must ${PAIRING[verb] ?? 'pair'} one project’s database with that same ` +
         'project’s Storage.',
     )
   }
@@ -120,6 +160,83 @@ export function assessRestoreTarget({ dbUrl, apiUrl, confirmHost }) {
       `The database belongs to project ${dbRef} but the API to project ${apiRef}. Refusing to mix projects.`,
     )
   }
+
+  return {
+    ok: reasons.length === 0,
+    reasons,
+    dbHost: db.host,
+    apiHost,
+    dbLoopback,
+    apiLoopback,
+    loopback: dbLoopback && apiLoopback,
+    dbRef,
+    apiRef,
+    projectRef: dbRef ?? apiRef,
+    description: `${db.user}@${db.host}:${db.port}/${db.database} · storage at ${apiHost}`,
+  }
+}
+
+/**
+ * Decide whether a backup may read this source and combine what it reads into one
+ * recovery point.
+ *
+ * There is no confirmation variable and there is no `--force`: a backup that cannot
+ * PROVE its two halves belong to the same project refuses, and refuses whole. A
+ * recovery point is only worth what its manifest claims about where it came from
+ * (`manifest.source`), and a manifest cannot claim a project the configuration did
+ * not establish.
+ *
+ * @param {{ dbUrl: string, apiUrl: string }} source
+ * @returns {{ ok: boolean, reasons: string[], dbHost: string, apiHost: string, loopback: boolean, projectRef: string | null, description: string }}
+ */
+export function assessBackupSource({ dbUrl, apiUrl }) {
+  const identity = assessProjectIdentity({ dbUrl, apiUrl, verb: 'backup' })
+  const reasons = [...identity.reasons]
+
+  // A hosted source proves its project or it does not run. The loopback stack is
+  // exempt because there is no project to confuse it with: one container, one
+  // database, one Storage API, all on this machine.
+  if (!identity.loopback) {
+    if (identity.dbRef === null) {
+      reasons.push(
+        `No Supabase project ref can be read from the database host ${identity.dbHost}. A backup ` +
+          'combines a database with a Storage API and must prove they are one project; refusing an ' +
+          'unidentifiable source.',
+      )
+    }
+    if (identity.apiRef === null) {
+      reasons.push(
+        `No Supabase project ref can be read from the API host ${identity.apiHost}. A backup ` +
+          'combines a database with a Storage API and must prove they are one project; refusing an ' +
+          'unidentifiable source.',
+      )
+    }
+  }
+
+  return {
+    ok: reasons.length === 0,
+    reasons,
+    dbHost: identity.dbHost,
+    apiHost: identity.apiHost,
+    loopback: identity.loopback,
+    projectRef: identity.projectRef,
+    description: identity.description,
+  }
+}
+
+/**
+ * Decide whether a restore may proceed against this target.
+ *
+ * @param {{ dbUrl: string, apiUrl: string, confirmHost?: string | undefined }} target
+ * @returns {{ ok: boolean, reasons: string[], dbHost: string, apiHost: string, loopback: boolean, projectRef: string | null, description: string }}
+ */
+export function assessRestoreTarget({ dbUrl, apiUrl, confirmHost }) {
+  const db = parseDbUrl(dbUrl)
+  const identity = assessProjectIdentity({ dbUrl, apiUrl, verb: 'restore' })
+  const dbLoopback = identity.dbLoopback
+  const apiHost = identity.apiHost
+  /** @type {string[]} */
+  const reasons = [...identity.reasons]
 
   if (!dbLoopback) {
     const confirmed = (confirmHost ?? '').trim().toLowerCase()
@@ -141,9 +258,9 @@ export function assessRestoreTarget({ dbUrl, apiUrl, confirmHost }) {
     reasons,
     dbHost: db.host,
     apiHost,
-    loopback: dbLoopback && apiLoopback,
-    projectRef: dbRef ?? apiRef,
-    description: `${db.user}@${db.host}:${db.port}/${db.database} · storage at ${apiHost}`,
+    loopback: identity.loopback,
+    projectRef: identity.projectRef,
+    description: identity.description,
   }
 }
 

@@ -88,28 +88,47 @@ GitHub and on every developer machine, which is the availability this design rel
 
 ## 4. Restore the database and Storage
 
-Set the target in the environment — the same three names the application uses — and
-confirm the host:
+The target's three values — the same names the application uses — live in
+`.env.production.local` when the target is production:
+
+```
+SUPABASE_DB_URL="<the target's SESSION pooler URI, port 5432>"
+NEXT_PUBLIC_SUPABASE_URL="https://<ref>.supabase.co"
+SUPABASE_SERVICE_ROLE_KEY="<the target's service-role key>"
+```
+
+That file is git-ignored and is read by `npm run backup:restore:production`;
+`npm run backup:restore` reads `.env.local` and is for the local stack. No command
+reads both (`.env.example`, §"TWO ENVIRONMENT FILES").
+
+The confirmation is **not** stored there. It is typed for this one restore and then
+gone — a stored confirmation is not a confirmation:
 
 ```bash
-export SUPABASE_DB_URL='postgresql://postgres.<ref>:<password>@aws-0-eu-central-1.pooler.supabase.com:5432/postgres'
-export NEXT_PUBLIC_SUPABASE_URL='https://<ref>.supabase.co'
-export SUPABASE_SERVICE_ROLE_KEY='<the target's service-role key>'
+# bash/zsh
 export BACKUP_RESTORE_CONFIRM_HOST='aws-0-eu-central-1.pooler.supabase.com'
+```
+
+```powershell
+# PowerShell
+$env:BACKUP_RESTORE_CONFIRM_HOST = 'aws-0-eu-central-1.pooler.supabase.com'
 ```
 
 Then look before leaping:
 
 ```bash
-npm run backup:restore -- --from ./recovery/<id> --dry-run
+npm run backup:restore:production -- --from ./recovery/<id> --dry-run
 ```
 
 The dry run prints the recovery point, the target (hosts only, never a credential),
 the schema comparison and the plan, and changes nothing. Then:
 
 ```bash
-npm run backup:restore -- --from ./recovery/<id>
+npm run backup:restore:production -- --from ./recovery/<id>
 ```
+
+(Against the local stack the same two commands are `npm run backup:restore`, and no
+confirmation is needed.)
 
 What it does, in order, refusing before the next step on any problem:
 

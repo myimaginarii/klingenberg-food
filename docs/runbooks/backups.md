@@ -183,10 +183,44 @@ That reads `SUPABASE_DB_URL`, `NEXT_PUBLIC_SUPABASE_URL` and
 (the `postgres:17` image supplies `pg_dump`) or a PostgreSQL 17 client on the PATH;
 `BACKUP_PG_MODE=native|docker` pins the choice.
 
-Against production from a developer machine, the same command with the production
-values and `--ship`, plus the AWS CLI (v2 installer, or `pip install awscli`, in which
-case point `BACKUP_AWS_CLI` at `aws.cmd`). Prefer the GitHub button: it needs no
-production secret on a laptop.
+**Against production from a developer machine**, it is a different command, because
+it reads a different environment file:
+
+```bash
+npm run backup:production -- --out ./backups --ship
+```
+
+`npm run backup` loads `.env.local`; `npm run backup:production` loads
+`.env.production.local`. Neither loads the other, and no command loads both — the
+production connection string never enters a development shell (`.env.example`,
+§"TWO ENVIRONMENT FILES"). Shipping also needs the AWS CLI (v2 installer, or
+`pip install awscli`, in which case point `BACKUP_AWS_CLI` at `aws.cmd`).
+
+Prefer the GitHub button: it needs no production secret on a laptop.
+
+### The source must be one project
+
+Before it creates anything, `backup.mjs` checks that the database and the Storage
+API belong to the SAME Supabase project (`scripts/backup/lib/targets.mjs`) — the
+identity half of the restore guard, applied to the reading side:
+
+* a loopback source (the local stack, the drill) passes: one container is one project;
+* a hosted source must **prove** it — a project ref readable from `SUPABASE_DB_URL`,
+  a project ref readable from `NEXT_PUBLIC_SUPABASE_URL`, and the two equal;
+* anything else — refs that disagree, one half loopback and the other hosted, or a
+  host from which no ref can be read — is **refused whole**, with a non-zero exit and
+  no output directory.
+
+There is no confirmation variable and no `--force`. A backup only reads, so it has
+no operator statement to act on; the configuration is the only evidence it has. A
+recovery point that paired one project's database with another project's Storage
+would carry a `manifest.source` that is simply untrue, and nothing would discover it
+until the restore that needed it. The refusal is complete on purpose: half a
+recovery point is worse than none.
+
+The most likely way to trip it is a half-updated environment file — a production
+`SUPABASE_DB_URL` beside a local `NEXT_PUBLIC_SUPABASE_URL`, or the reverse. Fix the
+file rather than the command.
 
 Never commit a recovery point. `backups/` and every dump belong outside the
 repository; the recovery point holds production data.

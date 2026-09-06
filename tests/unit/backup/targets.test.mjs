@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest'
 import { NAMES, MissingEnvError, readDestination, readProject, secretValues } from '../../../scripts/backup/lib/env.mjs'
 import { createLogger } from '../../../scripts/backup/lib/run.mjs'
 import {
+  assessBackupSource,
+  assessProjectIdentity,
   assessRestoreTarget,
   describeDbUrl,
   parseDbUrl,
@@ -12,13 +14,18 @@ import {
 } from '../../../scripts/backup/lib/targets.mjs'
 
 /**
- * Restore-target safety and log hygiene — technical plan §8, §10f; phase 13A
- * (brief §13, §18, §26, §28).
+ * Backup-source and restore-target safety, and log hygiene — technical plan §8,
+ * §10f; phase 13A (brief §13, §18, §26, §28); the backup-source guard 2026-09-06.
  *
  * The guard is a set of rules, not a warning: a remote host is refused until the
  * operator has typed exactly that host; a database and a Storage API from two
  * different projects are refused; and no password ever reaches a log line, whether
  * it arrives as a value or inside a connection string in a tool's error.
+ *
+ * The reading side has the same identity rule and one more: a backup asks for no
+ * confirmation, so a hosted source must PROVE it is one project rather than merely
+ * fail to contradict itself. The two guards are asserted side by side below,
+ * because the difference between them is a decision, not an oversight.
  */
 
 const REF_A = 'abcdefghijklmnopqrst'
@@ -31,6 +38,10 @@ const LOCAL_API = 'http://127.0.0.1:54321'
 const POOLER_DB = `${PG}postgres.${REF_A}:s3cret-pw@aws-0-eu-central-1.pooler.supabase.com:5432/postgres`
 const DIRECT_DB = `${PG}postgres:s3cret-pw@db.${REF_A}.supabase.co:5432/postgres?sslmode=require`
 const HOSTED_API = `https://${REF_A}.supabase.co`
+// Hosted, but carrying no project ref: `.test` cannot resolve, so the source policy
+// treats these as the fixtures they are (§10d).
+const OPAQUE_DB = `${PG}postgres:s3cret-pw@db.klingenberg.example.test:5432/postgres`
+const OPAQUE_API = 'https://storage.example.test'
 
 describe('parsing a database URL', () => {
   it('yields the libpq pieces and never echoes the password in the description', () => {
@@ -108,6 +119,89 @@ describe('the restore-target guard', () => {
   it('refuses a local database paired with a remote Storage API, and the reverse', () => {
     expect(assessRestoreTarget({ dbUrl: LOCAL_DB, apiUrl: HOSTED_API }).ok).toBe(false)
     expect(assessRestoreTarget({ dbUrl: POOLER_DB, apiUrl: LOCAL_API, confirmHost: 'aws-0-eu-central-1.pooler.supabase.com' }).ok).toBe(false)
+  })
+})
+
+describe('the backup-source guard', () => {
+  it('lets the local stack through: one container is one project by definition', () => {
+    const source = assessBackupSource({ dbUrl: LOCAL_DB, apiUrl: LOCAL_API })
+    expect(source.ok).toBe(true)
+    expect(source.loopback).toBe(true)
+    expect(source.projectRef).toBeNull()
+    expect(source.description).not.toContain('postgres:postgres')
+  })
+
+  it('lets a hosted source through when both halves name the same project', () => {
+    for (const dbUrl of [POOLER_DB, DIRECT_DB]) {
+      const source = assessBackupSource({ dbUrl, apiUrl: HOSTED_API })
+      expect(source.ok, source.reasons.join(' ')).toBe(true)
+      expect(source.projectRef).toBe(REF_A)
+      expect(source.description).not.toContain('s3cret')
+    }
+  })
+
+  it('refuses a database and a Storage API from different projects', () => {
+    const source = assessBackupSource({ dbUrl: POOLER_DB, apiUrl: `https://${REF_B}.supabase.co` })
+    expect(source.ok).toBe(false)
+    expect(source.reasons.join(' ')).toMatch(/Refusing to mix projects/)
+  })
+
+  it('refuses a local database paired with a hosted Storage API, and the reverse', () => {
+    expect(assessBackupSource({ dbUrl: LOCAL_DB, apiUrl: HOSTED_API }).ok).toBe(false)
+    expect(assessBackupSource({ dbUrl: POOLER_DB, apiUrl: LOCAL_API }).ok).toBe(false)
+  })
+
+  it('refuses a hosted source whose project cannot be read from either half', () => {
+    const noDbRef = assessBackupSource({ dbUrl: OPAQUE_DB, apiUrl: HOSTED_API })
+    expect(noDbRef.ok).toBe(false)
+    expect(noDbRef.reasons.join(' ')).toMatch(/No Supabase project ref can be read from the database host/)
+
+    const noApiRef = assessBackupSource({ dbUrl: POOLER_DB, apiUrl: OPAQUE_API })
+    expect(noApiRef.ok).toBe(false)
+    expect(noApiRef.reasons.join(' ')).toMatch(/No Supabase project ref can be read from the API host/)
+  })
+
+  it('has no confirmation to accept: an unprovable source stays refused however it is called', () => {
+    // The restore guard takes `confirmHost`; the backup guard takes a source and
+    // nothing else, so there is no shape of input that turns a refusal into a run.
+    const source = assessBackupSource({ dbUrl: OPAQUE_DB, apiUrl: HOSTED_API, confirmHost: 'db.klingenberg.example.test' })
+    expect(source.ok).toBe(false)
+  })
+
+  it('is stricter than the restore guard, and deliberately so', () => {
+    // Same configuration, two answers. A restore operator has typed the target
+    // host; a backup has no such statement to act on. This asserts the restore
+    // side is UNCHANGED by the reading-side guard.
+    const restore = assessRestoreTarget({ dbUrl: OPAQUE_DB, apiUrl: HOSTED_API, confirmHost: 'db.klingenberg.example.test' })
+    expect(restore.ok).toBe(true)
+    expect(assessBackupSource({ dbUrl: OPAQUE_DB, apiUrl: HOSTED_API }).ok).toBe(false)
+  })
+})
+
+describe('the shared project identity', () => {
+  it('is one implementation: both guards report the same hosts, ref and description', () => {
+    const identity = assessProjectIdentity({ dbUrl: POOLER_DB, apiUrl: HOSTED_API })
+    const backup = assessBackupSource({ dbUrl: POOLER_DB, apiUrl: HOSTED_API })
+    const restore = assessRestoreTarget({
+      dbUrl: POOLER_DB,
+      apiUrl: HOSTED_API,
+      confirmHost: 'aws-0-eu-central-1.pooler.supabase.com',
+    })
+    for (const result of [backup, restore]) {
+      expect(result.dbHost).toBe(identity.dbHost)
+      expect(result.apiHost).toBe(identity.apiHost)
+      expect(result.projectRef).toBe(identity.projectRef)
+      expect(result.description).toBe(identity.description)
+    }
+  })
+
+  it('names the act in the one refusal that describes it', () => {
+    expect(assessProjectIdentity({ dbUrl: LOCAL_DB, apiUrl: HOSTED_API, verb: 'backup' }).reasons.join(' ')).toMatch(
+      /A backup must combine/,
+    )
+    expect(assessProjectIdentity({ dbUrl: LOCAL_DB, apiUrl: HOSTED_API, verb: 'restore' }).reasons.join(' ')).toMatch(
+      /A restore must load/,
+    )
   })
 })
 

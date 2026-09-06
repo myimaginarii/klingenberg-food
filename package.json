@@ -30,10 +30,12 @@
     "db:status": "supabase status",
     "backup": "node --env-file-if-exists=.env.local scripts/backup/backup.mjs",
     "backup:restore": "node --env-file-if-exists=.env.local scripts/backup/restore.mjs",
+    "backup:production": "node --env-file-if-exists=.env.production.local scripts/backup/backup.mjs",
+    "backup:restore:production": "node --env-file-if-exists=.env.production.local scripts/backup/restore.mjs",
     "backup:drill": "vitest run --config vitest.backup.mts",
-    "launch:migrate": "node scripts/launch/migrate.mjs",
-    "launch:load-content": "node scripts/launch/load-content.mjs",
-    "launch:bootstrap-owner": "node scripts/launch/bootstrap-owner.mjs",
+    "launch:migrate": "node --env-file-if-exists=.env.production.local scripts/launch/migrate.mjs",
+    "launch:load-content": "node --env-file-if-exists=.env.production.local scripts/launch/load-content.mjs",
+    "launch:bootstrap-owner": "node --env-file-if-exists=.env.production.local scripts/launch/bootstrap-owner.mjs",
     "launch:drill": "vitest run --config vitest.launch.mts"
   },
   "dependencies": {

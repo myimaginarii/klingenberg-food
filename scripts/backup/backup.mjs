@@ -18,6 +18,13 @@
  * required component succeeded: a database dump beside a failed Storage export is
  * written, shipped as `complete: false`, and reported as a failure (brief §12).
  *
+ * SOURCE SAFETY (lib/targets.mjs, added 2026-09-06): the database and the Storage
+ * API must belong to the same Supabase project, and a hosted source must be able to
+ * prove it. That is checked before the output directory is created, and a source
+ * that fails it produces nothing at all — the one failure mode this script does not
+ * express as an incomplete manifest, because a recovery point stitched from two
+ * projects would look complete and be wrong.
+ *
  * Configuration is environment only (lib/env.mjs). Nothing here prints a secret.
  */
 
@@ -33,13 +40,19 @@ import { DATABASE_FILES, countCopyRows, createPgDoor } from './lib/pg.mjs'
 import { createLogger, run, sha256File } from './lib/run.mjs'
 import { shipRecoveryPoint } from './lib/ship.mjs'
 import { createStorageClient, exportBucket } from './lib/storage.mjs'
-import { apiHostOf, describeDbUrl, parseDbUrl, projectRefFromApiUrl, projectRefFromDbUrl } from './lib/targets.mjs'
+import { assessBackupSource, describeDbUrl } from './lib/targets.mjs'
 
 const MIGRATIONS_DIR = 'supabase/migrations'
 
 function usage() {
   console.error('usage: node scripts/backup/backup.mjs --out <directory> [--tier weekly|monthly] [--ship]')
   process.exit(2)
+}
+
+/** @param {string} message @returns {never} */
+function refuse(message) {
+  console.error(`backup: refused — ${message}`)
+  process.exit(1)
 }
 
 /** The repository's own migration versions — what the schema *should* be. */
@@ -82,6 +95,16 @@ async function main() {
   const logger = createLogger({ secrets: secretValues(process.env) })
   const project = readProject(process.env)
   const options = readOptions(process.env)
+
+  // --- The source, before anything is created -------------------------------------
+  // A recovery point combines a database dump with a Storage export, and the two
+  // must belong to the same Supabase project. This is the restore guard's identity
+  // rule applied to the reading side (lib/targets.mjs): fail closed, whole, and
+  // before a directory exists — half a recovery point from two projects is worse
+  // than none, because only a restore would discover it.
+  const assessed = assessBackupSource({ dbUrl: project.dbUrl, apiUrl: project.apiUrl })
+  if (!assessed.ok) refuse(assessed.reasons.join(' '))
+
   // The destination is read up front so a misconfigured secret fails before an
   // hour of dumping, not after it.
   const destination = values.ship ? readDestination(process.env) : null
@@ -92,9 +115,9 @@ async function main() {
   await mkdir(join(dir, 'db'), { recursive: true })
 
   const source = {
-    apiHost: apiHostOf(project.apiUrl),
-    dbHost: parseDbUrl(project.dbUrl).host,
-    projectRef: projectRefFromDbUrl(project.dbUrl) ?? projectRefFromApiUrl(project.apiUrl),
+    apiHost: assessed.apiHost,
+    dbHost: assessed.dbHost,
+    projectRef: assessed.projectRef,
   }
 
   logger.info(`recovery point ${id} (${tier})`)
