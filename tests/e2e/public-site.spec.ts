@@ -305,14 +305,14 @@ test.describe('the menu', () => {
 })
 
 test.describe('Find os', () => {
-  test('the map is a Google Maps embed centred on the address, and "Vis vej" still opens directions', async ({
+  test('the map is the official Google Maps embed, and "Vis vej" still opens directions', async ({
     page,
   }) => {
     await page.goto('/find-os')
 
     const frame = page.getByRole('main').locator('iframe[title^="Kort over"]')
     await expect(frame).toBeVisible()
-    expect(decodeURIComponent((await frame.getAttribute('src')) ?? '')).toContain(ADDRESS_LINE)
+    expect(await frame.getAttribute('src')).toContain('https://www.google.com/maps/embed?pb=')
 
     const directions = page.getByRole('main').getByRole('link', { name: 'Vis vej' })
     const href = await directions.getAttribute('href')

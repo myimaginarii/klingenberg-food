@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 
-import { ADDRESS_LINE, PRIMARY_TEL_HREF, PUBLIC_ROUTES } from './support/site'
+import { PRIMARY_TEL_HREF, PUBLIC_ROUTES } from './support/site'
 
 /**
  * The public site with JavaScript switched off — technical plan §7e, item 11.
@@ -110,7 +110,7 @@ test('the map embed and the directions link both render without scripting', asyn
 
   const frame = page.getByRole('main').locator('iframe[title^="Kort over"]')
   await expect(frame).toBeVisible()
-  expect(decodeURIComponent((await frame.getAttribute('src')) ?? '')).toContain(ADDRESS_LINE)
+  expect(await frame.getAttribute('src')).toContain('https://www.google.com/maps/embed?pb=')
 
   const directions = page.getByRole('main').getByRole('link', { name: 'Vis vej' })
   await expect(directions).toHaveAttribute('href', /google\.com\/maps\/dir/)

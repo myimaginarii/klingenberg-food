@@ -7888,9 +7888,9 @@ the award, about-excerpt, team and kitchen photographs from the restaurant; and
 repeating this phase's photo uploads and selections against the production image
 library, since none of it is seeded (`docs/runbooks/launch-notes.md` §1 records the
 mapping to reproduce). The licensed static map is no longer owed to 14C: §0ap
-replaced it with a Google Maps embed; what 14C owes instead is provisioning and
-restricting a `GOOGLE_MAPS_EMBED_API_KEY`. Phase 14 is **not** complete or locked by
-this pass.
+replaced it with a Google Maps embed, finalised by §0aq as the official
+Google-generated embed for the restaurant's own listing — nothing map-related is
+owed to 14C at all. Phase 14 is **not** complete or locked by this pass.
 
 ## 0ao. Phase 14B2 cleanup — text-only Om os sections for unsupplied photography (2026-09-06)
 
@@ -7996,6 +7996,52 @@ invents no answer to that question.
 every other piece of Find os and the Forside's visit panel are unchanged. No map
 library was added; the guest's browser still talks to Google directly, and this
 origin still makes no runtime call to a map service of its own.
+
+---
+
+## 0aq. Phase 14B3 fix — the official Google-generated embed, no key (2026-09-06)
+
+§0ap shipped a dual-mode `mapEmbedUrl(address, apiKey)`: a keyless
+`https://www.google.com/maps?q=<address>&output=embed` form by default, moving onto
+`https://www.google.com/maps/embed/v1/place?key=…&q=<address>` once
+`GOOGLE_MAPS_EMBED_API_KEY` was set. That was a reasonable read of "no licensed asset,
+no Google Cloud dependency" at the time, but it was still this codebase reconstructing
+a Google Maps URL from address text, rather than the actual official embed Google
+generates for a specific place listing. The user supplied that official embed link —
+copied directly from Google Maps' own "Del" → "Integrer et kort" dialog for the
+restaurant's own listing, "Carl Nielsen Hallens Cafeteria" — and this pass finalises
+§0ap by using it directly instead.
+
+**Removed.** `lib/site/map-embed.ts` (`mapEmbedUrl`) and its unit test
+(`tests/unit/site/map-embed.test.ts`) — once the `src` stopped being computed from the
+address, the function had nothing left to do. `GOOGLE_MAPS_EMBED_API_KEY` is removed
+from `.env.example`, from `components/site/GoogleMap.tsx` and from every doc that
+named it as an optional or required launch step: there is no key, keyed or keyless
+branch, and nothing to provision in Vercel.
+
+**Changed.** `components/site/GoogleMap.tsx` now renders the supplied `src` as a
+literal constant — Google's own generated link for the restaurant's listing, never
+built from the stored address or any runtime value — with `allowFullScreen` added and
+`referrerPolicy` moved to `strict-origin-when-cross-origin` to match the embed exactly
+as Google generated it. The `aspect-hero`/`aspect-card`/`aspect-square` responsive
+frame, the Danish `title="Kort over <address>"` (still built from the real stored
+address, for accessibility — never Google's place label, which is not this
+codebase's fact to assert or invent), the CSP `frame-src` entry, and "Vis vej" are
+all unchanged.
+
+**What this closes.** `docs/runbooks/launch-notes.md`'s A3 row: there was never an
+A3′ requiring `GOOGLE_MAPS_EMBED_API_KEY` provisioning after all, since the finished
+implementation never needed one. Nothing in phase 14's launch checklist names a map
+key or a Google Cloud project any longer. §15's phase-14 table row and the phase
+status paragraph are updated to match; the two E2E assertions that checked the old
+address-derived `src` (`tests/e2e/public-site.spec.ts`,
+`tests/e2e/no-javascript.spec.ts`) now check for the official embed's
+`https://www.google.com/maps/embed?pb=` form instead.
+
+**What this does not change or start.** Not a redesign of Find os, not phase 14C, not
+the SEO or security/privacy review — the privacy-review question §0ap opened about
+third-party Google content stays exactly as open as it was, recorded in
+`docs/runbooks/launch-notes.md` §8.
 
 ---
 
@@ -8115,7 +8161,7 @@ components/
   site/                         # Header, AnnouncementBar, OpenStatus, MenuSection, BottomNav …
     AnnouncementBar.tsx         # server component
     AnnouncementExpiryGuard.tsx # 'use client' — the only new client component (decision C1)
-    GoogleMap.tsx               # <iframe> over lib/site/map-embed.ts (decision 6, revised 14B3)
+    GoogleMap.tsx               # <iframe> on Google's own generated embed link, a literal constant (decision 6, revised 14B3, §0aq)
   admin/                        # Field, Toggle, UndoToast, ReorderList, ConfirmDialog, ConflictSheet …
     TapasEditor.tsx             # tapas lists (decision 3) — built in phase 5F as
     TapasGroupEditor.tsx        #   three forms with their own tiny `moveListItem`,
@@ -8657,7 +8703,7 @@ the request log asserted empty, in `tests/e2e/announcement.spec.ts`.
 - **Preview:** Draft Mode opens the real `/nyheder/[slug]` URL for an unpublished article, so staff
   see the finished page before it exists publicly.
 
-### 7g. Map (decision 6, revised in phase 14B3)
+### 7g. Map (decision 6, revised in phase 14B3, finalised by the 14B3 fix)
 
 **Superseded.** Phases 3–14A built this section's original design: a licensed static
 image, a placeholder that stood in for it, and a build-time guard
@@ -8668,35 +8714,40 @@ rather than continue waiting on one. The guard, the asset descriptor
 (`lib/site/map-asset.ts`), `public/map/` and its `LICENSE.md` are removed —
 there is nothing left to license or to check provenance for. The historical
 build record below (§0al) still describes what phase 14A actually built, for the
-audit trail; it is no longer what the repository does.
+audit trail; it is no longer what the repository does. §0ap's own first cut is
+**also** superseded, by §0aq immediately below: it built a dual keyless/API-key
+system that generated a `src` from the stored address, when the intent was always
+to embed Google's own listing directly.
 
 No map library. No tile provider called from this origin. No custom JavaScript. The
-entire map is:
+entire map is one `<iframe>` on a fixed `src` — Google's own generated embed link for
+the restaurant's Maps listing ("Carl Nielsen Hallens Cafeteria"), copied verbatim
+from Google Maps and never reconstructed from a stored address or a key:
 
 ```
-<iframe src={mapEmbedUrl} title="Kort over …" loading="lazy" />
+<iframe src="https://www.google.com/maps/embed?pb=…" title="Kort over …" loading="lazy" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" />
 ```
 
-- **Embed.** `lib/site/map-embed.ts` builds the `src` from the stored address alone —
-  `https://www.google.com/maps?q=<address>&output=embed`, needing no Google Cloud
-  project at all. `GOOGLE_MAPS_EMBED_API_KEY` (optional, `.env.example`) moves the
-  same embed onto Google's supported Maps Embed API
-  (`https://www.google.com/maps/embed/v1/place?key=…&q=<address>`) once launch
-  provisions a key restricted to the production domain (§13 item D). Either form is
-  rendered by `components/site/GoogleMap.tsx`, the fixed `aspect-ratio` container
-  unchanged from the static-image design.
+- **Embed.** `components/site/GoogleMap.tsx` holds the `src` as a literal constant —
+  Google's own "Del" → "Integrer et kort" output for the restaurant's listing. No
+  Google Cloud project, no API key, ever. There is no `lib/site/map-embed.ts`: once
+  the `src` stopped being derived from the address, the function that derived it had
+  nothing left to compute, so it was removed with its test rather than kept as an
+  abstraction over a constant.
 - **CSP.** `frame-src` names `https://www.google.com` (`lib/security/headers.ts`,
-  phase 14B3) — the one directive the embed needs; the iframe is a separate browsing
-  context with Google's own policy, so `img-src`/`connect-src` are untouched.
+  phase 14B3) — the one directive the embed needs, unchanged by the 14B3 fix; the
+  iframe is a separate browsing context with Google's own policy, so
+  `img-src`/`connect-src` are untouched.
 - **Privacy.** The embed loads third-party Google content directly into the guest's
   browser — unlike the retired static image, which was this origin's own asset. No
   consent mechanism exists yet; a later privacy/cookie/security review should decide
   whether this needs one before the site opens publicly (docs/runbooks/launch-notes.md).
 - **"Vis vej" is unchanged.** The universal directions link —
   `https://www.google.com/maps/dir/?api=1&destination=<url-encoded address>` — is a
-  separate control, built the same way it always was (`directionsUrl`, `lib/site/links.ts`).
-  It opens the native Google Maps app on Android and iOS when installed, and the web
-  map otherwise: one `<a>`, no user-agent sniffing, works with JavaScript disabled.
+  separate control, built the same way it always was (`directionsUrl`, `lib/site/links.ts`),
+  from the stored address. It opens the native Google Maps app on Android and iOS
+  when installed, and the web map otherwise: one `<a>`, no user-agent sniffing, works
+  with JavaScript disabled.
 - `site_contact.map_attribution` is no longer read by any component. The column
   remains (it was never editor-exposed — §1v) but the embed carries its own
   Google-drawn attribution inside the frame; nothing in this repository renders the
@@ -8959,7 +9010,7 @@ Sentry on the server (Server Actions, route handlers, RSC) with releases tied to
   - One `NewsArticle` block on each `/nyheder/[slug]`: `headline`, `datePublished` (`display_date`), `dateModified`, `image`, `publisher`. Nothing invented.
   - **Omitted until supplied:** `geo`, `priceRange`, `email`, `image` (until real photos land), `aggregateRating`.
 - **Practical wins that matter more than markup here:** the phone number as a `tel:` link on every page, the address as real text (not baked into the map image), the hours as a real table, and news articles at stable URLs that survive a title edit.
-- **Third-party map content:** the Find os and Forside map is a Google Maps `<iframe>` embed, built from the stored address alone, never from visitor input (§7g, phase 14B3). It is the one piece of third-party content the public site loads directly into the guest's browser; a later privacy/cookie review should decide whether that needs disclosure or consent (docs/runbooks/launch-notes.md).
+- **Third-party map content:** the Find os and Forside map is Google's own official `<iframe>` embed for the restaurant's Maps listing, a fixed link never built from visitor input or from the stored address (§7g, phase 14B3, §0aq). It is the one piece of third-party content the public site loads directly into the guest's browser; a later privacy/cookie review should decide whether that needs disclosure or consent (docs/runbooks/launch-notes.md).
 
 ---
 
@@ -9059,7 +9110,7 @@ Each phase ends in something deployable and testable. No phase begins until the 
 | 11 | Remaining editors | **11A (done, §0z):** Forsiden (1u) — the four cards, the three photographs through the 10C-1 picker, the featured list from the menu, the `page:home` image references, guard and cache coupling. **11B (done, §0aa):** Mad ud af huset (1aj) — the visibility switch as a draft hiding the page, the nav item and the sitemap entry on publish, the photograph, the free sections, the button label — **and Kontaktoplysninger (1v)**, moved here from 11C by the owner's brief so both content editors land before the account phase. **11C (done, §0ab):** **`/admin/brugere`** — the list, the invitation through `inviteUserByEmail` and `create_account_profile()`, the role change, deactivation with the sessions revoked and the identity banned, reactivation, the last-active-owner invariant under a lock, the profile guard, pgTAP `028` with two real-session races, the Auth integration suite and the `users-admin` Playwright pair | E2E 8 passes (§0aa); the owner can invite and deactivate a staff user — `tests/e2e/users-admin.spec.ts` at 375 and 1440 (§0ab). **Complete and locked** by the completion pass of 2026-09-03 — see §0ac |
 | 12 | Admin on mobile | 1x, 1y, 1z — the phone is the primary admin device. **12A (done, §0ad):** the complete Menu workflow at 375 px audited and made phone-first — 1y's foot (the Fortryd strips and the pending band pinned to the bottom of the phone screen), the one-row band, long content that wraps, the moved row kept in view, the stacked confirmation — with `tests/e2e/menu-mobile.spec.ts` under its own `menu-mobile` project. **12B (done, §0ae):** the complete News workflow at 375 px audited against 1z and made phone-first — the pinned editor bar with the badge and the autosave line, the B/Link toolbar and link panel stuck under it, fragment targets below the bar, the stacked confirmations, long titles and addresses that wrap, the public paragraph's wrap — with `tests/e2e/news-mobile.spec.ts` under its own `news-mobile` project. **12C (done, §0af):** the 1x / 1q dashboard — the bar, the band with the phase-4 list beneath it, the announcement card, the role-aware tiles from the entity registry, LIGE NU as a read model — with the phase-4 "Åbn …" vocabulary migrated across the locked suites in the same commit; and the phone audit of Ugens ret, Månedens burger, Besked på hjemmesiden and Åbningstider, whose Fortryd and status notices now sit at the foot of the phone screen through one shared `NoticeFoot`, with `tests/e2e/dashboard-mobile.spec.ts` under its own `dashboard-mobile` project. **Completion pass (§0ag):** the three read as one system, walked as Owner and Staff on a phone, 1x / 1y / 1z / 1q re-checked at 375 / 768 / 1440, the Forhåndsvis and 1 px observations closed, the moved row kept wholly in view, the phase-11 editors and Brugere given the same foot, an empty foot's clearance removed, a dead-autosave defect after the first Gem fixed and pinned | Full menu-edit and news flows completed on a 375 px viewport — the menu half is proven by `menu-mobile` (§0ad), the news half by `news-mobile` (§0ae), the dashboard and the specials by `dashboard-mobile` (§0af). **Complete and locked** by the completion pass of 2026-09-04 — see §0ag |
 | 13 | SEO, monitoring, hardening | Metadata, sitemap, robots, JSON-LD, Sentry, **the weekly off-platform backup workflow**, rate limiting, security header pass, restore drill. **13A (done, §0ah):** the backup and restore commands, the scheduled workflow, the drill in CI, the runbooks — the destination provider still to be chosen. **13B (done, §0ai):** the PostgreSQL-backed limiter over the sign-in path and every Server Action (twelve tiers, one atomic door, HMAC subjects, fail-open except for accounts), and the security-header policy on every response (CSP, HSTS, nosniff, referrer, permissions, frame denial) with the public caching intact. **13C (done, §0aj):** server-side Sentry — the framework hook for pages, route handlers, Server Actions and the proxy, thirteen operational events from five server modules, one sanitizer, release and environment on every event, no browser SDK, no CSP change; the one controlled production event is a pre-launch gate. **Lock pass (§0ak, 2026-09-05):** the three read as one operational layer, the error and not-found states of both route groups built (§10g), the sanitizer widened to the non-JWT service key and the Danish credential words, the storm boundary grouped per account, the Sentry CLI download switched off, the pre-launch gates consolidated in `docs/runbooks/pre-launch-checklist.md`, one clean certification chain. **Complete and locked.** The SEO verification against Rich Results and the final security audit are the next increments, not this phase's | Rich Results valid (ahead); a backup lands off-platform and a restore succeeds into a scratch project — proven against the local stack and a local S3 endpoint; the hosted runs are pre-launch gates B6/B7, deliberately not claimed by the repository |
-| 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover. Planned as four increments: **14A (done, §0al) — production wiring in the repository:** the Owner bootstrap through the phase-11 invitation, the confirmed/development seed split, the one-time confirmed-content loader, the migration door and its dispatch-only workflow, the launch map guard, and the three runbooks (`domain-cutover.md`, `owner-handover.md`, `launch-notes.md`) — no hosted account touched. **14B1 (done, §0am) — the Om os editor** at `/admin/om-os`: the strict about document, the three photo slots through the shared picker, the page's image paths in `image_references`, the guard and the two transitions, the phase-4 content screen retired. **14B2 (done, §0an–§0ao) — real launch assets and temporary factual copy:** the real logo (`public/brand/logo.svg`, `app/icon.svg`), the Forside hero/excerpt words and hero photograph (the excerpt photograph reusing the Om os venue image, §0ao), the Om os story/team/method words and facade photograph, Mad ud af huset's words and photograph, two confirmed dish photographs (Odin, Ragnar) and Tapas's own — required photography scoped to what the restaurant supplied (§0ao): the team and kitchen photographs are optional and render text-only when absent, the award stays its own accepted no-image frame; nothing seeded. **14B3 (done, §0ap) — the static map replaced by a Google Maps embed:** `lib/site/map-embed.ts` and `components/site/GoogleMap.tsx` over the retired launch guard and asset descriptor, `frame-src` added to the CSP, `GOOGLE_MAPS_EMBED_API_KEY` optional; closes the licensed-map launch blocker, opens a production key-provisioning step and a privacy-review question for later. **14C** — hosted production deployment, bootstrap and verification (the migration run, the content load, the Owner, the workflow's push trigger, and reproducing 14B2's photo uploads against the production library). **14D** — the phase-14 lock | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
+| 14 | Launch | Real photos and copy from the 1ab checklist, **final map asset**, **domain + Resend DNS verification**, **the one-time owner bootstrap**, training pass, DNS cutover. Planned as four increments: **14A (done, §0al) — production wiring in the repository:** the Owner bootstrap through the phase-11 invitation, the confirmed/development seed split, the one-time confirmed-content loader, the migration door and its dispatch-only workflow, the launch map guard, and the three runbooks (`domain-cutover.md`, `owner-handover.md`, `launch-notes.md`) — no hosted account touched. **14B1 (done, §0am) — the Om os editor** at `/admin/om-os`: the strict about document, the three photo slots through the shared picker, the page's image paths in `image_references`, the guard and the two transitions, the phase-4 content screen retired. **14B2 (done, §0an–§0ao) — real launch assets and temporary factual copy:** the real logo (`public/brand/logo.svg`, `app/icon.svg`), the Forside hero/excerpt words and hero photograph (the excerpt photograph reusing the Om os venue image, §0ao), the Om os story/team/method words and facade photograph, Mad ud af huset's words and photograph, two confirmed dish photographs (Odin, Ragnar) and Tapas's own — required photography scoped to what the restaurant supplied (§0ao): the team and kitchen photographs are optional and render text-only when absent, the award stays its own accepted no-image frame; nothing seeded. **14B3 (done, §0ap; finalised, §0aq) — the static map replaced by a Google Maps embed:** `components/site/GoogleMap.tsx` over the retired launch guard and asset descriptor, `frame-src` added to the CSP, rendering the official Google-generated embed link for the restaurant's own listing as a fixed constant — no API key, ever; closes the licensed-map launch blocker outright, leaving only a privacy-review question for later, no production configuration step. **14C** — hosted production deployment, bootstrap and verification (the migration run, the content load, the Owner, the workflow's push trigger, and reproducing 14B2's photo uploads against the production library). **14D** — the phase-14 lock | The owner completes a price change, a sell-out and an announcement unaided; no placeholder assets remain |
 
 Phases 5–11 can be reordered to follow whatever the restaurant needs first; phases 0–4 cannot.
 
@@ -9069,11 +9120,12 @@ launch copy — is built and green (§0an), through a clean complete-matrix regr
 §0ao then scoped required launch photography to what the restaurant actually
 supplied and gave Om os's team and kitchen sections an honest text-only look for
 the photograph neither exists nor is required. The award stays its own accepted
-no-image frame, unchanged. **14B3 (§0ap) replaced the static map with a Google Maps
-embed**, closing the one remaining launch-photography/asset blocker; what remains is
-a production configuration step (an optional, restricted Maps Embed API key) and a
-privacy-review question for the later security/cookie pass, not an asset to obtain.
-Phase 14 is not complete and nothing hosted is provisioned.** Before it: **phases 0–13 are
+no-image frame, unchanged. **14B3 (§0ap, finalised §0aq) replaced the static map with
+the official Google Maps embed for the restaurant's own listing**, closing the one
+remaining launch-photography/asset blocker outright — no API key, no Google Cloud
+project, no production configuration step remains; what is left is only a
+privacy-review question for the later security/cookie pass, not an asset or a key to
+obtain. Phase 14 is not complete and nothing hosted is provisioned.** Before it: **phases 0–13 are
 complete and locked.** Phase 13 — the
 production-hardening layer — as 13A, backup and recovery (§0ah), 13B, rate limiting and
 the security-header policy (§0ai, with its closure pass), 13C, server-side monitoring

@@ -678,8 +678,9 @@ until phase 14C creates the protected `production` environment and adds the push
 trigger), the one-time confirmed-content load, and the one-time Owner bootstrap — each proven
 against the local stack only, none of them run against anything hosted. The static
 map and its launch guard, also wired in phase 14A, were retired in phase 14B3 and
-replaced with a Google Maps embed (`lib/site/map-embed.ts`,
-`components/site/GoogleMap.tsx`) — no licensed asset was ever needed after all.
+replaced with the official Google Maps embed for the restaurant's own listing
+(`components/site/GoogleMap.tsx`) — a fixed link, no licensed asset and no API key
+ever needed after all.
 
 ## Deferred to a later phase
 
