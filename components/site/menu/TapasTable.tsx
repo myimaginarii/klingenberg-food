@@ -17,7 +17,7 @@ import type { DishView } from '@/lib/menu/view'
  * the editor lands in phase 5.
  */
 const CHOICE_NOTE =
-  'Valget træffes ved bordet, ikke på hjemmesiden — her står kun, hvad man kan vælge imellem.'
+  'I vælger ved bordet. Her kan I se, hvad der er at vælge imellem.'
 
 export function TapasTable({ dish }: { dish: DishView }) {
   const groups = dish.tapas?.groups ?? []

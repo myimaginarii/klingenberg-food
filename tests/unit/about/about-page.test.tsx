@@ -55,7 +55,7 @@ describe('the words', () => {
 
   it('states the award once, as the confirmed result, without a document field behind it', () => {
     const html = render(WORDS)
-    expect(html).toContain('Vinder af Fyn &amp; Øer — nr. 4 i Danmark')
+    expect(html).toContain('Vinder af Fyn &amp; Øer og nr. 4 i Danmark')
     expect(html).toContain('Danmarks Bedste Burger 2026')
   })
 })

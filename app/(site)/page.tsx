@@ -35,8 +35,8 @@ export const metadata = homeMetadata(
 
 /** The confirmed result (1ab), for a document whose award section is empty. Nothing invented. */
 const AWARD_FALLBACK = {
-  title: 'Vinder af Fyn & Øer — og nr. 4 i Danmark',
-  text: 'Danmarks Bedste Burger 2026. Restauranten står på konkurrencens liste som Carl Nielsen Caféen, Årslev.',
+  title: 'Vinder af Fyn & Øer og nr. 4 i Danmark',
+  text: 'Danmarks Bedste Burger 2026. I konkurrencen er vi opført som Carl Nielsen Caféen, Årslev.',
 }
 
 export default function ForsidePage() {

@@ -37,8 +37,8 @@ import { ABOUT_DEFAULT_HEADING, ABOUT_DEFAULT_METHOD_HEADING } from '@/lib/site/
 
 const TEAM_HEADING = 'Holdet'
 const AWARD = {
-  title: 'Vinder af Fyn & Øer — nr. 4 i Danmark',
-  text: 'Danmarks Bedste Burger 2026. På konkurrencens liste står stedet som Carl Nielsen Caféen, Årslev — Klingenberg Food er navnet på hjemmesiden.',
+  title: 'Vinder af Fyn & Øer og nr. 4 i Danmark',
+  text: 'Danmarks Bedste Burger 2026. I konkurrencen er vi opført som Carl Nielsen Caféen, Årslev.',
 }
 
 export function AboutPageContent({ about }: { about: AboutDocument | null }) {

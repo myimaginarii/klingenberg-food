@@ -12,7 +12,8 @@ import { launchPhoto } from './images'
  * menu frames print beside a dish name.
  *
  * NOT here, because frame 1ab lists it as still outstanding and nothing may be
- * invented: Månedens burger (the menu renders the approved "ikke oplyst endnu" card);
+ * invented: Månedens burger (the menu renders the approved empty-state card, which
+ * says there is no monthly burger right now);
  * Ugens ret and the Lørdagsmenu (the kitchen writes these each week); which dishes
  * are vegetarian or spicy; any sold-out state. "Salat efter sæson" is not on the menu.
  */
@@ -161,7 +162,7 @@ export const MENU_CATEGORIES: MenuCategory[] = [
           groups: [
             {
               id: 'base',
-              heading: 'På bordet — altid med',
+              heading: 'Altid med på bordet',
               mode: 'fixed',
               choose: null,
               items: [

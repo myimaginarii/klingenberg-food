@@ -28,7 +28,7 @@ export const metadata = pageMetadata(
   'Klingenberg Food laver mad ud af huset til fester og større selskaber. Ring og hør nærmere.',
 )
 
-const NO_FORM_NOTE = 'Bestilling og aftaler klares over telefonen — der er ingen formular.'
+const NO_FORM_NOTE = 'Bestilling og aftaler klarer vi over telefonen, så der er ingen formular at udfylde.'
 
 export default function MadUdAfHusetPage() {
   const takeaway = TAKEAWAY_PAGE

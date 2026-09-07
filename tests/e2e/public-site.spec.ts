@@ -224,12 +224,12 @@ test.describe('Forsiden', () => {
   }) => {
     // Nothing is configured in the seed (1ab lists Månedens burger as still outstanding),
     // so the section must be absent from the Forside — not present and empty, and not
-    // carrying the menu page's "ikke oplyst endnu" development wording.
+    // carrying the menu page's "ingen månedens burger lige nu" empty-state wording.
     await page.goto('/')
 
     await expect(page.locator('#maanedens-burger-titel')).toHaveCount(0)
     await expect(page.getByRole('main').getByText('Månedens burger')).toHaveCount(0)
-    await expect(page.getByRole('main').getByText('ikke oplyst endnu')).toHaveCount(0)
+    await expect(page.getByRole('main').getByText('ingen månedens burger lige nu')).toHaveCount(0)
   })
 })
 
@@ -248,7 +248,7 @@ test.describe('the menu', () => {
     // is one dish rendered as three lists under its own three headings. The other
     // <h3>s in the body are the two approved empty cards.
     const NOT_A_DISH = new Set([
-      'På bordet — altid med',
+      'Altid med på bordet',
       'I vælger 7',
       'Og 3 dressinger',
       'Månedens burger',
@@ -316,7 +316,7 @@ test.describe('the menu', () => {
     await page.goto('/menu')
 
     const tapas = page.locator('#menu-tapas')
-    await expect(tapas.getByText('På bordet — altid med', { exact: false })).toBeVisible()
+    await expect(tapas.getByText('Altid med på bordet', { exact: false })).toBeVisible()
     await expect(tapas.getByText('I vælger 7', { exact: false })).toBeVisible()
     await expect(tapas.getByText('Og 3 dressinger', { exact: false })).toBeVisible()
     await expect(tapas.locator('input, button, select')).toHaveCount(0)
@@ -343,7 +343,7 @@ test.describe('the menu', () => {
 
     const card = page.locator('#menu-burgere').getByRole('article').last()
     await expect(card.getByRole('heading', { name: 'Månedens burger' })).toBeVisible()
-    await expect(card.getByText('ikke oplyst endnu', { exact: false })).toBeVisible()
+    await expect(card.getByText('ingen månedens burger lige nu', { exact: false })).toBeVisible()
 
     // The menu carries the in-list card and only that. The Forside's promotional
     // section is the Forside's alone, in any burger state, so its heading must never

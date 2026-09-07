@@ -27,7 +27,7 @@ import { DishPrice } from './DishPrice'
  * no photograph (1af, "Uden foto flytter teksten helt ud til kanten").
  */
 const EMPTY_STATE_TEXT =
-  'Denne måneds burger er ikke oplyst endnu. Feltet står tomt, indtil restauranten udfylder navn, beskrivelse og pris — og hele kortet forsvinder fra menuen uden for perioden.'
+  'Der er ingen månedens burger lige nu. Når der er en, står den her med navn, beskrivelse og pris.'
 
 export function MonthlyBurgerCard({ burger }: { burger: MonthlyBurgerView | null }) {
   if (burger === null) {
