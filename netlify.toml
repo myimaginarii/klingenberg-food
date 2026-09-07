@@ -21,15 +21,13 @@
 # difference from the GitHub Pages *project* site, which is served under `/<repository>/`.
 
 [build]
-  # `npm ci` first, deliberately. Netlify's own dependency step runs `npm install` (and
-  # skips even that when the cached `package.json` hash matches), which is not the
-  # lockfile-exact install CI and the Pages workflow use. Naming `npm ci` here costs one
-  # redundant install and buys a build resolved from `package-lock.json` and nothing else.
+  # No install step here. Netlify runs its own dependency installation before this
+  # command, so naming an install again would only repeat work Netlify has already done.
   #
   # `npm run build` is the whole build: `prebuild` renders the photograph derivatives with
   # sharp, `next build` writes the export, `postbuild` gives the router's prefetch payloads
   # the flat filenames it asks for (`scripts/flatten-segment-cache.mjs`).
-  command = "npm ci && npm run build"
+  command = "npm run build"
 
   # The export itself. Not `.next` — see NETLIFY_NEXT_PLUGIN_SKIP below.
   publish = "out"
