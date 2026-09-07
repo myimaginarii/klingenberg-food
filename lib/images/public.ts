@@ -1,3 +1,5 @@
+import { assetPath } from '../config/site'
+
 import {
   planDerivatives,
   staticDerivativeUrl,
@@ -14,7 +16,9 @@ import {
  *
  * WHAT A CANDIDATE IS, AND IS NOT. Every URL here is a site-relative path under
  * `public/media/`, composed through the one central path builder from the slot and the
- * rungs `planDerivatives()` chooses for the source size. The same function plans the
+ * rungs `planDerivatives()` chooses for the source size, then carried across the
+ * deployment's base path by `assetPath` (`lib/config/site.ts`) — a plain `<img src>` is
+ * not something the framework rewrites, so a sub-path deployment is applied here. The same function plans the
  * files `scripts/images/build-static-derivatives.mjs` renders, so a model can never
  * name a rung that was not written. A rung the plan does not carry is never referenced
  * (no upscaling, no guessed 2160).
@@ -95,8 +99,8 @@ export function buildStaticPublicImage(photo: {
     (size) => ({
       width: size.width,
       height: size.height,
-      avifUrl: staticDerivativeUrl(photo.slot, size.width, 'avif'),
-      webpUrl: staticDerivativeUrl(photo.slot, size.width, 'webp'),
+      avifUrl: assetPath(staticDerivativeUrl(photo.slot, size.width, 'avif')),
+      webpUrl: assetPath(staticDerivativeUrl(photo.slot, size.width, 'webp')),
     }),
   )
 

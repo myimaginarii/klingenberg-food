@@ -13,7 +13,14 @@
  *   * a path with no trailing slash redirects to one, as GitHub Pages does;
  *   * anything that matches no file gets `out/404.html` with status 404.
  *
- * Usage: `node scripts/serve-static.mjs [--port 3000] [--dir out]`
+ * `--base` mounts the export under a sub-path, which is what a GitHub Pages *project*
+ * site is: `--base /klingenberg-food` serves `out/menu/index.html` at
+ * `/klingenberg-food/menu/` and answers anything outside the prefix with a plain 404,
+ * exactly as `myimaginarii.github.io` does for a path that belongs to no project. It is
+ * a preview switch only — it verifies a base-path build without the deployment having
+ * to exist, and the value comes from the same `SITE_URL` the build was given.
+ *
+ * Usage: `node scripts/serve-static.mjs [--port 3000] [--dir out] [--base /prefix]`
  */
 
 import { createReadStream, existsSync, statSync } from 'node:fs'
@@ -29,6 +36,9 @@ function flag(name, fallback) {
 
 const PORT = Number(flag('port', process.env.PORT ?? 3000))
 const ROOT = resolve(process.cwd(), flag('dir', 'out'))
+
+/** The sub-path the export is mounted at: a leading slash, no trailing slash, or `''`. */
+const BASE = (flag('base', '') ?? '').replace(/\/+$/, '')
 
 const CONTENT_TYPES = new Map(
   Object.entries({
@@ -71,7 +81,15 @@ function send(response, status, file) {
 
 const server = createServer((request, response) => {
   const { pathname } = new URL(request.url ?? '/', `http://localhost:${PORT}`)
-  const target = resolveRequest(pathname)
+
+  // Outside the mounted prefix there is nothing to serve — the host answers for some
+  // other project, or for nothing at all.
+  if (BASE !== '' && pathname !== BASE && !pathname.startsWith(`${BASE}/`)) {
+    response.writeHead(404, { 'content-type': 'text/plain; charset=utf-8' }).end('Not found')
+    return
+  }
+
+  const target = resolveRequest(pathname.slice(BASE.length) || '/')
 
   if (target === null) {
     response.writeHead(400).end('Bad request')

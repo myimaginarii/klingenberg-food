@@ -68,16 +68,40 @@ rendered files are git-ignored; the tracked source and the registry are the reco
 
 ## Deployment
 
-**GitHub Pages** is the intended target: the repository builds, and the `out/` directory
-is published. Nothing else is deployed, and **no secret of any kind is needed to build or
-serve the site** — `npm run check:policy` fails the build if a backend name reappears
-anywhere in the repository.
+**GitHub Pages** is the target, through
+[`.github/workflows/pages.yml`](.github/workflows/pages.yml): the workflow builds the
+export, uploads `out/` and publishes it. It runs on a push to `main` and on
+`workflow_dispatch`, and **needs no secret of any kind** — it reads nothing from
+`secrets`, because building and serving this site requires nothing but the repository.
+`npm run check:policy` fails the build if a backend name reappears anywhere.
 
-One optional build-time variable exists, `SITE_URL`, which sets the origin the canonical
-URLs, the sitemap and the Open Graph tags are written with. Unset, it falls back to
-`http://localhost:3000`. Everything absolute resolves through
-[`lib/config/site.ts`](lib/config/site.ts) and nowhere else, so choosing the restaurant's
-domain later is configuration, never a code change.
+One optional build-time variable exists, `SITE_URL`. It states the deployment's **full**
+public address — origin *and* sub-path — and two things derive from it:
+
+* every absolute URL the site prints (canonical, sitemap, Open Graph, JSON-LD);
+* `basePath` in [`next.config.ts`](next.config.ts), for a site served under a sub-path.
+
+```
+SITE_URL=https://example.test           # the root of a host: no base path
+SITE_URL=https://example.test/a-repo/   # a GitHub Pages project site: basePath /a-repo
+```
+
+A GitHub Pages *project* site is the second form — `https://<owner>.github.io/<repository>/`
+— and the workflow takes the value from `actions/configure-pages`, which reports the
+address GitHub actually assigned. Nothing in the repository writes an address down, so
+both moving to a custom domain and dropping the sub-path are configuration, never a code
+change. Unset, it falls back to `http://localhost:3000` with no base path, which is what
+local development uses.
+
+To reproduce a project-site build locally and browse it the way the deployment serves it:
+
+```bash
+SITE_URL=https://example.test/a-repo/ npm run build
+npm start -- --base /a-repo          # http://localhost:3000/a-repo/
+```
+
+`out/.nojekyll` (tracked as `public/.nojekyll`) keeps GitHub from running the export
+through Jekyll, which would drop `_next/`.
 
 The site is `noindex` until launch (`app/layout.tsx`).
 
@@ -94,7 +118,7 @@ npm run dev          # http://localhost:3000
 |---|---|
 | `npm run dev` | Development server |
 | `npm run build` | The static export, into `out/` |
-| `npm start` | Serves `out/` the way a static host would — directory indexes, trailing-slash redirects, `404.html` |
+| `npm start` | Serves `out/` the way a static host would — directory indexes, trailing-slash redirects, `404.html`. `-- --base /prefix` mounts it under a sub-path, as a Pages project site is served |
 | `npm run check` | Typecheck, lint, source policy, unit tests |
 | `npm run test:e2e` | Playwright: desktop, mobile and a no-JavaScript pass, plus the accessibility suite, all against the built export |
 | `npm run check:all` | Everything above, in order |

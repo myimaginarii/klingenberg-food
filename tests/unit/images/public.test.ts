@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
 import { buildStaticPublicImage, IMAGE_SIZES, publicImageAlt, seoImageOf } from '@/lib/images/public'
 
@@ -148,5 +148,41 @@ describe('IMAGE_SIZES — one sizes string per approved slot', () => {
     // The featured card is a third of the content measure from md, a 6rem thumbnail below it.
     expect(IMAGE_SIZES.featuredDish.endsWith(', 6rem')).toBe(true)
     expect(IMAGE_SIZES.featuredDish).toContain('calc((100vw - 7.5rem) / 3)')
+  })
+})
+
+/**
+ * A sub-path deployment — a GitHub Pages *project* site.
+ *
+ * These URLs end up in a plain `<img src>` and `srcset`, which is exactly what the
+ * framework does **not** rewrite for a `basePath` build (it rewrites `next/link`, the
+ * router's prefetches and `_next/` assets). So the prefix is applied here, through the
+ * one door in `lib/config/site.ts`, and this is where that is pinned.
+ */
+describe('under a base path', () => {
+  const ORIGINAL = process.env.SITE_URL
+
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.SITE_URL
+    else process.env.SITE_URL = ORIGINAL
+  })
+
+  it('carries every candidate, the fallback and the SEO image across the sub-path', () => {
+    process.env.SITE_URL = 'https://example.test/a-repo/'
+    const image = buildStaticPublicImage({ ...LARGE, alt: 'Burgeren fra siden.' })
+
+    expect(image.src).toBe(`/a-repo${PUBLIC}/960.webp`)
+    expect(image.avifSrcSet.startsWith(`/a-repo${PUBLIC}/480.avif 480w, `)).toBe(true)
+    expect(image.webpSrcSet.startsWith(`/a-repo${PUBLIC}/480.webp 480w, `)).toBe(true)
+    for (const candidate of image.candidates) {
+      expect(candidate.avifUrl.startsWith(`/a-repo${PUBLIC}/`)).toBe(true)
+      expect(candidate.webpUrl.startsWith(`/a-repo${PUBLIC}/`)).toBe(true)
+    }
+    expect(seoImageOf(image).url).toBe(`/a-repo${PUBLIC}/1440.webp`)
+  })
+
+  it('leaves the paths alone when the site is at the root of a host', () => {
+    process.env.SITE_URL = 'https://example.test'
+    expect(buildStaticPublicImage(LARGE).src).toBe(`${PUBLIC}/960.webp`)
   })
 })
