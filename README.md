@@ -68,40 +68,65 @@ rendered files are git-ignored; the tracked source and the registry are the reco
 
 ## Deployment
 
-**GitHub Pages** is the target, through
-[`.github/workflows/pages.yml`](.github/workflows/pages.yml): the workflow builds the
-export, uploads `out/` and publishes it. It runs on a push to `main` and on
-`workflow_dispatch`, and **needs no secret of any kind** — it reads nothing from
-`secrets`, because building and serving this site requires nothing but the repository.
-`npm run check:policy` fails the build if a backend name reappears anywhere.
+`out/` is the whole deployable artefact, so any static host serves it. Two are configured,
+and both run the same `npm run build` and publish the same directory. Neither **needs a
+secret of any kind** — building and serving this site requires nothing but the repository,
+and `npm run check:policy` fails if a backend name reappears anywhere.
 
-One optional build-time variable exists, `SITE_URL`. It states the deployment's **full**
-public address — origin *and* sub-path — and two things derive from it:
+**GitHub Pages**, through [`.github/workflows/pages.yml`](.github/workflows/pages.yml):
+the workflow builds the export, uploads `out/` and publishes it, on a push to `main` and on
+`workflow_dispatch`. `out/.nojekyll` (tracked as `public/.nojekyll`) keeps GitHub from
+running the export through Jekyll, which would drop `_next/`.
 
-* every absolute URL the site prints (canonical, sitemap, Open Graph, JSON-LD);
-* `basePath` in [`next.config.ts`](next.config.ts), for a site served under a sub-path.
+**Netlify**, through [`netlify.toml`](netlify.toml): `npm ci && npm run build`, publish
+`out/`, and nothing else — no function, no edge function, no database, no blob store.
+`NETLIFY_NEXT_PLUGIN_SKIP` switches off Netlify's Next.js adapter, which exists to
+provision the infrastructure a Next.js *server* needs and has nothing to do for an export.
 
-```
-SITE_URL=https://example.test           # the root of a host: no base path
-SITE_URL=https://example.test/a-repo/   # a GitHub Pages project site: basePath /a-repo
-```
+### The address the site prints
 
-A GitHub Pages *project* site is the second form — `https://<owner>.github.io/<repository>/`
-— and the workflow takes the value from `actions/configure-pages`, which reports the
-address GitHub actually assigned. Nothing in the repository writes an address down, so
-both moving to a custom domain and dropping the sub-path are configuration, never a code
-change. Unset, it falls back to `http://localhost:3000` with no base path, which is what
-local development uses.
+Canonical URLs, the sitemap, the Open Graph URLs and `basePath` in
+[`next.config.ts`](next.config.ts) all resolve through
+[`lib/config/site.ts`](lib/config/site.ts) and nowhere else. It reads, in order:
 
-To reproduce a project-site build locally and browse it the way the deployment serves it:
+1. **`SITE_URL`** — the deployment's **full** public address, origin *and* sub-path:
+
+   ```
+   SITE_URL=https://example.test           # the root of a host: no base path
+   SITE_URL=https://example.test/a-repo/   # a project site: basePath /a-repo
+   ```
+
+   A GitHub Pages *project* site is the second form —
+   `https://<owner>.github.io/<repository>/` — and the workflow takes the value from
+   `actions/configure-pages`, which reports the address GitHub actually assigned.
+
+2. **Netlify's own read-only variables**, on a Netlify builder and nowhere else: `URL` on a
+   production deploy, `DEPLOY_PRIME_URL` on a Deploy Preview or branch deploy, so a preview
+   prints its own address instead of claiming to be production. A Netlify site is served at
+   the root of its host, so there is no base path, and attaching a custom domain later
+   changes `URL` with no edit here. Netlify therefore needs **no environment variable set
+   by hand**.
+
+3. **`http://localhost:3000`**, with no base path — local development, and any build that
+   states nothing.
+
+Nothing in the repository writes an address down, so choosing the restaurant's domain
+stays a configuration change rather than a code change.
+
+To reproduce a project-site build locally and browse it the way GitHub Pages serves it:
 
 ```bash
 SITE_URL=https://example.test/a-repo/ npm run build
 npm start -- --base /a-repo          # http://localhost:3000/a-repo/
 ```
 
-`out/.nojekyll` (tracked as `public/.nojekyll`) keeps GitHub from running the export
-through Jekyll, which would drop `_next/`.
+### Security headers
+
+`headers()` is a server feature and does nothing in an export, so the response headers are
+the host's to send. [`netlify.toml`](netlify.toml) states them — CSP, `nosniff`,
+`Referrer-Policy`, `Permissions-Policy`, `X-Frame-Options`, HSTS — with a comment recording
+what each directive was measured against in the built output. GitHub Pages sends its own
+defaults and cannot be given a policy.
 
 The site is `noindex` until launch (`app/layout.tsx`).
 

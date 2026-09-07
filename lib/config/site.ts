@@ -8,8 +8,8 @@
  *
  * `scripts/check-source-policy.mjs` fails CI if a domain literal appears anywhere else.
  *
- * ONE VARIABLE. `SITE_URL` states the full public address of the deployment — origin
- * *and* sub-path — and everything else is derived from it:
+ * ONE VARIABLE, WHEN ANYBODY SETS ONE. `SITE_URL` states the full public address of the
+ * deployment — origin *and* sub-path — and everything else is derived from it:
  *
  *   SITE_URL=https://example.test            -> origin https://example.test, no base path
  *   SITE_URL=https://example.test/a-project/ -> origin https://example.test, base path /a-project
@@ -18,15 +18,23 @@
  * custom domain later is the same variable with the path left off. Neither is a code
  * change — the static export bakes whatever this resolves to into the HTML it writes.
  *
+ * A HOST THAT ALREADY KNOWS ITS OWN ADDRESS DOES NOT NEED THE VARIABLE. Netlify states
+ * the address of every deploy in its own read-only variables, so a Netlify build sets
+ * nothing and {@link netlifyAddress} reads what the platform already published. That is
+ * the difference between the two deployments this repository can serve from: the GitHub
+ * Pages workflow has to be *told* its address (`actions/configure-pages` reports it, and
+ * the workflow hands it over as `SITE_URL`), and Netlify simply has one.
+ *
  * Resolution order:
  *   1. SITE_URL                — explicit, set by whatever builds the site
- *   2. http://localhost:3000   — local development, and any build that sets nothing
+ *   2. Netlify's own variables — on a Netlify builder, and nowhere else
+ *   3. http://localhost:3000   — local development, and any build that sets nothing
  *
- * BUILD TIME ONLY. `SITE_URL` is not a `NEXT_PUBLIC_` variable, so it is readable while
- * the export is being rendered and not in the browser. Every caller here is a Server
- * Component, a metadata export or the config itself, which is the whole of the site
- * (`tests/unit/policy/public-javascript.test.ts` pins the five Client Components, and
- * none of them is one). A Client Component must not call into this module: it would
+ * BUILD TIME ONLY. None of these is a `NEXT_PUBLIC_` variable, so they are readable
+ * while the export is being rendered and not in the browser. Every caller here is a
+ * Server Component, a metadata export or the config itself, which is the whole of the
+ * site (`tests/unit/policy/public-javascript.test.ts` pins the five Client Components,
+ * and none of them is one). A Client Component must not call into this module: it would
  * read `undefined` after hydration and disagree with the HTML it was given.
  */
 
@@ -70,9 +78,49 @@ function toAddress(value: string | undefined): SiteAddress | null {
   }
 }
 
+/**
+ * The address Netlify states about the deploy being built, or `undefined` anywhere else.
+ *
+ * Netlify sets a documented set of read-only variables on every build, two of which are
+ * the address the deploy will answer on:
+ *
+ *   * `URL`              — the site's **main** address. A `<site>.netlify.app` subdomain
+ *                          until a custom domain is assigned to the project, and the
+ *                          custom domain itself afterwards, with no change here and no
+ *                          change to the build.
+ *   * `DEPLOY_PRIME_URL` — the address of *this* deploy, or of the group it belongs to:
+ *                          `https://deploy-preview-7--<site>.netlify.app` for a pull
+ *                          request, `https://<branch>--<site>.netlify.app` for a branch
+ *                          deploy. On a production deploy it is the main address again.
+ *
+ * A production build prints `URL`, so the canonical URLs, the sitemap and the Open Graph
+ * URLs name the address the public actually visits. Every other context prints its own
+ * `DEPLOY_PRIME_URL`, so a Deploy Preview's absolute URLs point *at that preview* rather
+ * than claiming to be production — which is what makes a preview safe to open, share and
+ * click through.
+ *
+ * `NETLIFY` is the gate, and it is why `URL` — a name generic enough that some other
+ * environment might set it for something else entirely — is never read outside a Netlify
+ * builder. Netlify documents `NETLIFY` as always set on its own builds and nowhere else.
+ *
+ * NO SUB-PATH. A Netlify site is served at the root of its host, so both variables carry
+ * an empty path, {@link getBasePath} resolves to `''`, and every link, asset and router
+ * prefetch is written from the root. This is the difference from the GitHub Pages
+ * *project* site, which is served under `/<repository>/`; nothing here decides that, the
+ * address does.
+ */
+function netlifyAddress(): string | undefined {
+  const netlify = process.env.NETLIFY
+  if (netlify !== 'true' && netlify !== '1') return undefined
+
+  const { URL: main, DEPLOY_PRIME_URL: deploy } = process.env
+  const preferred = process.env.CONTEXT === 'production' ? [main, deploy] : [deploy, main]
+  return preferred.find((value) => value?.trim())
+}
+
 /** The configured deployment address. */
 function address(): SiteAddress {
-  return toAddress(process.env.SITE_URL) ?? LOCAL_ADDRESS
+  return toAddress(process.env.SITE_URL) ?? toAddress(netlifyAddress()) ?? LOCAL_ADDRESS
 }
 
 /**

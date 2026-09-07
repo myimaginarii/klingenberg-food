@@ -1,0 +1,117 @@
+# Netlify deployment — the static export, and nothing else.
+#
+# `npm run build` writes the whole site to `out/`: one `index.html` per page, the
+# designed 404, the sitemap, the fonts, the photograph derivatives. Netlify's job here
+# is to hold those files on a CDN and answer requests for them. It runs no function, no
+# edge function, no database, no blob store and no identity service, because the site has
+# nothing for any of them to do — and **no secret of any kind**, because building this
+# site needs nothing but the repository (`npm run check:policy` keeps that true).
+#
+# GITHUB PAGES IS UNTOUCHED. `.github/workflows/pages.yml` still builds and publishes the
+# same `out/` to the same address; this file adds a second host, it does not replace the
+# first. The two agree because they build the same artefact from the same command.
+#
+# WHERE THE SITE THINKS IT LIVES. Nothing here states an address. Netlify already
+# publishes one for every deploy in its read-only variables, and `lib/config/site.ts`
+# reads them (§10d): `URL` on a production deploy — the `*.netlify.app` subdomain now, the
+# restaurant's own domain the moment one is attached, with no edit here — and
+# `DEPLOY_PRIME_URL` on a Deploy Preview or branch deploy, so a preview's absolute URLs
+# name the preview. Neither carries a sub-path, so `basePath` is empty and every link,
+# asset and router prefetch is written from the root of the host. That is the one
+# difference from the GitHub Pages *project* site, which is served under `/<repository>/`.
+
+[build]
+  # `npm ci` first, deliberately. Netlify's own dependency step runs `npm install` (and
+  # skips even that when the cached `package.json` hash matches), which is not the
+  # lockfile-exact install CI and the Pages workflow use. Naming `npm ci` here costs one
+  # redundant install and buys a build resolved from `package-lock.json` and nothing else.
+  #
+  # `npm run build` is the whole build: `prebuild` renders the photograph derivatives with
+  # sharp, `next build` writes the export, `postbuild` gives the router's prefetch payloads
+  # the flat filenames it asks for (`scripts/flatten-segment-cache.mjs`).
+  command = "npm ci && npm run build"
+
+  # The export itself. Not `.next` — see NETLIFY_NEXT_PLUGIN_SKIP below.
+  publish = "out"
+
+[build.environment]
+  # Do not run Netlify's Next.js adapter.
+  #
+  # The adapter (OpenNext) exists to provision the infrastructure a Next.js *server*
+  # needs: a serverless function for SSR, ISR and route handlers, an edge function for
+  # middleware, the fine-grained cache, the Image CDN handler. This site is
+  # `output: 'export'` and has none of those — no server, no route handler, no Server
+  # Action, no `next/image`.
+  #
+  # The adapter does detect a static export and skip the server pieces, but it then wants
+  # `publish = ".next"` so it can read `.next/export-detail.json`, copy `out/` aside and
+  # swap the two directories before upload. That is a detour that produces the same bytes
+  # this repository already has sitting in `out/`. Skipping it is Netlify's own documented
+  # setting for a static-only Next.js site, and it makes the deployment a plain directory
+  # upload with nothing dynamic provisioned at all.
+  #
+  # The adapter reads this as `'true'` or `'1'` and returns from every build hook.
+  NETLIFY_NEXT_PLUGIN_SKIP = "true"
+
+  # The framework's build-time telemetry, off — as in CI and the Pages workflow.
+  NEXT_TELEMETRY_DISABLED = "1"
+
+  # Node is **not** pinned here. `.nvmrc` says `24`, Netlify reads it from the base
+  # directory, and both GitHub workflows read the same file (`node-version-file`). One
+  # place to change the version, not three.
+
+[build.processing.html]
+  # Every page of the export is a directory with an `index.html` (`trailingSlash: true`),
+  # so `/menu/` is the address the site's own links, its sitemap and its canonical URLs
+  # name. Pretty URLs is what forwards a bare `/menu` to it. It is Netlify's default;
+  # stating it here means a change in the UI cannot quietly disagree with the export.
+  pretty_urls = true
+
+# The security-header policy — technical plan §8.
+#
+# This is the policy the application used to attach in `next.config.ts`, minus everything
+# that only made sense with a backend. `headers()` is a server feature and does nothing in
+# an export, so these headers are the host's to send, and Netlify sends them from here.
+#
+# `[[headers]]` is not context-aware: one set for production, branch deploys and Deploy
+# Previews alike. That is the intent — a preview that is served under a weaker policy than
+# production is a preview of something else.
+#
+# EVERY DIRECTIVE WAS MEASURED AGAINST THE BUILT `out/`, not assumed:
+#
+#   * every page carries a couple of dozen inline `<script>` elements — the React Server
+#     Components payload the framework streams into the document — so `script-src` needs
+#     `'unsafe-inline'`. There is no nonce to offer instead: a nonce needs a per-request
+#     value, and this site has no request, only files. What `'unsafe-inline'` costs is the
+#     CSP's protection against an *injected* inline script, and the site has no HTML
+#     injection surface: no `dangerouslySetInnerHTML`, no HTML parsing, and every string
+#     rendered by React from content tracked in this repository.
+#   * **no** inline `<style>` and **no** `style=""` attribute anywhere in the export, so
+#     `style-src` is `'self'` alone — stricter than the retired policy managed.
+#   * **no** `data:` URI, so `img-src` is `'self'`. The photographs are AVIF and WebP files
+#     under `/media/`, served from this origin.
+#   * fonts are self-hosted by `next/font`, so `font-src 'self'` and no font host.
+#   * the only resource this site embeds from elsewhere is the Google Maps frame on Find os
+#     (§7g), so `frame-src` names `https://www.google.com` and nothing else. An iframe is a
+#     separate browsing context with Google's own policy, so no `img-src`, `script-src` or
+#     `connect-src` has to widen for it. The directions link and the Facebook link are
+#     links, not resources, and need no directive at all.
+#
+# `upgrade-insecure-requests` is absent on purpose: the export references nothing over
+# plain HTTP, and locally the site runs over plain HTTP where the directive would break it.
+#
+# HSTS carries neither `includeSubDomains` nor `preload`. Two years is the max-age a
+# preload list would want, but preloading is a one-way decision for the owner and the
+# subdomains of a domain nobody has bought yet cannot be spoken for. Netlify serves HTTPS
+# on both the `*.netlify.app` address and any custom domain, so the header is honest today.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; frame-src https://www.google.com"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()"
+    # Duplicates `frame-ancestors 'none'` for browsers that predate it. The two agree and
+    # can only be changed together.
+    X-Frame-Options = "DENY"
+    Strict-Transport-Security = "max-age=63072000"
