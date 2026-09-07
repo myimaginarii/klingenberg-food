@@ -1,7 +1,5 @@
-import { notFound } from 'next/navigation'
-
-import { readSiteContact } from '@/lib/content/contact'
-import { readTakeawayDocument } from '@/lib/content/pages'
+import { SITE_CONTACT } from '@/content/site/contact'
+import { TAKEAWAY_PAGE } from '@/content/site/pages'
 import { TAKEAWAY_DEFAULT_CTA_LABEL } from '@/lib/pages/takeaway'
 import { pageMetadata } from '@/lib/seo/metadata'
 
@@ -21,15 +19,9 @@ import { TakeawaySections } from '@/components/site/takeaway/TakeawaySections'
  * afsnit, netop fordi vi ikke ved, hvad der skal stå" (1ai). 1ab lists all four of those
  * questions as still unanswered, so none of them is invented here.
  *
- * The page can be switched off from the administration. When it is, `pages.takeaway` is
- * unreadable to the public — the RLS policy sees to that — so this route 404s and the
- * navigation item disappears, from one rule in one place. Since phase 11B the switch is
- * published like every other field on 1aj, so a guest sees the change on the first
- * request after Offentliggør and not before.
- *
- * The photograph (phase 11B) is 1aj's "Billede (valgfrit)": the page's own library
- * image in 1ai's 4:3 frame, rendered by the one public renderer. Without one, *"fylder
- * teksten hele bredden"* (1aj) — no frame is reserved.
+ * The words and the photograph are the tracked document (`content/site/pages.ts`):
+ * 1aj's "Billede (valgfrit)" in 1ai's 4:3 frame, rendered by the one public renderer.
+ * Without one, *"fylder teksten hele bredden"* (1aj) — no frame is reserved.
  */
 export const metadata = pageMetadata(
   'Mad ud af huset',
@@ -38,10 +30,9 @@ export const metadata = pageMetadata(
 
 const NO_FORM_NOTE = 'Bestilling og aftaler klares over telefonen — der er ingen formular.'
 
-export default async function MadUdAfHusetPage() {
-  const [contact, takeaway] = await Promise.all([readSiteContact(), readTakeawayDocument()])
-
-  if (takeaway === null) notFound()
+export default function MadUdAfHusetPage() {
+  const takeaway = TAKEAWAY_PAGE
+  const contact = SITE_CONTACT
 
   return (
     <>

@@ -159,11 +159,5 @@ export function readPublishedArticle(slug: string): Promise<NewsArticle | null> 
   return readArticleBySlug(slug)
 }
 
-/** The one- or two-line teaser the list and the Forside card show, from the first paragraph. */
-export function articleExcerpt(article: NewsArticle): string | null {
-  const first = article.body.blocks[0]
-  if (first === undefined) return null
-
-  const text = first.spans.map((span) => span.text).join('').trim()
-  return text.length > 0 ? text : null
-}
+/** The teaser rule is pure and shared with the static site: `lib/news/excerpt.ts`. */
+export { articleExcerpt } from '@/lib/news/excerpt'

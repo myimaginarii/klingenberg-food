@@ -26,6 +26,15 @@ export const DERIVATIVE_WIDTHS = [480, 960, 1440, 2160] as const
 /** The two output formats, in the order a `<picture>` would offer them. */
 export const DERIVATIVE_FORMATS = ['avif', 'webp'] as const
 
+/**
+ * Encoder settings — one statement, shared by every rung and by both pipelines: the
+ * upload flow (`./processing.ts`) and the build-time static pipeline
+ * (`scripts/images/build-static-derivatives.mjs`), which imports this pure module
+ * rather than restating the numbers.
+ */
+export const AVIF_QUALITY = 55
+export const WEBP_QUALITY = 80
+
 export type DerivativeFormat = (typeof DERIVATIVE_FORMATS)[number]
 
 export const DERIVATIVE_CONTENT_TYPES: Record<DerivativeFormat, string> = {
@@ -96,6 +105,23 @@ export function derivativePathsFor(
   return record.widths.flatMap((size) =>
     record.formats.map((format) => derivativePath(uploadId, size.width, format)),
   )
+}
+
+/**
+ * The static site's derivatives — the build-time twin of the storage bucket.
+ *
+ * `public/<STATIC_MEDIA_DIRECTORY>/<slot>/<width>.<format>`, rendered once by
+ * `scripts/images/build-static-derivatives.mjs` from the tracked photographs in
+ * `content/launch/photos/` and served as ordinary static files. The slot name stands
+ * where the upload id stood, so the path grammar is `derivativePath()`'s own and the
+ * ladder is `planDerivatives()`'s own: the same rungs, the same formats, the same
+ * "never upscale" rule, composed in this one module for both the page and the script.
+ */
+export const STATIC_MEDIA_DIRECTORY = 'media'
+
+/** The site-relative URL of one static derivative: `/media/home-hero/960.webp`. */
+export function staticDerivativeUrl(slot: string, width: number, format: DerivativeFormat): string {
+  return `/${STATIC_MEDIA_DIRECTORY}/${derivativePath(slot, width, format)}`
 }
 
 /** The public URL path (relative to the Supabase URL) a derivative is served from. */

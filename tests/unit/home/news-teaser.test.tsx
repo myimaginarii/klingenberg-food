@@ -14,8 +14,8 @@ import type { IsoDate } from '@/lib/time/calendar'
  *
  * Two layers, asserted separately:
  *
- *   * **Selection** — the Forside asks the published-only read for the one newest
- *     article and hard-codes none of its own. That is a property of the page's
+ *   * **Selection** — the Forside takes the newest entry of the tracked article list
+ *     and hard-codes none of its own. That is a property of the page's
  *     source, asserted over the source the way `admin-mapping.test.ts` asserts
  *     boundaries — a mocked render could not notice a literal article creeping in.
  *   * **Rendering** — the newest published article is a linked card, and no article
@@ -71,12 +71,12 @@ describe('the teaser, rendered', () => {
 describe('the selection, asserted over the Forside’s own source', () => {
   const source = readFileSync(join(process.cwd(), 'app', '(site)', 'page.tsx'), 'utf-8')
 
-  it('asks the published-only read for exactly the newest article', () => {
-    expect(source).toContain('readPublishedNews(1)')
+  it('reads the tracked, newest-first list and nothing else', () => {
+    expect(source).toContain("import { NEWS_ARTICLES } from '@/content/site/news'")
   })
 
-  it('takes the read’s first answer and otherwise nothing', () => {
-    expect(source).toContain('latestNews[0] ?? null')
+  it('takes the list’s first entry and otherwise nothing', () => {
+    expect(source).toContain('NEWS_ARTICLES[0] ?? null')
   })
 
   it('hard-codes no article: every title on the Forside comes from data', () => {

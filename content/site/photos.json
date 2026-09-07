@@ -1,0 +1,35 @@
+{
+  "$comment": "The confirmed launch photographs the public site renders — content/launch/README.md is the record of where each one came from. `file` is the tracked source under content/launch/photos/; `slot` names the derivative folder under public/media/; `width` and `height` are the measured source dimensions, re-measured and enforced by scripts/images/build-static-derivatives.mjs; `alt` is the description a screen reader hears (null renders alt=\"\", the accepted model for a photograph beside the text that names it). dish-tapas.png is not listed: the public Tapas board is a text table by design and renders no photograph.",
+  "photos": {
+    "home-hero": {
+      "file": "home-hero-bacon-egg-burger.png",
+      "width": 1024,
+      "height": 1536,
+      "alt": "Burger med bacon og spejlæg"
+    },
+    "about-venue": {
+      "file": "about-venue-dining-room.png",
+      "width": 1254,
+      "height": 1254,
+      "alt": "Spisesalen hos Klingenberg Food"
+    },
+    "takeaway": {
+      "file": "takeaway-sandwich-trio.png",
+      "width": 1448,
+      "height": 1086,
+      "alt": "Tre sandwiches"
+    },
+    "dish-odin": {
+      "file": "dish-odin.png",
+      "width": 1448,
+      "height": 1086,
+      "alt": null
+    },
+    "dish-ragnar": {
+      "file": "dish-ragnar.png",
+      "width": 1122,
+      "height": 1402,
+      "alt": null
+    }
+  }
+}

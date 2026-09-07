@@ -60,8 +60,10 @@ test('the fullscreen menu reaches every page without scripting', async ({ page }
 
   await panel.getByRole('link', { name: 'Om os', exact: true }).click()
 
-  await expect(page).toHaveURL(/\/om-os$/)
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Vores historie')
+  await expect(page).toHaveURL(/\/om-os\/$/)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    PUBLIC_ROUTES.find((route) => route.navLabel === 'Om os')!.heading,
+  )
 })
 
 test('the persistent bar still calls, routes and points the way', async ({ page }) => {
@@ -124,12 +126,13 @@ test('the open/closed badge degrades to the server-rendered value, not to nothin
   await expect(page.getByRole('main').getByText(/^(Åbent nu|Lukket)/).first()).toBeVisible()
 })
 
-test('a news article is readable without scripting', async ({ page }) => {
+test('the news page states its empty state without scripting, and invents no article', async ({
+  page,
+}) => {
   await page.goto('/nyheder')
-  await page.getByRole('link', { name: /Læs mere/ }).first().click()
 
-  await expect(page).toHaveURL(/\/nyheder\/[a-z0-9-]+$/)
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Overskrift placeholder')
+  await expect(page.getByRole('main').getByText('Der er ingen nyheder lige nu.')).toBeVisible()
+  await expect(page.getByRole('link', { name: /Læs mere/ })).toHaveCount(0)
 })
 
 test('still no cookie is set with scripting disabled', async ({ page, context }) => {

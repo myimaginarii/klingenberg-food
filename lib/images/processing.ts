@@ -3,10 +3,12 @@ import 'server-only'
 import sharp from 'sharp'
 
 import {
+  AVIF_QUALITY,
   derivativeRecord,
   planDerivatives,
   DERIVATIVE_CONTENT_TYPES,
   DERIVATIVE_FORMATS,
+  WEBP_QUALITY,
   type DerivativeFormat,
   type DerivativeRecord,
   type DerivativeSize,
@@ -45,9 +47,8 @@ import {
  * and the encoded outputs are at most a few hundred kilobytes each.
  */
 
-/** Encoder settings — one statement, shared by every rung. */
-export const AVIF_QUALITY = 55
-export const WEBP_QUALITY = 80
+/** Encoder settings live in `./derivatives.ts` (pure), shared with the static pipeline. */
+export { AVIF_QUALITY, WEBP_QUALITY }
 
 const FORMAT_MIMES: Record<string, AcceptedUploadMime> = {
   jpeg: 'image/jpeg',

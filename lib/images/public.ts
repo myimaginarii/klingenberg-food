@@ -1,6 +1,8 @@
 import {
   derivativePath,
   derivativePublicUrl,
+  planDerivatives,
+  staticDerivativeUrl,
   type DerivativeRecord,
 } from './derivatives'
 import { readDerivativeRecord } from './library'
@@ -116,6 +118,46 @@ export function buildPublicImage(
 
   return {
     alt: publicImageAlt(row.alt_text),
+    width: largest.width,
+    height: largest.height,
+    src: candidateAtLeast(candidates, FALLBACK_TARGET_WIDTH).webpUrl,
+    avifSrcSet: candidates.map((candidate) => `${candidate.avifUrl} ${candidate.width}w`).join(', '),
+    webpSrcSet: candidates.map((candidate) => `${candidate.webpUrl} ${candidate.width}w`).join(', '),
+    candidates,
+  }
+}
+
+/**
+ * The public model of one tracked launch photograph (`content/site/photos.json`),
+ * for the static site.
+ *
+ * The same model the storage-backed path composes, built from the same three facts
+ * stated once in the tracked registry: the slot, the description and the source
+ * dimensions. The rungs are `planDerivatives()`'s over those dimensions, so this
+ * function and the build-time script that renders the files agree by construction —
+ * and the script refuses a source whose measured size differs from the recorded one,
+ * so a model can never name a rung that was not rendered. `alt` follows
+ * {@link publicImageAlt}: the authored wording, or `''`.
+ */
+export function buildStaticPublicImage(photo: {
+  readonly slot: string
+  readonly alt: string | null
+  readonly width: number
+  readonly height: number
+}): PublicImage {
+  const candidates: PublicImageCandidate[] = planDerivatives(photo.width, photo.height).map(
+    (size) => ({
+      width: size.width,
+      height: size.height,
+      avifUrl: staticDerivativeUrl(photo.slot, size.width, 'avif'),
+      webpUrl: staticDerivativeUrl(photo.slot, size.width, 'webp'),
+    }),
+  )
+
+  const largest = candidates[candidates.length - 1]!
+
+  return {
+    alt: publicImageAlt(photo.alt),
     width: largest.width,
     height: largest.height,
     src: candidateAtLeast(candidates, FALLBACK_TARGET_WIDTH).webpUrl,

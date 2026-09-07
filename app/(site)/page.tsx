@@ -1,8 +1,9 @@
-import { readSiteContact } from '@/lib/content/contact'
-import { readOpeningHours } from '@/lib/content/hours'
-import { readMenuContent } from '@/lib/content/menu'
-import { articleExcerpt, readPublishedNews } from '@/lib/content/news'
-import { readHomeDocument } from '@/lib/content/pages'
+import { SITE_CONTACT } from '@/content/site/contact'
+import { OPENING_HOURS } from '@/content/site/hours'
+import { MENU } from '@/content/site/menu'
+import { NEWS_ARTICLES } from '@/content/site/news'
+import { HOME_PAGE } from '@/content/site/pages'
+import { articleExcerpt } from '@/lib/news/excerpt'
 import { readOpenStatus } from '@/lib/hours/status'
 import { buildMenuView, selectFeaturedDishes, selectHomepageMonthlyBurger } from '@/lib/menu/view'
 import { homeMetadata } from '@/lib/seo/metadata'
@@ -18,11 +19,9 @@ import { VisitPanel } from '@/components/site/home/VisitPanel'
 /**
  * Forside — design 1g (desktop) and 1l (mobile).
  *
- * The page reads and composes; every section is its own component. The award wording is
- * the confirmed competition result (1ab) with a sensible fallback for a document that
- * carries none; since phase 11A the owner rewords it — and chooses the hero, award and
- * team photographs — in the Forsiden editor (1u), and this page renders whatever the
- * published document says.
+ * The page reads and composes; every section is its own component. The words, the
+ * photographs, the award wording and the three featured dishes are the tracked Forside
+ * document (`content/site/pages.ts`), and this page renders whatever it says.
  *
  * The section order alternates the two approved page surfaces — cream hero, burgundy
  * award, beige Månedens burger, cream Tre fra menuen, beige Seneste nyt, cream Besøg.
@@ -41,61 +40,54 @@ const AWARD_FALLBACK = {
   text: 'Danmarks Bedste Burger 2026. Restauranten står på konkurrencens liste som Carl Nielsen Caféen, Årslev.',
 }
 
-export default async function ForsidePage() {
-  const [contact, hours, menu, home, latestNews] = await Promise.all([
-    readSiteContact(),
-    readOpeningHours(),
-    readMenuContent(),
-    readHomeDocument(),
-    readPublishedNews(1),
-  ])
-
+export default function ForsidePage() {
+  const home = HOME_PAGE
   const now = new Date()
-  const openStatus = readOpenStatus(now, hours.schedule, hours.overrides)
-  const menuView = buildMenuView(menu, hours, now)
-  const featured = selectFeaturedDishes(menuView.categories, home?.featuredDishIds ?? [])
+  const openStatus = readOpenStatus(now, OPENING_HOURS.schedule, OPENING_HOURS.overrides)
+  const menuView = buildMenuView(MENU, OPENING_HOURS, now)
+  const featured = selectFeaturedDishes(menuView.categories, home.featuredDishIds)
   const monthlyBurger = selectHomepageMonthlyBurger(menuView.monthlyBurger)
-  const address = toPostalAddress(contact)
-  const latestArticle = latestNews[0] ?? null
+  const address = toPostalAddress(SITE_CONTACT)
+  const latestArticle = NEWS_ARTICLES[0] ?? null
 
   return (
     <>
       <HomeHero
-        heading={home?.hero.heading ?? 'Klingenberg Food'}
-        intro={home?.hero.intro ?? null}
+        heading={home.hero.heading ?? 'Klingenberg Food'}
+        intro={home.hero.intro}
         openStatus={openStatus}
-        schedule={hours.schedule}
-        overrides={hours.overrides}
-        primaryPhone={contact.primaryPhone}
+        schedule={OPENING_HOURS.schedule}
+        overrides={OPENING_HOURS.overrides}
+        primaryPhone={SITE_CONTACT.primaryPhone}
         directionsHref={address === null ? null : directionsUrl(address)}
-        image={home?.hero.image ?? null}
+        image={home.hero.image}
       />
 
       <AwardBand
         headingId="udmaerkelse-titel"
-        title={home?.award.title ?? AWARD_FALLBACK.title}
-        text={home?.award.text ?? AWARD_FALLBACK.text}
-        image={home?.award.image ?? null}
+        title={home.award.title ?? AWARD_FALLBACK.title}
+        text={home.award.text ?? AWARD_FALLBACK.text}
+        image={home.award.image}
       />
 
-      <MonthlyBurgerFeature burger={monthlyBurger} primaryPhone={contact.primaryPhone} />
+      <MonthlyBurgerFeature burger={monthlyBurger} primaryPhone={SITE_CONTACT.primaryPhone} />
 
       <FeaturedDishes dishes={featured} />
 
       <NewsAndAbout
         latestArticle={latestArticle}
         latestExcerpt={latestArticle === null ? null : articleExcerpt(latestArticle)}
-        aboutHeading={home?.aboutExcerpt.heading ?? null}
-        aboutText={home?.aboutExcerpt.text ?? null}
-        aboutImage={home?.aboutExcerpt.image ?? null}
+        aboutHeading={home.aboutExcerpt.heading}
+        aboutText={home.aboutExcerpt.text}
+        aboutImage={home.aboutExcerpt.image}
       />
 
       <VisitPanel
-        contact={contact}
+        contact={SITE_CONTACT}
         address={address}
         openStatus={openStatus}
-        schedule={hours.schedule}
-        overrides={hours.overrides}
+        schedule={OPENING_HOURS.schedule}
+        overrides={OPENING_HOURS.overrides}
       />
     </>
   )

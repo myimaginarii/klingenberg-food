@@ -6,6 +6,25 @@ import { securityHeaders } from './lib/security/headers'
 import { optionalSupabaseOrigin } from './lib/supabase/config'
 
 const nextConfig: NextConfig = {
+  /**
+   * The public site is a static export (the static rebuild, phase 1): with
+   * `STATIC_EXPORT=1`, `next build` writes every public page, the 404 and the sitemap
+   * as plain files under `out/`, from the tracked content in `content/site/`, and no
+   * server runs behind the site.
+   *
+   * The flag exists because the archived administration is still in the application
+   * tree: its route handlers, Server Actions and cookie-reading pages are exactly what
+   * the framework refuses to export (measured: `/admin/bekraeft` is the first refusal).
+   * Until that tree is retired, a plain `next build` stays the server build it was, and
+   * the export is proven by building without those routes. Retiring them turns this
+   * into an unconditional `output: 'export'`.
+   *
+   * `trailingSlash` is unconditional: each page is a directory with an `index.html`
+   * (`/menu/`), which is what a static host serves for a folder and what every link
+   * renders as, so the server build and the export agree about every address.
+   */
+  ...(process.env.STATIC_EXPORT === '1' ? { output: 'export' as const } : {}),
+  trailingSlash: true,
   reactStrictMode: true,
   // The framework version is not a secret, but it is also not useful to advertise.
   poweredByHeader: false,

@@ -6,6 +6,11 @@
 /out
 next-env.d.ts
 
+# the static site's photographs — rendered by `scripts/images/build-static-derivatives.mjs`
+# from the tracked sources in content/launch/photos/ on every build (prebuild), never
+# committed: the sources and content/site/photos.json are the record.
+/public/media
+
 # production
 /build
 

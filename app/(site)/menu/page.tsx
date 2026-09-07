@@ -1,6 +1,6 @@
-import { readSiteContact } from '@/lib/content/contact'
-import { readOpeningHours } from '@/lib/content/hours'
-import { readMenuContent } from '@/lib/content/menu'
+import { SITE_CONTACT } from '@/content/site/contact'
+import { OPENING_HOURS } from '@/content/site/hours'
+import { MENU } from '@/content/site/menu'
 import { buildMenuView } from '@/lib/menu/view'
 import { pageMetadata } from '@/lib/seo/metadata'
 import { toPostalAddress } from '@/lib/site/links'
@@ -18,9 +18,9 @@ import { PhoneAction } from '@/components/site/PhoneAction'
  * collapses and no price is behind an interaction: "ni sektioner i træk, ingen
  * accordions" (1m).
  *
- * The sections, their order, their dishes and every price come from the database, so the
- * kitchen changes the menu rather than a developer. What each section *looks* like is
- * decided by `MenuCategorySection` from the content it holds.
+ * The sections, their order, their dishes and every price are the tracked menu
+ * (`content/site/menu.ts`). What each section *looks* like is decided by
+ * `MenuCategorySection` from the content it holds.
  */
 export const metadata = pageMetadata(
   'Menu',
@@ -30,15 +30,9 @@ export const metadata = pageMetadata(
 const ALLERGEN_NOTE = 'Spørg os gerne om allergener.'
 const PRICE_NOTE = 'Alle priser i danske kroner.'
 
-export default async function MenuPage() {
-  const [contact, hours, menu] = await Promise.all([
-    readSiteContact(),
-    readOpeningHours(),
-    readMenuContent(),
-  ])
-
-  const view = buildMenuView(menu, hours, new Date())
-  const address = toPostalAddress(contact)
+export default function MenuPage() {
+  const view = buildMenuView(MENU, OPENING_HOURS, new Date())
+  const address = toPostalAddress(SITE_CONTACT)
 
   return (
     <>
@@ -49,9 +43,9 @@ export default async function MenuPage() {
           <span aria-hidden="true" className="border-rule size-4.5 shrink-0 rounded-full border-[1.5px]" />
           {ALLERGEN_NOTE}
         </p>
-        {contact.primaryPhone ? (
+        {SITE_CONTACT.primaryPhone ? (
           <PhoneAction
-            phone={contact.primaryPhone}
+            phone={SITE_CONTACT.primaryPhone}
             label="Bestil på telefon"
             showNumber
             size="large"
@@ -75,7 +69,7 @@ export default async function MenuPage() {
         ))}
       </PageContainer>
 
-      <MenuOrderBar contact={contact} address={address} schedule={hours.schedule} />
+      <MenuOrderBar contact={SITE_CONTACT} address={address} schedule={OPENING_HOURS.schedule} />
     </>
   )
 }

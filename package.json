@@ -7,8 +7,11 @@
     "node": ">=24.0.0 <27.0.0"
   },
   "scripts": {
+    "predev": "npm run images:static",
     "dev": "next dev",
+    "prebuild": "npm run images:static",
     "build": "next build",
+    "images:static": "node scripts/images/build-static-derivatives.mjs",
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
