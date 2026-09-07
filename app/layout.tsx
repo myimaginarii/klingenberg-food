@@ -49,10 +49,18 @@ export const metadata: Metadata = {
   metadataBase: getSiteUrlObject(),
   title: 'Klingenberg Food, Carl Nielsen Hallen',
   description: 'Klingenberg Food, Carl Nielsen Hallen.',
-  // The site is not launched. Real photography, the final copy, the domain and the
-  // whole of §11 — canonicals, sitemap, Open Graph, JSON-LD — are still ahead of us
-  // (phases 13 and 14), so nothing here should be indexed yet. Per-route titles and
-  // descriptions are set by each page through lib/seo/metadata.ts.
+  /**
+   * THE SITE IS NOT LAUNCHED, and this is the single line that keeps it out of search
+   * results. It is inherited by every page, including the 404, and `app/robots.ts`
+   * deliberately allows the crawl so that a crawler can reach this tag and obey it.
+   * Removing it is the launch switch, and nothing else in the SEO work is waiting on it:
+   * §11's titles, canonical URLs, Open Graph and structured data are all in place and
+   * are set per route through `lib/seo/metadata.ts`.
+   *
+   * No `alternates` here. Metadata is inherited, so a canonical URL stated in the root
+   * layout would be claimed by every page that did not override it — each page states
+   * its own.
+   */
   robots: { index: false, follow: false },
 }
 

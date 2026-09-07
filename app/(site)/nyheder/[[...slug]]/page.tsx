@@ -3,13 +3,15 @@ import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
 import { SITE_CONTACT } from '@/content/site/contact'
+import { socialImage } from '@/content/site/images'
 import { NEWS_ARTICLES } from '@/content/site/news'
 import type { NewsArticle } from '@/lib/content/types'
 import { seoImageOf } from '@/lib/images/public'
 import { articleExcerpt } from '@/lib/news/excerpt'
 import { newsArticlePath } from '@/lib/news/slug'
-import { newsArticleMetadata, pageMetadata } from '@/lib/seo/metadata'
-import { newsArticleJsonLd, serializeJsonLd } from '@/lib/seo/news-article'
+import { serializeJsonLd } from '@/lib/seo/json-ld'
+import { newsArticleMetadata, pageMetadata, unindexedMetadata } from '@/lib/seo/metadata'
+import { newsArticleJsonLd } from '@/lib/seo/news-article'
 
 import { SiteImage } from '@/components/site/SiteImage'
 import { NewsBody } from '@/components/site/news/NewsBody'
@@ -56,12 +58,16 @@ async function resolveArticle(params: NewsParams['params']): Promise<NewsArticle
 const LIST_METADATA = pageMetadata(
   'Nyheder',
   'Lukkedage, nye retter, særlige åbningstider og andet nyt fra Klingenberg Food i Carl Nielsen Hallen.',
+  { path: '/nyheder', image: socialImage('home-hero') },
 )
 
 export async function generateMetadata({ params }: NewsParams): Promise<Metadata> {
   const article = await resolveArticle(params)
   if (article === null) return LIST_METADATA
-  if (article === undefined) return pageMetadata('Nyhed', 'Nyhed fra Klingenberg Food.')
+  // An address that names no article is about to 404 (`dynamicParams` is off, so the
+  // export never reaches this), and a page that is about to 404 gets no canonical URL
+  // and no share card.
+  if (article === undefined) return unindexedMetadata('Nyhed', 'Nyhed fra Klingenberg Food.')
 
   return newsArticleMetadata({
     title: article.title,

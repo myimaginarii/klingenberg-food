@@ -1,5 +1,6 @@
 import { SITE_CONTACT } from '@/content/site/contact'
 import { OPENING_HOURS } from '@/content/site/hours'
+import { socialImage } from '@/content/site/images'
 import { MENU } from '@/content/site/menu'
 import { buildMenuView } from '@/lib/menu/view'
 import { pageMetadata } from '@/lib/seo/metadata'
@@ -25,6 +26,7 @@ import { PhoneAction } from '@/components/site/PhoneAction'
 export const metadata = pageMetadata(
   'Menu',
   'Burgere, ugens ret, tapas og resten af kortet hos Klingenberg Food i Carl Nielsen Hallen. Alle priser i danske kroner.',
+  { path: '/menu', image: socialImage('home-hero') },
 )
 
 const ALLERGEN_NOTE = 'Spørg os gerne om allergener.'

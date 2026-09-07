@@ -1,3 +1,4 @@
+import { absoluteAssetUrl } from '@/lib/config/site'
 import type { NewsArticle } from '@/lib/content/types'
 import { seoImageOf } from '@/lib/images/public'
 import { newsArticlePath } from '@/lib/news/slug'
@@ -27,10 +28,8 @@ import { canonicalUrl } from '@/lib/seo/sitemap'
  *   * the caller renders it only for a published article on the public path — a
  *     draft article 404s before this module is ever asked (§7f).
  *
- * `serializeJsonLd` escapes `<`, `>` and `&` as JSON `\uXXXX` sequences — equal JSON,
- * different bytes — so the output cannot close a `<script>` element early no matter
- * what a title says, and needs no `dangerouslySetInnerHTML` (§8 forbids it) because
- * the serialized string contains nothing React's own text escaping would rewrite.
+ * The block is rendered through `serializeJsonLd` (`lib/seo/json-ld.ts`), which is
+ * shared with the `Restaurant` block and is where the `<script>`-safety rule lives.
  */
 
 /** §11's publisher: the restaurant, by name. Nothing invented beside it. */
@@ -66,21 +65,18 @@ export function newsArticleJsonLd(
     headline: article.title,
     ...(image === null
       ? {}
-      : { image: { '@type': 'ImageObject', url: image.url, width: image.width, height: image.height } }),
+      : {
+          image: {
+            '@type': 'ImageObject',
+            // Absolute: a JSON-LD block is plain text, with no `metadataBase` behind it
+            // to resolve a site-relative path the way the `og:image` tag gets one.
+            url: absoluteAssetUrl(image.url),
+            width: image.width,
+            height: image.height,
+          },
+        }),
     ...(article.displayDate === null ? {} : { datePublished: article.displayDate }),
     dateModified: article.updatedAt,
     publisher: { '@type': 'Organization', name: PUBLISHER_NAME },
   }
-}
-
-/**
- * JSON for a `<script type="application/ld+json">` rendered as an ordinary React
- * text child. `<`, `>` and `&` become `\uXXXX` escapes, which `JSON.parse` reads back
- * identically — asserted in the unit suite.
- */
-export function serializeJsonLd(value: object): string {
-  return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g, (character) => {
-    const code = character.codePointAt(0) ?? 0
-    return `\\u${code.toString(16).padStart(4, '0')}`
-  })
 }

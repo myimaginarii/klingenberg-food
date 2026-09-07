@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import { buildStaticPublicImage } from '@/lib/images/public'
-import { newsArticleJsonLd, serializeJsonLd } from '@/lib/seo/news-article'
+import { serializeJsonLd } from '@/lib/seo/json-ld'
+import { newsArticleJsonLd } from '@/lib/seo/news-article'
 
 /**
  * The NewsArticle JSON-LD block — §7f, §11; phase 9B, image since 10C-2. The shape
@@ -65,7 +66,9 @@ describe('newsArticleJsonLd', () => {
       '@type': 'ImageObject',
       // The rung at or above 1200 px — the ladder's 1440 — in WebP, from the public
       // `media` bucket. Never the private original, never a guessed size.
-      url: `/media/${SLOT}/1440.webp`,
+      // Absolute against the configured origin: a JSON-LD block has no metadataBase
+      // behind it, so it states whole URLs rather than site-relative paths.
+      url: `http://localhost:3000/media/${SLOT}/1440.webp`,
       width: 1440,
       height: 960,
     })

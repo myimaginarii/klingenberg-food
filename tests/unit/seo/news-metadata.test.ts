@@ -55,7 +55,7 @@ describe('newsArticleMetadata — og:image', () => {
       {
         // Only 480 and 960 exist for this source, so the largest available rung is
         // the one at or above 1200 — nothing invented past the ladder.
-        url: `/media/${SLOT}/960.webp`,
+        url: `http://localhost:3000/media/${SLOT}/960.webp`,
         width: 960,
         height: 640,
         alt: 'Burgeren fra siden.',
@@ -68,7 +68,7 @@ describe('newsArticleMetadata — og:image', () => {
     const [first] = (metadata.openGraph as { images: Record<string, unknown>[] }).images
 
     expect(first).not.toHaveProperty('alt')
-    expect(first!.url).toContain('/media/')
+    expect(first!.url).toBe(`http://localhost:3000/media/${SLOT}/960.webp`)
     expect(JSON.stringify(metadata)).not.toContain('media-originals')
   })
 
@@ -85,9 +85,12 @@ describe('newsArticleMetadata — og:image', () => {
     })
 
     const [ogImage] = (metadata.openGraph as { images: { url: string }[] }).images
+    // One asset, one absolute URL, spelled the same way by both surfaces.
     expect(ogImage!.url).toBe(jsonLd.image!.url)
-    expect(ogImage!.url).toBe(`/media/${SLOT}/1440.webp`)
+    expect(ogImage!.url).toBe(`http://localhost:3000/media/${SLOT}/1440.webp`)
     // …and that asset is one of the candidates the visible <picture> offers.
-    expect(model.candidates.map((candidate) => candidate.webpUrl)).toContain(ogImage!.url)
+    expect(
+      model.candidates.map((candidate) => `http://localhost:3000${candidate.webpUrl}`),
+    ).toContain(ogImage!.url)
   })
 })

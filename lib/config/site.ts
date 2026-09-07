@@ -165,6 +165,27 @@ export function absoluteUrl(path = '/'): string {
   return new URL(assetPath(path), `${origin}/`).toString()
 }
 
+/**
+ * The absolute form of a path that **already carries the deployment's base path** — an
+ * asset URL as `assetPath()` produced it, such as the ones `lib/images/public.ts` writes
+ * into a `srcset`.
+ *
+ * The difference from {@link absoluteUrl} is which end of the path the caller holds.
+ * `absoluteUrl('/menu/')` is given a path this repository writes as if the site were at
+ * the root of a host, and adds the sub-path; this is given a path a browser can already
+ * request, and only puts the origin in front of it. Prefixing twice
+ * (`/klingenberg-food/klingenberg-food/media/…`) is exactly the bug this exists to
+ * avoid.
+ *
+ * JSON-LD is the caller: unlike Next.js's metadata, which resolves a relative image URL
+ * against `metadataBase` by itself, a `<script type="application/ld+json">` block is
+ * plain text that has to state absolute URLs of its own.
+ */
+export function absoluteAssetUrl(assetUrlPath: string): string {
+  const { origin } = address()
+  return new URL(assetUrlPath, `${origin}/`).toString()
+}
+
 /** `URL` form of {@link getSiteUrl}, for `metadataBase`. */
 export function getSiteUrlObject(): URL {
   return new URL(absoluteUrl('/'))

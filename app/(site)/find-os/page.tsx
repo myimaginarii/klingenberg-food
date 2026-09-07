@@ -1,9 +1,11 @@
 import { SITE_CONTACT } from '@/content/site/contact'
 import { OPENING_HOURS } from '@/content/site/hours'
+import { socialImage } from '@/content/site/images'
 import { pageMetadata } from '@/lib/seo/metadata'
 import { directionsUrl, formatAddressLine, toPostalAddress } from '@/lib/site/links'
 
 import { ActionLink } from '@/components/site/ActionLink'
+import { RestaurantJsonLd } from '@/components/site/RestaurantJsonLd'
 import { AddressBlock } from '@/components/site/contact/AddressBlock'
 import { EmailBlock } from '@/components/site/contact/EmailBlock'
 import { FollowUsCard } from '@/components/site/contact/FollowUsCard'
@@ -29,8 +31,9 @@ function describeWhere(): string {
 }
 
 export const metadata = pageMetadata(
-  'Find os',
+  'Find os og åbningstider',
   `${describeWhere()}. Se åbningstider og ring for at bestille.`,
+  { path: '/find-os', image: socialImage('about-venue') },
 )
 
 /**
@@ -51,6 +54,11 @@ export default function FindOsPage() {
 
   return (
     <PageContainer className="py-page-mobile md:py-page">
+      {/* The same §11 Restaurant block the Forside carries, under the same `@id`: this
+          is the page a local search lands on for the address and the hours, and the
+          markup restates exactly what is printed below it. */}
+      <RestaurantJsonLd />
+
       <div className="grid gap-8 md:grid-cols-[1fr_1.15fr] md:gap-9">
         <div>
           <h1 className="font-display text-page">Find os</h1>

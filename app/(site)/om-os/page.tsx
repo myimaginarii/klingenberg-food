@@ -1,4 +1,5 @@
 import { AboutPageContent } from '@/components/site/about/AboutPageContent'
+import { socialImage } from '@/content/site/images'
 import { ABOUT_PAGE } from '@/content/site/pages'
 import { pageMetadata } from '@/lib/seo/metadata'
 
@@ -12,6 +13,7 @@ import { pageMetadata } from '@/lib/seo/metadata'
 export const metadata = pageMetadata(
   'Om os',
   'Historien om Klingenberg Food, burgerbaren i Carl Nielsen Hallen i Nørre Lyndelse.',
+  { path: '/om-os', image: socialImage('about-venue') },
 )
 
 export default function OmOsPage() {

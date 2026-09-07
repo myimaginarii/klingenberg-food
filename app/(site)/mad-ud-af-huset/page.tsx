@@ -1,4 +1,5 @@
 import { SITE_CONTACT } from '@/content/site/contact'
+import { socialImage } from '@/content/site/images'
 import { TAKEAWAY_PAGE } from '@/content/site/pages'
 import { TAKEAWAY_DEFAULT_CTA_LABEL } from '@/lib/site/defaults'
 import { pageMetadata } from '@/lib/seo/metadata'
@@ -26,6 +27,7 @@ import { TakeawaySections } from '@/components/site/takeaway/TakeawaySections'
 export const metadata = pageMetadata(
   'Mad ud af huset',
   'Klingenberg Food laver mad ud af huset til fester og større selskaber. Ring og hør nærmere.',
+  { path: '/mad-ud-af-huset', image: socialImage('takeaway') },
 )
 
 const NO_FORM_NOTE = 'Bestilling og aftaler klarer vi over telefonen, så der er ingen formular at udfylde.'

@@ -1,5 +1,18 @@
+import { unindexedMetadata } from '@/lib/seo/metadata'
+
 import { SiteNotFound } from '@/components/site/SiteNotFound'
 import { SiteShell } from '@/components/site/layout/SiteShell'
+
+/**
+ * A title of its own, so a lost guest's browser tab does not read like the Forside.
+ * No canonical URL and no Open Graph block: this address names no page, and it must not
+ * claim to be one or hand a messaging app a card for it. The root layout's
+ * `noindex, nofollow` still applies, and the framework adds its own `noindex` here too.
+ */
+export const metadata = unindexedMetadata(
+  'Siden findes ikke',
+  'Adressen findes ikke på Klingenberg Foods hjemmeside.',
+)
 
 /**
  * Any address that matches no route — technical plan §10g.

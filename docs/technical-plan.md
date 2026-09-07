@@ -9164,16 +9164,16 @@ Sentry on the server (Server Actions, route handlers, RSC) with releases tied to
 
 ## 11. SEO
 
-- **Titles/descriptions** per route via `generateMetadata`, in Danish, `<html lang="da">`. Pattern: `Menu — Klingenberg Food, Carl Nielsen Hallen`.
+- **Titles/descriptions** per route via `generateMetadata`, in Danish, `<html lang="da">`. Pattern (phase 2B SEO, 2026-09-08): `Menu | Klingenberg Food` — one separator, the business name alone; the venue is named in the descriptions, `og:site_name` and the structured data. The Forside is `Klingenberg Food | Burgerbar i Carl Nielsen Hallen`. Built by `lib/seo/metadata.ts`, which also emits the canonical URL and the Open Graph/Twitter block for every page.
 - **Canonical URLs** absolute from `lib/config/site.ts` on every page; `/nyheder/[slug]` canonical to itself.
 - **`app/sitemap.ts`** — the six static pages plus published news detail URLs, with `lastModified` from `updated_at`. Unpublishing removes the entry.
-- **`app/robots.ts`** — allow all, disallow `/admin` and `/api`; sitemap reference.
+- **`app/robots.ts`** — allow all; sitemap reference. Nothing is disallowed: `/admin` and `/api` belonged to the retired administration and do not exist in the static export. Allowing the crawl is what lets a crawler read the pre-launch `noindex, nofollow` tag in `app/layout.tsx`; removing that tag is the launch switch, and `robots.ts` does not change.
 - **Open Graph / Twitter** — per-page OG image: the hero photo for Forside, the article image for a news item, and a branded logo card as fallback. `og:locale = da_DK`.
 - **Structured data** — generated from published database values so it can never drift from the page:
-  - One `Restaurant` block on Forside and Find os: `name`, `alternateName` ("Carl Nielsen Caféen"), `address` (Lumbyvej 62, 5792 Nørre Lyndelse, DK), `telephone` (+4563908300), `sameAs` (Facebook), `hasMenu` (/menu), `servesCuisine` "Burger", `award` (Danmarks Bedste Burger 2026 — vinder Fyn & Øer, nr. 4 i Danmark).
+  - One `Restaurant` block on Forside and Find os, under one `@id`: `name`, `address` (Lumbyvej 62, 5792 Nørre Lyndelse, DK), `telephone` (+4563908300), `sameAs` (Facebook), `hasMenu` (/menu), `servesCuisine` "Burger", `award` (Danmarks Bedste Burger 2026 — vinder Fyn & Øer, nr. 4 i Danmark).
   - `openingHoursSpecification` generated from `opening_hours`, with `specialOpeningHoursSpecification` for published future overrides — so a one-off closure is machine-readable too.
   - One `NewsArticle` block on each `/nyheder/[slug]`: `headline`, `datePublished` (`display_date`), `dateModified`, `image`, `publisher`. Nothing invented.
-  - **Omitted until supplied:** `geo`, `priceRange`, `email`, `image` (until real photos land), `aggregateRating`.
+  - **Omitted until supplied:** `geo`, `priceRange`, `aggregateRating`. No `alternateName`: "Carl Nielsen Caféen" is the name the restaurant was listed under in the competition, not a second trading name (copy pass, 2026-09-08). `email` and `image` (the Forside hero photograph) are now present, from the tracked content.
 - **Practical wins that matter more than markup here:** the phone number as a `tel:` link on every page, the address as real text (not baked into the map image), the hours as a real table, and news articles at stable URLs that survive a title edit.
 - **Third-party map content:** the Find os and Forside map is Google's own official `<iframe>` embed for the restaurant's Maps listing, a fixed link never built from visitor input or from the stored address (§7g, phase 14B3, §0aq). It is the one piece of third-party content the public site loads directly into the guest's browser; a later privacy/cookie review should decide whether that needs disclosure or consent (docs/runbooks/launch-notes.md).
 

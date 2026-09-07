@@ -73,6 +73,17 @@ export default defineConfig({
     : {
         command: `npm run build && node scripts/serve-static.mjs --port ${PORT}`,
         url: baseURL,
+        /*
+          The export bakes its own absolute addresses in — canonical URLs, `og:url`, the
+          sitemap, the JSON-LD (`lib/config/site.ts`, §10d) — so the build has to be told
+          where this run will serve it from. Without this the suite would test a site
+          that believes it lives at :3000 while answering on :3100, and
+          `tests/e2e/seo-metadata.spec.ts` would be asserting against a mismatch rather
+          than against the deployment's behaviour. A CI run against a deployed preview
+          sets `PLAYWRIGHT_BASE_URL` and has no webServer at all; that build was given
+          its own address by whatever produced it.
+        */
+        env: { SITE_URL: baseURL },
         reuseExistingServer: !process.env.CI,
         timeout: 240_000,
       },

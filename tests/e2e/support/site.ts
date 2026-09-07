@@ -10,13 +10,38 @@
  * is how the links render and how a static host serves a folder.
  */
 
+/**
+ * `title` is the document title §11's pattern produces (`lib/seo/metadata.ts`): one
+ * separator, the business name, and no venue repeated into every page's width. The
+ * Forside is the exception, because it is the page that has to say what the business is.
+ */
 export const PUBLIC_ROUTES = [
-  { path: '/', heading: 'Burgeren der vandt Fyn', navLabel: 'Forside' },
-  { path: '/menu/', heading: 'Menu', navLabel: 'Menu' },
-  { path: '/mad-ud-af-huset/', heading: 'Mad ud af huset', navLabel: 'Mad ud af huset' },
-  { path: '/om-os/', heading: 'Mad fra Carl Nielsen Hallen', navLabel: 'Om os' },
-  { path: '/nyheder/', heading: 'Nyheder', navLabel: 'Nyheder' },
-  { path: '/find-os/', heading: 'Find os', navLabel: 'Find os' },
+  {
+    path: '/',
+    heading: 'Burgeren der vandt Fyn',
+    navLabel: 'Forside',
+    title: 'Klingenberg Food | Burgerbar i Carl Nielsen Hallen',
+  },
+  { path: '/menu/', heading: 'Menu', navLabel: 'Menu', title: 'Menu | Klingenberg Food' },
+  {
+    path: '/mad-ud-af-huset/',
+    heading: 'Mad ud af huset',
+    navLabel: 'Mad ud af huset',
+    title: 'Mad ud af huset | Klingenberg Food',
+  },
+  {
+    path: '/om-os/',
+    heading: 'Mad fra Carl Nielsen Hallen',
+    navLabel: 'Om os',
+    title: 'Om os | Klingenberg Food',
+  },
+  { path: '/nyheder/', heading: 'Nyheder', navLabel: 'Nyheder', title: 'Nyheder | Klingenberg Food' },
+  {
+    path: '/find-os/',
+    heading: 'Find os',
+    navLabel: 'Find os',
+    title: 'Find os og åbningstider | Klingenberg Food',
+  },
 ] as const
 
 export const PRIMARY_PHONE = '+45 63 90 83 00'

@@ -1,5 +1,6 @@
 import { SITE_CONTACT } from '@/content/site/contact'
 import { OPENING_HOURS } from '@/content/site/hours'
+import { socialImage } from '@/content/site/images'
 import { MENU } from '@/content/site/menu'
 import { NEWS_ARTICLES } from '@/content/site/news'
 import { HOME_PAGE } from '@/content/site/pages'
@@ -9,6 +10,7 @@ import { homeMetadata } from '@/lib/seo/metadata'
 import { directionsUrl, toPostalAddress } from '@/lib/site/links'
 
 import { AwardBand } from '@/components/site/AwardBand'
+import { RestaurantJsonLd } from '@/components/site/RestaurantJsonLd'
 import { FeaturedDishes } from '@/components/site/home/FeaturedDishes'
 import { HomeHero } from '@/components/site/home/HomeHero'
 import { MonthlyBurgerFeature } from '@/components/site/home/MonthlyBurgerFeature'
@@ -31,6 +33,7 @@ import { VisitPanel } from '@/components/site/home/VisitPanel'
  */
 export const metadata = homeMetadata(
   'Burgerbaren i Carl Nielsen Hallen i Nørre Lyndelse. Vinder af Fyn & Øer ved Danmarks Bedste Burger 2026. Bestilling på telefon.',
+  { image: socialImage('home-hero') },
 )
 
 /** The confirmed result (1ab), for a document whose award section is empty. Nothing invented. */
@@ -50,6 +53,11 @@ export default function ForsidePage() {
 
   return (
     <>
+      {/* §11's Restaurant block — the business, its address, its telephone number and
+          its opening hours, from the same tracked facts the page below prints. Find os
+          renders the same component under the same `@id`. */}
+      <RestaurantJsonLd />
+
       <HomeHero
         heading={home.hero.heading ?? 'Klingenberg Food'}
         intro={home.hero.intro}
