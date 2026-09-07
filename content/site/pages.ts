@@ -105,6 +105,6 @@ export const TAKEAWAY_PAGE: TakeawayDocument = {
       ),
     },
   ],
-  // `null` renders the page's own default label, "Ring og hør mere" (`lib/pages/takeaway.ts`).
+  // `null` renders the page's own default label, "Ring og hør mere" (`lib/site/defaults.ts`).
   ctaLabel: null,
 }

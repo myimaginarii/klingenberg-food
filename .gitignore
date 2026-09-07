@@ -20,37 +20,20 @@ next-env.d.ts
 /playwright-report
 /.playwright-mcp
 
-# operator-supplied launch source material (phase 14B2) — an input folder, not a
-# runtime asset location. What belongs in the repository (the logo, a licensed map)
-# is copied into public/ or app/ by hand; this directory itself is never read by the
-# application and never ships.
+# operator-supplied source material — an input folder, not a runtime asset location.
+# What belongs in the repository (the logo, the confirmed photographs) is copied into
+# public/ or content/launch/photos/ by hand; this directory is never read by the build.
 /launch-assets
 
-# local env — never commit secrets. Names only live in .env.example.
+# local env — never commit an environment file.
 #
-# `.env.*` already covers every private environment file this repository uses, and
-# the two that exist are deliberately separate (see .env.example):
-#
-#   .env.local             the LOCAL Supabase stack — development, the drills, the
-#                          integration and E2E suites
-#   .env.operator.local    the PRODUCTION project — `npm run launch:*`,
-#                          `npm run backup:production`, `npm run backup:restore:production`
-#
-# Neither is ever committed, and no command loads both: a shell that can reach the
-# local stack must not also be holding production credentials.
-#
-# The production file is deliberately NOT `.env.production.local`: Next.js loads
-# that name itself during `next build` and `next start`, ahead of `.env.local`, so
-# a plain local build would target production. `.env.operator.local` is a name
-# Next never reads; only the explicit `--env-file-if-exists` commands do.
+# The static site needs no secret of any kind (see .env.example); `SITE_URL` is the one
+# variable, it is optional, and it is set by whatever builds the site rather than stored
+# here. This stays as a blanket rule anyway: a repository that has never held a
+# credential is one nobody has to audit.
 .env
 .env.*
 !.env.example
-
-# supabase local
-/supabase/.branches
-/supabase/.temp
-/supabase/.env
 
 # editor / os
 .DS_Store
@@ -59,9 +42,6 @@ Thumbs.db
 .idea
 .vscode/*
 !.vscode/extensions.json
-
-# vercel
-.vercel
 
 # typescript
 *.tsbuildinfo

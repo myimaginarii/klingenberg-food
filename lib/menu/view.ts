@@ -13,7 +13,7 @@ import { isMonthlyWindowOpen, monthlyWindowPhase } from './monthly'
  * two questions the database deliberately does not store: *is this item sold out right
  * now*, and *is Månedens burger inside its window today*. Both are read-time
  * derivations (§4), and both are computed here rather than in a component so that the
- * public menu, and later the administration's helper text, cannot disagree.
+ * menu page and the Forside cannot disagree.
  *
  * The sold-out rule itself is not restated. It lives in `./availability.ts`, which
  * phase 2 built and tested against every row of the §7b table; this module only applies
@@ -82,10 +82,9 @@ export function formatServingDays(days: readonly string[]): string | null {
  * Is a published Månedens burger shown today? Inclusive at both ends, in Copenhagen
  * local dates (§7d). An open end means "no boundary on that side".
  *
- * The comparison itself is `monthlyWindowPhase` in `lib/menu/monthly.ts`, which is also
- * what the administration's computed state is built from (§7d). One rule, two callers:
- * a boundary date the guest's page and the editor disagreed about would be the single
- * most confusing bug this feature could have.
+ * The comparison itself is `monthlyWindowPhase` in `lib/menu/monthly.ts` (§7d). One
+ * rule, one place: a boundary date the menu page and the Forside disagreed about would
+ * be the single most confusing bug this feature could have.
  */
 export function isMonthlyBurgerInWindow(burger: MonthlyBurger, now: Date): boolean {
   return isMonthlyWindowOpen(monthlyWindowPhase(burger.startsOn, burger.endsOn, now))
@@ -129,7 +128,7 @@ export function buildMenuView(
 }
 
 /**
- * The three burgers the Forside features, in the order the administration chose.
+ * The three dishes the Forside features, in the order `content/site/pages.ts` lists them.
  *
  * A referenced dish that has since been deleted or unpublished simply drops out — the
  * design shows three cards, never a hole where one used to be (§7e, item 4).
@@ -166,13 +165,12 @@ export function selectFeaturedDishes(
  *    burger without a name is not a burger.
  *  * **Today is inside its window.** {@link buildMenuView} has already applied
  *    `starts_on` / `ends_on` as a read-time Copenhagen date comparison (§7d).
- *  * **The administration asked for it.** `show_on_homepage`, the only part of the
- *    question that is about the Forside rather than about the burger — which is the
- *    whole reason this function exists and the menu page does not call it.
+ *  * **The content asked for it.** `showOnHomepage`, the only part of the question
+ *    that is about the Forside rather than about the burger — which is the whole
+ *    reason this function exists and the menu page does not call it.
  *
- * When it returns `null` the Forside renders nothing at all. A guest is never told that
- * a burger they have not heard of is missing; that sentence belongs in the
- * administration, where somebody can act on it.
+ * When it returns `null` the Forside renders nothing at all: a guest is never told
+ * that a burger they have not heard of is missing.
  *
  * Sold out is deliberately *not* a condition. An active burger that ran out today stays
  * on the Forside carrying "Udsolgt i dag", exactly as it does on the menu (§7b).

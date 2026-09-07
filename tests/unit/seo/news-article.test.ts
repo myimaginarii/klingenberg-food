@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildPublicImage } from '@/lib/images/public'
+import { buildStaticPublicImage } from '@/lib/images/public'
 import { newsArticleJsonLd, serializeJsonLd } from '@/lib/seo/news-article'
 
 /**
@@ -19,28 +19,22 @@ const ARTICLE = {
   image: null,
 }
 
-const ORIGIN = 'http://localhost:54321'
-const UPLOAD = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1'
+const SLOT = 'news-photo'
 
-const IMAGE = buildPublicImage(ORIGIN, {
-  storage_path: `${UPLOAD}/original.jpg`,
-  alt_text: 'Burgeren fra siden.',
-  derivatives: {
-    formats: ['avif', 'webp'],
-    widths: [
-      { width: 480, height: 320 },
-      { width: 960, height: 640 },
-      { width: 1440, height: 960 },
-    ],
-  },
-})!
+/** A 1440 px source: the 480, 960 and 1440 rungs. */
+const IMAGE = buildStaticPublicImage({
+  slot: SLOT,
+  alt: 'Burgeren fra siden.',
+  width: 1440,
+  height: 960,
+})
 
 describe('newsArticleJsonLd', () => {
   it('builds §11’s block from the stored values, and only those', () => {
     expect(newsArticleJsonLd(ARTICLE)).toEqual({
       '@context': 'https://schema.org',
       '@type': 'NewsArticle',
-      mainEntityOfPage: 'http://localhost:3000/nyheder/ny-burger-i-oktober',
+      mainEntityOfPage: 'http://localhost:3000/nyheder/ny-burger-i-oktober/',
       headline: 'Ny burger i oktober',
       datePublished: '2026-10-01',
       dateModified: '2026-09-01T10:00:00.000Z',
@@ -71,7 +65,7 @@ describe('newsArticleJsonLd', () => {
       '@type': 'ImageObject',
       // The rung at or above 1200 px — the ladder's 1440 — in WebP, from the public
       // `media` bucket. Never the private original, never a guessed size.
-      url: `${ORIGIN}/storage/v1/object/public/media/${UPLOAD}/1440.webp`,
+      url: `/media/${SLOT}/1440.webp`,
       width: 1440,
       height: 960,
     })
@@ -81,7 +75,7 @@ describe('newsArticleJsonLd', () => {
   it('uses the frozen slug under the configured origin — never a hard-coded domain', () => {
     const block = newsArticleJsonLd({ ...ARTICLE, slug: 'anden-adresse' })
 
-    expect(block.mainEntityOfPage).toBe('http://localhost:3000/nyheder/anden-adresse')
+    expect(block.mainEntityOfPage).toBe('http://localhost:3000/nyheder/anden-adresse/')
   })
 })
 

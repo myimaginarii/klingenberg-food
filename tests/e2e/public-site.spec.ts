@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { formatDailyHours, formatWeeklyHoursLines } from '@/lib/hours/format'
+import { formatDailyHours, formatWeekdayName, formatWeeklyHoursLines } from '@/lib/hours/format'
+import { weekdayOf } from '@/lib/time/calendar'
+import { copenhagenDateOf } from '@/lib/time/copenhagen'
 import { CONFIRMED_SCHEDULE } from '../unit/fixtures/hours'
 import {
   ADDRESS_LINE,
@@ -185,8 +187,24 @@ test.describe('opening hours come from the phase 2 engine', () => {
   test('the status badge names a state in words, never colour alone', async ({ page }) => {
     await page.goto('/find-os')
 
+    // The prerendered HTML claims nothing; the browser decides and replaces the
+    // neutral label with the real state. `toBeVisible` waits for that to happen.
     const badge = page.getByRole('main').getByText(/^(Åbent nu|Lukket)/).first()
     await expect(badge).toBeVisible()
+  })
+
+  test('the browser decides which row of the hours table is today', async ({ page }) => {
+    await page.goto('/find-os')
+
+    // The context runs in Europe/Copenhagen, so the browser's own weekday is the
+    // answer the page must reach. Asserted on the element rather than on its
+    // visibility: at 375 px the seven-day list sits inside a collapsed <details>.
+    const weekday = formatWeekdayName(weekdayOf(copenhagenDateOf(new Date())), 'long')
+    const today = weekday.charAt(0).toUpperCase() + weekday.slice(1)
+
+    await expect(
+      page.getByRole('main').locator('dt', { hasText: '· i dag' }).first(),
+    ).toHaveText(new RegExp(`^${today}`))
   })
 })
 

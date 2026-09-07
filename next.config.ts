@@ -1,29 +1,25 @@
 import type { NextConfig } from 'next'
 
-import { PUBLIC_REVALIDATE_SECONDS } from './lib/cache/tags'
-import { getServerActionAllowedOrigins } from './lib/config/site'
-import { securityHeaders } from './lib/security/headers'
-import { optionalSupabaseOrigin } from './lib/supabase/config'
-
 const nextConfig: NextConfig = {
   /**
-   * The public site is a static export (the static rebuild, phase 1): with
-   * `STATIC_EXPORT=1`, `next build` writes every public page, the 404 and the sitemap
-   * as plain files under `out/`, from the tracked content in `content/site/`, and no
-   * server runs behind the site.
+   * The site is a static export.
    *
-   * The flag exists because the archived administration is still in the application
-   * tree: its route handlers, Server Actions and cookie-reading pages are exactly what
-   * the framework refuses to export (measured: `/admin/bekraeft` is the first refusal).
-   * Until that tree is retired, a plain `next build` stays the server build it was, and
-   * the export is proven by building without those routes. Retiring them turns this
-   * into an unconditional `output: 'export'`.
+   * `next build` writes every public page, the designed 404 and the sitemap as plain
+   * files under `out/`, rendered from the tracked content in `content/site/`. There is
+   * no server behind the site, no database, no route handler and no Server Action —
+   * `out/` is the whole deployable artefact, and any static host serves it.
    *
-   * `trailingSlash` is unconditional: each page is a directory with an `index.html`
-   * (`/menu/`), which is what a static host serves for a folder and what every link
-   * renders as, so the server build and the export agree about every address.
+   * This was conditional on a `STATIC_EXPORT` flag while the retired administration was
+   * still in the tree: its route handlers, Server Actions and cookie-reading pages are
+   * exactly what the framework refuses to export. They are gone, so the export is the
+   * only build there is.
    */
-  ...(process.env.STATIC_EXPORT === '1' ? { output: 'export' as const } : {}),
+  output: 'export',
+  /**
+   * Each page is a directory with an `index.html` (`/menu/`), which is what a static
+   * host serves for a folder and what every link, canonical URL and sitemap entry
+   * renders as (`lib/seo/sitemap.ts`).
+   */
   trailingSlash: true,
   reactStrictMode: true,
   // The framework version is not a secret, but it is also not useful to advertise.
@@ -32,71 +28,14 @@ const nextConfig: NextConfig = {
   // (Next 16 no longer runs ESLint during `next build`; CI runs `npm run lint`.)
   typescript: { ignoreBuildErrors: false },
   /**
-   * When a cached public page **expires** — technical plan §6, §7a.
+   * Response headers are the host's to send.
    *
-   * Without this, Next.js pairs the route's five-minute `revalidate` with its default
-   * `expireTime` of one year, and a cached page therefore has two ages: it goes *stale*
-   * after five minutes and does not *expire* for a year. Everything between those two
-   * points is stale-while-revalidate, and stale-while-revalidate means "answer with the
-   * copy you have, then fetch a new one" — which breaks both promises this application
-   * makes about its public pages:
-   *
-   *   * **§6 — publishing shows on the next request.** The origin keeps that promise:
-   *     `updateTag()` expires the tags, and the next request for an affected page is a
-   *     cache miss that renders fresh (measured: with the `/menu` entry deliberately
-   *     aged past five minutes, the first guest request after Offentliggør is a MISS
-   *     carrying the new price). But the origin cannot expire a cached copy held by
-   *     somebody else, and `stale-while-revalidate=31535700` is this site telling every
-   *     shared cache and CDN in front of it that a page up to a **year** old may be
-   *     served while a fresh one is fetched behind it. Through such a cache the first
-   *     request after a publish gets the old page and the second gets the new one —
-   *     the publish contract, broken by the header rather than by the invalidation.
-   *   * **§7a — nothing a guest reads is more than five minutes out of date.** Next's
-   *     own response cache honours the same figure, so a page nobody has asked for in an
-   *     hour is served to the next visitor as it was rendered an hour ago (measured:
-   *     `x-nextjs-cache: STALE` on an entry 310 s old). The open/closed badge, the
-   *     Udsolgt reset and the Månedens burger window are all computed at render time, so
-   *     that visitor reads an hour-old answer to a question about *now*.
-   *
-   * Setting `expireTime` to the same five minutes removes the second age. A cached page
-   * is fresh for five minutes and expired after them: Next.js re-renders before
-   * answering rather than after, and the `Cache-Control` it sends is a plain
-   * `s-maxage=300` that authorises no shared cache to serve anything older. Caching is
-   * unchanged for the five minutes it is meant to cover, and no route becomes dynamic.
-   *
-   * The cost is one blocking render for the first visitor after a quiet five minutes,
-   * which is the price of the two promises above and is what §7a already describes.
+   * `headers()` is a server feature and does nothing in an export, so the security
+   * headers this application used to attach here (§8) now belong to whatever serves
+   * `out/`. They are stated in the deployment's own configuration rather than pretended
+   * at here — a `headers()` block in a static build would be a policy that never
+   * reaches a browser.
    */
-  expireTime: PUBLIC_REVALIDATE_SECONDS,
-  /**
-   * The security-header policy — technical plan §8, phase 13B (§0ai).
-   *
-   * One set for every response, public and administration alike, built by
-   * `lib/security/headers.ts` and pinned by its unit test. It is attached here rather
-   * than in `proxy.ts` because the proxy runs on `/admin` only and a header policy
-   * that skipped the public site would be no policy; and because this is a static
-   * policy — no nonce, no per-request value — so the public pages keep their
-   * five-minute `s-maxage` caching untouched. `Cache-Control` is not set here and is
-   * not affected: `headers()` adds to a response, it does not replace what the route
-   * decided (`tests/e2e/security-headers.spec.ts` asserts the two together).
-   */
-  async headers() {
-    return [
-      {
-        source: '/(.*)',
-        headers: securityHeaders({
-          production: process.env.NODE_ENV === 'production',
-          supabaseOrigin: optionalSupabaseOrigin(),
-        }),
-      },
-    ]
-  },
-  experimental: {
-    serverActions: {
-      // Derived from lib/config/site.ts — never a hard-coded domain (technical plan §8, §10d).
-      allowedOrigins: getServerActionAllowedOrigins(),
-    },
-  },
 }
 
 export default nextConfig

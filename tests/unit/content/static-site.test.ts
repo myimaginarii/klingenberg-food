@@ -8,7 +8,6 @@ import { MENU, MENU_CATEGORIES, MONTHLY_BURGER, WEEKLY_SPECIAL } from '@/content
 import { NEWS_ARTICLES } from '@/content/site/news'
 import { ABOUT_PAGE, HOME_PAGE, TAKEAWAY_PAGE } from '@/content/site/pages'
 import photos from '@/content/site/photos.json'
-import { readTapasDocument } from '@/lib/menu/tapas'
 import { buildMenuView, selectFeaturedDishes } from '@/lib/menu/view'
 import { planDerivatives } from '@/lib/images/derivatives'
 import { buildStaticPublicImage } from '@/lib/images/public'
@@ -58,11 +57,22 @@ describe('the confirmed menu', () => {
     expect(EVERY_DISH.some((dish) => /salat efter s/i.test(dish.name))).toBe(false)
   })
 
-  it('carries the tapas board as the one structured document, already canonical', () => {
+  it('carries the tapas board as the one structured document', () => {
     const tapas = EVERY_DISH.filter((dish) => dish.tapas !== null)
     expect(tapas.map((dish) => dish.name)).toEqual(['Tapas'])
-    // The same document `readTapasDocument` would produce from it: nothing to repair.
-    expect(readTapasDocument(tapas[0]!.tapas)).toEqual(tapas[0]!.tapas)
+
+    // The document is tracked TypeScript, so its shape is a compile-time fact; what
+    // is worth asserting is that every group it holds is renderable — a heading, a
+    // mode, and items for the reader to choose from.
+    const document = tapas[0]!.tapas!
+    expect(document.kind).toBe('tapas')
+    expect(document.groups.length).toBeGreaterThan(0)
+    for (const group of document.groups) {
+      expect(group.heading.length).toBeGreaterThan(0)
+      expect(['fixed', 'choose']).toContain(group.mode)
+      expect(group.items.length).toBeGreaterThan(0)
+      expect(group.mode === 'choose' ? group.choose : null).not.toBe(0)
+    }
   })
 
   it('marks nothing sold out and names only the confirmed Ugens ret note', () => {

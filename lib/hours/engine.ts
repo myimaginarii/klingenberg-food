@@ -10,7 +10,7 @@ import type { DayOpening, OpeningHoursOverride, OpeningInterval, WeeklySchedule 
  * Pure, and deliberately ignorant of everything around it: it takes a schedule, the
  * overrides and an instant, and returns values. It performs no query, reads no
  * environment variable, touches no React and mutates nothing it is given. That is what
- * lets one implementation serve the server-rendered "Åbent nu" badge, the admin's
+ * lets one implementation serve the browser's "Åbent nu" badge, the
  * helper text, the footer hours and the sold-out reset — with no chance of the four
  * disagreeing (§7b).
  *
@@ -27,13 +27,13 @@ import type { DayOpening, OpeningHoursOverride, OpeningInterval, WeeklySchedule 
  * How far forward a search for the next opening will look, in calendar days.
  *
  * Fixed by the plan (§7b). A restaurant with no opening day inside two months is not
- * a scheduling problem to be solved by scanning further — it is a situation the admin
+ * a scheduling problem to be solved by scanning further — it is a situation the site
  * must show plainly ("Nulstilles ikke automatisk — I har ingen åbningsdage planlagt"),
  * so the search stops and says so.
  */
 export const MAX_OPENING_SEARCH_DAYS = 60
 
-/** Open now, or not — plus the context both the badge and the admin need. */
+/** Open now, or not — plus the context the badge and the hours table need. */
 export type OpenState = {
   /** The Copenhagen date `now` falls on, and the hours that apply to it. */
   today: DayOpening

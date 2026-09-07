@@ -22,7 +22,7 @@ import type {
  *
  * This is the single place where the weekly schedule and the one-off overrides are
  * combined. The open/closed badge, the next-opening lookup, the footer hours and the
- * sold-out reset all reach the answer through here, so the public site and the admin
+ * sold-out reset all reach the answer through here, so no two surfaces of the site
  * can never disagree about whether a day is open (§7b).
  *
  * Everything is civil time: a date in, a date's hours out. No instant is produced and

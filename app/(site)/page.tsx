@@ -4,7 +4,6 @@ import { MENU } from '@/content/site/menu'
 import { NEWS_ARTICLES } from '@/content/site/news'
 import { HOME_PAGE } from '@/content/site/pages'
 import { articleExcerpt } from '@/lib/news/excerpt'
-import { readOpenStatus } from '@/lib/hours/status'
 import { buildMenuView, selectFeaturedDishes, selectHomepageMonthlyBurger } from '@/lib/menu/view'
 import { homeMetadata } from '@/lib/seo/metadata'
 import { directionsUrl, toPostalAddress } from '@/lib/site/links'
@@ -43,7 +42,6 @@ const AWARD_FALLBACK = {
 export default function ForsidePage() {
   const home = HOME_PAGE
   const now = new Date()
-  const openStatus = readOpenStatus(now, OPENING_HOURS.schedule, OPENING_HOURS.overrides)
   const menuView = buildMenuView(MENU, OPENING_HOURS, now)
   const featured = selectFeaturedDishes(menuView.categories, home.featuredDishIds)
   const monthlyBurger = selectHomepageMonthlyBurger(menuView.monthlyBurger)
@@ -55,7 +53,6 @@ export default function ForsidePage() {
       <HomeHero
         heading={home.hero.heading ?? 'Klingenberg Food'}
         intro={home.hero.intro}
-        openStatus={openStatus}
         schedule={OPENING_HOURS.schedule}
         overrides={OPENING_HOURS.overrides}
         primaryPhone={SITE_CONTACT.primaryPhone}
@@ -85,7 +82,6 @@ export default function ForsidePage() {
       <VisitPanel
         contact={SITE_CONTACT}
         address={address}
-        openStatus={openStatus}
         schedule={OPENING_HOURS.schedule}
         overrides={OPENING_HOURS.overrides}
       />

@@ -1,6 +1,5 @@
 import { SITE_CONTACT } from '@/content/site/contact'
 import { OPENING_HOURS } from '@/content/site/hours'
-import { readOpenStatus } from '@/lib/hours/status'
 import { pageMetadata } from '@/lib/seo/metadata'
 import { directionsUrl, formatAddressLine, toPostalAddress } from '@/lib/site/links'
 
@@ -48,7 +47,6 @@ export const metadata = pageMetadata(
 export default function FindOsPage() {
   const contact = SITE_CONTACT
   const hours = OPENING_HOURS
-  const openStatus = readOpenStatus(new Date(), hours.schedule, hours.overrides)
   const address = toPostalAddress(contact)
 
   return (
@@ -58,7 +56,6 @@ export default function FindOsPage() {
           <h1 className="font-display text-page">Find os</h1>
 
           <OpenStatus
-            initialStatus={openStatus}
             schedule={hours.schedule}
             overrides={hours.overrides}
             variant="pill"
@@ -121,11 +118,7 @@ export default function FindOsPage() {
             <Eyebrow as="h2" id="find-os-tider">
               Åbningstider
             </Eyebrow>
-            <OpeningHours
-              schedule={hours.schedule}
-              todayWeekday={openStatus.todayWeekday}
-              className="mt-3"
-            />
+            <OpeningHours schedule={hours.schedule} className="mt-3" />
           </section>
         </div>
 

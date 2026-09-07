@@ -70,11 +70,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         in-page anchors (1m's chips). Next 16 no longer switches that off by itself
         while it scrolls a *route transition* to the top of the new page; this
         attribute is its documented way of asking for exactly that (the framework's
-        earlier default). Without it the scroll to the top after a Server Action's
-        redirect is an animation still running when the page's own effects look at
-        where things are — the reorder handle's focus recovery (phase 12A) measured
-        the moved row as "already on screen" and then watched the page glide away
-        from it. Hash-only changes keep their smooth scroll; nothing else changes.
+        earlier default). Without it a route change scrolls to the top as an animation
+        that is still running when the new page's own effects look at where things are.
+        Hash-only changes keep their smooth scroll; nothing else changes.
       */
       data-scroll-behavior="smooth"
     >

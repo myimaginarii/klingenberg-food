@@ -3,13 +3,13 @@
 This folder holds the source material needed to reproduce the finished public site's
 real copy and photographs. It is **not read by the application** at build or run time.
 It was created before the static rebuild (branch `static-rebuild`, archive tag
-`pre-static-rebuild`) so that the finished design cannot be lost when the
-Supabase/admin architecture is retired.
+`pre-static-rebuild`) so that the finished design could not be lost when the
+Supabase/admin architecture was retired. It since has been: the site now renders from
+`content/site/`, and this folder is the provenance record for what went in there.
 
 Before this folder existed the material lived only in the git-ignored `launch-assets/`
 operator folder and, for a while, in the local image library and page editors — neither
-of which survives a database reset. The authoritative record of what went where is
-`docs/runbooks/launch-notes.md` §1; the table below repeats it for the files kept here.
+of which survived a database reset. The table below is now the whole record.
 
 ## What is here
 
@@ -30,17 +30,15 @@ of which survives a database reset. The authoritative record of what went where 
 | `photos/dish-ragnar.png` | `ragnar.png` | The **Ragnar** dish's photograph on the menu |
 | `photos/dish-tapas.png` | `tapaz.png` | The **Tapas** dish's photograph. Stored against the dish; the public Tapas board is a text table by design and renders no photo |
 
-The photographs' alt texts were typed into the local editors by hand and are not
-recorded anywhere in the repository. They must be written again when the images are
-placed. The only documented wording is the phase-14B2 brief's example for the hero,
-"Burger med bacon og spejlæg".
+The photographs' descriptions are now tracked with the photographs, in
+`content/site/photos.json`, which is what the pages read.
 
 ## What is kept elsewhere
 
 - The logo (`logo.svg`, the handmade K, unaltered) is already committed as
   `public/brand/logo.svg` and `app/icon.svg`. It is not duplicated here.
-- The confirmed menu, prices, tapas lists, contact details and opening hours are in
-  `supabase/seed/confirmed.sql`.
+- The confirmed menu, prices, tapas lists, contact details and opening hours are the
+  tracked content the site renders, under `content/site/`.
 
 ## What was deliberately left out
 

@@ -3,7 +3,6 @@ import { AwardRibbon } from '@/components/site/AwardRibbon'
 import { OpenStatus } from '@/components/site/OpenStatus'
 import { PhoneAction } from '@/components/site/PhoneAction'
 import { SiteImage } from '@/components/site/SiteImage'
-import type { OpenStatusSnapshot } from '@/lib/hours/status'
 import type { OpeningHoursOverride, WeeklySchedule } from '@/lib/hours/types'
 import type { PublicImage } from '@/lib/images/public'
 
@@ -23,12 +22,11 @@ import type { PublicImage } from '@/lib/images/public'
  * "Hovedbillede" — rendered by the one public renderer in exactly the box the
  * placeholder reserved: 4:3 above the text on a phone, the full-height column beside
  * it from `md`. It is the page's primary image, so it loads eagerly. No image, or an
- * image the read layer could not render safely, is the reserved frame as before.
+ * image is the reserved frame, exactly as the design draws it.
  */
 export function HomeHero({
   heading,
   intro,
-  openStatus,
   schedule,
   overrides,
   primaryPhone,
@@ -38,7 +36,6 @@ export function HomeHero({
   heading: string
   intro: string | null
   image: PublicImage | null
-  openStatus: OpenStatusSnapshot
   schedule: WeeklySchedule
   overrides: OpeningHoursOverride[]
   primaryPhone: string | null
@@ -95,7 +92,6 @@ export function HomeHero({
           </div>
 
           <OpenStatus
-            initialStatus={openStatus}
             schedule={schedule}
             overrides={overrides}
             variant="inline"

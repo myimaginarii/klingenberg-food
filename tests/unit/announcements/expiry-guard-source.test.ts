@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest'
  *
  * §7c describes `AnnouncementExpiryGuard` in terms of what it *does not* do, and every
  * one of those is a property of the file rather than of a rendered output: "no `fetch`,
- * no Supabase client, no realtime subscription, no polling, no cookie, no state library.
+ * no data client, no realtime subscription, no polling, no cookie, no state library.
  * It reads one prop and calls `setTimeout`."
  *
  * WHY THIS IS A SOURCE ASSERTION AND NOT A jsdom TEST
@@ -51,7 +51,7 @@ describe('the announcement expiry guard', () => {
   })
 
   it('makes no network request of any kind', () => {
-    // §7c: "no `fetch`, no Supabase client, no realtime subscription, no polling". The
+    // §7c: "no `fetch`, no data client, no realtime subscription, no polling". The
     // public-JavaScript policy suite asserts the same thing across every client
     // component; this repeats it at the file the promise was made about.
     expect(code).not.toMatch(/\bfetch\s*\(/)

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { WeeklySpecial } from '@/components/site/menu/WeeklySpecial'
 import { NewsCard } from '@/components/site/news/NewsCard'
 import type { NewsArticle } from '@/lib/content/types'
-import { buildPublicImage } from '@/lib/images/public'
+import { buildStaticPublicImage } from '@/lib/images/public'
 import type { WeeklySpecialView } from '@/lib/menu/view'
 
 /**
@@ -21,14 +21,12 @@ import type { WeeklySpecialView } from '@/lib/menu/view'
  * is `tests/e2e/public-images.spec.ts`.
  */
 
-const ORIGIN = 'http://localhost:54321'
-const UPLOAD = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2'
-
-const IMAGE = buildPublicImage(ORIGIN, {
-  storage_path: `${UPLOAD}/original.jpg`,
-  alt_text: null,
-  derivatives: { formats: ['avif', 'webp'], widths: [{ width: 480, height: 320 }] },
-})!
+const IMAGE = buildStaticPublicImage({
+  slot: 'card-photo',
+  alt: 'Et foto.',
+  width: 960,
+  height: 640,
+})
 
 function article(overrides: Partial<NewsArticle> = {}): NewsArticle {
   return {

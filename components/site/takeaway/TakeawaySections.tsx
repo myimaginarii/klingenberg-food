@@ -7,8 +7,8 @@ import { PageContainer } from '../PageContainer'
  *
  * There is no fixed list of packages, and that is a content decision rather than a
  * layout one: "Afsnit kan tilføjes, fjernes og flyttes — siden har ingen fast liste af
- * pakker" (1ai). Staff write and reorder them in the administration, so this component
- * renders whatever is there and nothing when there is nothing.
+ * pakker" (1ai). The list is `content/site/pages.ts`, so this component renders
+ * whatever is there and nothing when there is nothing.
  */
 export function TakeawaySections({ sections }: { sections: TakeawaySection[] }) {
   if (sections.length === 0) return null

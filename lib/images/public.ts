@@ -1,39 +1,30 @@
 import {
-  derivativePath,
-  derivativePublicUrl,
   planDerivatives,
   staticDerivativeUrl,
-  type DerivativeRecord,
 } from './derivatives'
-import { readDerivativeRecord } from './library'
-import { isOriginalStoragePath, uploadIdOfStoragePath } from './rules'
 
 /**
- * The public image model — technical plan §1 (adjustment 3), §4, §8, §11; phase
- * 10C-2.
+ * The public image model — technical plan §1 (adjustment 3), §4, §11.
  *
- * One pure representation of a library image as the public site renders it: the
- * authored description, the processed AVIF and WebP candidates of the derivative
- * ladder, one WebP fallback, and the intrinsic dimensions a layout needs. Built
- * from exactly three stored facts — `storage_path`, `alt_text`, `derivatives` —
- * and nothing else: no original filename, no uploader, no byte size, no MIME.
+ * One pure representation of a tracked photograph as the public site renders it: the
+ * authored description, the AVIF and WebP candidates of the derivative ladder, one
+ * WebP fallback, and the intrinsic dimensions a layout needs. Built from exactly three
+ * tracked facts — the slot, the description and the source dimensions, all stated in
+ * `content/site/photos.json` — and nothing else.
  *
- * WHAT A CANDIDATE IS, AND IS NOT. Every URL here is a derivative in the public
- * `media` bucket, composed through the one central path builder from the row's own
- * storage path and the rungs the record *measured*. The private original is never a
- * candidate, never a fallback and never a URL this module can produce: the model
- * knows the private bucket's name no more than a component does. A rung the record
- * does not carry is never referenced (no upscaling, no guessed 2160), and a record
- * that does not parse is no model at all — the caller falls back to the reserved
- * placeholder rather than to an invented address.
+ * WHAT A CANDIDATE IS, AND IS NOT. Every URL here is a site-relative path under
+ * `public/media/`, composed through the one central path builder from the slot and the
+ * rungs `planDerivatives()` chooses for the source size. The same function plans the
+ * files `scripts/images/build-static-derivatives.mjs` renders, so a model can never
+ * name a rung that was not written. A rung the plan does not carry is never referenced
+ * (no upscaling, no guessed 2160).
  *
- * ALT (§22, phase-10C-2 brief §8). The library owns the description; entities carry
- * only an id. A null or blank description renders as `alt=""`: every slot on the
- * public site sits beside the text that names the thing (the dish's heading, the
- * article's title), so an undescribed photograph is decorative repetition for a
- * screen reader, and repeating the entity's name into `alt` would be exactly the
- * duplicate verbose text the accepted model refuses. Nothing here copies a name,
- * a filename or a keyword into the description.
+ * ALT (§22). A null or blank description renders as `alt=""`: every slot on the public
+ * site sits beside the text that names the thing (the dish's heading, the article's
+ * title), so an undescribed photograph is decorative repetition for a screen reader,
+ * and repeating the entity's name into `alt` would be exactly the duplicate verbose
+ * text the accepted model refuses. Nothing here copies a name, a filename or a keyword
+ * into the description.
  */
 
 /** One rung of the ladder, as both formats, with its measured dimensions. */
@@ -84,59 +75,14 @@ export function publicImageAlt(altText: unknown): string {
   return trimmed.length === 0 ? '' : trimmed
 }
 
-/**
- * The public model of one `images` row, or `null` when the row cannot be rendered
- * safely: a storage path the trusted upload flow could not have minted, or a
- * derivative record that does not have the validated shape. Both are refusals to
- * guess — never a fallback to the original, never a hand-built path.
- */
-export function buildPublicImage(
-  origin: string,
-  row: {
-    readonly storage_path: unknown
-    readonly alt_text: unknown
-    readonly derivatives: unknown
-  },
-): PublicImage | null {
-  if (!isOriginalStoragePath(row.storage_path)) return null
-
-  const record: DerivativeRecord | null = readDerivativeRecord(row.derivatives)
-  if (record === null) return null
-
-  const uploadId = uploadIdOfStoragePath(row.storage_path)
-
-  const candidates: PublicImageCandidate[] = [...record.widths]
-    .sort((left, right) => left.width - right.width)
-    .map((size) => ({
-      width: size.width,
-      height: size.height,
-      avifUrl: derivativePublicUrl(origin, derivativePath(uploadId, size.width, 'avif')),
-      webpUrl: derivativePublicUrl(origin, derivativePath(uploadId, size.width, 'webp')),
-    }))
-
-  const largest = candidates[candidates.length - 1]!
-
-  return {
-    alt: publicImageAlt(row.alt_text),
-    width: largest.width,
-    height: largest.height,
-    src: candidateAtLeast(candidates, FALLBACK_TARGET_WIDTH).webpUrl,
-    avifSrcSet: candidates.map((candidate) => `${candidate.avifUrl} ${candidate.width}w`).join(', '),
-    webpSrcSet: candidates.map((candidate) => `${candidate.webpUrl} ${candidate.width}w`).join(', '),
-    candidates,
-  }
-}
 
 /**
- * The public model of one tracked launch photograph (`content/site/photos.json`),
- * for the static site.
+ * The public model of one tracked photograph (`content/site/photos.json`).
  *
- * The same model the storage-backed path composes, built from the same three facts
- * stated once in the tracked registry: the slot, the description and the source
- * dimensions. The rungs are `planDerivatives()`'s over those dimensions, so this
- * function and the build-time script that renders the files agree by construction —
- * and the script refuses a source whose measured size differs from the recorded one,
- * so a model can never name a rung that was not rendered. `alt` follows
+ * The rungs are `planDerivatives()`'s over the recorded dimensions, so this function
+ * and the build-time script that renders the files agree by construction — and the
+ * script refuses a source whose measured size differs from the recorded one, so a
+ * model can never name a rung that was not rendered. `alt` follows
  * {@link publicImageAlt}: the authored wording, or `''`.
  */
 export function buildStaticPublicImage(photo: {

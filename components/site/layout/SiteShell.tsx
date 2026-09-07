@@ -1,7 +1,6 @@
 import { SITE_ANNOUNCEMENT } from '@/content/site/announcement'
 import { SITE_CONTACT } from '@/content/site/contact'
 import { OPENING_HOURS } from '@/content/site/hours'
-import { readOpenStatus } from '@/lib/hours/status'
 import { directionsUrl, toPostalAddress } from '@/lib/site/links'
 import { FOOTER_NAV, MAIN_NAV } from '@/lib/site/navigation'
 
@@ -22,15 +21,14 @@ import { SiteHeader } from '@/components/site/layout/SiteHeader'
  * `<AnnouncementRegion>` renders nothing when there is no current message, so a site
  * without one has no element, no padding and no reserved height.
  *
- * **The open/closed badge** is rendered from the build's clock and corrected in the
- * browser every minute by `OpenStatus` from the same pure engine and the same hours;
- * with scripting off the build-time value stands.
+ * **The open/closed badge** claims nothing in the prerendered HTML and is decided in
+ * the browser from the hours the page already carries (`components/site/OpenStatus.tsx`).
+ * A static export has no clock a guest would want an answer from.
  *
  * Rendered by `app/(site)/layout.tsx` for the six pages and by `app/not-found.tsx`
  * for an address that matches no route, so a lost guest keeps the navigation.
  */
 export function SiteShell({ children }: { children: React.ReactNode }) {
-  const openStatus = readOpenStatus(new Date(), OPENING_HOURS.schedule, OPENING_HOURS.overrides)
   const address = toPostalAddress(SITE_CONTACT)
 
   return (
@@ -50,7 +48,6 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
       <SiteHeader
         items={MAIN_NAV}
         contact={SITE_CONTACT}
-        openStatus={openStatus}
         schedule={OPENING_HOURS.schedule}
         overrides={OPENING_HOURS.overrides}
       />

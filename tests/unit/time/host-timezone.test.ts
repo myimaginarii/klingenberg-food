@@ -12,7 +12,7 @@ import { CONFIRMED_SCHEDULE } from '../fixtures/hours'
  * `vitest.config.mts` sets `TZ=Europe/Copenhagen`, which is convenient and completely
  * untrustworthy as a guarantee: a suite that only ever runs in the business timezone
  * cannot tell a correct implementation from one that quietly uses `Date#getHours()`.
- * Production runs on Vercel in UTC, and a developer may be anywhere.
+ * The site is built wherever CI runs, which is UTC, and a developer may be anywhere.
  *
  * So this file re-runs a cross-section of the engines under host timezones chosen to
  * break a machine-local implementation in every direction: UTC, the two extremes of the

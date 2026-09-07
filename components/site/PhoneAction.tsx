@@ -15,7 +15,7 @@ import { ActionLink, type ActionSize, type ActionVariant } from './ActionLink'
  */
 
 type PhoneActionProps = {
-  /** The number as the administration stores it: "+45 63 90 83 00". */
+  /** The number as `content/site/contact.ts` carries it: "+45 63 90 83 00". */
   phone: string
   /**
    * "Ring", "Bestil på telefon", "Ring og hør mere" — the approved wording per screen.

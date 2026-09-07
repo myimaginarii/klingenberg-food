@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { FOOTER_NAV, MAIN_NAV, isCurrentRoute, visibleNav } from '@/lib/site/navigation'
+import { FOOTER_NAV, MAIN_NAV, isCurrentRoute } from '@/lib/site/navigation'
 
 describe('MAIN_NAV', () => {
   it('is the approved navigation, in the approved order', () => {
@@ -28,24 +28,6 @@ describe('MAIN_NAV', () => {
   it('leaves the Forside out of the footer column, as the design does', () => {
     expect(FOOTER_NAV.map((item) => item.href)).not.toContain('/')
     expect(FOOTER_NAV).toHaveLength(MAIN_NAV.length - 1)
-  })
-})
-
-describe('visibleNav', () => {
-  it('keeps every item when nothing is switched off', () => {
-    expect(visibleNav(MAIN_NAV, [])).toEqual([...MAIN_NAV])
-  })
-
-  it('drops Mad ud af huset when the page is switched off in the administration', () => {
-    const visible = visibleNav(MAIN_NAV, ['takeaway'])
-    expect(visible.map((item) => item.href)).not.toContain('/mad-ud-af-huset')
-    expect(visible).toHaveLength(MAIN_NAV.length - 1)
-  })
-
-  it('drops it from the footer column too, from the same rule', () => {
-    expect(visibleNav(FOOTER_NAV, ['takeaway']).map((item) => item.href)).not.toContain(
-      '/mad-ud-af-huset',
-    )
   })
 })
 

@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { formatWeeklyHours } from '@/lib/hours/format'
+import { CONFIRMED_SCHEDULE } from '../unit/fixtures/hours'
 import { PRIMARY_TEL_HREF, PUBLIC_ROUTES } from './support/site'
 
 /**
@@ -118,12 +120,43 @@ test('the map embed and the directions link both render without scripting', asyn
   await expect(directions).toHaveAttribute('href', /google\.com\/maps\/dir/)
 })
 
-test('the open/closed badge degrades to the server-rendered value, not to nothing', async ({
+test('the open/closed badge degrades to a neutral label, never to a stale claim', async ({
   page,
 }) => {
   await page.goto('/find-os')
 
-  await expect(page.getByRole('main').getByText(/^(Åbent nu|Lukket)/).first()).toBeVisible()
+  // The site is a static export. "Åbent nu" in prerendered HTML would be an answer to
+  // "was the restaurant open when this site was built" — a claim the page cannot
+  // support and one that would be wrong most of the time. Without scripting the badge
+  // therefore names its subject and asserts nothing about now.
+  // Every badge on the page, including the fullscreen menu's own copy, which is in
+  // the document but not on screen until the panel is opened.
+  const badges = page.locator('[data-open-status]')
+  await expect(page.getByRole('main').locator('[data-open-status]').first()).toBeVisible()
+
+  for (const state of await badges.evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute('data-open-status')),
+  )) {
+    expect(state).toBe('undecided')
+  }
+
+  await expect(page.getByRole('main').getByText('Åbningstider', { exact: true }).first()).toBeVisible()
+})
+
+test('the hours table marks no day as today, and still gives the whole week', async ({ page }) => {
+  await page.goto('/find-os')
+
+  const main = page.getByRole('main')
+
+  // Same reason: a weekday read at build time would mark the same row forever.
+  await expect(main.locator('dt', { hasText: '· i dag' })).toHaveCount(0)
+
+  // The schedule itself is entirely there — the grouped lines on the phone, and the
+  // seven days behind a <details> that needs no scripting to open.
+  for (const row of formatWeeklyHours(CONFIRMED_SCHEDULE)) {
+    await expect(main.getByText(row.days, { exact: true }).first()).toBeVisible()
+  }
+  await expect(main.getByText('Vis alle syv dage')).toBeVisible()
 })
 
 test('the news page states its empty state without scripting, and invents no article', async ({

@@ -4,8 +4,8 @@
  * `announcement.expires_at` is a `timestamptz`: **an instant**, not a civil date. Every
  * comparison in this system is therefore between instants, and never between formatted
  * strings or between a date and a "today" derived from some other timezone. That is the
- * whole of {@link isAnnouncementExpired}, and it is why the anonymous RLS policy, the
- * public bar, the client guard, the admin's state banner and the publish check cannot
+ * whole of {@link isAnnouncementExpired}, and it is why the public bar and the client
+ * guard cannot
  * disagree about whether a message is still current.
  *
  * THIS MODULE IMPORTS NOTHING, ON PURPOSE
@@ -46,7 +46,7 @@ export function parseExpiryInstant(expiresAt: string | null | undefined): Date |
  * not "show it indefinitely".
  *
  * The boundary is inclusive of the expiry instant itself: at exactly `expires_at` the
- * message is gone. That matches the RLS policy's `expires_at > now()`, so the server and
+ * message is gone. That matches what the prerendered page decided, so the build and
  * the browser agree at the one instant it matters.
  */
 export function isAnnouncementExpired(expiresAt: string | null | undefined, now: Date): boolean {

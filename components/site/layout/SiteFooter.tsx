@@ -18,8 +18,9 @@ import { SiteLogo } from './SiteLogo'
  * the formatter phase 2 tested. There is no second copy to fall out of step.
  *
  * "Følg os" disappears entirely when the Facebook link is not filled in — "Er linket
- * ikke udfyldt i administrationen, forsvinder hele kolonnen … Gæsten ser aldrig et tomt
- * Følg os" (1g). The same rule applies to each phone number and to the address.
+ * ikke udfyldt …, forsvinder hele kolonnen … Gæsten ser aldrig et tomt Følg os" (1g).
+ * The same rule applies to each phone number and to the address: a `null` in
+ * `content/site/contact.ts` removes the block rather than emptying it.
  */
 export function SiteFooter({
   items,

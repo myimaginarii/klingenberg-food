@@ -3,34 +3,23 @@ import { describe, expect, it } from 'vitest'
 
 import { AboutPageContent } from '@/components/site/about/AboutPageContent'
 import type { AboutDocument } from '@/lib/content/types'
-import { buildPublicImage, IMAGE_SIZES } from '@/lib/images/public'
+import { buildStaticPublicImage, IMAGE_SIZES } from '@/lib/images/public'
 
 /**
  * Om os's three photographs, rendered — phase 14B1; design 1i.
  *
  * Server HTML, asserted as markup: each slot renders the library image through the
- * one public renderer in the box it always reserved, with the library's own
- * description as `alt`, and the reserved frame when there is none. The facade is the
- * page's primary image and loads eagerly; the other two lazily. Nothing here reaches a
- * database.
+ * one public renderer in the box it always reserved, with the tracked description as
+ * `alt`, and the reserved frame when there is none. The facade is the page's primary
+ * image and loads eagerly; the other two lazily.
  */
 
-const ORIGIN = 'http://localhost:54321'
-const UPLOAD = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'
-const PUBLIC = `${ORIGIN}/storage/v1/object/public/media/${UPLOAD}`
+const SLOT = 'about-venue'
+const PUBLIC = `/media/${SLOT}`
 
+/** A 960 px source, so the ladder is exactly the 480 and 960 rungs. */
 function image(alt: string | null) {
-  return buildPublicImage(ORIGIN, {
-    storage_path: `${UPLOAD}/original.jpg`,
-    alt_text: alt,
-    derivatives: {
-      formats: ['avif', 'webp'],
-      widths: [
-        { width: 480, height: 320 },
-        { width: 960, height: 640 },
-      ],
-    },
-  })!
+  return buildStaticPublicImage({ slot: SLOT, alt, width: 960, height: 640 })
 }
 
 const WORDS: AboutDocument = {

@@ -13,7 +13,7 @@ import { isAnnouncementExpired, nextExpiryCheckDelayMs } from '@/lib/announcemen
  * component closes that one gap and does nothing else.
  *
  * **The server remains the primary filter.** The bar is rendered only for an
- * announcement the anonymous RLS policy returned *and* whose expiry had not passed at
+ * announcement that was tracked as current *and* whose expiry had not passed at
  * render time (`AnnouncementRegion`). This guard is the third layer, and it is the only
  * one that can act while a page is already on screen.
  *
@@ -31,7 +31,7 @@ import { isAnnouncementExpired, nextExpiryCheckDelayMs } from '@/lib/announcemen
  *
  * WHAT IT EXPLICITLY DOES NOT DO — §7c, and asserted by the security suite
  *
- * No `fetch`, no Supabase client, no realtime subscription, no polling, no cookie, no
+ * No `fetch`, no data client, no realtime subscription, no polling, no cookie, no
  * `localStorage`, no analytics and no state library. It reads one prop and a clock. It
  * also holds no *dismiss* state: a guest cannot close this bar (1ac), so there is
  * nothing per-visitor to remember and nothing to store.

@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import { SiteImage } from '@/components/site/SiteImage'
-import { buildPublicImage, IMAGE_SIZES } from '@/lib/images/public'
+import { buildStaticPublicImage, IMAGE_SIZES } from '@/lib/images/public'
 
 /**
  * The one public image renderer — phase 10C-2 (brief §5, §6, §8, §28, §38).
@@ -14,22 +14,12 @@ import { buildPublicImage, IMAGE_SIZES } from '@/lib/images/public'
  * JavaScript.
  */
 
-const ORIGIN = 'http://localhost:54321'
-const UPLOAD = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2'
-const PUBLIC = `${ORIGIN}/storage/v1/object/public/media/${UPLOAD}`
+const SLOT = 'dish-photo'
+const PUBLIC = `/media/${SLOT}`
 
+/** A 960 px source, so the ladder is exactly the 480 and 960 rungs. */
 function image(altText: string | null) {
-  return buildPublicImage(ORIGIN, {
-    storage_path: `${UPLOAD}/original.jpg`,
-    alt_text: altText,
-    derivatives: {
-      formats: ['avif', 'webp'],
-      widths: [
-        { width: 480, height: 360 },
-        { width: 960, height: 720 },
-      ],
-    },
-  })!
+  return buildStaticPublicImage({ slot: SLOT, alt: altText, width: 960, height: 720 })
 }
 
 function render(props: Partial<Parameters<typeof SiteImage>[0]> = {}): string {

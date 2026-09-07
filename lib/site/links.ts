@@ -31,10 +31,9 @@ export function telHref(phone: string): string {
 /**
  * `mailto:` href for the stored public e-mail address.
  *
- * The address is a stored contact fact, validated on the way in by
- * `siteContactDraft.email` (§4), so nothing is escaped or re-shaped here beyond the
- * surrounding whitespace a paste can leave behind. There is no subject, no body and no
- * second recipient: the link opens an empty message to the restaurant and nothing else.
+ * The address is a tracked contact fact (`content/site/contact.ts`), so nothing is
+ * escaped or re-shaped here beyond surrounding whitespace. There is no subject, no body
+ * and no second recipient: the link opens an empty message to the restaurant.
  */
 export function mailtoHref(email: string): string {
   const trimmed = email.trim()
@@ -72,8 +71,8 @@ export function directionsUrl(address: PostalAddress): string {
 }
 
 /**
- * The address as a link builder needs it, or `null` when the administration has not
- * filled it in.
+ * The address as a link builder needs it, or `null` when the tracked contact does not
+ * carry a complete one.
  *
  * The approved design removes a block rather than showing a half-filled one, so an
  * incomplete address produces no map, no directions button and no address line —

@@ -1,7 +1,6 @@
 import Link from 'next/link'
 
 import type { SiteContact } from '@/lib/content/types'
-import type { OpenStatusSnapshot } from '@/lib/hours/status'
 import type { OpeningHoursOverride, WeeklySchedule } from '@/lib/hours/types'
 import type { NavItem } from '@/lib/site/navigation'
 
@@ -25,13 +24,11 @@ import { SiteLogo } from './SiteLogo'
 export function SiteHeader({
   items,
   contact,
-  openStatus,
   schedule,
   overrides,
 }: {
   items: readonly NavItem[]
   contact: SiteContact
-  openStatus: OpenStatusSnapshot
   schedule: WeeklySchedule
   overrides: OpeningHoursOverride[]
 }) {
@@ -60,7 +57,6 @@ export function SiteHeader({
           <MobileMenu
             items={items}
             contact={contact}
-            openStatus={openStatus}
             schedule={schedule}
             overrides={overrides}
           />

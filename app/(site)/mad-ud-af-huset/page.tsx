@@ -1,6 +1,6 @@
 import { SITE_CONTACT } from '@/content/site/contact'
 import { TAKEAWAY_PAGE } from '@/content/site/pages'
-import { TAKEAWAY_DEFAULT_CTA_LABEL } from '@/lib/pages/takeaway'
+import { TAKEAWAY_DEFAULT_CTA_LABEL } from '@/lib/site/defaults'
 import { pageMetadata } from '@/lib/seo/metadata'
 
 import { Eyebrow } from '@/components/site/Eyebrow'

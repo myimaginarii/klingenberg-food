@@ -1,4 +1,3 @@
-import { ANNOUNCEMENT_LINK_PAGES } from '@/lib/schemas/announcement'
 import { MAIN_NAV, type SiteRoute } from '@/lib/site/navigation'
 
 /**
@@ -7,29 +6,33 @@ import { MAIN_NAV, type SiteRoute } from '@/lib/site/navigation'
  * §8 names this row of its risk table "**open redirect / injected announcement link**",
  * and the prevention it states is two rules rather than one validator:
  *
- *   * `link_type='page'` is "an enum of our own routes" — a closed set, chosen from a
- *     list, never a path typed into a box. A relative path that arrived from a browser
- *     is not accepted at all, so there is nothing to normalise, nothing to resolve and
- *     no `../` to reason about.
- *   * `link_type='url'` is "validated as `https:` and rendered with
- *     `rel='noopener noreferrer'`". The validation lives in the schema
- *     (`optionalHttpsUrl`, which is also what the `announcement_link_url_check`
- *     constraint restates in SQL); the rendering rule lives in this module, so the two
- *     halves of one promise cannot be shipped separately.
+ *   * `link_type='page'` is "an enum of our own routes" — a closed set, and since the
+ *     static rebuild that set is literally `MAIN_NAV`: the site's own six routes, the
+ *     ones the header renders. A path that is not one of them is not a destination.
+ *   * `link_type='url'` is validated as `https:` and rendered with
+ *     `rel='noopener noreferrer'`. Both halves of that one promise live in this module,
+ *     so neither can be shipped without the other.
  *
- * Everything here is pure. It decides what a stored row *means* — which is a different
- * question from what a form may submit (`app/(admin)/admin/besked/forms.ts`) and from
- * what the database will accept (the three link CHECK constraints). All three say the
- * same thing about the same six routes, and {@link ANNOUNCEMENT_PAGE_ROUTES_MATCH_NAV}
- * is asserted by the unit suite so they cannot drift.
+ * Everything here is pure: it decides what a tracked announcement *means*. The
+ * announcement itself is `content/site/announcement.ts`, so the only way a link reaches
+ * a page is through a tracked, reviewed commit — but the rules stand anyway, because a
+ * typo in a commit is exactly as capable of producing a bad anchor as a form was.
  *
  * **No HTML anywhere.** The message and the link label are plain strings rendered as
- * text by React, exactly like every other free-text field in this system (§8). There is
- * no `dangerouslySetInnerHTML` on the public site, and this phase adds none.
+ * text by React, exactly like every other free-text field on this site (§8). There is
+ * no `dangerouslySetInnerHTML` on the public site.
  */
 
-/** An internal destination, from the closed set the schema and the CHECK both carry. */
-export type AnnouncementPageRoute = (typeof ANNOUNCEMENT_LINK_PAGES)[number]
+/**
+ * The closed set of internal destinations: the site's own routes, in navigation order.
+ *
+ * One list, not two. A route added to the site is a route an announcement may point at,
+ * with no second place to remember.
+ */
+export const ANNOUNCEMENT_LINK_PAGES: readonly SiteRoute[] = MAIN_NAV.map((item) => item.href)
+
+/** An internal destination — one of the site's own routes. */
+export type AnnouncementPageRoute = SiteRoute
 
 /** The stored link fields, as the row holds them. */
 export type AnnouncementLinkValues = {
@@ -57,18 +60,6 @@ export type AnnouncementLink = {
 const PAGE_LABELS: Record<AnnouncementPageRoute, string> = Object.fromEntries(
   MAIN_NAV.map((item) => [item.href, item.label]),
 ) as Record<AnnouncementPageRoute, string>
-
-/**
- * The link's six page routes *are* the site's six routes.
- *
- * Two lists describing one set is how they stop agreeing. They are separate because
- * they answer different questions — the schema's list mirrors a database CHECK, the
- * navigation's list mirrors the approved header — so instead of merging them, the unit
- * suite asserts this equality. A route added to the site and not to the announcement's
- * enum is then a failing test rather than a link nobody can choose.
- */
-export const ANNOUNCEMENT_PAGE_ROUTES_MATCH_NAV: readonly SiteRoute[] =
-  ANNOUNCEMENT_LINK_PAGES as readonly SiteRoute[]
 
 /** Every internal destination with the words that name it, in the approved order. */
 export const ANNOUNCEMENT_PAGE_OPTIONS: readonly {
@@ -98,8 +89,8 @@ export function isAnnouncementPageRoute(value: unknown): value is AnnouncementPa
 export function isAllowedExternalUrl(value: unknown): boolean {
   if (typeof value !== 'string') return false
 
-  // A URL with whitespace in it is refused before parsing, because the SQL CHECK
-  // (`^https://[^\s]+$`) refuses it too and the two must agree.
+  // A URL with whitespace in it is refused before parsing rather than trimmed into
+  // something that was never written.
   if (value.trim() !== value || /\s/.test(value)) return false
 
   let url: URL
@@ -113,23 +104,13 @@ export function isAllowedExternalUrl(value: unknown): boolean {
 }
 
 /**
- * Do the three link columns agree — `none` with neither, `page` with a page, `url` with
+ * Do the three link fields agree — `none` with neither, `page` with a page, `url` with
  * an address?
  *
- * This is a rule *between* fields, which is why no per-field schema can state it: a draft
- * that changes only `link_label` cannot be judged against it, and
- * `lib/schemas/announcement.ts` says so in its own words. It is the same rule
- * `announcement_link_shape_check` carries in SQL, and it is stated **here** — beside the
- * six routes and the https rule it belongs with — rather than restated by each caller.
- *
- * Two callers ask it, for two different jobs: `lib/announcements/replacement.ts` before it
- * sends a replacement, and `lib/announcements/snapshot.ts` before it accepts a stored
- * `previous`. Both are the application's half of a rule the database restates and enforces;
- * neither is trusted to be the only one (§5, §8).
- *
- * It is deliberately about the **shape** and not about the values: whether a page is one of
- * the six and whether an address is `https:` are {@link isAnnouncementPageRoute} and
- * {@link isAllowedExternalUrl}, and a caller that needs all three asks all three.
+ * A rule *between* fields, stated here beside the six routes and the https rule it
+ * belongs with. It is deliberately about the **shape** and not about the values:
+ * whether a page is one of the six and whether an address is `https:` are
+ * {@link isAnnouncementPageRoute} and {@link isAllowedExternalUrl}.
  */
 export function isConsistentAnnouncementLink(values: AnnouncementLinkValues): boolean {
   switch (values.link_type) {
@@ -143,13 +124,11 @@ export function isConsistentAnnouncementLink(values: AnnouncementLinkValues): bo
 }
 
 /**
- * The link a stored row means, or `null`.
+ * The link a tracked announcement means, or `null`.
  *
  * Every branch that is not fully consistent answers `null`, and deliberately: a
  * half-filled link is the one case where guessing produces a live anchor pointing
- * somewhere nobody chose. The database's `announcement_link_shape_check` makes an
- * inconsistent row unreachable in the first place; this is the second answer to the
- * same question, given by the component that would otherwise have to render it.
+ * somewhere nobody chose.
  *
  * The label falls back to the destination's own name for an internal page — "Find os"
  * links to /find-os — because that is a name the site already uses and a guest already

@@ -18,8 +18,6 @@ export type SiteRoute =
 export type NavItem = {
   href: SiteRoute
   label: string
-  /** Set for pages whose visibility is controlled from the administration (§4). */
-  pageKey?: 'takeaway'
 }
 
 /**
@@ -30,7 +28,7 @@ export type NavItem = {
 export const MAIN_NAV: readonly NavItem[] = [
   { href: '/', label: 'Forside' },
   { href: '/menu', label: 'Menu' },
-  { href: '/mad-ud-af-huset', label: 'Mad ud af huset', pageKey: 'takeaway' },
+  { href: '/mad-ud-af-huset', label: 'Mad ud af huset' },
   { href: '/om-os', label: 'Om os' },
   { href: '/nyheder', label: 'Nyheder' },
   { href: '/find-os', label: 'Find os' },
@@ -38,19 +36,6 @@ export const MAIN_NAV: readonly NavItem[] = [
 
 /** The footer's "Sider" column: the same list without the page you are already on top of. */
 export const FOOTER_NAV: readonly NavItem[] = MAIN_NAV.filter((item) => item.href !== '/')
-
-/**
- * Hide the routes the administration has switched off.
- *
- * Today only "Mad ud af huset" has a visibility toggle (`pages.takeaway.is_visible`),
- * and turning it off must remove the navigation item as well as the page (§9, E2E 8).
- */
-export function visibleNav(
-  items: readonly NavItem[],
-  hiddenPageKeys: readonly NavItem['pageKey'][],
-): NavItem[] {
-  return items.filter((item) => item.pageKey === undefined || !hiddenPageKeys.includes(item.pageKey))
-}
 
 /** Is `pathname` this navigation item, for `aria-current="page"`? */
 export function isCurrentRoute(pathname: string, href: SiteRoute): boolean {

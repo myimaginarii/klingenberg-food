@@ -1,5 +1,4 @@
 import type { SiteContact } from '@/lib/content/types'
-import type { OpenStatusSnapshot } from '@/lib/hours/status'
 import type { OpeningHoursOverride, WeeklySchedule } from '@/lib/hours/types'
 import { directionsUrl } from '@/lib/site/links'
 import type { NavItem } from '@/lib/site/navigation'
@@ -26,13 +25,11 @@ import { SiteLogo } from './SiteLogo'
 export function MobileMenu({
   items,
   contact,
-  openStatus,
   schedule,
   overrides,
 }: {
   items: readonly NavItem[]
   contact: SiteContact
-  openStatus: OpenStatusSnapshot
   schedule: WeeklySchedule
   overrides: OpeningHoursOverride[]
 }) {
@@ -77,7 +74,6 @@ export function MobileMenu({
           </ul>
 
           <OpenStatus
-            initialStatus={openStatus}
             schedule={schedule}
             overrides={overrides}
             variant="on-brand"

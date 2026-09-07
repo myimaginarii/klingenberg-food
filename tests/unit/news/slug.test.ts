@@ -11,7 +11,7 @@ import {
  * §7f's slug policy, held still: generated from the title with the Danish
  * transliteration the plan names (æ→ae, ø→oe, å→aa), collision-suffixed `-2`, and a
  * grammar identical to the database's `news_slug_check`. The freeze itself is the
- * database trigger's and is asserted from real JWTs in `supabase/tests/019`.
+ * frozen slug rule the design states (§7f).
  */
 
 describe('slugFromTitle — §7f, letter for letter', () => {

@@ -2,8 +2,8 @@
  * The facts the browser tests assert against — technical plan header, design 1ab.
  *
  * These are the owner-confirmed values, the same ones the tracked content under
- * `content/site/` carries (and `supabase/seed/confirmed.sql` before it). They are
- * stated once here so a test failure points at the site, not at a number typed twice.
+ * `content/site/` carries. They are stated once here so a test failure points at the
+ * site, not at a number typed twice.
  *
  * The headings are the confirmed launch copy (`content/launch/launch-copy.md`). Every
  * address is served with a trailing slash (`trailingSlash` in `next.config.ts`), which

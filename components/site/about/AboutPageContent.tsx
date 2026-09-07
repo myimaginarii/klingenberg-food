@@ -5,7 +5,7 @@ import { PageContainer } from '@/components/site/PageContainer'
 import { Section } from '@/components/site/Section'
 import { SiteImage } from '@/components/site/SiteImage'
 import type { AboutDocument } from '@/lib/content/types'
-import { ABOUT_DEFAULT_HEADING, ABOUT_DEFAULT_METHOD_HEADING } from '@/lib/pages/about'
+import { ABOUT_DEFAULT_HEADING, ABOUT_DEFAULT_METHOD_HEADING } from '@/lib/site/defaults'
 
 /**
  * Om os — design 1i, rendered from the published (or previewed) document.
