@@ -1,6 +1,6 @@
-import { SITE_ANNOUNCEMENT } from '@/content/site/announcement'
-import { SITE_CONTACT } from '@/content/site/contact'
-import { OPENING_HOURS } from '@/content/site/hours'
+import { loadAnnouncement } from '@/lib/content/load/announcement'
+import { loadContact } from '@/lib/content/load/contact'
+import { loadOpeningHours } from '@/lib/content/load/hours'
 import { directionsUrl, toPostalAddress } from '@/lib/site/links'
 import { FOOTER_NAV, MAIN_NAV } from '@/lib/site/navigation'
 
@@ -8,6 +8,11 @@ import { AnnouncementRegion } from '@/components/site/announcement/AnnouncementR
 import { MobileBottomNav } from '@/components/site/layout/MobileBottomNav'
 import { SiteFooter } from '@/components/site/layout/SiteFooter'
 import { SiteHeader } from '@/components/site/layout/SiteHeader'
+
+/** The tracked content under `content/site/`, read while the export is rendered. */
+const SITE_ANNOUNCEMENT = loadAnnouncement()
+const SITE_CONTACT = loadContact()
+const OPENING_HOURS = loadOpeningHours()
 
 /**
  * The public shell — design 1g, 1l, 1n and technical plan §3.

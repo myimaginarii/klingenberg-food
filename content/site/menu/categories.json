@@ -1,0 +1,130 @@
+{
+  "categories": [
+    {
+      "slug": "burgere",
+      "name": "Burgere",
+      "kind": "dishes",
+      "intro": "Alle burgere serveres i briochebolle. Kan bestilles som menu med pommes frites og sodavand.",
+      "note": null,
+      "dishes": [
+        "odin",
+        "frigg",
+        "ragnar",
+        "thor",
+        "glade-gris"
+      ]
+    },
+    {
+      "slug": "ugens-ret",
+      "name": "Ugens ret",
+      "kind": "weekly_special",
+      "intro": null,
+      "note": "Alle ugens retter kan også laves glutenfrie og laktosefrie. Sig til, når du bestiller.",
+      "dishes": []
+    },
+    {
+      "slug": "andre-retter",
+      "name": "Andre retter",
+      "kind": "dishes",
+      "intro": null,
+      "note": null,
+      "dishes": [
+        "fish-n-chips",
+        "ekstra-fisk",
+        "halv-grillkylling",
+        "duerum",
+        "chiliolie-hvidloegsolie",
+        "sandwich-kylling-bacon",
+        "sandwich-frikadelle"
+      ]
+    },
+    {
+      "slug": "pommes-og-snacks",
+      "name": "Pommes & snacks",
+      "kind": "dishes",
+      "intro": null,
+      "note": null,
+      "dishes": [
+        "stor-pommes-frites",
+        "lille-pommes-frites",
+        "poelse-med-broed",
+        "poelse-uden-broed",
+        "poelsebroed",
+        "fransk-hotdog",
+        "poelsemix",
+        "kebabmix",
+        "pariser-toast",
+        "nuggets-med-pommes-frites",
+        "snackkurv",
+        "dip"
+      ]
+    },
+    {
+      "slug": "boern",
+      "name": "Børn",
+      "kind": "dishes",
+      "intro": null,
+      "note": null,
+      "dishes": [
+        "boerneburger",
+        "boernenuggets"
+      ]
+    },
+    {
+      "slug": "drikkevarer",
+      "name": "Drikkevarer",
+      "kind": "dishes",
+      "intro": null,
+      "note": null,
+      "dishes": [
+        "alm-oel",
+        "specialoel",
+        "shaker",
+        "sodavand-aqua-dor",
+        "cocio-40",
+        "cocio-27",
+        "kildevand",
+        "brikjuice",
+        "kop-kaffe-te",
+        "genopfyld-kaffe",
+        "kande-kaffe",
+        "kande-te",
+        "varm-kakao"
+      ]
+    },
+    {
+      "slug": "dessert",
+      "name": "Dessert",
+      "kind": "dishes",
+      "intro": null,
+      "note": null,
+      "dishes": [
+        "vaniljeparfait",
+        "aeblekage",
+        "chokoladekage"
+      ]
+    },
+    {
+      "slug": "tapas",
+      "name": "Tapas",
+      "kind": "dishes",
+      "intro": "Til to personer 295 kr. · hver ekstra person 148 kr.",
+      "note": null,
+      "dishes": [
+        "tapas"
+      ]
+    },
+    {
+      "slug": "varm-selv",
+      "name": "Varm selv",
+      "kind": "dishes",
+      "intro": "Frostvarer til at tage med hjem.",
+      "note": null,
+      "dishes": [
+        "moerbradgryde",
+        "lasagne",
+        "tarteletfyld"
+      ]
+    }
+  ]
+}

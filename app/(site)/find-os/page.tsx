@@ -1,5 +1,5 @@
-import { SITE_CONTACT } from '@/content/site/contact'
-import { OPENING_HOURS } from '@/content/site/hours'
+import { loadContact } from '@/lib/content/load/contact'
+import { loadOpeningHours } from '@/lib/content/load/hours'
 import { pageMetadata } from '@/lib/seo/metadata'
 import { directionsUrl, formatAddressLine, toPostalAddress } from '@/lib/site/links'
 
@@ -14,6 +14,10 @@ import { OpeningHours } from '@/components/site/hours/OpeningHours'
 import { OpenStatus } from '@/components/site/OpenStatus'
 import { PageContainer } from '@/components/site/PageContainer'
 import { PhoneAction } from '@/components/site/PhoneAction'
+
+/** The tracked content under `content/site/`, read while the export is rendered. */
+const SITE_CONTACT = loadContact()
+const OPENING_HOURS = loadOpeningHours()
 
 /**
  * The description names the address, so it is built from the same tracked contact

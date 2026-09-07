@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next'
 
-import { NEWS_ARTICLES } from '@/content/site/news'
+import { loadNews } from '@/lib/content/load/news'
 import { newsSitemapEntries, staticSitemapEntries } from '@/lib/seo/sitemap'
 
 /**
@@ -14,5 +14,5 @@ import { newsSitemapEntries, staticSitemapEntries } from '@/lib/seo/sitemap'
 export const dynamic = 'force-static'
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  return [...staticSitemapEntries(), ...newsSitemapEntries(NEWS_ARTICLES)]
+  return [...staticSitemapEntries(), ...newsSitemapEntries(loadNews())]
 }

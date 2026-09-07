@@ -20,7 +20,7 @@ import { SiteLogo } from './SiteLogo'
  * "Følg os" disappears entirely when the Facebook link is not filled in — "Er linket
  * ikke udfyldt …, forsvinder hele kolonnen … Gæsten ser aldrig et tomt Følg os" (1g).
  * The same rule applies to each phone number and to the address: a `null` in
- * `content/site/contact.ts` removes the block rather than emptying it.
+ * `content/site/contact.json` removes the block rather than emptying it.
  */
 export function SiteFooter({
   items,

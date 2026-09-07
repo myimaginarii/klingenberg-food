@@ -1,0 +1,67 @@
+{
+  "name": "Tapas",
+  "price": "295",
+  "description": null,
+  "secondaryNote": "+148 kr. pr. ekstra person",
+  "labels": [],
+  "soldOutOn": null,
+  "photo": null,
+  "tapas": {
+    "kind": "tapas",
+    "groups": [
+      {
+        "id": "base",
+        "heading": "På bordet — altid med",
+        "mode": "fixed",
+        "choose": null,
+        "items": [
+          "Hjemmebagt brød",
+          "Rugchips",
+          "Grissini",
+          "Saltmandler",
+          "Syltede rødløg",
+          "Syltet peberfrugt",
+          "Kryddersmør",
+          "Oliven",
+          "Frugt"
+        ]
+      },
+      {
+        "id": "choose7",
+        "heading": "I vælger 7",
+        "mode": "choose",
+        "choose": 7,
+        "items": [
+          "Laksetatar",
+          "Stegte tigerrejer",
+          "Krondyr-spegepølse med jalapeños",
+          "Chorizo",
+          "Serranoskinke",
+          "Bresaola",
+          "Hønsesalat",
+          "Krebsehalesalat",
+          "Ølpinde",
+          "Mini porre/bacon-tærte",
+          "Paté med hvidløg",
+          "Gouda med brændenælde",
+          "Gouda med chili",
+          "Brie"
+        ]
+      },
+      {
+        "id": "dressing",
+        "heading": "Og 3 dressinger",
+        "mode": "choose",
+        "choose": 3,
+        "items": [
+          "Pesto",
+          "Hummus",
+          "Urtemayo",
+          "Estragonmayo",
+          "Chilimayo",
+          "Aioli"
+        ]
+      }
+    ]
+  }
+}

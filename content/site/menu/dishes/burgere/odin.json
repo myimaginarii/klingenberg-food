@@ -1,0 +1,11 @@
+{
+  "name": "Odin",
+  "price": "89",
+  "description": "200 g dry aged bøf, sennepsmayo, bacon, cheddar, karameliserede løg, bøftomat, iceberg og briochebolle.",
+  "secondaryNote": "Som menu med pommes frites og sodavand 124 kr.",
+  "labels": [
+    "Populær"
+  ],
+  "soldOutOn": null,
+  "photo": "dish-odin"
+}

@@ -72,7 +72,8 @@ describe('the selection, asserted over the Forside’s own source', () => {
   const source = readFileSync(join(process.cwd(), 'app', '(site)', 'page.tsx'), 'utf-8')
 
   it('reads the tracked, newest-first list and nothing else', () => {
-    expect(source).toContain("import { NEWS_ARTICLES } from '@/content/site/news'")
+    expect(source).toContain("import { loadNews } from '@/lib/content/load/news'")
+    expect(source).toContain('const NEWS_ARTICLES = loadNews()')
   })
 
   it('takes the list’s first entry and otherwise nothing', () => {

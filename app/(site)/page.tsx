@@ -1,8 +1,8 @@
-import { SITE_CONTACT } from '@/content/site/contact'
-import { OPENING_HOURS } from '@/content/site/hours'
-import { MENU } from '@/content/site/menu'
-import { NEWS_ARTICLES } from '@/content/site/news'
 import { HOME_PAGE } from '@/content/site/pages'
+import { loadContact } from '@/lib/content/load/contact'
+import { loadOpeningHours } from '@/lib/content/load/hours'
+import { loadMenu } from '@/lib/content/load/menu'
+import { loadNews } from '@/lib/content/load/news'
 import { articleExcerpt } from '@/lib/news/excerpt'
 import { buildMenuView, selectFeaturedDishes, selectHomepageMonthlyBurger } from '@/lib/menu/view'
 import { homeMetadata } from '@/lib/seo/metadata'
@@ -14,6 +14,12 @@ import { HomeHero } from '@/components/site/home/HomeHero'
 import { MonthlyBurgerFeature } from '@/components/site/home/MonthlyBurgerFeature'
 import { NewsAndAbout } from '@/components/site/home/NewsAndAbout'
 import { VisitPanel } from '@/components/site/home/VisitPanel'
+
+/** The tracked content under `content/site/`, read while the export is rendered. */
+const SITE_CONTACT = loadContact()
+const OPENING_HOURS = loadOpeningHours()
+const MENU = loadMenu()
+const NEWS_ARTICLES = loadNews()
 
 /**
  * Forside — design 1g (desktop) and 1l (mobile).

@@ -67,7 +67,7 @@ const ALLOWED_HOSTS = new Set([
   'www.w3.org', // SVG / XML namespaces
   'www.google.com', // Google Maps directions URL and the Find os embed (§7g)
   // The restaurant's Facebook page is a confirmed business fact and is tracked as
-  // content in `content/site/contact.ts`. It is a third-party profile URL, not this
+  // content in `content/site/contact.json`. It is a third-party profile URL, not this
   // site's origin, so the §10d rule — "choosing our domain later must be
   // configuration, not a code change" — does not apply to it.
   'www.facebook.com',

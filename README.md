@@ -31,15 +31,18 @@ nothing to log into and nothing to keep running.
 
 | What | Where |
 |---|---|
-| Menu: nine sections, forty-six dishes, the tapas board | [`content/site/menu.ts`](content/site/menu.ts) |
-| Opening hours and one-off changes | [`content/site/hours.ts`](content/site/hours.ts) |
-| Address, telephone numbers, e-mail, Facebook | [`content/site/contact.ts`](content/site/contact.ts) |
+| Menu: the nine sections and their order | [`content/site/menu/categories.json`](content/site/menu/categories.json) |
+| Menu: one file per dish, forty-six of them | [`content/site/menu/dishes/`](content/site/menu/dishes) |
+| Ugens ret, Månedens burger (neither is active) | [`weekly-special.json`](content/site/weekly-special.json), [`monthly-burger.json`](content/site/monthly-burger.json) |
+| Opening hours and one-off changes | [`content/site/hours.json`](content/site/hours.json) |
+| Address, telephone numbers, e-mail, Facebook | [`content/site/contact.json`](content/site/contact.json) |
 | Forside, Om os and Mad ud af huset wording | [`content/site/pages.ts`](content/site/pages.ts) |
-| News articles (there are none yet) | [`content/site/news.ts`](content/site/news.ts) |
-| The sitewide message bar (there is none) | [`content/site/announcement.ts`](content/site/announcement.ts) |
+| News articles (there are none yet) | [`content/site/news/`](content/site/news) |
+| The sitewide message bar (there is none) | [`content/site/announcement.json`](content/site/announcement.json) |
 | The photographs, and the description each one carries | [`content/site/photos.json`](content/site/photos.json) |
 
-Each file explains what it holds and what adding an entry means. Nothing is invented:
+The JSON is read at build time by the loaders in [`lib/content/load/`](lib/content/load), which
+is where each file's shape and rules are written down. Nothing is invented:
 where the restaurant has not supplied a fact, the page renders its designed empty state
 rather than a placeholder.
 

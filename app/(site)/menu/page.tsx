@@ -1,6 +1,6 @@
-import { SITE_CONTACT } from '@/content/site/contact'
-import { OPENING_HOURS } from '@/content/site/hours'
-import { MENU } from '@/content/site/menu'
+import { loadContact } from '@/lib/content/load/contact'
+import { loadOpeningHours } from '@/lib/content/load/hours'
+import { loadMenu } from '@/lib/content/load/menu'
 import { buildMenuView } from '@/lib/menu/view'
 import { pageMetadata } from '@/lib/seo/metadata'
 import { toPostalAddress } from '@/lib/site/links'
@@ -11,6 +11,11 @@ import { MenuOrderBar } from '@/components/site/menu/MenuOrderBar'
 import { PageContainer } from '@/components/site/PageContainer'
 import { PhoneAction } from '@/components/site/PhoneAction'
 
+/** The tracked content under `content/site/`, read while the export is rendered. */
+const SITE_CONTACT = loadContact()
+const OPENING_HOURS = loadOpeningHours()
+const MENU = loadMenu()
+
 /**
  * Menu — design 1h (desktop) and 1m (mobile).
  *
@@ -19,7 +24,7 @@ import { PhoneAction } from '@/components/site/PhoneAction'
  * accordions" (1m).
  *
  * The sections, their order, their dishes and every price are the tracked menu
- * (`content/site/menu.ts`). What each section *looks* like is decided by
+ * (`content/site/menu/`). What each section *looks* like is decided by
  * `MenuCategorySection` from the content it holds.
  */
 export const metadata = pageMetadata(

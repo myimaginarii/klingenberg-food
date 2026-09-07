@@ -16,7 +16,7 @@ import { MAIN_NAV } from '@/lib/site/navigation'
  *   * the six public pages, which exist regardless of content, in navigation order;
  *   * one entry per tracked article, at its stable URL, stamped with the article's own
  *     `updatedAt` — never an invented date. There are none yet, so the sitemap carries
- *     six entries; adding an article to `content/site/news.ts` adds its entry here.
+ *     six entries; adding a file to `content/site/news/` adds its entry here.
  *
  * TRAILING SLASHES. `next.config.ts` sets `trailingSlash: true`, so every page of the
  * static export is a directory with an `index.html` and its address ends in a slash

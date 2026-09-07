@@ -15,7 +15,7 @@ const ADDRESS = {
   city: 'Nørre Lyndelse',
 }
 
-/** The confirmed contact facts, as `content/site/contact.ts` carries them. */
+/** The confirmed contact facts, as `content/site/contact.json` carries them. */
 const CONTACT: SiteContact = {
   venueName: 'Carl Nielsen Hallen',
   addressLine1: 'Lumbyvej 62',

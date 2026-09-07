@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-import { SITE_CONTACT } from '@/content/site/contact'
-import { NEWS_ARTICLES } from '@/content/site/news'
+import { loadContact } from '@/lib/content/load/contact'
+import { loadNews } from '@/lib/content/load/news'
 import type { NewsArticle } from '@/lib/content/types'
 import { seoImageOf } from '@/lib/images/public'
 import { articleExcerpt } from '@/lib/news/excerpt'
@@ -18,6 +18,10 @@ import { NewsMeta } from '@/components/site/news/NewsMeta'
 import { PageContainer } from '@/components/site/PageContainer'
 import { PhoneAction } from '@/components/site/PhoneAction'
 
+/** The tracked content under `content/site/`, read while the export is rendered. */
+const SITE_CONTACT = loadContact()
+const NEWS_ARTICLES = loadNews()
+
 /**
  * Nyheder and one article — design 1j (desktop) and 1n (mobile); technical plan §7f.
  *
@@ -30,7 +34,7 @@ import { PhoneAction } from '@/components/site/PhoneAction'
  * written is one more generated page. `dynamicParams` is off, so an address that
  * names no article is a 404 rather than a render.
  *
- * The articles are the tracked list (`content/site/news.ts`); nothing else decides
+ * The articles are the tracked files (`content/site/news/`); nothing else decides
  * what is published. The article page follows the approved system rather than
  * introducing a new design (§7f): title, category, date, image frame, body, a link
  * back to the list, and the phone call to action the whole site carries. Its selected

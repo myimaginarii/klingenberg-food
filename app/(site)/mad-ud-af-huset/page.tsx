@@ -1,5 +1,5 @@
-import { SITE_CONTACT } from '@/content/site/contact'
 import { TAKEAWAY_PAGE } from '@/content/site/pages'
+import { loadContact } from '@/lib/content/load/contact'
 import { TAKEAWAY_DEFAULT_CTA_LABEL } from '@/lib/site/defaults'
 import { pageMetadata } from '@/lib/seo/metadata'
 
@@ -9,6 +9,9 @@ import { PhoneAction } from '@/components/site/PhoneAction'
 import { SiteImage } from '@/components/site/SiteImage'
 import { TakeawayCallToAction } from '@/components/site/takeaway/TakeawayCallToAction'
 import { TakeawaySections } from '@/components/site/takeaway/TakeawaySections'
+
+/** The tracked content under `content/site/`, read while the export is rendered. */
+const SITE_CONTACT = loadContact()
 
 /**
  * Mad ud af huset — design 1ai (desktop and mobile).

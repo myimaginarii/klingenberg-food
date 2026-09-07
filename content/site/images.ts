@@ -20,3 +20,8 @@ export function launchPhoto(slot: PhotoSlot): PublicImage {
   const photo = photos.photos[slot]
   return buildStaticPublicImage({ slot, alt: photo.alt, width: photo.width, height: photo.height })
 }
+
+/** True when `value` names a photograph the registry actually carries. */
+export function isPhotoSlot(value: unknown): value is PhotoSlot {
+  return typeof value === 'string' && Object.hasOwn(photos.photos, value)
+}

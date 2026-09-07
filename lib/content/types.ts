@@ -6,9 +6,11 @@ import type { IsoDate } from '@/lib/time/calendar'
  * The shape of published content as the public site consumes it — technical plan §4.
  *
  * One shape per thing the site renders, written the way a page needs it: camelCase,
- * prices in øre, dates as civil `YYYY-MM-DD` strings. `content/site/` is authored
- * against these types, so a content file that is missing a field or spells one wrong
- * is a build error rather than an empty section on the live site.
+ * prices in øre, dates as civil `YYYY-MM-DD` strings. The tracked JSON under
+ * `content/site/` is read into these shapes by the loaders in `lib/content/load/`,
+ * which is the one place a stored value (a price in kroner, a photograph's slot) is
+ * turned into the domain value a page takes. Nothing above that layer knows the
+ * content is files.
  *
  * Nothing here is a `Date`. Every value is a primitive that survives serialisation
  * unchanged, so a page can pass it to a Client Component (the open/closed badge) with
@@ -121,8 +123,8 @@ export type MonthlyBurger = {
 /**
  * `announcement` — the one sitewide message, as the public bar renders it (§4, §7c).
  *
- * Whether there is an announcement at all is answered by `content/site/announcement.ts`
- * being `null` or not; this type is only what the bar needs to draw one — the words,
+ * Whether there is an announcement at all is answered by `content/site/announcement.json`
+ * being active or not; this type is only what the bar needs to draw one — the words,
  * the optional link and the instant it stops being shown.
  *
  * `expiresAt` is an ISO 8601 **instant** string rather than a `Date`, for the reason

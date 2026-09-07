@@ -6,7 +6,7 @@ import { PageContainer } from '../PageContainer'
  * The bar itself — design 1ac, and the "SÅDAN SER DEN UD" panel of 1ad.
  *
  * A Server Component that takes two values and renders them. It reads nothing, decides
- * nothing about time and holds no state — the whole bar is `content/site/announcement.ts`
+ * nothing about time and holds no state — the whole bar is `content/site/announcement.json`
  * plus this markup, so what a reviewer sees in the diff is what a guest gets.
  *
  * WHAT 1ac ASKS FOR, LINE BY LINE
