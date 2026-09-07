@@ -28,11 +28,16 @@ next-env.d.ts
 #
 #   .env.local             the LOCAL Supabase stack — development, the drills, the
 #                          integration and E2E suites
-#   .env.production.local  the PRODUCTION project — `npm run launch:*`,
+#   .env.operator.local    the PRODUCTION project — `npm run launch:*`,
 #                          `npm run backup:production`, `npm run backup:restore:production`
 #
 # Neither is ever committed, and no command loads both: a shell that can reach the
 # local stack must not also be holding production credentials.
+#
+# The production file is deliberately NOT `.env.production.local`: Next.js loads
+# that name itself during `next build` and `next start`, ahead of `.env.local`, so
+# a plain local build would target production. `.env.operator.local` is a name
+# Next never reads; only the explicit `--env-file-if-exists` commands do.
 .env
 .env.*
 !.env.example

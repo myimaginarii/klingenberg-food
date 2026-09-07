@@ -89,7 +89,7 @@ GitHub and on every developer machine, which is the availability this design rel
 ## 4. Restore the database and Storage
 
 The target's three values — the same names the application uses — live in
-`.env.production.local` when the target is production:
+`.env.operator.local` when the target is production:
 
 ```
 SUPABASE_DB_URL="<the target's SESSION pooler URI, port 5432>"

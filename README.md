@@ -391,7 +391,7 @@ the runtime import graph. The production commands themselves (`npm run launch:mi
 `npm run launch:load-content`, `npm run launch:bootstrap-owner`) refuse the local stack
 and need their own confirmation variable naming the target project's host
 (`.env.example`, `docs/runbooks/launch-notes.md`). They read their target from
-`.env.production.local`, which holds production values only; `.env.local` holds the
+`.env.operator.local`, which holds production values only; `.env.local` holds the
 local stack only, and no command loads both.
 
 The drill (`tests/backup/drill.test.ts`) runs the real backup and restore commands
@@ -399,7 +399,7 @@ against the local stack and is the last step of CI's database job. It refuses ev
 host but loopback, and it ends with `npm run db:reset:full`, so run it when you can
 spare the local database. `npm run backup -- --out ./backups` takes a recovery point
 of the local stack by hand (Docker or a PostgreSQL 17 client needed);
-`npm run backup:production` is the same script against `.env.production.local`, and it
+`npm run backup:production` is the same script against `.env.operator.local`, and it
 refuses outright unless the database and the Storage API prove they are the same
 Supabase project. The production schedule, the destination and the restore sequence are
 in `docs/runbooks/`.

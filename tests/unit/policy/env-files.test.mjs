@@ -13,7 +13,7 @@ import { NAMES } from '../../../scripts/backup/lib/env.mjs'
  * reading different git-ignored files, and this suite holds that boundary over
  * the real `package.json`, `.gitignore` and `.env.example`:
  *
- *   1. **Every production command loads `.env.production.local`, and only it.**
+ *   1. **Every production command loads `.env.operator.local`, and only it.**
  *      The three launch commands and the two production backup commands. An
  *      operator does not export a connection string in each terminal, and a
  *      production run never inherits the local stack.
@@ -28,6 +28,15 @@ import { NAMES } from '../../../scripts/backup/lib/env.mjs'
  *      in neither file, and `package.json` bakes none of them — nor a `--force` —
  *      into a command.
  *   7. **Node loads the files**; no dotenv dependency was introduced.
+ *   8. **The production file has a name Next.js never loads** (2026-09-07). Node's
+ *      `--env-file-if-exists` is not the only reader of environment files: Next
+ *      loads `.env.<mode>.local`, `.env.local`, `.env.<mode>` and `.env` on its
+ *      own during `next dev`, `next build` and `next start`, first file wins. The
+ *      production file was `.env.production.local` until a plain local
+ *      `npm run build` was found targeting the hosted project through it. It is
+ *      now `.env.operator.local`, which matches none of those names, and this
+ *      suite refuses both a command that points at a Next-loaded name and a
+ *      checkout that still has the old file on disk.
  *
  * Variable names come from `scripts/backup/lib/env.mjs` rather than as literals,
  * the rule the whole tooling follows (§10e).
@@ -40,7 +49,23 @@ const scripts = packageJson.scripts
 const envExample = readFileSync(join(ROOT, '.env.example'), 'utf8')
 
 const LOCAL_FILE = '.env.local'
-const PRODUCTION_FILE = '.env.production.local'
+const PRODUCTION_FILE = '.env.operator.local'
+/**
+ * Every file name Next.js reads by itself (`@next/env`, `loadEnvConfig`): the mode
+ * is `development` under `next dev`, `production` under `next build`/`next start`
+ * and `test` when NODE_ENV=test. Only `.env.local` may carry Supabase values here,
+ * and they must be the local stack's.
+ */
+const NEXT_LOADED_FILES = [
+  '.env',
+  '.env.local',
+  '.env.development',
+  '.env.development.local',
+  '.env.production',
+  '.env.production.local',
+  '.env.test',
+  '.env.test.local',
+]
 /** @param {string} file */
 const loads = (file) => `--env-file-if-exists=${file}`
 
@@ -182,5 +207,36 @@ describe('the loading is Node’s own', () => {
   it('no dotenv dependency was introduced', () => {
     const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies }
     expect(Object.keys(dependencies).filter((name) => /dotenv/.test(name))).toEqual([])
+  })
+})
+
+describe('the production file is invisible to Next.js', () => {
+  it('its name is none that `next dev`, `next build` or `next start` read by themselves', () => {
+    expect(NEXT_LOADED_FILES).not.toContain(PRODUCTION_FILE)
+  })
+
+  it('no command points Node at a Next-loaded file other than the local one', () => {
+    for (const [name, command] of Object.entries(scripts)) {
+      // Whole arguments, not substrings: `.env` is a prefix of `.env.local`.
+      const flags = command.split(/\s+/).filter((token) => token.startsWith('--env-file'))
+      for (const file of NEXT_LOADED_FILES) {
+        if (file === LOCAL_FILE) continue
+        expect(flags, `${name} loads ${file}, which Next also loads`).not.toContain(loads(file))
+      }
+    }
+  })
+
+  it('no production-mode file exists in the checkout, so a local build reads .env.local alone', () => {
+    // `.env.production.local` was the production file until 2026-09-07; a copy
+    // left behind is loaded ahead of `.env.local` by every local build and start.
+    for (const file of ['.env.production.local', '.env.production']) {
+      expect(existsSync(join(ROOT, file)), `${file} exists — rename it to ${PRODUCTION_FILE}`).toBe(false)
+    }
+  })
+
+  it('the template and the ignore rules say why the name is not the Next one', () => {
+    const gitignore = readFileSync(join(ROOT, '.gitignore'), 'utf8')
+    expect(envExample).toContain('WHY THE NAME IS NOT `.env.production.local`')
+    expect(gitignore).toContain('NOT `.env.production.local`')
   })
 })

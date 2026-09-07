@@ -186,13 +186,19 @@ in each group.
 | File | Holds | Read by |
 |---|---|---|
 | `.env.local` | the **local** Supabase stack only | `next dev`, `npm run db:users`, `npm run backup`, `npm run backup:restore`, every drill and test configuration |
-| `.env.production.local` | the **production** project only | `npm run launch:migrate`, `npm run launch:load-content`, `npm run launch:bootstrap-owner`, `npm run backup:production`, `npm run backup:restore:production` |
+| `.env.operator.local` | the **production** project only | `npm run launch:migrate`, `npm run launch:load-content`, `npm run launch:bootstrap-owner`, `npm run backup:production`, `npm run backup:restore:production` |
 
 No command reads both. A production connection string in `.env.local` would put it
 into every development shell, every drill and every test run — which is why the
-production values below go into `.env.production.local` and nowhere else. Node loads
+production values below go into `.env.operator.local` and nowhere else. Node loads
 the file itself (`--env-file-if-exists=…` in `package.json`), so there is nothing to
 export by hand in each terminal.
+
+The file is deliberately **not** named `.env.production.local`. Next.js reads that
+name by itself during `next build` and `next start`, ahead of `.env.local`, so a
+production file under it made every plain local build target the hosted project
+(found 2026-09-07; renamed the same day). `.env.operator.local` matches none of the
+names Next loads, and `npm test` refuses a checkout that still has the old file.
 
 The three confirmation variables are the exception, and belong in **neither** file:
 `MIGRATE_CONFIRM_HOST`, `CONTENT_LOAD_CONFIRM_HOST` and `BOOTSTRAP_CONFIRM_HOST` are
@@ -206,8 +212,8 @@ future run, which is the guard, defeated in one line.
 | **Create** | A Supabase project |
 | **Where** | <https://supabase.com/dashboard> → *New project* |
 | **Options** | Organisation: yours. Name: `klingenberg-food`. Region: **Frankfurt (`eu-central-1`)** — checklist S1. Plan: **Pro**, not Free (a Free project pauses and carries no backup guarantee). Set a strong database password and **save it in a password manager** |
-| **Then** | Create `.env.production.local` in the repository root (git-ignored; it does not exist yet). Project settings → *Database* → *Connection string* → **Session pooler (port 5432)**, not the transaction pooler (6543): `pg_dump` and the migration door both need a session. Put it there as `SUPABASE_DB_URL` — that one line is all the migration run needs. Then project settings → *API*: in the same file, the project URL as `NEXT_PUBLIC_SUPABASE_URL`, the anon key as `NEXT_PUBLIC_SUPABASE_ANON_KEY` and the **service-role** key as `SUPABASE_SERVICE_ROLE_KEY`. Nothing production goes into `.env.local` |
-| **Tell me (safe)** | The project reference — the 20 characters in `https://<ref>.supabase.co` — and that the values are in `.env.production.local` |
+| **Then** | Create `.env.operator.local` in the repository root (git-ignored; it does not exist yet). Project settings → *Database* → *Connection string* → **Session pooler (port 5432)**, not the transaction pooler (6543): `pg_dump` and the migration door both need a session. Put it there as `SUPABASE_DB_URL` — that one line is all the migration run needs. Then project settings → *API*: in the same file, the project URL as `NEXT_PUBLIC_SUPABASE_URL`, the anon key as `NEXT_PUBLIC_SUPABASE_ANON_KEY` and the **service-role** key as `SUPABASE_SERVICE_ROLE_KEY`. Nothing production goes into `.env.local` |
+| **Tell me (safe)** | The project reference — the 20 characters in `https://<ref>.supabase.co` — and that the values are in `.env.operator.local` |
 | **Never say** | The database password, the service-role key, the connection string |
 | **Then I can** | Run `npm run launch:migrate` (M3) and `npm run launch:load-content` (C3) against it, and verify RLS, roles, the content documents, the media tables, announcements, hours, contact, image references, the audit and rate-limit functions, and the triggers and policies (§4 of the 14C brief) |
 
@@ -264,10 +270,10 @@ and no scratch project, no recovery point exists to restore.
 Vercel builds from a Git remote and GitHub Actions run from a repository; neither can
 act on a checkout that has no remote. So Group 2 requires pushing this repository once.
 **Nothing has been pushed, and no remote has been added.** The commits are local only.
-Before any push: the tree carries no secret (`.env.local`, `.env.production.local`,
+Before any push: the tree carries no secret (`.env.local`, `.env.operator.local`,
 `.env*` and `/launch-assets` are git-ignored, and `.env.example` holds names only), and
 that stays true only as long as the values from the groups above go into dashboards,
-`.env.local` and `.env.production.local` — never into a committed file.
+`.env.local` and `.env.operator.local` — never into a committed file.
 
 ### 9d. Production media and public content — blocked, and why nothing was copied
 

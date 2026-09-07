@@ -191,7 +191,7 @@ npm run backup:production -- --out ./backups --ship
 ```
 
 `npm run backup` loads `.env.local`; `npm run backup:production` loads
-`.env.production.local`. Neither loads the other, and no command loads both — the
+`.env.operator.local`. Neither loads the other, and no command loads both — the
 production connection string never enters a development shell (`.env.example`,
 §"TWO ENVIRONMENT FILES"). Shipping also needs the AWS CLI (v2 installer, or
 `pip install awscli`, in which case point `BACKUP_AWS_CLI` at `aws.cmd`).
