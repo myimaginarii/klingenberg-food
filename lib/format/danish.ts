@@ -35,32 +35,6 @@ const MONTH_ABBREVIATIONS = [
   'DEC',
 ] as const
 
-/**
- * Danish month names, written out.
- *
- * The administration's computed Månedens burger state says its dates the way a person
- * would read them aloud — *"vises fra 1. september"* (§7d) — rather than as
- * `01.09.2026`. That is the one place on the site where a date is part of a sentence,
- * and a sentence containing "01.09" is a sentence nobody speaks.
- *
- * Danish does **not** capitalise month names, and the day carries no leading zero in
- * this form: "1. september", not "01. September".
- */
-const MONTH_NAMES = [
-  'januar',
-  'februar',
-  'marts',
-  'april',
-  'maj',
-  'juni',
-  'juli',
-  'august',
-  'september',
-  'oktober',
-  'november',
-  'december',
-] as const
-
 function groupThousands(value: number): string {
   const digits = String(value)
   let out = ''
@@ -122,32 +96,6 @@ export function formatDatePeriod(startsOn: IsoDate | null, endsOn: IsoDate | nul
   if (startsOn !== null) return `Fra ${formatDanishDate(startsOn)}`
 
   return null
-}
-
-/**
- * "1. september" — a date inside a sentence, without its year.
- *
- * Used by the administration's computed state (§7d), where the year is usually noise:
- * a burger is written in the month before it runs, and *"vises fra 1. september 2026"*
- * says one thing more than anybody needed. {@link formatDanishLongDate} is the form for
- * when the year genuinely matters, and `lib/menu/monthly.ts` decides which of the two a
- * given date gets — that decision is a domain rule, not a formatting one.
- */
-export function formatDanishDayMonth(date: IsoDate): string {
-  const { month, day } = parseIsoDate(date)
-  const name = MONTH_NAMES[month - 1]
-
-  /* v8 ignore next -- parseIsoDate has already rejected any month outside 1–12. */
-  if (name === undefined) throw new TypeError(`No month name for ${date}.`)
-
-  return `${String(day)}. ${name}`
-}
-
-/** "1. september 2026" — the same date when the year is part of what has to be said. */
-export function formatDanishLongDate(date: IsoDate): string {
-  const { year } = parseIsoDate(date)
-
-  return `${formatDanishDayMonth(date)} ${String(year)}`
 }
 
 /** The two lines of the date circle a photo-less news item gets: "24" over "DEC" (1j). */

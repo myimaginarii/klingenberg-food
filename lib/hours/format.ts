@@ -20,7 +20,7 @@ import type { DaySchedule, WeeklySchedule } from './types'
  * Formatting only. Every decision about *whether* the restaurant is open lives in
  * `./engine.ts`; this module turns an already-decided answer into Danish. It renders
  * no markup and knows nothing about React, so the same strings serve the public footer,
- * the open/closed badge and the admin helper text.
+ * the open/closed badge and the hours table.
  *
  * Where a caller might reasonably want more than one presentation, the return value is
  * **structured** and carries the finished string alongside its parts — see
@@ -72,7 +72,7 @@ export type NextOpeningDescription = {
   weekday: WeekdayKey
   date: IsoDate
   time: IsoTime
-  /** "onsdag kl. 15:00" — the wording used by the §7b admin helper text. */
+  /** "onsdag kl. 15:00" — the §7b wording for when an item becomes available again. */
   text: string
   instant: Date
 }

@@ -13,13 +13,13 @@ import type { Frame, Request } from '@playwright/test'
  *
  * So the rule the suites assert is not "these hosts are allowed" but **whose
  * frame asked**: the site's own document must still reach nothing but this origin
- * and Supabase Storage, and everything foreign must come from inside Google's
+ * from this origin, and everything foreign must come from inside Google's
  * frame. A pixel, a tag manager or an analytics script added to the site would sit
  * in the main frame and still fail, which is the guarantee worth keeping (§12).
  *
  * The privacy question this embed raises — third-party content in a guest's
  * browser, which the retired static map never did — is deliberately not decided
- * here; it is the later privacy/cookie review's (docs/runbooks/launch-notes.md §8).
+ * here; it is the later privacy/cookie review's.
  */
 export const MAP_EMBED_PREFIX = 'https://www.google.com/maps/embed?pb='
 

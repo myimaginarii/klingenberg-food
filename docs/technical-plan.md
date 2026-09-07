@@ -1,5 +1,25 @@
 # Klingenberg Food — Technical Plan
 
+> **SUPERSEDED — 2026-09-07, the static rebuild.**
+>
+> This document plans the database-backed system with an administration dashboard that
+> this repository used to be: Supabase, Auth, drafts and publishing, Server Actions,
+> the image upload pipeline, rate limiting, monitoring, backups and the Vercel
+> deployment. **None of that exists any more.** The site is now a static Next.js export
+> built from tracked content, with no server and no secrets; [`../README.md`](../README.md)
+> describes what actually runs.
+>
+> It is kept for two reasons, and only those two. First, the surviving code still cites
+> its section numbers — a comment saying "§7b" means the sold-out rule as stated below,
+> and deleting the document would turn every such reference into a dead end. Second, the
+> reasoning it records about the *domain* — the opening-hours engine, the sold-out reset,
+> the Månedens burger window, the announcement's link rules, the image ladder, the
+> accessibility model — is still the reasoning the code implements, because those parts
+> were pure from the start and moved across unchanged.
+>
+> Everything it says about storage, authorisation, caching, publishing or deployment is
+> history. The full previous architecture is at the `pre-static-rebuild` git tag.
+
 Source of truth for UI/UX: `Klingenberg Food Hi-fi.dc.html` (screens 1a–1ab).
 This document plans implementation only. Nothing here changes the approved design.
 

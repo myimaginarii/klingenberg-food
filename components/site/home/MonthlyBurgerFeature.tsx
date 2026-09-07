@@ -35,7 +35,7 @@ import type { MonthlyBurgerView } from '@/lib/menu/view'
  * `selectHomepageMonthlyBurger` (§7d); whether it is sold out is answered by the phase 2
  * rule in `lib/menu/availability.ts` (§7b). A `null` burger renders nothing, which is
  * what hides the section: a guest is never shown a placeholder for a burger that does
- * not exist. That sentence belongs in the administration.
+ * not exist.
  *
  * The photograph (phase 10C-2) is the burger's one library image — the same model the
  * menu card renders — in the 4:3 frame this section reserved: full width above the

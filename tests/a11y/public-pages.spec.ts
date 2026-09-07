@@ -13,7 +13,8 @@ import { PUBLIC_ROUTES } from '../e2e/support/site'
  * directly.
  */
 
-const ROUTES = [...PUBLIC_ROUTES.map((route) => route.path), '/nyheder/overskrift-placeholder-ny-burger']
+/** The six pages, and the designed 404 an unmatched address renders inside the same shell. */
+const ROUTES = [...PUBLIC_ROUTES.map((route) => route.path), '/denne-side-findes-ikke/']
 
 /** WCAG 2.2 A and AA. Best-practice rules are reported but not made a failure. */
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']

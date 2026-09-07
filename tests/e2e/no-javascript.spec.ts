@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
 
+import { formatWeeklyHours } from '@/lib/hours/format'
+import { CONFIRMED_SCHEDULE } from '../unit/fixtures/hours'
 import { PRIMARY_TEL_HREF, PUBLIC_ROUTES } from './support/site'
 
 /**
@@ -60,8 +62,10 @@ test('the fullscreen menu reaches every page without scripting', async ({ page }
 
   await panel.getByRole('link', { name: 'Om os', exact: true }).click()
 
-  await expect(page).toHaveURL(/\/om-os$/)
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Vores historie')
+  await expect(page).toHaveURL(/\/om-os\/$/)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+    PUBLIC_ROUTES.find((route) => route.navLabel === 'Om os')!.heading,
+  )
 })
 
 test('the persistent bar still calls, routes and points the way', async ({ page }) => {
@@ -116,20 +120,52 @@ test('the map embed and the directions link both render without scripting', asyn
   await expect(directions).toHaveAttribute('href', /google\.com\/maps\/dir/)
 })
 
-test('the open/closed badge degrades to the server-rendered value, not to nothing', async ({
+test('the open/closed badge degrades to a neutral label, never to a stale claim', async ({
   page,
 }) => {
   await page.goto('/find-os')
 
-  await expect(page.getByRole('main').getByText(/^(Åbent nu|Lukket)/).first()).toBeVisible()
+  // The site is a static export. "Åbent nu" in prerendered HTML would be an answer to
+  // "was the restaurant open when this site was built" — a claim the page cannot
+  // support and one that would be wrong most of the time. Without scripting the badge
+  // therefore names its subject and asserts nothing about now.
+  // Every badge on the page, including the fullscreen menu's own copy, which is in
+  // the document but not on screen until the panel is opened.
+  const badges = page.locator('[data-open-status]')
+  await expect(page.getByRole('main').locator('[data-open-status]').first()).toBeVisible()
+
+  for (const state of await badges.evaluateAll((nodes) =>
+    nodes.map((node) => node.getAttribute('data-open-status')),
+  )) {
+    expect(state).toBe('undecided')
+  }
+
+  await expect(page.getByRole('main').getByText('Åbningstider', { exact: true }).first()).toBeVisible()
 })
 
-test('a news article is readable without scripting', async ({ page }) => {
-  await page.goto('/nyheder')
-  await page.getByRole('link', { name: /Læs mere/ }).first().click()
+test('the hours table marks no day as today, and still gives the whole week', async ({ page }) => {
+  await page.goto('/find-os')
 
-  await expect(page).toHaveURL(/\/nyheder\/[a-z0-9-]+$/)
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Overskrift placeholder')
+  const main = page.getByRole('main')
+
+  // Same reason: a weekday read at build time would mark the same row forever.
+  await expect(main.locator('dt', { hasText: '· i dag' })).toHaveCount(0)
+
+  // The schedule itself is entirely there — the grouped lines on the phone, and the
+  // seven days behind a <details> that needs no scripting to open.
+  for (const row of formatWeeklyHours(CONFIRMED_SCHEDULE)) {
+    await expect(main.getByText(row.days, { exact: true }).first()).toBeVisible()
+  }
+  await expect(main.getByText('Vis alle syv dage')).toBeVisible()
+})
+
+test('the news page states its empty state without scripting, and invents no article', async ({
+  page,
+}) => {
+  await page.goto('/nyheder')
+
+  await expect(page.getByRole('main').getByText('Der er ingen nyheder lige nu.')).toBeVisible()
+  await expect(page.getByRole('link', { name: /Læs mere/ })).toHaveCount(0)
 })
 
 test('still no cookie is set with scripting disabled', async ({ page, context }) => {

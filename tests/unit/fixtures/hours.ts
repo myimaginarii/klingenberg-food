@@ -5,7 +5,7 @@ import type { WeekdayKey } from '@/lib/time/calendar'
  * Shared opening-hours fixtures.
  *
  * `CONFIRMED_SCHEDULE` is the restaurant's real, owner-confirmed schedule (design 1ab,
- * seeded by `supabase/seed/confirmed.sql`): Monday and Tuesday closed, Wednesday–Friday
+ * tracked in `content/site/hours.ts`): Monday and Tuesday closed, Wednesday–Friday
  * 15:00–20:00, Saturday–Sunday 17:00–20:00. Every worked example in technical plan §7b
  * is stated against it, so the tests use the same data the site will.
  */

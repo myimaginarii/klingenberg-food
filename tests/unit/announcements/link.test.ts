@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  ANNOUNCEMENT_LINK_PAGES,
   ANNOUNCEMENT_PAGE_OPTIONS,
-  ANNOUNCEMENT_PAGE_ROUTES_MATCH_NAV,
   isAllowedExternalUrl,
   isAnnouncementPageRoute,
   resolveAnnouncementLink,
 } from '@/lib/announcements/link'
-import { ANNOUNCEMENT_LINK_PAGES } from '@/lib/schemas/announcement'
 import { MAIN_NAV } from '@/lib/site/navigation'
 
 /**
@@ -25,12 +24,10 @@ import { MAIN_NAV } from '@/lib/site/navigation'
 
 describe('the six internal destinations', () => {
   it('are exactly the site’s own navigation routes', () => {
-    // Two lists, one set. They are separate because they mirror different things — a
-    // database CHECK and the approved header — so the equality is asserted rather than
-    // arranged by sharing one constant.
-    expect([...ANNOUNCEMENT_PAGE_ROUTES_MATCH_NAV].sort()).toEqual(
-      MAIN_NAV.map((item) => item.href).sort(),
-    )
+    // One list, one set: the closed set IS the navigation since the static rebuild.
+    // A route added to the site is a route an announcement may point at, with no
+    // second place to remember.
+    expect([...ANNOUNCEMENT_LINK_PAGES]).toEqual(MAIN_NAV.map((item) => item.href))
   })
 
   it('carry the words the navigation already uses', () => {
@@ -51,7 +48,7 @@ describe('the six internal destinations', () => {
   it.each([
     ['a route that does not exist', '/tilbud'],
     ['an admin route', '/admin'],
-    ['an admin route that exists', '/admin/besked'],
+    ['a route the retired administration used to answer', '/admin/besked'],
     ['a route with a query string', '/menu?x=1'],
     ['a route with a fragment', '/menu#burgere'],
     ['a traversal', '/menu/../admin'],

@@ -7,10 +7,10 @@ import { MediaPlaceholder, RATIO_CLASSES, type MediaRatio } from './MediaPlaceho
  * A public photograph in one of the approved frames — design 1aa ("Billedcontainere —
  * faste forhold"); technical plan §1 (adjustment 3); phase 10C-2.
  *
- * The ONE renderer of a library image on the public site (the administration's
- * thumbnails are `components/admin/images/ImageThumbnail.tsx`, and nothing else
- * writes a `<picture>`). It takes the public image model — already composed by the
- * read layer from the derivative ladder — and a slot, and emits plain server HTML:
+ * The ONE renderer of a photograph on the public site: every photograph the site
+ * draws goes through it, and nothing else writes a `<picture>`. It takes the public
+ * image model — already composed from the tracked registry and the derivative
+ * ladder — and a slot, and emits plain server HTML:
  *
  *     <picture class="aspect-… overflow-hidden">
  *       <source type="image/avif" srcset="… 480w, … 960w, …" sizes="…">
@@ -19,8 +19,8 @@ import { MediaPlaceholder, RATIO_CLASSES, type MediaRatio } from './MediaPlaceho
  *     </picture>
  *
  * AVIF is offered to the browsers that decode it, WebP is the `<img>` for the rest;
- * every candidate is a processed derivative in the public bucket, so no browser is
- * ever handed the private original and no request-time transformation exists. The
+ * every candidate is a derivative rendered into `public/media/` at build time, so no
+ * request-time transformation exists and no image service is involved. The
  * browser picks the rung from `sizes` — the slot's real rendered width per breakpoint,
  * stated once in `IMAGE_SIZES` — so a 6rem thumbnail never downloads the 2160 rung.
  *
@@ -30,9 +30,8 @@ import { MediaPlaceholder, RATIO_CLASSES, type MediaRatio } from './MediaPlaceho
  * `object-cover`. A photo that fails to load leaves the box exactly where it was; a
  * photo of another shape is cropped within the frame, never resized on disk.
  *
- * NO IMAGE. With no model — no selection, or a row the read layer could not render
- * safely — the reserved placeholder renders exactly as it did before phase 10, so an
- * empty slot and a broken record look the same to a guest: a frame, not a hole.
+ * NO IMAGE. With no model — nothing tracked for that slot — the reserved placeholder
+ * renders in its place, so an empty slot is a frame rather than a hole.
  *
  * Works without JavaScript: there is nothing here to hydrate.
  */

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { AwardBand } from '@/components/site/AwardBand'
 import { HomeHero } from '@/components/site/home/HomeHero'
 import { NewsAndAbout } from '@/components/site/home/NewsAndAbout'
-import { buildPublicImage, IMAGE_SIZES } from '@/lib/images/public'
+import { buildStaticPublicImage, IMAGE_SIZES } from '@/lib/images/public'
 
 /**
  * The Forside's three photographs, rendered — phase 11A; designs 1g / 1l.
@@ -14,21 +14,16 @@ import { buildPublicImage, IMAGE_SIZES } from '@/lib/images/public'
  * is none. The hero is the page's primary image and loads eagerly; the other two lazily.
  */
 
-const ORIGIN = 'http://localhost:54321'
-const UPLOAD = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3'
-const PUBLIC = `${ORIGIN}/storage/v1/object/public/media/${UPLOAD}`
+const SLOT = 'home-hero'
+const PUBLIC = `/media/${SLOT}`
 
-const image = buildPublicImage(ORIGIN, {
-  storage_path: `${UPLOAD}/original.jpg`,
-  alt_text: 'Signaturburgeren, tæt på.',
-  derivatives: {
-    formats: ['avif', 'webp'],
-    widths: [
-      { width: 480, height: 320 },
-      { width: 960, height: 640 },
-    ],
-  },
-})!
+/** A 960 px source, so the ladder is exactly the 480 and 960 rungs. */
+const image = buildStaticPublicImage({
+  slot: SLOT,
+  alt: 'Signaturburgeren, tæt på.',
+  width: 960,
+  height: 640,
+})
 
 const hours = {
   schedule: {
@@ -43,21 +38,12 @@ const hours = {
   overrides: [],
 } as const
 
-const openStatus = {
-  isOpen: false,
-  label: 'Lukket',
-  detail: 'Åbner onsdag kl. 15:00',
-  todayWeekday: 'mon',
-} as const
-
 function hero(withImage: boolean): string {
   return renderToStaticMarkup(
     <HomeHero
       heading="Burgeren der vandt Fyn"
       intro={null}
-      // The badge is a client component with its own suite; its props are shaped
-      // like the page's, and nothing here asserts on it.
-      openStatus={openStatus as never}
+      // The badge is a client component with its own suite; nothing here asserts on it.
       schedule={hours.schedule as never}
       overrides={[]}
       primaryPhone={null}

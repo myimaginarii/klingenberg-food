@@ -2,8 +2,6 @@ import { describe, expect, it } from 'vitest'
 
 import {
   formatDanishDate,
-  formatDanishDayMonth,
-  formatDanishLongDate,
   formatDateCircle,
   formatDatePeriod,
   formatPrice,
@@ -74,33 +72,5 @@ describe('formatDatePeriod', () => {
 
   it('rejects a date that does not exist, like every other date here', () => {
     expect(() => formatDatePeriod('2026-02-30', null)).toThrow(TypeError)
-  })
-})
-
-describe('formatDanishDayMonth', () => {
-  it('writes a date the way it is spoken, for the sentences in §7d', () => {
-    expect(formatDanishDayMonth('2026-09-01')).toBe('1. september')
-    expect(formatDanishDayMonth('2026-09-30')).toBe('30. september')
-  })
-
-  it('drops the leading zero on the day — "1. september", not "01. september"', () => {
-    expect(formatDanishDayMonth('2026-03-05')).toBe('5. marts')
-  })
-
-  it('uses the Danish month names, uncapitalised as Danish writes them', () => {
-    expect(formatDanishDayMonth('2026-01-15')).toBe('15. januar')
-    expect(formatDanishDayMonth('2026-05-15')).toBe('15. maj')
-    expect(formatDanishDayMonth('2026-10-15')).toBe('15. oktober')
-    expect(formatDanishDayMonth('2026-12-15')).toBe('15. december')
-  })
-
-  it('rejects a date that does not exist, like every other date here', () => {
-    expect(() => formatDanishDayMonth('2026-02-30')).toThrow(TypeError)
-  })
-})
-
-describe('formatDanishLongDate', () => {
-  it('adds the year for the case where the year is the information', () => {
-    expect(formatDanishLongDate('2027-01-01')).toBe('1. januar 2027')
   })
 })

@@ -3,24 +3,23 @@ import { describe, expect, it } from 'vitest'
 import {
   derivativeHeightFor,
   derivativePath,
-  derivativePathsFor,
-  derivativePublicUrlPath,
-  derivativeRecord,
   planDerivativeWidths,
   planDerivatives,
+  staticDerivativeUrl,
   DERIVATIVE_FORMATS,
   DERIVATIVE_WIDTHS,
+  STATIC_MEDIA_DIRECTORY,
 } from '@/lib/images/derivatives'
 
 /**
- * The derivative plan — technical plan §1 (adjustment 3); phase 10A.
+ * The derivative plan — technical plan §1 (adjustment 3).
  *
- * One ladder, stated once, never upscaled. `is_valid_image_derivatives()` restates
- * these rules in SQL; this suite pins the TypeScript side so the two cannot drift
- * without a red test on whichever side moved.
+ * One ladder, stated once, never upscaled, and one path grammar shared by the page
+ * that names a file and the build script that writes it. This suite pins both, so a
+ * change to either would have to be a deliberate change to both.
  */
 
-const UPLOAD_ID = '0b1c2d3e-4f50-4172-8394-a5b6c7d8e9f0'
+const SLOT = 'home-hero'
 
 describe('planDerivativeWidths', () => {
   it('is §1 adjustment 3’s ladder for a large source', () => {
@@ -69,41 +68,16 @@ describe('planDerivatives', () => {
   })
 })
 
-describe('the derivative record and its paths', () => {
-  const record = derivativeRecord([
-    { width: 480, height: 360 },
-    { width: 960, height: 720 },
-  ])
-
-  it('records formats and measured sizes — and nothing else, in particular no paths', () => {
-    expect(record).toEqual({
-      formats: ['avif', 'webp'],
-      widths: [
-        { width: 480, height: 360 },
-        { width: 960, height: 720 },
-      ],
-    })
-    expect(Object.keys(record).sort()).toEqual(['formats', 'widths'])
+describe('the path grammar', () => {
+  it('composes `<slot>/<width>.<format>`', () => {
+    expect(derivativePath(SLOT, 480, 'avif')).toBe(`${SLOT}/480.avif`)
+    expect(derivativePath(SLOT, 2160, 'webp')).toBe(`${SLOT}/2160.webp`)
   })
 
-  it('derives every path from the row’s own storage path', () => {
-    expect(derivativePath(UPLOAD_ID, 480, 'avif')).toBe(`${UPLOAD_ID}/480.avif`)
-    expect(derivativePathsFor(`${UPLOAD_ID}/original.jpg`, record)).toEqual([
-      `${UPLOAD_ID}/480.avif`,
-      `${UPLOAD_ID}/480.webp`,
-      `${UPLOAD_ID}/960.avif`,
-      `${UPLOAD_ID}/960.webp`,
-    ])
-  })
-
-  it('refuses to derive paths from a path the flow never minted', () => {
-    expect(() => derivativePathsFor('media/handpicked.jpg', record)).toThrow()
-  })
-
-  it('serves derivatives from the public media bucket', () => {
-    expect(derivativePublicUrlPath(`${UPLOAD_ID}/480.avif`)).toBe(
-      `/storage/v1/object/public/media/${UPLOAD_ID}/480.avif`,
-    )
+  it('serves the rendered files from /media, which is what the build writes into', () => {
+    expect(STATIC_MEDIA_DIRECTORY).toBe('media')
+    expect(staticDerivativeUrl(SLOT, 960, 'webp')).toBe(`/media/${SLOT}/960.webp`)
+    expect(staticDerivativeUrl(SLOT, 960, 'avif')).toBe(`/media/${SLOT}/960.avif`)
   })
 
   it('offers AVIF before WebP, as a <picture> would', () => {

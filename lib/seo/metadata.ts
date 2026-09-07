@@ -1,17 +1,14 @@
 import type { Metadata } from 'next'
 
-import { absoluteUrl } from '@/lib/config/site'
 import type { SeoImage } from '@/lib/images/public'
+import { canonicalUrl } from '@/lib/seo/sitemap'
 
 /**
  * Page titles and descriptions — technical plan §11.
  *
- * Phase 3 put the two things every page must have to be usable: a title in the
- * browser tab and a one-line description. Phase 9B added the news article's own
- * pieces — §7f's self-canonical and the article Open Graph block
- * (`newsArticleMetadata`). The rest of §11 — sitewide canonicals, per-page OG
- * images, the `Restaurant` JSON-LD — is phase 13, and lands here rather than being
- * scattered across the routes.
+ * Every page has the two things it must have to be usable: a title in the browser
+ * tab and a one-line description. A news article carries more — §7f's self-canonical
+ * and the article Open Graph block (`newsArticleMetadata`).
  *
  * The site is `noindex` until launch (see `app/layout.tsx`), so none of this is
  * published to a search engine yet.
@@ -31,8 +28,9 @@ export function pageMetadata(title: string, description: string): Metadata {
  * One published news article — §7f: self-canonical at the frozen slug's stable URL,
  * plus the article Open Graph block, `og:locale = da_DK` (§11).
  *
- * The page's own absolute URL resolves through `lib/config/site.ts` and nowhere else
- * (§10d). The `og:image` (phase 10C-2) is the article's selected library photo — one
+ * The page's own absolute URL is the canonical one the sitemap also names
+ * (`lib/seo/sitemap.ts`, trailing slash and all), which resolves through
+ * `lib/config/site.ts` and nowhere else (§10d). The `og:image` (phase 10C-2) is the article's selected library photo — one
  * processed public derivative on the storage origin, chosen by `seoImageOf` so the
  * visible image, this tag and the JSON-LD `image` name the same asset — with the real
  * measured dimensions and the authored description. An article without a selected
@@ -54,7 +52,7 @@ export function newsArticleMetadata(article: {
   /** The article's selected image, or `null`/absent for no `og:image` at all. */
   readonly image?: SeoImage | null
 }): Metadata {
-  const url = absoluteUrl(article.path)
+  const url = canonicalUrl(article.path)
   const image = article.image ?? null
 
   return {

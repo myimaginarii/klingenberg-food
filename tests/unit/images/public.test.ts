@@ -1,46 +1,26 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 
-import { overlayDraft } from '@/lib/drafts/overlay'
-import {
-  buildPublicImage,
-  IMAGE_SIZES,
-  publicImageAlt,
-  seoImageOf,
-} from '@/lib/images/public'
-import { dishDraft } from '@/lib/schemas/menu'
+import { buildStaticPublicImage, IMAGE_SIZES, publicImageAlt, seoImageOf } from '@/lib/images/public'
 
 /**
- * The public image model — phase 10C-2 (brief §3–§8, §33).
+ * The public image model.
  *
- * A stored row becomes exactly one renderable value, or none: the processed
- * candidates in both formats, one fallback, the intrinsic dimensions and the alt.
- * Every refusal here is a refusal to guess — a malformed record or an untrusted
- * path yields `null` and the caller's placeholder, never an invented derivative
- * URL and never the private original.
+ * A tracked photograph becomes exactly one renderable value: the candidates in both
+ * formats, one fallback, the intrinsic dimensions and the alt. Every URL it names is a
+ * rung `planDerivatives()` chooses, which is the same function
+ * `scripts/images/build-static-derivatives.mjs` renders from — so the model can never
+ * point at a file the build did not write, and there is no rung to invent.
  */
 
-const ORIGIN = 'http://localhost:54321'
-const UPLOAD = 'cccccccc-cccc-4ccc-8ccc-ccccccccccc1'
-const PATH = `${UPLOAD}/original.jpg`
-const PUBLIC = `${ORIGIN}/storage/v1/object/public/media/${UPLOAD}`
+const SLOT = 'home-hero'
+const PUBLIC = `/media/${SLOT}`
 
-const FULL_LADDER = {
-  formats: ['avif', 'webp'],
-  widths: [
-    { width: 480, height: 320 },
-    { width: 960, height: 640 },
-    { width: 1440, height: 960 },
-    { width: 2160, height: 1440 },
-  ],
-}
+/** A source large enough for the whole ladder: 3000 × 2000. */
+const LARGE = { slot: SLOT, alt: null as string | null, width: 3000, height: 2000 }
 
-describe('buildPublicImage', () => {
-  it('turns a stored record into ascending AVIF and WebP candidates from the public bucket', () => {
-    const image = buildPublicImage(ORIGIN, {
-      storage_path: PATH,
-      alt_text: 'Burgeren fra siden.',
-      derivatives: FULL_LADDER,
-    })!
+describe('buildStaticPublicImage', () => {
+  it('turns a tracked photograph into ascending AVIF and WebP candidates under /media', () => {
+    const image = buildStaticPublicImage({ ...LARGE, alt: 'Burgeren fra siden.' })
 
     expect(image.avifSrcSet).toBe(
       `${PUBLIC}/480.avif 480w, ${PUBLIC}/960.avif 960w, ${PUBLIC}/1440.avif 1440w, ${PUBLIC}/2160.avif 2160w`,
@@ -53,22 +33,14 @@ describe('buildPublicImage', () => {
   })
 
   it('states the intrinsic dimensions of the largest rung, which every rung shares the ratio of', () => {
-    const image = buildPublicImage(ORIGIN, {
-      storage_path: PATH,
-      alt_text: null,
-      derivatives: FULL_LADDER,
-    })!
+    const image = buildStaticPublicImage(LARGE)
 
     expect(image.width).toBe(2160)
     expect(image.height).toBe(1440)
   })
 
-  it('references no rung the record does not carry — a small source has its own single rung', () => {
-    const image = buildPublicImage(ORIGIN, {
-      storage_path: PATH,
-      alt_text: null,
-      derivatives: { formats: ['avif', 'webp'], widths: [{ width: 320, height: 240 }] },
-    })!
+  it('never upscales — a source below the ladder has its own single rung', () => {
+    const image = buildStaticPublicImage({ slot: SLOT, alt: null, width: 320, height: 240 })
 
     expect(image.avifSrcSet).toBe(`${PUBLIC}/320.avif 320w`)
     expect(image.webpSrcSet).toBe(`${PUBLIC}/320.webp 320w`)
@@ -82,89 +54,28 @@ describe('buildPublicImage', () => {
   })
 
   it('falls back to the 960 rung in WebP — never the largest, never AVIF', () => {
-    const full = buildPublicImage(ORIGIN, { storage_path: PATH, alt_text: null, derivatives: FULL_LADDER })!
-    expect(full.src).toBe(`${PUBLIC}/960.webp`)
+    expect(buildStaticPublicImage(LARGE).src).toBe(`${PUBLIC}/960.webp`)
 
-    const twoRungs = buildPublicImage(ORIGIN, {
-      storage_path: PATH,
-      alt_text: null,
-      derivatives: {
-        formats: ['avif', 'webp'],
-        widths: [
-          { width: 480, height: 320 },
-          { width: 700, height: 467 },
-        ],
-      },
-    })!
-    // Nothing reaches 960, so the largest available rung is the fallback.
-    expect(twoRungs.src).toBe(`${PUBLIC}/700.webp`)
+    // A 700 px source carries the 480 rung alone; nothing reaches 960, so it stands.
+    const small = buildStaticPublicImage({ slot: SLOT, alt: null, width: 700, height: 467 })
+    expect(small.candidates.map((candidate) => candidate.width)).toEqual([480])
+    expect(small.src).toBe(`${PUBLIC}/480.webp`)
   })
 
-  it('orders the candidates by width even when the record was stored out of order', () => {
-    const image = buildPublicImage(ORIGIN, {
-      storage_path: PATH,
-      alt_text: null,
-      derivatives: {
-        formats: ['avif', 'webp'],
-        widths: [
-          { width: 960, height: 640 },
-          { width: 480, height: 320 },
-        ],
-      },
-    })!
+  it('names only the site-relative media path — no origin, no storage service, no source file', () => {
+    const everything = JSON.stringify(buildStaticPublicImage({ ...LARGE, alt: 'x' }))
 
-    expect(image.candidates.map((candidate) => candidate.width)).toEqual([480, 960])
-    expect(image.webpSrcSet.startsWith(`${PUBLIC}/480.webp 480w`)).toBe(true)
-  })
-
-  it('never names the private bucket or the original path', () => {
-    const image = buildPublicImage(ORIGIN, {
-      storage_path: PATH,
-      alt_text: 'x',
-      derivatives: FULL_LADDER,
-    })!
-
-    const everything = JSON.stringify(image)
-    expect(everything).not.toContain('media-originals')
-    expect(everything).not.toContain('original.jpg')
-  })
-
-  describe('a record that cannot be rendered safely yields null (brief §4)', () => {
-    const malformed: unknown[] = [
-      null,
-      'ikke et objekt',
-      {},
-      { formats: ['avif', 'webp'] },
-      { formats: ['avif', 'webp'], widths: [] },
-      { formats: ['avif', 'webp'], widths: [{ width: '480', height: 320 }] },
-      { formats: ['avif', 'webp'], widths: [{ width: 480 }] },
-      { formats: ['avif', 'webp'], widths: [{ width: 0, height: 320 }] },
-      { formats: ['jpeg'], widths: [{ width: 480, height: 320 }] },
-      { formats: 'avif', widths: [{ width: 480, height: 320 }] },
-    ]
-
-    it.each(malformed)('%j', (derivatives) => {
-      expect(buildPublicImage(ORIGIN, { storage_path: PATH, alt_text: null, derivatives })).toBeNull()
-    })
-
-    it('refuses a storage path the trusted upload flow could not have minted', () => {
-      for (const storagePath of [
-        null,
-        '',
-        '../original.jpg',
-        `${UPLOAD}/original.gif`,
-        'not-a-uuid/original.jpg',
-        `${UPLOAD}/480.webp`,
-      ]) {
-        expect(
-          buildPublicImage(ORIGIN, { storage_path: storagePath, alt_text: null, derivatives: FULL_LADDER }),
-        ).toBeNull()
-      }
-    })
+    expect(everything).not.toContain('http')
+    expect(everything).not.toContain('.png')
+    expect(everything).not.toContain('content/launch')
+    for (const candidate of buildStaticPublicImage(LARGE).candidates) {
+      expect(candidate.avifUrl.startsWith(`${PUBLIC}/`)).toBe(true)
+      expect(candidate.webpUrl.startsWith(`${PUBLIC}/`)).toBe(true)
+    }
   })
 })
 
-describe('publicImageAlt — the accepted accessibility model (brief §8)', () => {
+describe('publicImageAlt — the accepted accessibility model', () => {
   it('renders the authored description', () => {
     expect(publicImageAlt('Burgeren fra siden.')).toBe('Burgeren fra siden.')
   })
@@ -178,9 +89,9 @@ describe('publicImageAlt — the accepted accessibility model (brief §8)', () =
   })
 })
 
-describe('seoImageOf — the one derivative every SEO surface names (brief §14–§16)', () => {
+describe('seoImageOf — the one derivative every SEO surface names', () => {
   it('chooses the smallest rung at or above 1200 px, in WebP, with its measured size', () => {
-    const image = buildPublicImage(ORIGIN, { storage_path: PATH, alt_text: 'Alt.', derivatives: FULL_LADDER })!
+    const image = buildStaticPublicImage({ ...LARGE, alt: 'Alt.' })
 
     expect(seoImageOf(image)).toEqual({
       url: `${PUBLIC}/1440.webp`,
@@ -191,25 +102,16 @@ describe('seoImageOf — the one derivative every SEO surface names (brief §14�
   })
 
   it('falls back to the largest rung when none reaches 1200 px', () => {
-    const image = buildPublicImage(ORIGIN, {
-      storage_path: PATH,
-      alt_text: null,
-      derivatives: {
-        formats: ['avif', 'webp'],
-        widths: [
-          { width: 480, height: 320 },
-          { width: 960, height: 640 },
-        ],
-      },
-    })!
+    // 1000 px carries 480 and 960 only.
+    const image = buildStaticPublicImage({ slot: SLOT, alt: null, width: 1000, height: 667 })
 
     expect(seoImageOf(image).url).toBe(`${PUBLIC}/960.webp`)
     expect(seoImageOf(image).width).toBe(960)
   })
 })
 
-describe('IMAGE_SIZES — one sizes string per approved slot (brief §7)', () => {
-  it('names exactly the public surfaces the frames draw an image in — the entity slots, the Forside\'s three (11A), Mad ud af huset\'s (11B) and Om os\'s three (14B1)', () => {
+describe('IMAGE_SIZES — one sizes string per approved slot', () => {
+  it('names exactly the public surfaces the frames draw an image in', () => {
     expect(Object.keys(IMAGE_SIZES).sort()).toEqual(
       [
         'dishCard',
@@ -222,9 +124,9 @@ describe('IMAGE_SIZES — one sizes string per approved slot (brief §7)', () =>
         'homeHero',
         'homeAward',
         'homeTeam',
-        // Phase 11B: Mad ud af huset's own photograph (1ai/1aj).
+        // Mad ud af huset's own photograph (1ai/1aj).
         'takeawayHero',
-        // Phase 14B1: Om os's three frames (1i).
+        // Om os's three frames (1i).
         'aboutVenue',
         'aboutTeam',
         'aboutKitchen',
@@ -249,37 +151,38 @@ describe('IMAGE_SIZES — one sizes string per approved slot (brief §7)', () =>
   })
 })
 
-describe('the Draft Mode projection (brief §9)', () => {
-  const LIVE = 'dddddddd-dddd-4ddd-8ddd-ddddddddddd1'
-  const PENDING = 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1'
+/**
+ * A sub-path deployment — a GitHub Pages *project* site.
+ *
+ * These URLs end up in a plain `<img src>` and `srcset`, which is exactly what the
+ * framework does **not** rewrite for a `basePath` build (it rewrites `next/link`, the
+ * router's prefetches and `_next/` assets). So the prefix is applied here, through the
+ * one door in `lib/config/site.ts`, and this is where that is pinned.
+ */
+describe('under a base path', () => {
+  const ORIGINAL = process.env.SITE_URL
 
-  /** The read layer's own step, reduced: overlay first, then resolve the overlaid id. */
-  function project(live: string | null, draft: unknown, images: Map<string, string>) {
-    const { row } = overlayDraft({ image_id: live, name: 'Thor' }, draft, dishDraft)
-    return row.image_id === null ? null : (images.get(row.image_id) ?? null)
-  }
-
-  const images = new Map([
-    [LIVE, 'A'],
-    [PENDING, 'B'],
-  ])
-
-  it('live A + draft B previews B; the guest path, which applies no draft, keeps A', () => {
-    expect(project(LIVE, { image_id: PENDING }, images)).toBe('B')
-    expect(project(LIVE, null, images)).toBe('A')
+  afterEach(() => {
+    if (ORIGINAL === undefined) delete process.env.SITE_URL
+    else process.env.SITE_URL = ORIGINAL
   })
 
-  it('live A + a pending removal previews no image; the guest keeps A', () => {
-    expect(project(LIVE, { image_id: null }, images)).toBeNull()
-    expect(project(LIVE, null, images)).toBe('A')
+  it('carries every candidate, the fallback and the SEO image across the sub-path', () => {
+    process.env.SITE_URL = 'https://example.test/a-repo/'
+    const image = buildStaticPublicImage({ ...LARGE, alt: 'Burgeren fra siden.' })
+
+    expect(image.src).toBe(`/a-repo${PUBLIC}/960.webp`)
+    expect(image.avifSrcSet.startsWith(`/a-repo${PUBLIC}/480.avif 480w, `)).toBe(true)
+    expect(image.webpSrcSet.startsWith(`/a-repo${PUBLIC}/480.webp 480w, `)).toBe(true)
+    for (const candidate of image.candidates) {
+      expect(candidate.avifUrl.startsWith(`/a-repo${PUBLIC}/`)).toBe(true)
+      expect(candidate.webpUrl.startsWith(`/a-repo${PUBLIC}/`)).toBe(true)
+    }
+    expect(seoImageOf(image).url).toBe(`/a-repo${PUBLIC}/1440.webp`)
   })
 
-  it('live null + draft B previews B; the guest has none', () => {
-    expect(project(null, { image_id: PENDING }, images)).toBe('B')
-    expect(project(null, null, images)).toBeNull()
-  })
-
-  it('a pending id that names no readable image resolves to the placeholder, not a crash', () => {
-    expect(project(LIVE, { image_id: 'ffffffff-ffff-4fff-8fff-fffffffffff1' }, images)).toBeNull()
+  it('leaves the paths alone when the site is at the root of a host', () => {
+    process.env.SITE_URL = 'https://example.test'
+    expect(buildStaticPublicImage(LARGE).src).toBe(`${PUBLIC}/960.webp`)
   })
 })

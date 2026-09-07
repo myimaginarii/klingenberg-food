@@ -1,18 +1,22 @@
 /**
  * The facts the browser tests assert against — technical plan header, design 1ab.
  *
- * These are the owner-confirmed values, the same ones `supabase/seed/confirmed.sql` writes. They
- * are stated once here so a test failure points at the site, not at a number typed
- * twice.
+ * These are the owner-confirmed values, the same ones the tracked content under
+ * `content/site/` carries. They are stated once here so a test failure points at the
+ * site, not at a number typed twice.
+ *
+ * The headings are the confirmed launch copy (`content/launch/launch-copy.md`). Every
+ * address is served with a trailing slash (`trailingSlash` in `next.config.ts`), which
+ * is how the links render and how a static host serves a folder.
  */
 
 export const PUBLIC_ROUTES = [
   { path: '/', heading: 'Burgeren der vandt Fyn', navLabel: 'Forside' },
-  { path: '/menu', heading: 'Menu', navLabel: 'Menu' },
-  { path: '/mad-ud-af-huset', heading: 'Mad til fester og store selskaber', navLabel: 'Mad ud af huset' },
-  { path: '/om-os', heading: 'Vores historie', navLabel: 'Om os' },
-  { path: '/nyheder', heading: 'Nyheder', navLabel: 'Nyheder' },
-  { path: '/find-os', heading: 'Find os', navLabel: 'Find os' },
+  { path: '/menu/', heading: 'Menu', navLabel: 'Menu' },
+  { path: '/mad-ud-af-huset/', heading: 'Mad ud af huset', navLabel: 'Mad ud af huset' },
+  { path: '/om-os/', heading: 'Mad fra Carl Nielsen Hallen', navLabel: 'Om os' },
+  { path: '/nyheder/', heading: 'Nyheder', navLabel: 'Nyheder' },
+  { path: '/find-os/', heading: 'Find os', navLabel: 'Find os' },
 ] as const
 
 export const PRIMARY_PHONE = '+45 63 90 83 00'

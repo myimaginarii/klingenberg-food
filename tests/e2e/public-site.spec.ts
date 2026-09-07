@@ -1,6 +1,8 @@
-import { expect, test } from '@playwright/test'
+import { expect, test, type Page } from '@playwright/test'
 
-import { formatDailyHours, formatWeeklyHoursLines } from '@/lib/hours/format'
+import { formatDailyHours, formatWeekdayName, formatWeeklyHoursLines } from '@/lib/hours/format'
+import { weekdayOf } from '@/lib/time/calendar'
+import { copenhagenDateOf } from '@/lib/time/copenhagen'
 import { CONFIRMED_SCHEDULE } from '../unit/fixtures/hours'
 import {
   ADDRESS_LINE,
@@ -132,10 +134,10 @@ test.describe('ordering is by telephone', () => {
       'href',
       PRIMARY_TEL_HREF,
     )
-    await expect(bar.getByRole('link', { name: 'Menu' })).toHaveAttribute('href', '/menu')
+    await expect(bar.getByRole('link', { name: 'Menu' })).toHaveAttribute('href', '/menu/')
     await expect(bar.getByRole('link', { name: 'Tider' })).toHaveAttribute(
       'href',
-      '/find-os#aabningstider',
+      '/find-os/#aabningstider',
     )
   })
 
@@ -185,8 +187,24 @@ test.describe('opening hours come from the phase 2 engine', () => {
   test('the status badge names a state in words, never colour alone', async ({ page }) => {
     await page.goto('/find-os')
 
+    // The prerendered HTML claims nothing; the browser decides and replaces the
+    // neutral label with the real state. `toBeVisible` waits for that to happen.
     const badge = page.getByRole('main').getByText(/^(Åbent nu|Lukket)/).first()
     await expect(badge).toBeVisible()
+  })
+
+  test('the browser decides which row of the hours table is today', async ({ page }) => {
+    await page.goto('/find-os')
+
+    // The context runs in Europe/Copenhagen, so the browser's own weekday is the
+    // answer the page must reach. Asserted on the element rather than on its
+    // visibility: at 375 px the seven-day list sits inside a collapsed <details>.
+    const weekday = formatWeekdayName(weekdayOf(copenhagenDateOf(new Date())), 'long')
+    const today = weekday.charAt(0).toUpperCase() + weekday.slice(1)
+
+    await expect(
+      page.getByRole('main').locator('dt', { hasText: '· i dag' }).first(),
+    ).toHaveText(new RegExp(`^${today}`))
   })
 })
 
@@ -221,6 +239,31 @@ test.describe('the menu', () => {
 
     const headings = await page.getByRole('heading', { level: 2 }).allInnerTexts()
     expect(headings).toEqual(MENU_CATEGORIES.map((category) => category.name))
+  })
+
+  test('lists exactly the forty-six confirmed dishes', async ({ page }) => {
+    await page.goto('/menu')
+
+    // Every dish is an <h3> — a card or a price row — except the tapas board, which
+    // is one dish rendered as three lists under its own three headings. The other
+    // <h3>s in the body are the two approved empty cards.
+    const NOT_A_DISH = new Set([
+      'På bordet — altid med',
+      'I vælger 7',
+      'Og 3 dressinger',
+      'Månedens burger',
+      'Lørdagsmenu',
+    ])
+    // `textContent`, not `innerText`: the eyebrow headings are uppercased by CSS.
+    const headings = await page
+      .getByRole('main')
+      .locator('h3')
+      .evaluateAll((elements) => elements.map((element) => element.textContent?.trim() ?? ''))
+    const dishes = headings.filter((heading) => !NOT_A_DISH.has(heading))
+
+    expect(dishes).toHaveLength(45)
+    await expect(page.locator('#menu-tapas').getByText('Til to personer', { exact: true })).toBeVisible()
+    expect(dishes).not.toContain('Salat efter sæson')
   })
 
   test('every category control jumps to its section', async ({ page }) => {
@@ -279,12 +322,14 @@ test.describe('the menu', () => {
     await expect(tapas.locator('input, button, select')).toHaveCount(0)
   })
 
-  test('shows the approved Ugens ret and Lørdagsmenu states', async ({ page }) => {
+  test('shows the approved Ugens ret and Lørdagsmenu states, with no invented week', async ({ page }) => {
     await page.goto('/menu')
 
+    // The kitchen has not supplied a week: no dish card, no week number, no days —
+    // only the approved "no Saturday menu" card and the section's own note (1af).
     const section = page.locator('#menu-ugens-ret')
-    await expect(section.getByText('Uge 35')).toBeVisible()
-    await expect(section.getByText('Onsdag · torsdag · fredag')).toBeVisible()
+    await expect(section.getByRole('article')).toHaveCount(0)
+    await expect(section.getByText(/^Uge \d+$/)).toHaveCount(0)
     await expect(section.getByText('Ingen lørdagsmenu denne uge')).toBeVisible()
     await expect(
       section.getByText('Alle ugens retter kan også laves glutenfrie og laktosefrie.', {
@@ -356,7 +401,7 @@ test.describe('Find os', () => {
   test('the e-mail address is on Find os and on no other public page', async ({ page }) => {
     for (const route of PUBLIC_ROUTES) {
       await page.goto(route.path)
-      const expected = route.path === '/find-os' ? 1 : 0
+      const expected = route.path === '/find-os/' ? 1 : 0
       await expect(page.locator('a[href^="mailto:"]'), route.path).toHaveCount(expected)
     }
   })
@@ -397,12 +442,92 @@ test.describe('Mad ud af huset', () => {
   })
 })
 
+/**
+ * The photographs — the static twin of the retired `public-images.spec.ts` guest half
+ * (phase 10C-2, brief §36, §38, §41): every public photo is a processed derivative
+ * under `/media/`, served as plain files, chosen by `sizes`, and rendered as server
+ * HTML. The build renders exactly the rungs the page names, so a missing file here is
+ * a broken registry, not a slow network.
+ */
+test.describe('photographs', () => {
+  const dishImage = (page: Page, dish: string) =>
+    page
+      .locator('article')
+      .filter({ has: page.getByRole('heading', { name: dish, exact: true }) })
+      .first()
+      .locator('picture img')
+
+  test('the menu renders the two confirmed dish photographs from the derivative ladder alone', async ({
+    page,
+  }) => {
+    const requested: string[] = []
+    page.on('request', (request) => requested.push(request.url()))
+
+    await page.goto('/menu')
+
+    const odin = dishImage(page, 'Odin')
+    await expect(odin).toHaveAttribute('src', '/media/dish-odin/960.webp')
+    await expect(odin).toHaveAttribute('srcset', /480w.*960w.*1440w/)
+    await expect(odin).toHaveAttribute('sizes', /9\.375rem/)
+    await expect(odin).toHaveAttribute('width', '1440')
+    await expect(odin).toHaveAttribute('height', '1080')
+    await expect(odin.locator('xpath=..').locator('source[type="image/avif"]')).toHaveCount(1)
+
+    const ragnar = dishImage(page, 'Ragnar')
+    await expect(ragnar).toHaveAttribute('src', '/media/dish-ragnar/960.webp')
+    await expect(ragnar).toHaveAttribute('srcset', /480w.*960w/)
+    await expect(ragnar).not.toHaveAttribute('srcset', /1440w/)
+
+    // A dish without a supplied photograph keeps its reserved frame (1h/1m).
+    const frigg = page
+      .locator('article')
+      .filter({ has: page.getByRole('heading', { name: 'Frigg', exact: true }) })
+    await expect(frigg.locator('picture')).toHaveCount(0)
+    await expect(frigg.locator('.media-placeholder')).toHaveCount(1)
+
+    // The 6rem / 9.375rem slot takes the 480 rung at either width, once, as AVIF —
+    // never the largest rung and never a source file.
+    await expect(odin).toBeVisible()
+    await page.waitForLoadState('networkidle')
+    const forOdin = requested.filter((url) => url.includes('/media/dish-odin/'))
+    expect(forOdin).toHaveLength(1)
+    expect(forOdin[0]).toMatch(/\/480\.avif$/)
+    expect(requested.some((url) => /\.png(\?|$)/.test(url))).toBe(false)
+
+    const html = await page.content()
+    expect(html).not.toContain('supabase')
+    expect(html).not.toContain('/storage/v1/')
+  })
+
+  test('the Forside, Om os and Mad ud af huset carry their photographs with the recorded descriptions', async ({
+    page,
+  }) => {
+    await page.goto('/')
+    const hero = page.locator('section[aria-labelledby="forside-titel"] picture img')
+    await expect(hero).toHaveAttribute('src', '/media/home-hero/960.webp')
+    await expect(hero).toHaveAttribute('alt', 'Burger med bacon og spejlæg')
+    await expect(hero).toHaveAttribute('loading', 'eager')
+    await expect(page.locator('img[src^="/media/about-venue/"]').first()).toHaveAttribute(
+      'alt',
+      'Spisesalen hos Klingenberg Food',
+    )
+
+    await page.goto('/om-os')
+    await expect(page.getByRole('main').locator('img[src^="/media/about-venue/"]')).toHaveCount(1)
+
+    await page.goto('/mad-ud-af-huset')
+    const takeaway = page.getByRole('main').locator('picture img')
+    await expect(takeaway).toHaveAttribute('src', '/media/takeaway/960.webp')
+    await expect(takeaway).toHaveAttribute('alt', 'Tre sandwiches')
+  })
+})
+
 test.describe('privacy', () => {
   test('a visitor to any public page is given no cookie at all', async ({ page, context }) => {
     for (const route of PUBLIC_ROUTES) {
       await page.goto(route.path)
     }
-    await page.goto('/nyheder/overskrift-placeholder-ny-burger')
+    await page.goto('/nyheder/ukendt-artikel/')
 
     expect(await context.cookies()).toEqual([])
   })

@@ -1,9 +1,13 @@
-import { NO_SATURDAY_MENU } from '@/lib/menu/weekly'
 import type { WeeklySpecialView } from '@/lib/menu/view'
 
 import { SiteImage } from '../SiteImage'
 import { SoldOutBadge } from './DishBadge'
 import { DishPrice } from './DishPrice'
+
+/**
+ * The empty Saturday-menu wording, stated once (1af, 1ag).
+ */
+const NO_SATURDAY_MENU = 'Ingen lørdagsmenu denne uge'
 
 /**
  * Ugens ret and Lørdagsmenu — design 1h and, for every state, 1af.
@@ -16,10 +20,8 @@ import { DishPrice } from './DishPrice'
  * Nothing here is written by us. The week, the days, the dish and both prices come from
  * `weekly_special`, which the kitchen fills in each week; phase 6A built the editor.
  *
- * The empty state's wording is imported rather than written here, because the
- * administration promises it word for word — 1ag's toggle reads *"Slå fra, og der står
- * 'Ingen lørdagsmenu denne uge'"*. Two copies of an approved sentence is one copy too
- * many, so it is stated once in `lib/menu/weekly.ts` and read by both sides.
+ * The empty state's wording is the approved sentence, stated once below: 1af draws
+ * *"Ingen lørdagsmenu denne uge"* as a calm dashed card rather than as a hole.
  *
  * The week's photograph (phase 10C-2) is the row's library image in 1h/1af's 4:3
  * frame — full width above the text on a phone (1m), a column beside it from `md`.

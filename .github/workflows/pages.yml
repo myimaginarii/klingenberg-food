@@ -1,0 +1,114 @@
+name: Deploy to GitHub Pages
+
+# The deployment (technical plan §10d, §14).
+#
+# The site is a static export with no backend, so deploying it is: build `out/`, upload
+# it, publish it. There is no server to provision, no database to migrate and **no
+# secret of any kind** — this workflow reads nothing from `secrets` and cannot, because
+# `npm run build` needs nothing but the repository.
+#
+# WHERE THE SITE LIVES. `actions/configure-pages` reports the address GitHub has
+# actually assigned to this repository — origin, and the `/<repository>/` sub-path a
+# *project* site is served under. That address is handed to the build as `SITE_URL`,
+# the one variable the site reads (`lib/config/site.ts`): it resolves the `basePath` the
+# export is built with, every canonical URL, the sitemap and the Open Graph URLs.
+# Nothing here writes the address down, so moving to a custom domain later is a Pages
+# setting rather than an edit to this file.
+#
+# `.nojekyll` is a tracked file in `public/`, copied into `out/` by the build; it is a
+# dotfile, so the upload has to be told to keep it (`include-hidden-files`). With it
+# there, GitHub never runs the export through Jekyll — which would drop `_next/`.
+#
+# Third-party actions are pinned by commit SHA, never by tag (§14) — a moving tag is a
+# supply-chain hole. The comment records which release each SHA is.
+
+on:
+  # Deploys land from `main` only. This file is on a branch that is not `main`, so
+  # committing it publishes nothing.
+  push:
+    branches: [main]
+  # And by hand, from the Actions tab, for a deliberate re-deploy.
+  workflow_dispatch:
+
+# Granted per job, because the two jobs need different things and neither needs both.
+permissions: {}
+
+# One deployment at a time, and never cancel one that is already publishing: a
+# half-replaced site is worse than an old one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+env:
+  CI: true
+  NEXT_TELEMETRY_DISABLED: 1
+
+jobs:
+  build:
+    name: Build the static export
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    # Read the repository, and read this repository's Pages configuration. The build
+    # publishes nothing and needs no write of any kind.
+    permissions:
+      contents: read
+      pages: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Node 24 — the version `.nvmrc` and `package.json`'s `engines` both name, and
+      # the one CI already builds and tests with.
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # `npm ci` — the lockfile exactly, never a resolving install (§14).
+      - name: Install dependencies
+        run: npm ci
+
+      # Reports this repository's Pages address. `base_url` is the full public address
+      # including the project sub-path. No `static_site_generator` is given: this
+      # repository configures its own `basePath` from `SITE_URL`, and does not want the
+      # action rewriting `next.config.ts` underneath it.
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
+
+      # The one variable the site reads. It resolves `basePath`, the canonical URLs, the
+      # sitemap and the Open Graph URLs — all through `lib/config/site.ts` (§10d).
+      - name: Build
+        run: npm run build
+        env:
+          SITE_URL: ${{ steps.pages.outputs.base_url }}
+
+      # `include-hidden-files` keeps `out/.nojekyll`, which the default excludes.
+      - name: Upload the export
+        uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: out
+          include-hidden-files: true
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    # The two the deployment API requires, and nothing else — not even `contents`.
+    permissions:
+      pages: write
+      id-token: write
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

@@ -8,49 +8,51 @@ import type { OpeningHoursOverride, WeeklySchedule } from '@/lib/hours/types'
 import { OpenStatusBadge, type OpenStatusVariant } from './OpenStatusBadge'
 
 /**
- * The open/closed badge, corrected in the browser — technical plan §7a, correction C1's
- * sibling.
+ * The open/closed badge, computed in the browser — technical plan §7a.
  *
- * The public site is served from a cache that can be up to five minutes old, which is
- * invisible for a menu and wrong for a badge that says "Åbent nu" four minutes after
- * the doors shut. This component fixes exactly that, and does nothing else:
+ * The site is a **static export**: every page is rendered once, at build time, and then
+ * served unchanged for as long as it stands. A clock read during that render is not a
+ * stale answer, it is an answer to a question nobody asked — "was the restaurant open
+ * when this site was built". Printing it as "Åbent nu" would be a claim the HTML cannot
+ * support, and it would be wrong far more often than it was right.
  *
- *  * The **server** renders the badge. `initialStatus` is the server's own answer, so
- *    the first client render is byte-identical to the HTML and there is no flash and no
- *    hydration mismatch.
- *  * On mount it recomputes from the same pure engine and then once a minute, and it
+ * So nothing here is decided on the server. The badge is rendered from the schedule and
+ * the published overrides that are already in the page, by the same pure engine the
+ * hours table reads, and it is decided at the only moment the answer is meaningful:
+ *
+ *  * The **server** renders the neutral state — the word "Åbningstider" beside a neutral
+ *    dot. It claims nothing about now, and it is what a visitor without JavaScript
+ *    reads. The opening hours themselves are on the page regardless: the footer carries
+ *    the grouped week on every page, and Forside and Find os draw the full table.
+ *  * On mount the browser computes the real state, then recomputes once a minute, and
  *    re-checks on `visibilitychange` — a phone restored from the background hours later
  *    will not have fired a pending interval reliably, and on mobile that is the case
  *    that actually matters.
  *
- * **What it does not do:** no `fetch`, no Supabase client, no realtime subscription, no
- * polling of the server, no cookie, no state library. It reads two props and a clock.
- * The schedule and overrides it needs are already in the page's HTML; this adds no
- * request of any kind, which is what keeps §12's "a visitor receives zero cookies and
- * no tracking" true.
+ * The first client render matches the server's, so there is no hydration mismatch; the
+ * live value replaces it in the same tick as the mount effect.
  *
- * With JavaScript disabled the server-rendered value stands — at most five minutes
- * stale, exactly as §7a specifies.
+ * **What it does not do:** no `fetch`, no polling of a server, no cookie, no state
+ * library. It reads two props and a clock — which is what keeps §12's "a visitor
+ * receives zero cookies and no tracking" true.
  */
 
 const RECHECK_INTERVAL_MS = 60_000
 
 export function OpenStatus({
-  initialStatus,
   schedule,
   overrides,
   variant,
   showWeekday,
   className,
 }: {
-  initialStatus: OpenStatusSnapshot
   schedule: WeeklySchedule
   overrides: OpeningHoursOverride[]
   variant?: OpenStatusVariant
   showWeekday?: boolean
   className?: string
 }) {
-  const [status, setStatus] = useState(initialStatus)
+  const [status, setStatus] = useState<OpenStatusSnapshot | null>(null)
 
   useEffect(() => {
     const recompute = () => {

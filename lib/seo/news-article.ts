@@ -1,7 +1,7 @@
-import { absoluteUrl } from '@/lib/config/site'
 import type { NewsArticle } from '@/lib/content/types'
 import { seoImageOf } from '@/lib/images/public'
 import { newsArticlePath } from '@/lib/news/slug'
+import { canonicalUrl } from '@/lib/seo/sitemap'
 
 /**
  * The `NewsArticle` JSON-LD block for `/nyheder/[slug]` — technical plan §7f, §11;
@@ -62,7 +62,7 @@ export function newsArticleJsonLd(
   return {
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
-    mainEntityOfPage: absoluteUrl(newsArticlePath(article.slug)),
+    mainEntityOfPage: canonicalUrl(newsArticlePath(article.slug)),
     headline: article.title,
     ...(image === null
       ? {}

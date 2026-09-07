@@ -15,7 +15,7 @@ const ADDRESS = {
   city: 'Nørre Lyndelse',
 }
 
-/** The confirmed contact facts, as `supabase/seed/confirmed.sql` writes them. */
+/** The confirmed contact facts, as `content/site/contact.ts` carries them. */
 const CONTACT: SiteContact = {
   venueName: 'Carl Nielsen Hallen',
   addressLine1: 'Lumbyvej 62',

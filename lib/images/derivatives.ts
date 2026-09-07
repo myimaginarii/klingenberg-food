@@ -1,23 +1,15 @@
-import {
-  DERIVATIVES_BUCKET,
-  uploadIdOfStoragePath,
-} from './rules'
-
 /**
- * The derivative plan — technical plan §1 (adjustment 3), §4; phase 10A.
+ * The derivative plan — technical plan §1 (adjustment 3), §4.
  *
  * One fixed ladder, stated once: AVIF + WebP at 480 / 960 / 1440 / 2160, filtered
- * to the source width so a small original is never upscaled, with the source width
- * itself as the single rung when the original is smaller than the smallest step.
- * `is_valid_image_derivatives()` (20260901140000) restates the same rule in SQL and
- * `create_image()` refuses a record that disagrees — two layers, neither trusted
- * alone (§5).
+ * to the source width so a small photograph is never upscaled, with the source width
+ * itself as the single rung when it is smaller than the smallest step.
  *
- * Derivative *paths* are never stored. `images.derivatives` records only what was
- * measured (formats and per-rung dimensions); the path of every derivative is
- * derived from the row's own `storage_path` by `derivativePath()` below. A record
- * with no stored path is a record that cannot point anywhere else — the whole class
- * of forged-path bugs has nothing to hold on to.
+ * Two callers share it and cannot disagree: `scripts/images/build-static-derivatives.mjs`
+ * renders exactly these rungs into `public/media/` at build time, and
+ * `lib/images/public.ts` names exactly these rungs in the `srcset` a page prints. The
+ * ladder, the encoder settings and the path grammar are all here rather than restated
+ * in either place.
  */
 
 /** §1 adjustment 3's ladder, in ascending order. */
@@ -26,12 +18,14 @@ export const DERIVATIVE_WIDTHS = [480, 960, 1440, 2160] as const
 /** The two output formats, in the order a `<picture>` would offer them. */
 export const DERIVATIVE_FORMATS = ['avif', 'webp'] as const
 
-export type DerivativeFormat = (typeof DERIVATIVE_FORMATS)[number]
+/**
+ * Encoder settings — one statement, read by the build-time pipeline
+ * (`scripts/images/build-static-derivatives.mjs`) rather than restated there.
+ */
+export const AVIF_QUALITY = 55
+export const WEBP_QUALITY = 80
 
-export const DERIVATIVE_CONTENT_TYPES: Record<DerivativeFormat, string> = {
-  avif: 'image/avif',
-  webp: 'image/webp',
-}
+export type DerivativeFormat = (typeof DERIVATIVE_FORMATS)[number]
 
 /** One rung of the ladder: the dimensions a derivative pair was rendered at. */
 export type DerivativeSize = {
@@ -39,7 +33,7 @@ export type DerivativeSize = {
   readonly height: number
 }
 
-/** The stored `images.derivatives` document, exactly as SQL validates it. */
+/** A rendered ladder: which formats exist, and at which dimensions. */
 export type DerivativeRecord = {
   readonly formats: readonly DerivativeFormat[]
   readonly widths: readonly DerivativeSize[]
@@ -74,41 +68,23 @@ export function planDerivatives(
   }))
 }
 
-/** The document `create_image()` stores, built from measured rung dimensions. */
-export function derivativeRecord(widths: readonly DerivativeSize[]): DerivativeRecord {
-  return { formats: DERIVATIVE_FORMATS, widths }
+/**
+ * The one place a derivative's path is composed: `<slot>/<width>.<format>`.
+ */
+export function derivativePath(slot: string, width: number, format: DerivativeFormat): string {
+  return `${slot}/${width}.${format}`
 }
 
 /**
- * The one place a derivative's path in the public `media` bucket is composed:
- * `<upload-id>/<width>.<format>`, sharing the original's server-generated id.
+ * Where the rendered derivatives live under `public/`.
+ *
+ * `public/<STATIC_MEDIA_DIRECTORY>/<slot>/<width>.<format>`, rendered once by
+ * `scripts/images/build-static-derivatives.mjs` from the tracked photographs in
+ * `content/launch/photos/` and served as ordinary static files.
  */
-export function derivativePath(uploadId: string, width: number, format: DerivativeFormat): string {
-  return `${uploadId}/${width}.${format}`
-}
+export const STATIC_MEDIA_DIRECTORY = 'media'
 
-/** Every derivative path a stored record implies — for cleanup and for rendering. */
-export function derivativePathsFor(
-  storagePath: string,
-  record: DerivativeRecord,
-): readonly string[] {
-  const uploadId = uploadIdOfStoragePath(storagePath)
-  return record.widths.flatMap((size) =>
-    record.formats.map((format) => derivativePath(uploadId, size.width, format)),
-  )
-}
-
-/** The public URL path (relative to the Supabase URL) a derivative is served from. */
-export function derivativePublicUrlPath(derivative: string): string {
-  return `/storage/v1/object/public/${DERIVATIVES_BUCKET}/${derivative}`
-}
-
-/**
- * The absolute public URL of one derivative — the Supabase origin plus the path
- * above. The one place an absolute storage address is composed (phase 10C-2): the
- * admin thumbnails and the public read model both call this, so no component and
- * no loader ever assembles a storage URL of its own.
- */
-export function derivativePublicUrl(origin: string, derivative: string): string {
-  return `${origin}${derivativePublicUrlPath(derivative)}`
+/** The site-relative URL of one static derivative: `/media/home-hero/960.webp`. */
+export function staticDerivativeUrl(slot: string, width: number, format: DerivativeFormat): string {
+  return `/${STATIC_MEDIA_DIRECTORY}/${derivativePath(slot, width, format)}`
 }

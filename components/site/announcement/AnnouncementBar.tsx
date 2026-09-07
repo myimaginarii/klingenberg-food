@@ -6,9 +6,8 @@ import { PageContainer } from '../PageContainer'
  * The bar itself — design 1ac, and the "SÅDAN SER DEN UD" panel of 1ad.
  *
  * A Server Component that takes two values and renders them. It reads nothing, decides
- * nothing about time and holds no state, which is what lets the **administration's own
- * preview** render this exact component: the editor cannot show a bar that differs from
- * the one a guest gets, because there is only one bar.
+ * nothing about time and holds no state — the whole bar is `content/site/announcement.ts`
+ * plus this markup, so what a reviewer sees in the diff is what a guest gets.
  *
  * WHAT 1ac ASKS FOR, LINE BY LINE
  *
@@ -30,7 +29,7 @@ import { PageContainer } from '../PageContainer'
  *
  * 1ac labels the desktop bar "41 PX HØJ". 1aa's own accessibility list says "Tryk-mål
  * mindst 44 × 44 px" and states no exception, so the **link** carries `min-h-tap`. This
- * is the same reading `AdminSectionBar` records for the admin bar's 40 px controls: where
+ * is the same reading recorded for the 40 px controls elsewhere: where
  * the two frames disagree, the accessibility promise is the one that ships.
  *
  * The cost of that promise is **four pixels, and only four**. From `md` a linked row

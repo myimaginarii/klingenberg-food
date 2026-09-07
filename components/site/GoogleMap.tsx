@@ -15,7 +15,7 @@ import { type PostalAddress, formatAddressLine } from '@/lib/site/links'
  * directions link is unaffected: it stays a plain `<a>` built by `directionsUrl`.
  *
  * The embed is third-party Google content and its own privacy note applies —
- * see `docs/runbooks/launch-notes.md`.
+ * see `docs/technical-plan.md` §7g.
  */
 
 export type MapFrame = 'hero' | 'card' | 'square'

@@ -8,7 +8,6 @@ import { OpenStatus } from '@/components/site/OpenStatus'
 import { PhoneAction } from '@/components/site/PhoneAction'
 import { Section } from '@/components/site/Section'
 import type { SiteContact } from '@/lib/content/types'
-import type { OpenStatusSnapshot } from '@/lib/hours/status'
 import type { OpeningHoursOverride, WeeklySchedule } from '@/lib/hours/types'
 import { type PostalAddress, directionsUrl } from '@/lib/site/links'
 
@@ -24,13 +23,11 @@ import { type PostalAddress, directionsUrl } from '@/lib/site/links'
 export function VisitPanel({
   contact,
   address,
-  openStatus,
   schedule,
   overrides,
 }: {
   contact: SiteContact
   address: PostalAddress | null
-  openStatus: OpenStatusSnapshot
   schedule: WeeklySchedule
   overrides: OpeningHoursOverride[]
 }) {
@@ -40,13 +37,12 @@ export function VisitPanel({
         <div>
           <Eyebrow as="h2">Åbningstider</Eyebrow>
           <OpenStatus
-            initialStatus={openStatus}
             schedule={schedule}
             overrides={overrides}
             variant="pill"
             className="mt-3.5"
           />
-          <OpeningHours schedule={schedule} todayWeekday={openStatus.todayWeekday} className="mt-3.5" />
+          <OpeningHours schedule={schedule} className="mt-3.5" />
         </div>
 
         <div>

@@ -1,6 +1,5 @@
 import { formatWeeklyHours } from '@/lib/hours/format'
 import type { WeeklySchedule } from '@/lib/hours/types'
-import type { WeekdayKey } from '@/lib/time/calendar'
 
 import { DailyHoursList } from './DailyHoursList'
 
@@ -20,11 +19,9 @@ import { DailyHoursList } from './DailyHoursList'
  */
 export function OpeningHours({
   schedule,
-  todayWeekday,
   className = '',
 }: {
   schedule: WeeklySchedule
-  todayWeekday: WeekdayKey
   className?: string
 }) {
   const grouped = formatWeeklyHours(schedule)
@@ -59,12 +56,12 @@ export function OpeningHours({
           </span>
         </summary>
         <div className="mt-3">
-          <DailyHoursList schedule={schedule} todayWeekday={todayWeekday} />
+          <DailyHoursList schedule={schedule} />
         </div>
       </details>
 
       <div className="hidden md:block">
-        <DailyHoursList schedule={schedule} todayWeekday={todayWeekday} />
+        <DailyHoursList schedule={schedule} />
       </div>
     </div>
   )

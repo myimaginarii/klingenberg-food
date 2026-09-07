@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Repository source-policy checks — technical plan §8, §10d, §10f.
+ * Repository source-policy checks — technical plan §8, §10d.
  *
- * Five rules, all cheap, all run in CI before the build:
+ * Three rules, all cheap, all run in CI before the build:
  *
  *   1. no-hard-coded-domain  A site domain literal may appear only in
  *                            lib/config/site.ts. Choosing the restaurant's domain
@@ -11,24 +11,13 @@
  *                            cannot resolve, so they are fixtures, not domains.
  *   2. no-set-x              `set -x` is forbidden in GitHub workflow scripts; it
  *                            echoes commands and can spill secrets into logs.
- *   3. server-secrets        Secrets named in §10e may only be referenced in
- *                            lib/env/server.ts (and documentation).
- *   4. no-browser-monitoring Monitoring is server-side only (§1, §12, §0aj): no
- *                            browser SDK file, no `withSentryConfig`, no
- *                            `NEXT_PUBLIC_…SENTRY…` variable, no Replay or browser
- *                            tracing anywhere in the tree.
- *   5. launch-content-boundary The production launch tooling (`scripts/launch/`)
- *                            and the workflows never name the development seed
- *                            layer or the local user seeder, and the confirmed
- *                            content file carries no `@example.test` identity
- *                            (§10a, §10b; phase 14A). The unit policy suite
- *                            (`tests/unit/policy/launch-boundary.test.ts`) holds
- *                            the fuller set; this is the cheap version that runs
- *                            before anything is built.
- *
- * The static-map provenance check that used to live here (§7g) was retired with the
- * static map itself (phase 14B3): the map is now a Google Maps embed with nothing to
- * license or verify at build time.
+ *   3. no-backend            The site is a static export with no server, no database
+ *                            and no third-party runtime service. Nothing in the tree
+ *                            may name a backend secret, a database URL, a Supabase or
+ *                            Sentry client, or a monitoring script, and no
+ *                            server-runtime file or directory may exist. This is the
+ *                            rule that keeps "building and serving this site needs no
+ *                            secret of any kind" a fact rather than an intention.
  *
  * Exit code 1 on any violation, with file:line and the offending text.
  */
@@ -55,7 +44,7 @@ const DOMAIN_ALLOWED_FILES = new Set(
   [
     'lib/config/site.ts',
     'scripts/check-source-policy.mjs',
-    '.env.example',
+    'scripts/serve-static.mjs',
     'README.md',
     'package-lock.json',
   ].map(normalise),
@@ -76,12 +65,11 @@ const ALLOWED_HOSTS = new Set([
   'schema.org', // JSON-LD @context (§11)
   'www.schema.org',
   'www.w3.org', // SVG / XML namespaces
-  'www.google.com', // Google Maps directions URL (§7g) — not a site domain
-  // The restaurant's Facebook page is a confirmed business fact and is stored as
-  // content in `site_contact.facebook_url`, seeded in supabase/seed/confirmed.sql. It is a
-  // third-party profile URL, not this site's origin, so the §10d rule — "choosing our
-  // domain later must be configuration, not a code change" — does not apply to it.
-  // (Since phase 14A the seed is `supabase/seed/confirmed.sql`.)
+  'www.google.com', // Google Maps directions URL and the Find os embed (§7g)
+  // The restaurant's Facebook page is a confirmed business fact and is tracked as
+  // content in `content/site/contact.ts`. It is a third-party profile URL, not this
+  // site's origin, so the §10d rule — "choosing our domain later must be
+  // configuration, not a code change" — does not apply to it.
   'www.facebook.com',
 ])
 
@@ -90,70 +78,71 @@ const ALLOWED_HOSTS = new Set([
  *
  * `.test` is reserved by the IETF precisely so that it can never resolve on the public
  * internet, which makes it the correct home for a fixture host — and the opposite of
- * what this rule guards against. §10d exists so that *this site's* domain is a
- * configuration value rather than a literal in the code; a host that cannot exist is
- * not this site's domain and never will be.
- *
- * The security tests need such hosts by name: pgTAP and the schema suite assert which
- * announcement links are accepted, and the browser suite aims the preview route at a
- * foreign origin to prove the open-redirect refusal in §8.
+ * what this rule guards against.
  */
 function isReservedTestHost(host) {
   return host.endsWith('.test')
 }
 
-/** Secrets that may only be read through lib/env/server.ts (§10e). */
-const SERVER_SECRETS = [
+/**
+ * Everything the retired backend used to need, by the name it would arrive under.
+ *
+ * The static site has no server to read any of these and no host to set them on. A
+ * match is not a leaked value — this repository never held one — it is a sign that
+ * something server-shaped has come back.
+ */
+const BACKEND_NAMES = [
   'SUPABASE_SERVICE_ROLE_KEY',
   'SUPABASE_DB_URL',
+  'NEXT_PUBLIC_SUPABASE_URL',
+  'NEXT_PUBLIC_SUPABASE_ANON_KEY',
+  'SUPABASE_STORAGE_S3_',
   'SENTRY_DSN',
   'RESEND_API_KEY',
   'RATE_LIMIT_SECRET',
   'BACKUP_S3_',
-  'SUPABASE_STORAGE_S3_',
+  'sb_secret_',
+  'service_role',
+  '@supabase/',
+  '@sentry/',
+  'withSentryConfig',
+  'createBrowserClient',
+  'createServerClient',
+  'postgres://',
+  'postgresql://',
 ]
 
 /**
- * `lib/env/server.ts` is the single door to a secret for the Next.js runtime: it
- * imports `server-only`, so anything reaching it from a Client Component is a build
- * error. Application code asks it for a capability (`getServiceRoleKey()`) and never
- * names the variable, which is what keeps this list short.
- *
- * `scripts/seed-local-users.mjs` (phase 1) is the exception, and a deliberate one. It
- * is a local development bootstrap run with `node`, not part of any bundle, and it
- * cannot import `lib/env/server.ts` precisely because that module imports
- * `server-only`. It reads the service-role key from the environment directly, and it
- * refuses to run against anything but a loopback Supabase.
- *
- * `tests/support/local-auth-admin.ts` (phase 11C) is the second, for the same
- * reasons: the account suites create real local Auth identities that the
- * application — by design — cannot delete, so the tests need their own cleanup
- * door. It runs under Vitest and Playwright in Node, never in a bundle, and it
- * refuses every host but loopback and every address outside `@example.test`.
- *
- * `scripts/backup/lib/env.mjs` (phase 13A) is the third: the one file in the backup
- * tooling that names a secret. The backup and restore commands run under `node`
- * outside any bundle, cannot import `lib/env/server.ts` for the same reason as the
- * seed script, and read every other value through this module's functions.
- * `tests/backup/drill.test.ts` is the fourth and last, for the drill that runs
- * those commands against the local stack and must hand them their target through
- * the environment; it refuses every host but loopback before it moves anything.
+ * Where a backend name may still be written down: the documentation that records why
+ * the backend was retired, this file, which has to name what it forbids, and the two
+ * suites that assert the same absence from inside the application tree.
  */
-const SECRET_ALLOWED_FILES = new Set(
+const BACKEND_ALLOWED_FILES = new Set(
   [
-    'lib/env/server.ts',
-    'scripts/seed-local-users.mjs',
-    'tests/support/local-auth-admin.ts',
-    'scripts/backup/lib/env.mjs',
-    'tests/backup/drill.test.ts',
-    'eslint.config.mjs',
     'scripts/check-source-policy.mjs',
-    '.env.example',
     'README.md',
     'package-lock.json',
+    'tests/unit/policy/public-javascript.test.ts',
+    'tests/unit/announcements/expiry-guard-source.test.ts',
   ].map(normalise),
 )
-const SECRET_ALLOWED_DIRS = ['docs/', '.github/']
+const BACKEND_ALLOWED_DIRS = ['docs/']
+
+/** Server-shaped files the framework would pick up if one reappeared. */
+const FORBIDDEN_FILES = [
+  'proxy.ts',
+  'middleware.ts',
+  'src/proxy.ts',
+  'src/middleware.ts',
+  'instrumentation.ts',
+  'instrumentation-client.ts',
+  'sentry.client.config.ts',
+  'sentry.server.config.ts',
+  'sentry.edge.config.ts',
+]
+
+/** Directories that only a server application has. */
+const FORBIDDEN_DIRS = ['app/api', 'supabase']
 
 const SCANNED_EXTENSIONS = new Set([
   '.ts',
@@ -215,7 +204,6 @@ function sourceFiles() {
 }
 
 function shouldScan(relPath) {
-  if (relPath === '.env.example') return true
   if (relPath === '.gitignore' || relPath === '.nvmrc') return false
   const dot = relPath.lastIndexOf('.')
   return dot !== -1 && SCANNED_EXTENSIONS.has(relPath.slice(dot))
@@ -253,7 +241,7 @@ for (const absolute of sourceFiles()) {
   scanned += 1
 
   const domainExempt = isExempt(relPath, DOMAIN_ALLOWED_FILES, DOMAIN_ALLOWED_DIRS)
-  const secretExempt = isExempt(relPath, SECRET_ALLOWED_FILES, SECRET_ALLOWED_DIRS)
+  const backendExempt = isExempt(relPath, BACKEND_ALLOWED_FILES, BACKEND_ALLOWED_DIRS)
   const isWorkflow = relPath.startsWith('.github/workflows/')
 
   lines.forEach((line, index) => {
@@ -277,114 +265,37 @@ for (const absolute of sourceFiles()) {
       report('no-set-x', relPath, lineNo, line, '`set -x` can echo secrets into the log')
     }
 
-    // 3. server secrets outside their single door
-    if (!secretExempt) {
-      for (const secret of SERVER_SECRETS) {
-        if (line.includes(secret)) {
-          report(
-            'server-secret-outside-lib-env',
-            relPath,
-            lineNo,
-            line,
-            `"${secret}" must be read through lib/env/server.ts`,
-          )
+    // 3. no-backend
+    if (!backendExempt) {
+      for (const name of BACKEND_NAMES) {
+        if (line.includes(name)) {
+          report('no-backend', relPath, lineNo, line, `"${name}" — this site has no backend`)
         }
       }
     }
   })
 }
 
-// --- 4. no-browser-monitoring (§1, §12, §0aj) -------------------------------------
-//
-// The browser is not monitored, by decision: the public site ships no monitoring
-// script, sets no monitoring cookie and needs no CSP origin for it. The unit policy
-// suite (`tests/unit/policy/monitoring-boundary.test.ts`) pins the import graph;
-// this rule is the cheap version that runs before anything is built.
-
-const BROWSER_MONITORING_FILES = [
-  'instrumentation-client.ts',
-  'instrumentation-client.js',
-  'sentry.client.config.ts',
-  'sentry.client.config.js',
-  'src/instrumentation-client.ts',
-  'src/sentry.client.config.ts',
-]
-const BROWSER_MONITORING_RE =
-  /withSentryConfig|NEXT_PUBLIC_[A-Z_]*SENTRY|replayIntegration|browserTracingIntegration|replaysSessionSampleRate/
-
-for (const file of BROWSER_MONITORING_FILES) {
+for (const file of FORBIDDEN_FILES) {
   if (existsSync(join(ROOT, file))) {
     violations.push({
-      rule: 'no-browser-monitoring',
+      rule: 'no-backend',
       where: file,
-      detail: 'a browser monitoring file exists; monitoring is server-side only',
+      detail: 'a server-runtime file the static export cannot have',
       line: '',
     })
   }
 }
 
-for (const absolute of sourceFiles()) {
-  const relPath = normalise(relative(ROOT, absolute))
-  if (!shouldScan(relPath) || relPath.startsWith('docs/') || relPath === 'README.md') continue
-  if (relPath === 'scripts/check-source-policy.mjs' || relPath === 'package-lock.json') continue
-  if (relPath.startsWith('tests/')) continue
-  let contents
-  try {
-    contents = readFileSync(absolute, 'utf8')
-  } catch {
-    continue
+for (const dir of FORBIDDEN_DIRS) {
+  if (existsSync(join(ROOT, dir))) {
+    violations.push({
+      rule: 'no-backend',
+      where: `${dir}/`,
+      detail: 'a server or database directory the static site does not have',
+      line: '',
+    })
   }
-  contents.split(/\r?\n/).forEach((line, index) => {
-    if (BROWSER_MONITORING_RE.test(line)) {
-      report('no-browser-monitoring', relPath, index + 1, line, 'browser monitoring is not part of this system')
-    }
-  })
-}
-
-// --- 5. launch-content-boundary (§10a, §10b; phase 14A) ---------------------------
-//
-// Production never runs the development seed. The loader reads one constant file,
-// the migration door reads the migration directory, and neither — nor the Owner
-// bootstrap, nor any workflow — may so much as name the development layer or the
-// local user seeder. The confirmed file, comments aside, holds no test identity.
-
-const LAUNCH_FORBIDDEN_RE = /seed\/development\.sql|seed-local-users/
-const CONFIRMED_CONTENT = 'supabase/seed/confirmed.sql'
-
-/**
- * Code, not prose: a script may explain in a comment which file it never reads.
- * Block comments are blanked line by line so line numbers survive; `//` and `#`
- * comments are cut at the marker.
- */
-function withoutComments(contents, relPath) {
-  const blockless = relPath.endsWith('.mjs')
-    ? contents.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' '))
-    : contents
-  const marker = relPath.endsWith('.mjs') ? /(^|[^:])\/\/.*$/ : /#.*$/
-  return blockless.split(/\r?\n/).map((line) => line.replace(marker, '$1'))
-}
-
-for (const absolute of sourceFiles()) {
-  const relPath = normalise(relative(ROOT, absolute))
-  if (!(relPath.startsWith('scripts/launch/') || relPath.startsWith('.github/workflows/'))) continue
-  if (!shouldScan(relPath)) continue
-  withoutComments(readFileSync(absolute, 'utf8'), relPath).forEach((line, index) => {
-    if (LAUNCH_FORBIDDEN_RE.test(line)) {
-      report('launch-content-boundary', relPath, index + 1, line, 'the development seed layer and the local seeder are never a production path')
-    }
-  })
-}
-
-const confirmedPath = join(ROOT, CONFIRMED_CONTENT)
-if (!existsSync(confirmedPath)) {
-  violations.push({ rule: 'launch-content-boundary', where: CONFIRMED_CONTENT, detail: 'the confirmed content file is missing', line: '' })
-} else {
-  readFileSync(confirmedPath, 'utf8').split(/\r?\n/).forEach((line, index) => {
-    const code = line.replace(/--.*$/, '')
-    if (/@example\.test/i.test(code)) {
-      report('launch-content-boundary', CONFIRMED_CONTENT, index + 1, line, 'a test identity in the confirmed content source')
-    }
-  })
 }
 
 // A check that silently inspects nothing is worse than no check: it reports success
@@ -398,7 +309,7 @@ if (scanned === 0) {
 
 if (violations.length === 0) {
   console.log(
-    `source-policy: OK — ${scanned} file(s) scanned; no hard-coded domains, no \`set -x\`, no stray secret access, no browser monitoring, no development seed in the launch path.`,
+    `source-policy: OK — ${scanned} file(s) scanned; no hard-coded domains, no \`set -x\`, no backend of any kind.`,
   )
   process.exit(0)
 }
@@ -410,5 +321,5 @@ for (const v of violations) {
   console.error(`      ${v.line}\n`)
 }
 console.error('Absolute site URLs belong in lib/config/site.ts (technical plan §10d).')
-console.error('Server secrets belong in lib/env/server.ts (technical plan §10e).')
+console.error('The site is a static export: it has no server, no database and no secrets.')
 process.exit(1)

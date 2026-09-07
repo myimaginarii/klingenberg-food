@@ -20,7 +20,7 @@ import { assertValidInstant } from '@/lib/time/copenhagen'
  * A stored instant would go stale the moment the opening hours or an override changed;
  * deriving it means an override entered after the toggle is honoured for free. The cost
  * is that this function must be the single source of that truth — which is why the
- * public menu, the admin helper text and the reset all call it, and why it is pure.
+ * public menu and the reset both call it, and why it is pure.
  */
 
 /** What a caller needs to know, and nothing it would have to compute again. */
@@ -33,7 +33,7 @@ export type SoldOutResolution = {
    *
    * `null` means no opening day was found inside the {@link MAX_OPENING_SEARCH_DAYS}
    * window, so the item will **not** clear on its own and needs a manual toggle — the
-   * case the admin surfaces as "Nulstilles ikke automatisk — I har ingen åbningsdage
+   * case the design words as "Nulstilles ikke automatisk — I har ingen åbningsdage
    * planlagt". It is also `null` when nothing is marked at all.
    *
    * The instant is reported whether or not it has passed, so a caller can say both

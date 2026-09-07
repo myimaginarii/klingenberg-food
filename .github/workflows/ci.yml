@@ -2,15 +2,10 @@ name: CI
 
 # CI (technical plan §9, §14).
 #
-# The pipeline §9 describes is typecheck -> lint -> unit -> pgTAP -> npm audit -> CodeQL
-# -> build -> Playwright. Every step now has something real to run.
-#
-# The build is **not** in the `verify` job. From phase 3 the six public routes are
-# prerendered from published content, so `next build` needs a database — which is why it
-# runs in the `browser` job, beside the Playwright suite that needs the same stack. §10b
-# describes the same shape for the deployed pipeline: migrations are applied to staging,
-# then the build runs against it. Until a staging project exists, CI uses the local
-# Supabase the repository already knows how to start.
+# The site is a static export with no backend, so the pipeline is short and needs no
+# credentials of any kind: typecheck -> lint -> source policy -> unit tests, then the
+# build and the browser suite against the generated `out/` directory, plus `npm audit`
+# and CodeQL.
 #
 # Third-party actions are pinned by commit SHA, never by tag (§14) — a moving tag is a
 # supply-chain hole. The comment records which release each SHA is.
@@ -21,7 +16,7 @@ on:
   pull_request:
     branches: [main]
 
-# No production credentials are available to this workflow. Read-only by default.
+# There are no credentials to give this workflow. Read-only by default.
 permissions:
   contents: read
 
@@ -33,13 +28,6 @@ env:
   # Keeps CI output free of interactive noise and progress spinners.
   CI: true
   NEXT_TELEMETRY_DISABLED: 1
-  # `@sentry/cli` (a transitive dependency of the unused Sentry build plugin) runs a
-  # postinstall that falls back to downloading its binary from Sentry's CDN when the
-  # lockfile's optional platform package is absent. This project never runs the CLI
-  # (no source-map upload, no build wrapper - technical plan section 0aj, 0ak), so the
-  # supported switch turns the fallback off. Enabling source-map upload later means
-  # removing this line wherever the build runs.
-  SENTRYCLI_SKIP_DOWNLOAD: 1
 
 jobs:
   verify:
@@ -67,7 +55,7 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # No hard-coded domains, no `set -x` in workflows, no stray secret access (§8, §10d).
+      # No hard-coded domains, no `set -x`, and no backend of any kind (§8, §10d).
       - name: Source policy
         run: npm run check:policy
 
@@ -77,7 +65,7 @@ jobs:
   browser:
     name: Build, browser and accessibility tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -97,20 +85,10 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
-      # Migrations and `supabase/seed.sql` in one step, so the build renders the same
-      # confirmed content a developer sees locally.
-      - name: Start local Supabase
-        run: npx supabase start
-
-      # The URL and the anon key are public by design (§10e). They are read from the CLI
-      # and passed as environment variables, never as command-line arguments (§8).
+      # `playwright.config.ts` builds the export and serves `out/` itself — the same
+      # files, served the same way, as the deployed site.
       - name: Build and run the browser suite
-        run: |
-          eval "$(npx supabase status -o env)"
-          export NEXT_PUBLIC_SUPABASE_URL="$API_URL"
-          export NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY"
-          npm run build
-          npm run test:e2e
+        run: npm run test:e2e
 
       - name: Upload the Playwright report on failure
         if: failure()
@@ -119,82 +97,6 @@ jobs:
           name: playwright-report
           path: playwright-report/
           retention-days: 7
-
-      - name: Stop local Supabase
-        if: always()
-        run: npx supabase stop --no-backup
-
-  database:
-    name: Database permissions (pgTAP)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      # A full local stack from a clean database: migrations, then the seed. This is
-      # also the check that the initial migration still applies from scratch.
-      - name: Start local Supabase
-        run: npx supabase start
-
-      # The permission tests need the two local identities, which are created through
-      # the supported admin API rather than by seeding auth internals (§5).
-      #
-      # The credentials come from `supabase status -o env` and are passed as environment
-      # variables, never as command-line arguments (§8 — log hygiene). They are the
-      # CLI's fixed local demo keys for a container on this runner, not secrets, and
-      # they are never echoed. `set -x` is forbidden here and CI-checked.
-      - name: Create local identities
-        run: |
-          eval "$(npx supabase status -o env)"
-          NEXT_PUBLIC_SUPABASE_URL="$API_URL" \
-          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
-            npm run db:users
-
-      # The §5 permission matrix, the anonymous surface and the owner invariant,
-      # asserted against real Owner and Staff JWT contexts (§9).
-      - name: pgTAP
-        run: npm run db:test
-
-      # Phase 10A: the storage HTTP surface — signed-token scope, bucket limits,
-      # public derivative reads, pipeline cleanup — cannot be asserted from SQL,
-      # so the upload pipeline runs end to end against the same local stack.
-      - name: Image storage integration tests
-        run: |
-          eval "$(npx supabase status -o env)"
-          NEXT_PUBLIC_SUPABASE_URL="$API_URL" \
-          NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY" \
-          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
-            npm run test:integration
-
-      # Phase 14A: the three production launch commands — the migration door, the
-      # confirmed-content loader and the Owner bootstrap — driven in their
-      # loopback-only harness mode against the same stack (psql 17 from the
-      # postgres:17 image through the runner's Docker). The content suite resets
-      # the stack twice, so it runs last.
-      - name: Launch tooling drill
-        run: |
-          eval "$(npx supabase status -o env)"
-          NEXT_PUBLIC_SUPABASE_URL="$API_URL" \
-          NEXT_PUBLIC_SUPABASE_ANON_KEY="$ANON_KEY" \
-          SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" \
-          SUPABASE_DB_URL="$DB_URL" \
-          BACKUP_PG_MODE=docker \
-            npm run launch:drill
-
-      - name: Stop local Supabase
-        if: always()
-        run: npx supabase stop --no-backup
 
   dependencies:
     name: Dependency audit

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildPublicImage, seoImageOf } from '@/lib/images/public'
+import { buildStaticPublicImage, seoImageOf } from '@/lib/images/public'
 import { newsArticleJsonLd } from '@/lib/seo/news-article'
 import { newsArticleMetadata } from '@/lib/seo/metadata'
 
@@ -14,8 +14,7 @@ import { newsArticleMetadata } from '@/lib/seo/metadata'
  * JSON-LD `image` name the same asset.
  */
 
-const ORIGIN = 'http://localhost:54321'
-const UPLOAD = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbb1'
+const SLOT = 'news-photo'
 
 const article = {
   title: 'Ny burger i oktober',
@@ -25,15 +24,14 @@ const article = {
   modifiedAt: '2026-09-01T10:00:00.000Z',
 }
 
-function image(altText: string | null, widths = [480, 960]) {
-  return buildPublicImage(ORIGIN, {
-    storage_path: `${UPLOAD}/original.jpg`,
-    alt_text: altText,
-    derivatives: {
-      formats: ['avif', 'webp'],
-      widths: widths.map((width) => ({ width, height: Math.round((width * 2) / 3) })),
-    },
-  })!
+/** `sourceWidth` decides the ladder: 960 gives 480+960, 1440 adds the 1440 rung. */
+function image(altText: string | null, sourceWidth = 960) {
+  return buildStaticPublicImage({
+    slot: SLOT,
+    alt: altText,
+    width: sourceWidth,
+    height: Math.round((sourceWidth * 2) / 3),
+  })
 }
 
 describe('newsArticleMetadata — og:image', () => {
@@ -44,7 +42,9 @@ describe('newsArticleMetadata — og:image', () => {
     expect('images' in openGraph).toBe(false)
     expect(newsArticleMetadata({ ...article, image: null }).openGraph).toEqual(openGraph)
     // The rest of §7f's block is exactly as phase 9B left it.
-    expect(metadata.alternates).toEqual({ canonical: 'http://localhost:3000/nyheder/ny-burger-i-oktober' })
+    expect(metadata.alternates).toEqual({
+      canonical: 'http://localhost:3000/nyheder/ny-burger-i-oktober/',
+    })
   })
 
   it('carries one public derivative with its real dimensions and the authored alt', () => {
@@ -55,7 +55,7 @@ describe('newsArticleMetadata — og:image', () => {
       {
         // Only 480 and 960 exist for this source, so the largest available rung is
         // the one at or above 1200 — nothing invented past the ladder.
-        url: `${ORIGIN}/storage/v1/object/public/media/${UPLOAD}/960.webp`,
+        url: `/media/${SLOT}/960.webp`,
         width: 960,
         height: 640,
         alt: 'Burgeren fra siden.',
@@ -73,7 +73,7 @@ describe('newsArticleMetadata — og:image', () => {
   })
 
   it('names the same asset the JSON-LD image names (brief §16)', () => {
-    const model = image('Burgeren fra siden.', [480, 960, 1440, 2160])
+    const model = image('Burgeren fra siden.', 2160)
     const seo = seoImageOf(model)
     const metadata = newsArticleMetadata({ ...article, image: seo })
     const jsonLd = newsArticleJsonLd({
@@ -86,7 +86,7 @@ describe('newsArticleMetadata — og:image', () => {
 
     const [ogImage] = (metadata.openGraph as { images: { url: string }[] }).images
     expect(ogImage!.url).toBe(jsonLd.image!.url)
-    expect(ogImage!.url).toBe(`${ORIGIN}/storage/v1/object/public/media/${UPLOAD}/1440.webp`)
+    expect(ogImage!.url).toBe(`/media/${SLOT}/1440.webp`)
     // …and that asset is one of the candidates the visible <picture> offers.
     expect(model.candidates.map((candidate) => candidate.webpUrl)).toContain(ogImage!.url)
   })

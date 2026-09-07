@@ -1,9 +1,11 @@
 import { isAnnouncementExpired } from '@/lib/announcements/expiry'
-import { ANNOUNCEMENT_REGION_LABEL } from '@/lib/announcements/lifecycle'
 import type { SiteAnnouncement } from '@/lib/content/types'
 
 import { AnnouncementBar } from './AnnouncementBar'
 import { AnnouncementExpiryGuard } from './AnnouncementExpiryGuard'
+
+/** The label of the announcement's accessible region (1ac, "Skærmlæser"). */
+const ANNOUNCEMENT_REGION_LABEL = 'Besked fra restauranten'
 
 /**
  * The announcement's place in the public shell — design 1ac; technical plan §3, §7c.

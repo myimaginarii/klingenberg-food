@@ -1,3 +1,5 @@
+import { assetPath } from '@/lib/config/site'
+
 /**
  * The masthead — design 1g, 1l, 1n and the footer.
  *
@@ -9,6 +11,10 @@
  * beside it is real text either way, which is what a search engine, a screen reader and
  * a copy-paste actually need; the mark itself is decorative (`alt=""`) for exactly that
  * reason.
+ *
+ * The path goes through `assetPath` because this is a plain `<img>` into `public/`,
+ * which the framework does not rewrite for a `basePath` deployment the way it rewrites
+ * `next/link` and `_next/` assets (`lib/config/site.ts`).
  */
 export function SiteLogo({
   size = 'default',
@@ -27,7 +33,7 @@ export function SiteLogo({
     <span className="flex items-center gap-3">
       {/* eslint-disable-next-line @next/next/no-img-element -- a static brand asset, not a library photograph; SiteImage is for the image library only. */}
       <img
-        src="/brand/logo.svg"
+        src={assetPath('/brand/logo.svg')}
         alt=""
         aria-hidden="true"
         width={1254}

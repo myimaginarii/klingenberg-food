@@ -1,8 +1,5 @@
-import type { Metadata } from 'next'
-
-import { readSiteContact } from '@/lib/content/contact'
-import { readOpeningHours } from '@/lib/content/hours'
-import { readOpenStatus } from '@/lib/hours/status'
+import { SITE_CONTACT } from '@/content/site/contact'
+import { OPENING_HOURS } from '@/content/site/hours'
 import { pageMetadata } from '@/lib/seo/metadata'
 import { directionsUrl, formatAddressLine, toPostalAddress } from '@/lib/site/links'
 
@@ -19,38 +16,37 @@ import { PageContainer } from '@/components/site/PageContainer'
 import { PhoneAction } from '@/components/site/PhoneAction'
 
 /**
- * The description names the address, so it is read from `site_contact` like every
- * other place the address is printed (phase 11 lock pass): since 11B the Owner edits
- * the address, and a literal here would be the one copy the editor could not reach.
- * The same cached, `contact`-tagged read the page uses, so a published change reaches
- * the description on the same first request as the page.
+ * The description names the address, so it is built from the same tracked contact
+ * facts the page prints — never a second copy of the address.
  */
-export async function generateMetadata(): Promise<Metadata> {
-  const contact = await readSiteContact()
-  const address = toPostalAddress(contact)
-  const place = [contact.venueName, address === null ? null : formatAddressLine(address)]
+function describeWhere(): string {
+  const address = toPostalAddress(SITE_CONTACT)
+  const place = [SITE_CONTACT.venueName, address === null ? null : formatAddressLine(address)]
     .filter((part): part is string => part !== null)
     .join(', ')
-  const where = place.length === 0 ? 'Klingenberg Food' : `Klingenberg Food ligger i ${place}`
 
-  return pageMetadata('Find os', `${where}. Se åbningstider og ring for at bestille.`)
+  return place.length === 0 ? 'Klingenberg Food' : `Klingenberg Food ligger i ${place}`
 }
+
+export const metadata = pageMetadata(
+  'Find os',
+  `${describeWhere()}. Se åbningstider og ring for at bestille.`,
+)
 
 /**
  * Find os — design 1k (desktop) and 1o (mobile, the primary mobile screen).
  *
  * The two things a guest arrives here for are at the top and full width on a phone: ring
  * and vis vej. The address is real text, the hours are the site's one schedule, and the
- * map is a Google Maps embed centred on the stored address, with no map library and no
- * tile request from this origin (§7g).
+ * map is a Google Maps embed centred on the restaurant's listing, with no map library
+ * and no tile request from this origin (§7g).
  *
  * The "Følg os" card appears only when the Facebook link is filled in — an empty field
  * removes the whole card rather than leaving a gap (1k, 1o).
  */
-export default async function FindOsPage() {
-  const [contact, hours] = await Promise.all([readSiteContact(), readOpeningHours()])
-
-  const openStatus = readOpenStatus(new Date(), hours.schedule, hours.overrides)
+export default function FindOsPage() {
+  const contact = SITE_CONTACT
+  const hours = OPENING_HOURS
   const address = toPostalAddress(contact)
 
   return (
@@ -60,7 +56,6 @@ export default async function FindOsPage() {
           <h1 className="font-display text-page">Find os</h1>
 
           <OpenStatus
-            initialStatus={openStatus}
             schedule={hours.schedule}
             overrides={hours.overrides}
             variant="pill"
@@ -123,11 +118,7 @@ export default async function FindOsPage() {
             <Eyebrow as="h2" id="find-os-tider">
               Åbningstider
             </Eyebrow>
-            <OpeningHours
-              schedule={hours.schedule}
-              todayWeekday={openStatus.todayWeekday}
-              className="mt-3"
-            />
+            <OpeningHours schedule={hours.schedule} className="mt-3" />
           </section>
         </div>
 

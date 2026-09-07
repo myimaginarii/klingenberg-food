@@ -6,10 +6,8 @@
  * published. Editing the title afterwards does not change the URL."* This module is
  * that sentence as code, and nothing more:
  *
- *   * **Generated, never typed.** There is no slug field anywhere in the
- *     administration; the editor shows the resulting address under the title (§7f:
- *     "The admin shows the final URL under the title field") and a person changes it
- *     by changing the title — while that is still allowed.
+ *   * **Derived from the title**, so an article's address and its heading cannot
+ *     drift apart (§7f).
  *   * **Frozen at first publish.** The freeze itself is the database's
  *     (`tg_freeze_published_slug`, phase 1); the application honours it by not
  *     regenerating the slug once `published_at` is set. Before the first publish the
@@ -21,7 +19,7 @@
  *     remains the final gate — this module only proposes, and a race between two tabs
  *     is refused by the constraint and reported as a sentence.
  *
- * Pure: no database, no clock, no imports. The Server Action supplies the set of
+ * Pure: no clock, no imports. The caller supplies the set of
  * taken slugs it read through the caller's own JWT.
  */
 

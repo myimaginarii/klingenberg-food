@@ -5,10 +5,10 @@ import type { IsoDate } from '@/lib/time/calendar'
 /**
  * The shape of published content as the public site consumes it — technical plan §4.
  *
- * These are *domain* types, not row types. The database columns are snake_case and
- * carry draft and administration fields the public half has no business seeing; the
- * loaders in this folder map each row down to exactly what a page needs, in camelCase,
- * with prices in øre and dates as civil `YYYY-MM-DD` strings.
+ * One shape per thing the site renders, written the way a page needs it: camelCase,
+ * prices in øre, dates as civil `YYYY-MM-DD` strings. `content/site/` is authored
+ * against these types, so a content file that is missing a field or spells one wrong
+ * is a build error rather than an empty section on the live site.
  *
  * Nothing here is a `Date`. Every value is a primitive that survives serialisation
  * unchanged, so a page can pass it to a Client Component (the open/closed badge) with
@@ -121,9 +121,8 @@ export type MonthlyBurger = {
 /**
  * `announcement` — the one sitewide message, as the public bar renders it (§4, §7c).
  *
- * The row's administration fields are not here. `is_visible`, `source`, `previous` and
- * `replaced_at` decide *whether* there is an announcement to render, which the loader
- * has already answered by returning this object at all; the bar only needs the words,
+ * Whether there is an announcement at all is answered by `content/site/announcement.ts`
+ * being `null` or not; this type is only what the bar needs to draw one — the words,
  * the optional link and the instant it stops being shown.
  *
  * `expiresAt` is an ISO 8601 **instant** string rather than a `Date`, for the reason

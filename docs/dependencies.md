@@ -3,6 +3,39 @@
 Required by technical plan §14 ("Record the chosen versions and the date of the
 advisory check in the repository, not here").
 
+## The static rebuild — six dependencies removed, none added (2026-09-07)
+
+Retiring the backend removed everything that existed to talk to it. Nothing replaced
+them: the work they did is either gone with the administration, or was already done by
+the standard library.
+
+| Removed | Was for | Why it went |
+|---|---|---|
+| `@supabase/supabase-js` | The database, Auth and Storage clients | There is no database, no Auth and no Storage |
+| `@supabase/ssr` | Cookie-backed sessions in the proxy and Server Components | There are no sessions and no proxy |
+| `@sentry/nextjs` | Server-side error monitoring | There is no server to monitor |
+| `zod` | Validating what an editor submitted, and what the database returned | Content is tracked TypeScript: its shape is a compile-time fact, and there is no untrusted input to parse |
+| `server-only` | Making a client import of the read layer a build error | There is no read layer to protect |
+| `supabase` (CLI, dev) | The local stack, migrations and pgTAP | There is no local stack |
+
+`npm install` removed **125 packages**; 397 remain, **0 vulnerabilities** at
+`--audit-level=high` on the day.
+
+Four runtime dependencies remain — `next`, `react`, `react-dom`, and `sharp`, which
+renders the derivative ladder at build time and is the only reason the build touches a
+native module at all. The development dependencies are the toolchain and the test
+runners: TypeScript, ESLint, Tailwind, Vitest, Playwright and `@axe-core/playwright`.
+
+`npm start` serves the export through `scripts/serve-static.mjs`, about a hundred lines
+of `node:http` — deliberately not a package. The preview must behave like the static
+host the site is deployed to, and a dependency that did more than that would be
+testing something the deployment does not have.
+
+The list of what may never be added — analytics, tag managers, state management, client
+data fetching, map libraries, date libraries, component libraries — is asserted rather
+than written down, in `tests/unit/policy/public-javascript.test.ts`. The six packages
+above were added to it.
+
 ## Phase 14A — no dependency added (2026-09-05)
 
 The production wiring (technical plan §0al) is plain Node over what the tree
