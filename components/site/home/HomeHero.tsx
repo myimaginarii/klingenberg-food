@@ -23,6 +23,15 @@ import type { PublicImage } from '@/lib/images/public'
  * placeholder reserved: 4:3 above the text on a phone, the full-height column beside
  * it from `md`. It is the page's primary image, so it loads eagerly. No image, or an
  * image is the reserved frame, exactly as the design draws it.
+ *
+ * THE FRAME IS SQUARE ON A PHONE AND 9:8 FROM `md`, a little wider than the text from
+ * `lg`. The supplied photograph is a 2:3 portrait with the burger filling its middle
+ * three fifths, so a 4:3 frame cropped the bun off on a phone, and `aspect-auto` from
+ * `md` let the flex row grow to the portrait's own height, which stranded the text in
+ * the middle of a column far taller than it needed. A square frame shows two thirds of
+ * the portrait — the whole burger, centred — and 9:8 shows three fifths, which is the
+ * burger from bun to lettuce with the plate's edge on either side, in a row the text
+ * nearly fills.
  */
 export function HomeHero({
   heading,
@@ -44,7 +53,7 @@ export function HomeHero({
   return (
     <section aria-labelledby="forside-titel" className="bg-bg">
       <div className="mx-auto flex w-full max-w-content flex-col-reverse md:flex-row md:items-stretch">
-        <div className="flex flex-1 flex-col justify-center gap-5 px-gutter py-7 md:px-10 md:py-13">
+        <div className="flex flex-1 flex-col justify-center gap-5 px-gutter py-7 md:gap-6 md:px-10 md:py-13">
           <AwardRibbon />
 
           <h1
@@ -101,14 +110,14 @@ export function HomeHero({
 
         <SiteImage
           image={image}
-          ratio="card"
+          ratio="square"
           sizes="homeHero"
           loading="eager"
           placeholder={{
             label: 'Hero-foto',
             detail: 'signaturburger, tæt beskåret · min. 2400 × 1600 px',
           }}
-          className="border-border w-full flex-1 border-0 border-b md:aspect-auto md:min-h-[32.5rem] md:border-b-0 md:border-l lg:flex-[1.05]"
+          className="border-border w-full flex-1 border-0 border-b md:aspect-[9/8] md:min-h-[32.5rem] md:border-b-0 md:border-l lg:flex-[1.25]"
         />
       </div>
     </section>

@@ -11,14 +11,22 @@ import type { PublicImage } from '@/lib/images/public'
  * about the restaurant.
  *
  * "Nyeste vises automatisk på forsiden" (1j): the teaser is whichever published article
- * is newest, so nobody has to remember to update the Forside after writing one. The
- * whole column disappears when there is no published article rather than showing an
- * empty card.
+ * is newest, so nobody has to remember to update the Forside after writing one.
+ *
+ * NO ARTICLE IS AN HONEST EMPTY STATE, NOT A HOLE. The first build dropped the whole
+ * column when nothing was published, which left the right half of the band empty. Now
+ * the column stays, headed "Nyheder", and says plainly that there is nothing yet and
+ * what will appear there — the same sentence the Nyheder page's own empty state uses.
+ * Nothing is invented: no sample headline, no placeholder card pretending to be one. The
+ * empty column sits second, after "Om os", so the band opens with something real.
  *
  * The "Om os" photograph (phase 11A) is the Forside document's own image slot — 1u's
  * picker — in the 4:3 frame 1g draws for this excerpt. It may be a team photo or (14B2)
  * a venue photograph reused from the Om os page; `null` is the reserved frame.
  */
+const NEWS_EMPTY_STATE = 'Der er ingen nyheder lige nu.'
+const NEWS_EMPTY_DETAIL = 'Lukkedage, nye retter og særlige åbningstider bliver slået op her.'
+
 export function NewsAndAbout({
   latestArticle,
   latestExcerpt,
@@ -32,20 +40,33 @@ export function NewsAndAbout({
   aboutText: string | null
   aboutImage?: PublicImage | null
 }) {
+  const news = latestArticle ? (
+    <div>
+      <Eyebrow as="h2">Seneste nyt</Eyebrow>
+      <div className="mt-3.5">
+        <NewsTeaserCard article={latestArticle} excerpt={latestExcerpt} />
+      </div>
+      <p className="mt-3">
+        <InlineLink href="/nyheder">Alle nyheder</InlineLink>
+      </p>
+    </div>
+  ) : (
+    <div>
+      <Eyebrow as="h2">Nyheder</Eyebrow>
+      <div className="bg-surface border-border rounded-card-lg mt-3.5 border p-3.5 md:p-4">
+        <p>{NEWS_EMPTY_STATE}</p>
+        <p className="text-ink-2 text-support mt-1.5">{NEWS_EMPTY_DETAIL}</p>
+      </div>
+      <p className="mt-3">
+        <InlineLink href="/nyheder">Se nyheder</InlineLink>
+      </p>
+    </div>
+  )
+
   return (
     <Section tone="beige">
       <div className="grid gap-8 md:grid-cols-2 md:gap-10">
-        {latestArticle ? (
-          <div>
-            <Eyebrow as="h2">Seneste nyt</Eyebrow>
-            <div className="mt-3.5">
-              <NewsTeaserCard article={latestArticle} excerpt={latestExcerpt} />
-            </div>
-            <p className="mt-3">
-              <InlineLink href="/nyheder">Alle nyheder</InlineLink>
-            </p>
-          </div>
-        ) : null}
+        {latestArticle ? news : null}
 
         <div>
           <Eyebrow as="h2">Om os</Eyebrow>
@@ -70,6 +91,8 @@ export function NewsAndAbout({
             </div>
           </div>
         </div>
+
+        {latestArticle ? null : news}
       </div>
     </Section>
   )

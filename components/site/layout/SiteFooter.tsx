@@ -62,7 +62,7 @@ export function SiteFooter({
                   href={telHref(contact.secondaryPhone)}
                   className="text-detail flex min-h-tap w-fit items-center text-white/78 tabular-nums no-underline hover:underline"
                 >
-                  {`Ekstra nummer ${contact.secondaryPhone}`}
+                  {`eller ${contact.secondaryPhone}`}
                 </a>
               ) : null}
             </address>

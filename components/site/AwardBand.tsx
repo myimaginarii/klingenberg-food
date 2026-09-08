@@ -1,5 +1,6 @@
 import type { PublicImage } from '@/lib/images/public'
 
+import { AwardMark } from './AwardMark'
 import { AwardSeal } from './AwardSeal'
 import { Eyebrow } from './Eyebrow'
 import { Section } from './Section'
@@ -10,11 +11,13 @@ import { SiteImage } from './SiteImage'
  *
  * The wording is the confirmed competition result and nothing more (1ab): winner of Fyn
  * & Øer, number four in Denmark, Danmarks Bedste Burger 2026, and the note that the
- * competition lists the restaurant under its other name. No jury quote is invented, and
- * the competition's own red seal is not reproduced.
+ * competition lists the restaurant under its other name. No jury quote is invented; the
+ * competition's own seal is shown only where the restaurant supplied it (the Forside).
  *
- * The Forside puts the photograph first and the seal last; Om os mirrors it. That is
- * the only difference between the two, so it is a prop rather than a second component.
+ * The Forside puts the photograph first and the seal last; Om os mirrors it. The
+ * Forside also shows the competition's own seal (`seal="supplied"`, the tracked
+ * `award.png`) where Om os keeps the drawn ring of type. Both are props rather than a
+ * second component.
  *
  * The photograph (phase 11A) is the Forside document's award image — 1u's
  * "Udmærkelsesfoto (valgfrit)" — in the 4:3 frame the band reserves for it. Om os passes
@@ -34,19 +37,26 @@ export function AwardBand({
   text,
   headingId,
   sealFirst = false,
+  seal = 'drawn',
   image = null,
 }: {
   title: string
   text: string
   headingId: string
   sealFirst?: boolean
+  /** `supplied` is the competition's own seal (`AwardMark`); `drawn` is the site's ring of type. */
+  seal?: 'drawn' | 'supplied'
   image?: PublicImage | null
 }) {
   // 1l drops the seal on a phone, where the photograph and the wording already carry
   // the award and a 132 px circle would be a third telling of the same thing.
-  const seal = (
+  const sealMark = (
     <div className="hidden md:block">
-      <AwardSeal size={sealFirst ? 'compact' : 'default'} />
+      {seal === 'supplied' ? (
+        <AwardMark className="size-33" />
+      ) : (
+        <AwardSeal size={sealFirst ? 'compact' : 'default'} />
+      )}
     </div>
   )
   const photo =
@@ -63,7 +73,7 @@ export function AwardBand({
   return (
     <Section tone="brand" ariaLabelledBy={headingId}>
       <div className="flex flex-col items-start gap-6 md:flex-row md:items-center md:gap-8">
-        {sealFirst ? seal : photo}
+        {sealFirst ? sealMark : photo}
         <div className="flex-1">
           <Eyebrow tone="inverse">Udmærkelse</Eyebrow>
           <h2
@@ -78,7 +88,7 @@ export function AwardBand({
             {text}
           </p>
         </div>
-        {sealFirst ? photo : seal}
+        {sealFirst ? photo : sealMark}
       </div>
     </Section>
   )

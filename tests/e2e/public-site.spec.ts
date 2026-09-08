@@ -8,6 +8,7 @@ import {
   ADDRESS_LINE,
   MENU_CATEGORIES,
   PRIMARY_PHONE,
+  SECONDARY_PHONE,
   PRIMARY_TEL_HREF,
   PUBLIC_EMAIL,
   PUBLIC_EMAIL_HREF,
@@ -381,7 +382,7 @@ test.describe('Find os', () => {
 
     const main = page.getByRole('main')
     await expect(main.getByText(PRIMARY_PHONE).first()).toBeVisible()
-    await expect(main.getByText('Ekstra nummer', { exact: false })).toBeVisible()
+    await expect(main.getByText(`eller ${SECONDARY_PHONE}`)).toBeVisible()
   })
 
   test('prints the confirmed e-mail address as a mailto link, once', async ({ page }) => {
@@ -457,7 +458,7 @@ test.describe('photographs', () => {
       .first()
       .locator('picture img')
 
-  test('the menu renders the two confirmed dish photographs from the derivative ladder alone', async ({
+  test('the menu renders the three dish photographs from the derivative ladder alone', async ({
     page,
   }) => {
     const requested: string[] = []
@@ -478,12 +479,16 @@ test.describe('photographs', () => {
     await expect(ragnar).toHaveAttribute('srcset', /480w.*960w/)
     await expect(ragnar).not.toHaveAttribute('srcset', /1440w/)
 
+    const frigg = dishImage(page, 'Frigg')
+    await expect(frigg).toHaveAttribute('src', '/media/dish-frigg/960.webp')
+    await expect(frigg).toHaveAttribute('alt', '')
+
     // A dish without a supplied photograph keeps its reserved frame (1h/1m).
-    const frigg = page
+    const thor = page
       .locator('article')
-      .filter({ has: page.getByRole('heading', { name: 'Frigg', exact: true }) })
-    await expect(frigg.locator('picture')).toHaveCount(0)
-    await expect(frigg.locator('.media-placeholder')).toHaveCount(1)
+      .filter({ has: page.getByRole('heading', { name: 'Thor', exact: true }) })
+    await expect(thor.locator('picture')).toHaveCount(0)
+    await expect(thor.locator('.media-placeholder')).toHaveCount(1)
 
     // The 6rem / 9.375rem slot takes the 480 rung at either width, once, as AVIF —
     // never the largest rung and never a source file.
@@ -492,7 +497,12 @@ test.describe('photographs', () => {
     const forOdin = requested.filter((url) => url.includes('/media/dish-odin/'))
     expect(forOdin).toHaveLength(1)
     expect(forOdin[0]).toMatch(/\/480\.avif$/)
-    expect(requested.some((url) => /\.png(\?|$)/.test(url))).toBe(false)
+    // Never a source photograph. The one PNG the site serves is the competition seal
+    // (`public/brand/award.png`, a brand asset like the logo), which the router may
+    // prefetch for the Forside from any page; it is not a photograph and not under /media/.
+    expect(
+      requested.filter((url) => /\.png(\?|$)/.test(url) && !url.includes('/brand/')),
+    ).toEqual([])
 
     const html = await page.content()
     expect(html).not.toContain('supabase')

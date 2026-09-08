@@ -146,11 +146,12 @@ describe('the photographs', () => {
     expect(TAKEAWAY_PAGE.image).toEqual(launchPhoto('takeaway'))
     expect(EVERY_DISH.find((dish) => dish.id === 'odin')?.image).toEqual(launchPhoto('dish-odin'))
     expect(EVERY_DISH.find((dish) => dish.id === 'ragnar')?.image).toEqual(launchPhoto('dish-ragnar'))
+    expect(EVERY_DISH.find((dish) => dish.id === 'frigg')?.image).toEqual(launchPhoto('dish-frigg'))
     // The other frames have no supplied photograph and stay their no-image state.
     expect(HOME_PAGE.award.image).toBeNull()
     expect(ABOUT_PAGE.team.image).toBeNull()
     expect(ABOUT_PAGE.method.image).toBeNull()
-    expect(EVERY_DISH.filter((dish) => dish.image !== null)).toHaveLength(2)
+    expect(EVERY_DISH.filter((dish) => dish.image !== null)).toHaveLength(3)
   })
 
   it('name only rungs the ladder plans for the recorded size, under /media/', () => {

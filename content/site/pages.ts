@@ -36,10 +36,11 @@ export const HOME_PAGE: HomeDocument = {
     ),
     image: launchPhoto('home-hero'),
   },
-  // The confirmed competition result (design 1ab), as the finished design carried it.
+  // The confirmed competition result (design 1ab): the regional win and the national
+  // placing, worded so neither can be read as having won Denmark.
   award: {
-    title: 'Vinder af Fyn & Øer og nr. 4 i Danmark',
-    text: 'Danmarks Bedste Burger 2026. I konkurrencen er vi opført som Carl Nielsen Caféen, Årslev.',
+    title: 'Fyns bedste burger 2026 og nr. 4 i Danmark',
+    text: 'Ved Danmarks Bedste Burger 2026 vandt vi regionen Fyn & Øer, og på landsplan blev vi nr. 4. I konkurrencen er vi opført som Carl Nielsen Caféen, Årslev.',
     image: null,
   },
   // "Tre fra menuen" (1g): the three burgers the finished design featured, by dish id.

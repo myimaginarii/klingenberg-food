@@ -30,6 +30,7 @@ const PLACEMENTS = [
   { slot: 'about-venue', path: '/om-os/' },
   { slot: 'takeaway', path: '/mad-ud-af-huset/' },
   { slot: 'dish-odin', path: '/menu/' },
+  { slot: 'dish-frigg', path: '/menu/' },
   { slot: 'dish-ragnar', path: '/menu/' },
 ] as const
 
@@ -100,9 +101,9 @@ test.describe('the rendered derivative ladder', () => {
     await page.goto('/menu/')
     await waitForPublicShell(page)
 
-    // Both dish photographs are tracked with `alt: null` — they sit beside the dish
+    // The dish photographs are tracked with `alt: null` — they sit beside the dish
     // heading that already names them, so repeating it would be duplicate verbose text.
-    for (const slot of ['dish-odin', 'dish-ragnar']) {
+    for (const slot of ['dish-odin', 'dish-frigg', 'dish-ragnar']) {
       expect(photos.photos[slot as 'dish-odin'].alt).toBeNull()
       await expect(page.locator(`img[src^="/media/${slot}/"]`).first()).toHaveAttribute('alt', '')
     }

@@ -83,7 +83,7 @@ export function AboutPageContent({ about }: { about: AboutDocument | null }) {
             ratio="team"
             sizes="aboutTeam"
             placeholder={{
-              label: 'Ét holdfoto — fuld bredde',
+              label: 'Ét holdfoto - fuld bredde',
               detail: 'hele holdet samlet i køkkenet, naturligt lys',
             }}
             className="rounded-card-lg mt-4 w-full"

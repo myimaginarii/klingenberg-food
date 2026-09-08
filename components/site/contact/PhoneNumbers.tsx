@@ -3,7 +3,7 @@
  *
  * The order matters more than the styling: ordering is by telephone, so the number a
  * guest should ring is the largest thing in the block, and the second one is labelled
- * "Ekstra nummer" rather than presented as an equal choice.
+ * "eller" rather than presented as an equal choice.
  *
  * The numbers are printed, not linked, here. The call to action beside them is the link
  * (`PhoneAction`), which keeps one tappable target per number instead of two.
@@ -33,7 +33,7 @@ export function PhoneNumbers({
       </p>
       {secondaryPhone ? (
         <p className={`text-detail mt-1.5 tabular-nums ${prominent ? 'text-neutral-ink' : 'text-ink-3'}`}>
-          Ekstra nummer{' '}
+          eller{' '}
           {prominent ? <strong className="font-semibold">{secondaryPhone}</strong> : secondaryPhone}
         </p>
       ) : null}

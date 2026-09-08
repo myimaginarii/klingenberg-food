@@ -83,7 +83,7 @@ export default function MadUdAfHusetPage() {
               ratio="card"
               sizes="takeawayHero"
               loading="eager"
-              placeholder={{ label: 'Foto — valgfrit' }}
+              placeholder={{ label: 'Foto - valgfrit' }}
               className="rounded-card-lg w-full flex-1"
             />
           )}

@@ -73,7 +73,7 @@ describe('the venue frame without an image', () => {
 describe('the team and kitchen sections without an image', () => {
   it('render text-only — no reserved photo frame — when the restaurant has not supplied that photograph', () => {
     const html = render(WORDS)
-    expect(html).not.toContain('Ét holdfoto — fuld bredde')
+    expect(html).not.toContain('Ét holdfoto - fuld bredde')
     expect(html).not.toContain('hele holdet samlet i køkkenet, naturligt lys')
     expect(html).not.toContain('Køkken / tilberedning')
     expect(html).toContain('Holdet bag disken.')

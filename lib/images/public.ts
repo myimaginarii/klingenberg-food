@@ -165,9 +165,9 @@ export const IMAGE_SIZES = {
   /**
    * 1g/1l hero (phase 11A): full width above the text on a phone; from `md` the
    * photograph is the second of two equal flex columns of the 80rem measure, and
-   * from `lg` the slightly larger one (`flex-[1.05]`).
+   * from `lg` the larger one (`flex-[1.25]`, five ninths of the measure).
    */
-  homeHero: '(min-width: 90rem) 41rem, (min-width: 48rem) 51vw, 100vw',
+  homeHero: '(min-width: 90rem) 44.5rem, (min-width: 64rem) 56vw, (min-width: 48rem) 50vw, 100vw',
   /** 1g/1l award band (phase 11A): full width on a phone, a 13.75rem column from `md`. */
   homeAward: '(min-width: 48rem) 13.75rem, calc(100vw - 2rem)',
   /** 1g/1l "Om os" excerpt (phase 11A): full width on a phone, a 9.375rem thumbnail from `md`. */

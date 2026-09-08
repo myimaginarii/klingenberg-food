@@ -62,6 +62,7 @@ export const MENU_CATEGORIES: MenuCategory[] = [
         description:
           'Sprød panko-kylling, avocadomos, syltede rødløg, semi-dried tomat, hjertesalat og briochebolle.',
         secondaryNote: MENU_NOTE,
+        image: launchPhoto('dish-frigg'),
       }),
       dish('ragnar', 'Ragnar', 9700, {
         description:

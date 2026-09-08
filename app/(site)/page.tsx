@@ -38,8 +38,8 @@ export const metadata = homeMetadata(
 
 /** The confirmed result (1ab), for a document whose award section is empty. Nothing invented. */
 const AWARD_FALLBACK = {
-  title: 'Vinder af Fyn & Øer og nr. 4 i Danmark',
-  text: 'Danmarks Bedste Burger 2026. I konkurrencen er vi opført som Carl Nielsen Caféen, Årslev.',
+  title: 'Fyns bedste burger 2026 og nr. 4 i Danmark',
+  text: 'Ved Danmarks Bedste Burger 2026 vandt vi regionen Fyn & Øer, og på landsplan blev vi nr. 4. I konkurrencen er vi opført som Carl Nielsen Caféen, Årslev.',
 }
 
 export default function ForsidePage() {
@@ -73,6 +73,7 @@ export default function ForsidePage() {
         title={home.award.title ?? AWARD_FALLBACK.title}
         text={home.award.text ?? AWARD_FALLBACK.text}
         image={home.award.image}
+        seal="supplied"
       />
 
       <MonthlyBurgerFeature burger={monthlyBurger} primaryPhone={SITE_CONTACT.primaryPhone} />

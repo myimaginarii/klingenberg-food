@@ -16,6 +16,11 @@ import { DishPrice } from './DishPrice'
  * The photograph is the same library image the menu card shows (one `image_id`, one
  * model), in 1g's 3:2 frame across the card's top on a wide screen and 1l's 1:1
  * thumbnail beside the text on a phone (phase 10C-2).
+ *
+ * The frame is anchored a little above centre (`object-position: 50% 30%`): two of the
+ * three supplied burger photographs are portraits, and a centred 3:2 crop of a portrait
+ * cuts the bun off and keeps the plate. A landscape photograph is cropped at its sides
+ * only, so the anchor changes nothing for it.
  */
 export function FeaturedDishCard({ dish }: { dish: DishView }) {
   return (
@@ -29,7 +34,7 @@ export function FeaturedDishCard({ dish }: { dish: DishView }) {
         ratio="square"
         sizes="featuredDish"
         placeholder={{ label: 'Retfoto' }}
-        className={`border-border w-24 shrink-0 self-start border-0 md:aspect-hero md:w-full md:border-b ${
+        className={`border-border w-24 shrink-0 self-start border-0 md:aspect-hero md:w-full md:border-b [&>img]:object-[50%_30%] ${
           dish.soldOut ? 'opacity-70 grayscale' : ''
         }`}
       />
