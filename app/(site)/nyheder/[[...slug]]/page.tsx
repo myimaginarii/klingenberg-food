@@ -16,9 +16,11 @@ import { newsArticleJsonLd } from '@/lib/seo/news-article'
 import { SiteImage } from '@/components/site/SiteImage'
 import { NewsBody } from '@/components/site/news/NewsBody'
 import { NewsCard } from '@/components/site/news/NewsCard'
+import { NewsEmptyState } from '@/components/site/news/NewsEmptyState'
 import { NewsMeta } from '@/components/site/news/NewsMeta'
 import { PageContainer } from '@/components/site/PageContainer'
 import { PhoneAction } from '@/components/site/PhoneAction'
+import { Section } from '@/components/site/Section'
 
 /**
  * Nyheder and one article — design 1j (desktop) and 1n (mobile); technical plan §7f.
@@ -88,31 +90,46 @@ export default async function NyhederPage({ params }: NewsParams) {
 }
 
 const INTRO = 'Lukkedage, nye retter, særlige åbningstider og andet nyt fra hallen.'
-const EMPTY_STATE = 'Der er ingen nyheder lige nu.'
 
-/** The list of published articles, newest first. */
+/**
+ * The list of published articles, newest first.
+ *
+ * With nothing published the page is honest and short: the heading block, then the
+ * shared empty-state card in a beige band — the same card and the same words as the
+ * Forside's news column, not a grey line on cream. The band is the page's last block,
+ * so on a screen taller than the page it takes the leftover height (the shell's `main`
+ * is a flex column for this) and the footer follows a section rather than a hole.
+ */
 function NewsList({ articles }: { articles: readonly NewsArticle[] }) {
   return (
-    <PageContainer className="py-page-mobile md:py-page">
-      <h1 className="font-display text-page">Nyheder</h1>
-      <p className="text-ink-2 text-lead mt-2 max-w-[62ch]">{INTRO}</p>
+    <div className="flex flex-1 flex-col">
+      <PageContainer className="py-page-mobile md:py-page">
+        <h1 className="font-display text-page">Nyheder</h1>
+        <p className="text-ink-2 text-lead mt-2 max-w-[62ch]">{INTRO}</p>
+
+        {articles.length === 0 ? null : (
+          <ul className="mt-6 flex flex-col gap-4.5">
+            {articles.map((article, index) => (
+              <li key={article.id}>
+                <NewsCard
+                  article={article}
+                  excerpt={articleExcerpt(article)}
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                />
+              </li>
+            ))}
+          </ul>
+        )}
+      </PageContainer>
 
       {articles.length === 0 ? (
-        <p className="text-ink-2 mt-6">{EMPTY_STATE}</p>
-      ) : (
-        <ul className="mt-6 flex flex-col gap-4.5">
-          {articles.map((article, index) => (
-            <li key={article.id}>
-              <NewsCard
-                article={article}
-                excerpt={articleExcerpt(article)}
-                loading={index === 0 ? 'eager' : 'lazy'}
-              />
-            </li>
-          ))}
-        </ul>
-      )}
-    </PageContainer>
+        <Section tone="beige" className="flex-1">
+          {/* The page intro above already lists what gets posted; the card says only
+              that there is nothing yet. */}
+          <NewsEmptyState className="max-w-[62ch]" detail={false} />
+        </Section>
+      ) : null}
+    </div>
   )
 }
 

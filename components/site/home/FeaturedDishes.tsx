@@ -17,7 +17,7 @@ import type { DishView } from '@/lib/menu/view'
  * cards it describes, rather than being invented per render.
  */
 const MENU_PRICE_NOTE =
-  'Alle burgere kan bestilles som menu med pommes frites og sodavand for 124 kr., Ragnar for 132 kr.'
+  'Alle burgere kan bestilles som menu med pommes frites og sodavand fra 124 kr.'
 
 export function FeaturedDishes({ dishes }: { dishes: DishView[] }) {
   if (dishes.length === 0) return null

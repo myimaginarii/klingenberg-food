@@ -62,7 +62,7 @@ describe('the hero photograph (1u "Hovedbillede")', () => {
     expect(html).toContain('alt="Signaturburgeren, tæt på."')
     expect(html).toContain(`sizes="${IMAGE_SIZES.homeHero}"`)
     // The same box the placeholder reserved — the column beside the text from `md`.
-    expect(html).toMatch(/<picture class="[^"]*aspect-card[^"]*md:min-h-\[32\.5rem\][^"]*">/)
+    expect(html).toMatch(/<picture class="[^"]*aspect-square[^"]*md:min-h-\[32\.5rem\][^"]*">/)
     expect(html).not.toContain('media-placeholder')
   })
 
@@ -103,6 +103,18 @@ describe('the award photograph (1u "Udmærkelsesfoto")', () => {
       expect(html).toContain('Vinder')
       expect(html).toContain('DANMARKS BEDSTE')
     }
+  })
+
+  it('shows the supplied seal, as a decorative brand asset, where the Forside asks for it', () => {
+    const html = renderToStaticMarkup(
+      <AwardBand headingId="t" title="Vinder" text="Tekst" seal="supplied" />,
+    )
+
+    expect(html).toContain('src="/brand/award.png"')
+    expect(html).toContain('alt=""')
+    expect(html).toContain('aria-hidden="true"')
+    expect(html).not.toContain('DANMARKS BEDSTE')
+    expect(html).not.toContain('<picture')
   })
 })
 

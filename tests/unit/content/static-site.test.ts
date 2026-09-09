@@ -48,6 +48,29 @@ describe('the confirmed menu', () => {
     }
   })
 
+  it('states the burger menu price once, under Burgere, and on no card', () => {
+    const burgers = MENU_CATEGORIES.find((category) => category.slug === 'burgere')
+    // Number and "kr." are joined by a non-breaking space so the price never wraps.
+    expect(burgers?.intro).toBe(
+      'Alle burgere serveres i briochebolle. Som menu med pommes frites og sodavand: 124 kr., Ragnar 132 kr.',
+    )
+    // The confirmed prices, and no per-card note repeating the menu price.
+    expect(burgers?.dishes.map((dish) => [dish.name, dish.priceOre, dish.secondaryNote])).toEqual([
+      ['Odin', 8900, null],
+      ['Frigg', 8900, null],
+      ['Ragnar', 9700, null],
+      ['Thor', 8900, null],
+      ['Glade Gris', 8900, null],
+    ])
+    // Once across the whole menu: no section text and no dish text repeats it.
+    const mentions = MENU_CATEGORIES.flatMap((category) => [
+      category.intro,
+      category.note,
+      ...category.dishes.flatMap((dish) => [dish.description, dish.secondaryNote]),
+    ]).filter((text) => text !== null && /som menu/i.test(text))
+    expect(mentions).toHaveLength(1)
+  })
+
   it('gives every dish and every section a unique id', () => {
     expect(new Set(EVERY_DISH.map((dish) => dish.id)).size).toBe(EVERY_DISH.length)
     expect(new Set(MENU_CATEGORIES.map((category) => category.id)).size).toBe(MENU_CATEGORIES.length)
@@ -124,7 +147,6 @@ describe('the confirmed facts', () => {
     expect(TAKEAWAY_PAGE.heading).toBe('Mad ud af huset')
     expect(TAKEAWAY_PAGE.sections.map((section) => section.heading)).toEqual([
       'Til selskaber og sammenkomster',
-      'Ring og hør mere',
     ])
   })
 
@@ -146,11 +168,16 @@ describe('the photographs', () => {
     expect(TAKEAWAY_PAGE.image).toEqual(launchPhoto('takeaway'))
     expect(EVERY_DISH.find((dish) => dish.id === 'odin')?.image).toEqual(launchPhoto('dish-odin'))
     expect(EVERY_DISH.find((dish) => dish.id === 'ragnar')?.image).toEqual(launchPhoto('dish-ragnar'))
-    // The other frames have no supplied photograph and stay their no-image state.
+    expect(EVERY_DISH.find((dish) => dish.id === 'frigg')?.image).toEqual(launchPhoto('dish-frigg'))
+    expect(EVERY_DISH.find((dish) => dish.id === 'glade-gris')?.image).toEqual(
+      launchPhoto('dish-glade-gris'),
+    )
+    // Thor and the other frames have no supplied photograph and stay their no-image state.
+    expect(EVERY_DISH.find((dish) => dish.id === 'thor')?.image).toBeNull()
     expect(HOME_PAGE.award.image).toBeNull()
     expect(ABOUT_PAGE.team.image).toBeNull()
     expect(ABOUT_PAGE.method.image).toBeNull()
-    expect(EVERY_DISH.filter((dish) => dish.image !== null)).toHaveLength(2)
+    expect(EVERY_DISH.filter((dish) => dish.image !== null)).toHaveLength(4)
   })
 
   it('name only rungs the ladder plans for the recorded size, under /media/', () => {

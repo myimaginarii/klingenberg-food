@@ -19,8 +19,9 @@ import type { IsoDate } from '@/lib/time/calendar'
  *     source, asserted over the source the way `admin-mapping.test.ts` asserts
  *     boundaries — a mocked render could not notice a literal article creeping in.
  *   * **Rendering** — the newest published article is a linked card, and no article
- *     at all is *nothing*: no empty card, no placeholder sentence, while "Om os"
- *     keeps its half of the band.
+ *     at all is the honest empty state: a "Nyheder" column that says there is nothing
+ *     yet, with no invented headline and no article link, while "Om os" keeps its half
+ *     of the band.
  */
 
 function article(overrides: Partial<NewsArticle> = {}): NewsArticle {
@@ -58,11 +59,14 @@ describe('the teaser, rendered', () => {
     expect(html).toContain('Første afsnit.')
   })
 
-  it('renders no news column at all when nothing is published', () => {
+  it('renders the honest empty state, and no article, when nothing is published', () => {
     const html = render(null)
 
     expect(html).not.toContain('Seneste nyt')
     expect(html).not.toContain('/nyheder/')
+    expect(html).toContain('Nyheder')
+    expect(html).toContain('Der er ingen nyheder lige nu.')
+    expect(html).toContain('href="/nyheder"')
     // The band itself survives: Om os is still there.
     expect(html).toContain('Om os-overskrift')
   })

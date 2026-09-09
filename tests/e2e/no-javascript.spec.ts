@@ -109,15 +109,17 @@ test('the opening hours are readable, and the seven-day view still opens', async
   await expect(page.getByRole('main').getByText('Onsdag', { exact: false }).first()).toBeVisible()
 })
 
-test('the map embed and the directions link both render without scripting', async ({ page }) => {
+test('the map embed and the call action both render without scripting', async ({ page }) => {
   await page.goto('/find-os')
 
-  const frame = page.getByRole('main').locator('iframe[title^="Kort over"]')
+  const main = page.getByRole('main')
+  const frame = main.locator('iframe[title^="Kort over"]')
   await expect(frame).toBeVisible()
   expect(await frame.getAttribute('src')).toContain('https://www.google.com/maps/embed?pb=')
 
-  const directions = page.getByRole('main').getByRole('link', { name: 'Vis vej' })
-  await expect(directions).toHaveAttribute('href', /google\.com\/maps\/dir/)
+  // The one call action on the page is a plain `tel:` anchor inside the Telefon block.
+  const ring = main.getByRole('link', { name: /^Ring \+45/ })
+  await expect(ring).toHaveAttribute('href', /^tel:\+45/)
 })
 
 test('the open/closed badge degrades to a neutral label, never to a stale claim', async ({

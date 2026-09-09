@@ -7,10 +7,12 @@ import { Eyebrow } from '../Eyebrow'
  *
  * The address was outstanding until the restaurant supplied it in the C4 factual check,
  * which is why `site_contact.email` existed without a public renderer. It is printed
- * here and nowhere else: the header, the footer and the mobile bar carry the *call to
- * action* (ring, vis vej), and an e-mail address is not one — writing costs the guest a
- * reply they have to wait for. Find os is the page a guest opens to reach the
- * restaurant, so it is the page that lists every way to.
+ * here as a labelled block; the footer prints the same stored address as a plain line
+ * under its two numbers, so a guest never has to find this page first. The header and
+ * the mobile bar still carry only the *call to action* (ring, vis vej) — an e-mail
+ * address is not one, because writing costs the guest a reply they have to wait for.
+ * Find os is the page a guest opens to reach the restaurant, so it is the page that
+ * lists every way to, with a label on each.
  *
  * Empty is a rendering state, not an error: the block disappears entirely rather than
  * leaving a label above nothing, which is the same rule the address, the phone numbers

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, type Locator, type Page, test } from '@playwright/test'
 
 import { formatDailyHours, formatWeekdayName, formatWeeklyHoursLines } from '@/lib/hours/format'
 import { weekdayOf } from '@/lib/time/calendar'
@@ -8,6 +8,7 @@ import {
   ADDRESS_LINE,
   MENU_CATEGORIES,
   PRIMARY_PHONE,
+  SECONDARY_PHONE,
   PRIMARY_TEL_HREF,
   PUBLIC_EMAIL,
   PUBLIC_EMAIL_HREF,
@@ -219,17 +220,33 @@ test.describe('Forsiden', () => {
     await expect(featured.getByRole('heading', { name: 'Ragnar', exact: true })).toBeVisible()
   })
 
-  test('hides the whole Månedens burger section rather than saying one is missing', async ({
+  test('shows Månedens burger as not yet supplied, between the award and the three dishes', async ({
     page,
   }) => {
     // Nothing is configured in the seed (1ab lists Månedens burger as still outstanding),
-    // so the section must be absent from the Forside — not present and empty, and not
-    // carrying the menu page's "ingen månedens burger lige nu" empty-state wording.
+    // so the Forside draws the menu page's own empty card — the same sentence, under the
+    // section's own heading — and invents no burger, price or ordering action.
     await page.goto('/')
 
-    await expect(page.locator('#maanedens-burger-titel')).toHaveCount(0)
-    await expect(page.getByRole('main').getByText('Månedens burger')).toHaveCount(0)
-    await expect(page.getByRole('main').getByText('ingen månedens burger lige nu')).toHaveCount(0)
+    const section = page.getByRole('region', { name: 'Månedens burger' })
+    await expect(section.getByRole('heading', { level: 2, name: 'Månedens burger' })).toBeVisible()
+    await expect(section.getByText('ingen månedens burger lige nu', { exact: false })).toBeVisible()
+    await expect(section.getByText('Skiftende')).toBeVisible()
+    await expect(section.getByRole('link')).toHaveCount(0)
+    await expect(section.getByText('kr.')).toHaveCount(0)
+
+    // Order on the page: the burgundy award band, then this section, then "Tre fra menuen".
+    const award = page.locator('#udmaerkelse-titel')
+    const featured = page.getByRole('region', { name: 'Tre fra menuen' })
+    const top = (locator: Locator) =>
+      locator.evaluate((element) => element.getBoundingClientRect().top + window.scrollY)
+    const [awardTop, sectionTop, featuredTop] = await Promise.all([
+      top(award),
+      top(section),
+      top(featured),
+    ])
+    expect(awardTop).toBeLessThan(sectionTop)
+    expect(sectionTop).toBeLessThan(featuredTop)
   })
 })
 
@@ -304,6 +321,20 @@ test.describe('the menu', () => {
     await expect(page.getByText('89 kr.').first()).toBeVisible()
     await expect(page.getByText('97 kr.').first()).toBeVisible()
 
+    // The menu price is one line under the Burgere introduction, Ragnar's exception in
+    // it, and no card repeats it; the four 89 kr. burgers and Ragnar keep their prices.
+    const burgers = page.locator('#menu-burgere')
+    // getByText normalises whitespace, so the plain-space string matches; the raw text
+    // check below proves the non-breaking space between number and "kr." survived.
+    const menuPriceLine = burgers.getByText(
+      'Som menu med pommes frites og sodavand: 124 kr., Ragnar 132 kr.',
+    )
+    await expect(menuPriceLine).toBeVisible()
+    await expect(menuPriceLine).toHaveText(/124 kr\., Ragnar 132 kr\./)
+    await expect(page.getByRole('main').getByText(/som menu/i)).toHaveCount(1)
+    await expect(burgers.getByText('89 kr.', { exact: true })).toHaveCount(4)
+    await expect(burgers.getByText('97 kr.', { exact: true })).toHaveCount(1)
+
     // The additions the brief calls out by name.
     await expect(page.getByRole('heading', { name: 'Dip', exact: true })).toBeVisible()
     await expect(page.getByText('BBQ · chili · aioli')).toBeVisible()
@@ -353,16 +384,25 @@ test.describe('the menu', () => {
 })
 
 test.describe('Find os', () => {
-  test('the map is the official Google Maps embed, and "Vis vej" still opens directions', async ({
+  test('the map is the official Google Maps embed, and the page adds no second directions link', async ({
     page,
   }) => {
     await page.goto('/find-os')
 
-    const frame = page.getByRole('main').locator('iframe[title^="Kort over"]')
+    const main = page.getByRole('main')
+    const frame = main.locator('iframe[title^="Kort over"]')
     await expect(frame).toBeVisible()
     expect(await frame.getAttribute('src')).toContain('https://www.google.com/maps/embed?pb=')
 
-    const directions = page.getByRole('main').getByRole('link', { name: 'Vis vej' })
+    // The embed is the page's directions. "Vis vej" stays on the Forside and in the
+    // mobile bar, but Find os no longer repeats it beside the map.
+    await expect(main.getByRole('link', { name: 'Vis vej' })).toHaveCount(0)
+  })
+
+  test('the Forside still opens directions to the confirmed address', async ({ page }) => {
+    await page.goto('/')
+
+    const directions = page.getByRole('main').getByRole('link', { name: 'Vis vej' }).first()
     const href = await directions.getAttribute('href')
     expect(href).toContain('api=1')
     expect(decodeURIComponent(href ?? '')).toContain(ADDRESS_LINE)
@@ -376,12 +416,24 @@ test.describe('Find os', () => {
     await expect(address).toContainText('5792 Nørre Lyndelse')
   })
 
-  test('shows both numbers, with the primary one dominant', async ({ page }) => {
+  test('shows both numbers once, with the primary one as the one call action', async ({
+    page,
+  }) => {
     await page.goto('/find-os')
 
     const main = page.getByRole('main')
-    await expect(main.getByText(PRIMARY_PHONE).first()).toBeVisible()
-    await expect(main.getByText('Ekstra nummer', { exact: false })).toBeVisible()
+
+    // The primary number is stated once, inside the Telefon block, and that one
+    // statement is the tappable "Ring" action — no second button above it.
+    await expect(main.getByText('Telefon', { exact: true })).toBeVisible()
+    const ring = main.getByRole('link', { name: `Ring ${PRIMARY_PHONE}` })
+    await expect(ring).toHaveCount(1)
+    await expect(ring).toBeVisible()
+    await expect(ring).toHaveAttribute('href', PRIMARY_TEL_HREF)
+    await expect(main.getByText(PRIMARY_PHONE)).toHaveCount(1)
+
+    await expect(main.getByText(`eller ${SECONDARY_PHONE}`)).toBeVisible()
+    await expect(main.getByText('Ekstra nummer')).toHaveCount(0)
   })
 
   test('prints the confirmed e-mail address as a mailto link, once', async ({ page }) => {
@@ -398,18 +450,47 @@ test.describe('Find os', () => {
     await expect(main.getByText('E-mail', { exact: true })).toBeVisible()
   })
 
-  test('the e-mail address is on Find os and on no other public page', async ({ page }) => {
+  test('the e-mail address is in the footer of every page, and in main only on Find os', async ({
+    page,
+  }) => {
     for (const route of PUBLIC_ROUTES) {
       await page.goto(route.path)
+
+      // The footer carries the address on every page, under the two numbers.
+      const footerEmail = page.getByRole('contentinfo').locator('a[href^="mailto:"]')
+      await expect(footerEmail, route.path).toHaveCount(1)
+      await expect(footerEmail, route.path).toHaveAttribute('href', PUBLIC_EMAIL_HREF)
+      await expect(footerEmail, route.path).toHaveText(PUBLIC_EMAIL)
+
+      // Inside the page itself it stays a Find os block: no other page repeats it.
       const expected = route.path === '/find-os/' ? 1 : 0
-      await expect(page.locator('a[href^="mailto:"]'), route.path).toHaveCount(expected)
+      await expect(page.getByRole('main').locator('a[href^="mailto:"]'), route.path).toHaveCount(
+        expected,
+      )
     }
   })
 
-  test('links to the restaurant Facebook page and nowhere else off-site', async ({ page }) => {
+  test('the footer keeps the phones ahead of the address', async ({ page }) => {
     await page.goto('/find-os')
 
-    const facebook = page.getByRole('main').getByRole('link', { name: 'Facebook' }).first()
+    // Order in the contact block: primary number, secondary number, e-mail (1g).
+    const links = page.getByRole('contentinfo').locator('address a')
+    await expect(links).toHaveCount(3)
+    await expect(links.nth(0)).toHaveAttribute('href', PRIMARY_TEL_HREF)
+    await expect(links.nth(1)).toHaveText(`eller ${SECONDARY_PHONE}`)
+    await expect(links.nth(2)).toHaveAttribute('href', PUBLIC_EMAIL_HREF)
+  })
+
+  test('leaves the Facebook link to the footer rather than repeating it beside the map', async ({
+    page,
+  }) => {
+    await page.goto('/find-os')
+
+    // The page carries no "Følg os" card of its own: the footer on every page is the
+    // one place the confirmed Facebook link is offered.
+    await expect(page.getByRole('main').getByRole('link', { name: 'Facebook' })).toHaveCount(0)
+
+    const facebook = page.getByRole('contentinfo').getByRole('link', { name: 'Facebook' })
     await expect(facebook).toHaveAttribute('href', /facebook\.com\/carlnielsencafeen/)
     await expect(facebook).toHaveAttribute('rel', /noopener/)
   })
@@ -420,7 +501,7 @@ test.describe('Mad ud af huset', () => {
     const response = await page.goto('/mad-ud-af-huset')
     expect(response?.status()).toBe(200)
 
-    await expect(page.getByText('der er ingen formular', { exact: false })).toBeVisible()
+    await expect(page.getByText('klarer vi over telefonen', { exact: false })).toBeVisible()
 
     const body = (await page.locator('main').innerText()).toLowerCase()
     for (const invented of ['minimum', 'kuverter', 'levering', 'depositum', 'senest 48']) {
@@ -428,6 +509,23 @@ test.describe('Mad ud af huset', () => {
         invented,
       )
     }
+  })
+
+  test('prints each phone number once, in the hero, and closes with one band', async ({ page }) => {
+    await page.goto('/mad-ud-af-huset')
+
+    const main = page.getByRole('main')
+    const text = await main.innerText()
+    for (const number of ['+45 63 90 83 00', '+45 51 79 45 66']) {
+      expect(text.split(number).length - 1, `${number} should appear once in the page body`).toBe(1)
+    }
+
+    await expect(main.getByRole('heading', { level: 2 })).toHaveCount(1)
+    await expect(main.getByRole('heading', { name: 'Til selskaber og sammenkomster' })).toBeVisible()
+    await expect(main.getByRole('link', { name: 'Ring og hør mere', exact: true })).toHaveAttribute(
+      'href',
+      'tel:+4563908300',
+    )
   })
 
   test('is listed in the navigation while the page is switched on', async ({ page, viewport }) => {
@@ -457,7 +555,7 @@ test.describe('photographs', () => {
       .first()
       .locator('picture img')
 
-  test('the menu renders the two confirmed dish photographs from the derivative ladder alone', async ({
+  test('the menu renders the four dish photographs from the derivative ladder alone', async ({
     page,
   }) => {
     const requested: string[] = []
@@ -478,12 +576,24 @@ test.describe('photographs', () => {
     await expect(ragnar).toHaveAttribute('srcset', /480w.*960w/)
     await expect(ragnar).not.toHaveAttribute('srcset', /1440w/)
 
-    // A dish without a supplied photograph keeps its reserved frame (1h/1m).
-    const frigg = page
+    const frigg = dishImage(page, 'Frigg')
+    await expect(frigg).toHaveAttribute('src', '/media/dish-frigg/960.webp')
+    await expect(frigg).toHaveAttribute('alt', '')
+    // Frigg's tall photograph is framed on its upper part, so the bun stays in view.
+    await expect(frigg).toHaveClass(/object-\[50%_20%\]/)
+
+    const gladeGris = dishImage(page, 'Glade Gris')
+    await expect(gladeGris).toHaveAttribute('src', '/media/dish-glade-gris/960.webp')
+    await expect(gladeGris).not.toHaveClass(/object-\[/)
+
+    // Thor has no accurate supplied photograph yet, so it keeps its reserved frame (1h/1m)
+    // rather than a misleading stand-in; it is the only reserved frame on the menu.
+    const thor = page
       .locator('article')
-      .filter({ has: page.getByRole('heading', { name: 'Frigg', exact: true }) })
-    await expect(frigg.locator('picture')).toHaveCount(0)
-    await expect(frigg.locator('.media-placeholder')).toHaveCount(1)
+      .filter({ has: page.getByRole('heading', { name: 'Thor', exact: true }) })
+    await expect(thor.locator('picture')).toHaveCount(0)
+    await expect(thor.locator('.media-placeholder')).toHaveCount(1)
+    await expect(page.getByRole('main').locator('.media-placeholder')).toHaveCount(1)
 
     // The 6rem / 9.375rem slot takes the 480 rung at either width, once, as AVIF —
     // never the largest rung and never a source file.
@@ -492,7 +602,12 @@ test.describe('photographs', () => {
     const forOdin = requested.filter((url) => url.includes('/media/dish-odin/'))
     expect(forOdin).toHaveLength(1)
     expect(forOdin[0]).toMatch(/\/480\.avif$/)
-    expect(requested.some((url) => /\.png(\?|$)/.test(url))).toBe(false)
+    // Never a source photograph. The one PNG the site serves is the competition seal
+    // (`public/brand/award.png`, a brand asset like the logo), which the router may
+    // prefetch for the Forside from any page; it is not a photograph and not under /media/.
+    expect(
+      requested.filter((url) => /\.png(\?|$)/.test(url) && !url.includes('/brand/')),
+    ).toEqual([])
 
     const html = await page.content()
     expect(html).not.toContain('supabase')

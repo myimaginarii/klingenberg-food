@@ -48,7 +48,7 @@ export function MenuOrderBar({
           </ul>
           {contact.secondaryPhone ? (
             <p className="text-ink-3 text-detail mt-1.5 tabular-nums">
-              {`Ekstra nummer ${contact.secondaryPhone}`}
+              {`eller ${contact.secondaryPhone}`}
             </p>
           ) : null}
         </div>

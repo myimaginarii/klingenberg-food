@@ -32,13 +32,22 @@ import { ABOUT_DEFAULT_HEADING, ABOUT_DEFAULT_METHOD_HEADING } from '@/lib/site/
  * THE AWARD BAND IS NOT THE DOCUMENT'S. Its words are the confirmed competition result
  * (1ab) and are stated here, once; its photograph is the Forside document's own
  * (`home.award.image_id`, the Owner's). Om os carries no second award source, so the
- * band draws the reserved frame it has always drawn (§0am).
+ * band draws no photograph frame (§0am). The seal beside the words is the same tracked
+ * competition seal the Forside shows (`seal="supplied"`, `public/brand/award.png`), not
+ * a second copy of it.
  */
 
 const TEAM_HEADING = 'Holdet'
+/**
+ * The same words the Forside's band carries (`HOME_PAGE.award` in
+ * `content/site/pages.ts`, and its fallback in `app/(site)/page.tsx`): the regional win
+ * and the national placing, worded so neither can be read as having won Denmark. The
+ * two pages state one result, so they have to state it identically — a guest who reads
+ * the band on the Forside and again on Om os must not meet two different headlines.
+ */
 const AWARD = {
-  title: 'Vinder af Fyn & Øer og nr. 4 i Danmark',
-  text: 'Danmarks Bedste Burger 2026. I konkurrencen er vi opført som Carl Nielsen Caféen, Årslev.',
+  title: 'Fyns bedste burger 2026 og nr. 4 i Danmark',
+  text: 'Ved Danmarks Bedste Burger 2026 vandt vi regionen Fyn & Øer, og på landsplan blev vi nr. 4. I konkurrencen er vi opført som Carl Nielsen Caféen, Årslev.',
 }
 
 export function AboutPageContent({ about }: { about: AboutDocument | null }) {
@@ -66,12 +75,18 @@ export function AboutPageContent({ about }: { about: AboutDocument | null }) {
             sizes="aboutVenue"
             loading="eager"
             placeholder={{ label: 'Stedet', detail: 'facade / indgang ved hallen · dagslys' }}
-            className="rounded-card-lg w-full flex-1 md:max-w-[26rem] md:self-start"
+            className="rounded-card-lg w-full flex-1 md:max-w-[28rem] md:self-start"
           />
         </div>
       </PageContainer>
 
-      <AwardBand headingId="om-os-udmaerkelse" title={AWARD.title} text={AWARD.text} sealFirst />
+      <AwardBand
+        headingId="om-os-udmaerkelse"
+        title={AWARD.title}
+        text={AWARD.text}
+        sealFirst
+        seal="supplied"
+      />
 
       <Section ariaLabelledBy="om-os-holdet">
         <h2 id="om-os-holdet" className="font-display text-subhead">
@@ -83,7 +98,7 @@ export function AboutPageContent({ about }: { about: AboutDocument | null }) {
             ratio="team"
             sizes="aboutTeam"
             placeholder={{
-              label: 'Ét holdfoto — fuld bredde',
+              label: 'Ét holdfoto - fuld bredde',
               detail: 'hele holdet samlet i køkkenet, naturligt lys',
             }}
             className="rounded-card-lg mt-4 w-full"

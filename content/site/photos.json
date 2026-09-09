@@ -1,5 +1,5 @@
 {
-  "$comment": "The confirmed launch photographs the public site renders — content/launch/README.md is the record of where each one came from. `file` is the tracked source under content/launch/photos/; `slot` names the derivative folder under public/media/; `width` and `height` are the measured source dimensions, re-measured and enforced by scripts/images/build-static-derivatives.mjs; `alt` is the description a screen reader hears (null renders alt=\"\", the accepted model for a photograph beside the text that names it). dish-tapas.png is not listed: the public Tapas board is a text table by design and renders no photograph.",
+  "$comment": "The confirmed launch photographs the public site renders — content/launch/README.md is the record of where each one came from. `file` is the tracked source under content/launch/photos/; `slot` names the derivative folder under public/media/; `width` and `height` are the measured source dimensions, re-measured and enforced by scripts/images/build-static-derivatives.mjs; `alt` is the description a screen reader hears (null renders alt=\"\", the accepted model for a photograph beside the text that names it); `focus` (optional, `center` when absent) names which part of the photograph a frame keeps when it has to crop — `upper` for a tall photograph whose subject stands high on the plate (see ImageFocus in lib/images/public.ts). dish-tapas.png is not listed: the public Tapas board is a text table by design and renders no photograph.",
   "photos": {
     "home-hero": {
       "file": "home-hero-bacon-egg-burger.png",
@@ -29,6 +29,19 @@
       "file": "dish-ragnar.png",
       "width": 1122,
       "height": 1402,
+      "alt": null
+    },
+    "dish-frigg": {
+      "file": "dish-frigg.png",
+      "width": 1086,
+      "height": 1448,
+      "alt": null,
+      "focus": "upper"
+    },
+    "dish-glade-gris": {
+      "file": "dish-glade-gris.png",
+      "width": 1086,
+      "height": 1448,
       "alt": null
     }
   }

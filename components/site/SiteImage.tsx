@@ -1,7 +1,16 @@
-import type { PublicImage, ImageSizesPreset } from '@/lib/images/public'
+import type { ImageFocus, PublicImage, ImageSizesPreset } from '@/lib/images/public'
 import { IMAGE_SIZES } from '@/lib/images/public'
 
 import { MediaPlaceholder, RATIO_CLASSES, type MediaRatio } from './MediaPlaceholder'
+
+/**
+ * One `object-position` class per focus name (`ImageFocus`). `center` is the browser's
+ * default and adds nothing; `upper` holds the top fifth of the photograph in the frame.
+ */
+const FOCUS_CLASSES: Record<ImageFocus, string> = {
+  center: '',
+  upper: 'object-[50%_20%]',
+}
 
 /**
  * A public photograph in one of the approved frames — design 1aa ("Billedcontainere —
@@ -71,13 +80,14 @@ export function SiteImage({
   }
 
   const sizesAttribute = IMAGE_SIZES[sizes]
+  const focusClass = FOCUS_CLASSES[image.focus]
 
   return (
     <picture className={`block overflow-hidden ${RATIO_CLASSES[ratio]} ${className}`}>
       <source type="image/avif" srcSet={image.avifSrcSet} sizes={sizesAttribute} />
       <img
         alt={image.alt}
-        className="size-full object-cover"
+        className={focusClass ? `size-full object-cover ${focusClass}` : 'size-full object-cover'}
         decoding="async"
         height={image.height}
         loading={loading}

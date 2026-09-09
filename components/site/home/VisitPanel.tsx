@@ -19,6 +19,11 @@ import { type PostalAddress, directionsUrl } from '@/lib/site/links'
  * top of the page, the address is real text beside the map rather than baked into it,
  * and the map itself is a Google Maps embed (§7g); "Vis vej" is the separate directions
  * link.
+ *
+ * From `lg` the three are equal columns. The first build gave the map a wider column
+ * than the two text columns, which pushed the hours and the address into the left half
+ * of the band and left the map floating at its right edge; three equal columns spread
+ * the same content evenly across the measure.
  */
 export function VisitPanel({
   contact,
@@ -33,7 +38,7 @@ export function VisitPanel({
 }) {
   return (
     <Section>
-      <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1.25fr] lg:gap-8">
+      <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3 lg:gap-10">
         <div>
           <Eyebrow as="h2">Åbningstider</Eyebrow>
           <OpenStatus

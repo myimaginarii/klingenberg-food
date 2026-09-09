@@ -56,7 +56,8 @@ export type Dish = {
   id: string
   name: string
   description: string | null
-  /** "Som menu med pommes frites og sodavand 124 kr." (1h), "1 kg · frost" (Varm selv). */
+  /** "BBQ · chili · aioli" (Dip), "1 kg · frost" (Varm selv). The burgers' menu price is the
+   *  Burgere section's `intro`, stated once, not a note on every card. */
   secondaryNote: string | null
   priceOre: number | null
   labels: DishLabel[]

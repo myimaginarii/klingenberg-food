@@ -26,9 +26,11 @@ import { restaurantJsonLd } from '@/lib/seo/restaurant'
 /**
  * The confirmed competition result as one line, for `award`.
  *
- * The award band on the Forside prints the same two facts in the approved copy's own
- * words ("Vinder af Fyn & Øer og nr. 4 i Danmark" / "Danmarks Bedste Burger 2026"), and
- * this is that, joined. The band's third sentence — the name the restaurant was listed
+ * The award band on the Forside and on Om os prints the same two facts in the approved
+ * copy's own words ("Fyns bedste burger 2026 og nr. 4 i Danmark", above the sentence
+ * that names the competition), and this is that, joined — regional win first, national
+ * placing second, so neither can be read as having won Denmark. The band's third
+ * sentence — the name the restaurant was listed
  * under in the competition — is deliberately left out: in an `award` field it would read
  * as a second trading name, which the copy pass of 2026-09-08 settled it is not.
  */

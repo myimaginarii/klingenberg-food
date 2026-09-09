@@ -18,7 +18,13 @@ export type PhotoSlot = keyof typeof photos.photos
 /** The renderable model of one tracked photograph. */
 export function launchPhoto(slot: PhotoSlot): PublicImage {
   const photo = photos.photos[slot]
-  return buildStaticPublicImage({ slot, alt: photo.alt, width: photo.width, height: photo.height })
+  return buildStaticPublicImage({
+    slot,
+    alt: photo.alt,
+    width: photo.width,
+    height: photo.height,
+    focus: 'focus' in photo ? photo.focus : null,
+  })
 }
 
 /**

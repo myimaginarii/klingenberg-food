@@ -39,9 +39,24 @@ export type PublicImageCandidate = {
   readonly webpUrl: string
 }
 
+/**
+ * Which part of a photograph a frame keeps when it has to crop — `object-position`,
+ * named rather than measured. `center` is the browser's default and the registry's.
+ * `upper` keeps the top fifth in view, for a tall photograph whose subject stands
+ * high on the plate and would otherwise lose its top to a squarer frame.
+ *
+ * A vocabulary and not a number because the site's CSP is `style-src 'self'`: an
+ * inline `object-position` cannot be written, so `SiteImage` maps each name to one
+ * class it already carries.
+ */
+export const IMAGE_FOCUSES = ['center', 'upper'] as const
+export type ImageFocus = (typeof IMAGE_FOCUSES)[number]
+
 export type PublicImage = {
   /** The authored description, or `''` when there is none (see the module note). */
   readonly alt: string
+  /** Where the frame keeps the photograph when it crops (see {@link ImageFocus}). */
+  readonly focus: ImageFocus
   /** Intrinsic dimensions of the largest rung — the aspect ratio every rung shares. */
   readonly width: number
   readonly height: number
@@ -79,6 +94,13 @@ export function publicImageAlt(altText: unknown): string {
   return trimmed.length === 0 ? '' : trimmed
 }
 
+/** `focus` as the registry states it: a name from {@link IMAGE_FOCUSES}, or `center` when absent. */
+export function publicImageFocus(value: unknown): ImageFocus {
+  if (value === undefined || value === null) return 'center'
+  const focus = IMAGE_FOCUSES.find((name) => name === value)
+  if (focus === undefined) throw new Error(`public image: unknown focus "${String(value)}"`)
+  return focus
+}
 
 /**
  * The public model of one tracked photograph (`content/site/photos.json`).
@@ -87,13 +109,15 @@ export function publicImageAlt(altText: unknown): string {
  * and the build-time script that renders the files agree by construction — and the
  * script refuses a source whose measured size differs from the recorded one, so a
  * model can never name a rung that was not rendered. `alt` follows
- * {@link publicImageAlt}: the authored wording, or `''`.
+ * {@link publicImageAlt}: the authored wording, or `''`; `focus` follows
+ * {@link publicImageFocus}.
  */
 export function buildStaticPublicImage(photo: {
   readonly slot: string
   readonly alt: string | null
   readonly width: number
   readonly height: number
+  readonly focus?: string | null
 }): PublicImage {
   const candidates: PublicImageCandidate[] = planDerivatives(photo.width, photo.height).map(
     (size) => ({
@@ -108,6 +132,7 @@ export function buildStaticPublicImage(photo: {
 
   return {
     alt: publicImageAlt(photo.alt),
+    focus: publicImageFocus(photo.focus),
     width: largest.width,
     height: largest.height,
     src: candidateAtLeast(candidates, FALLBACK_TARGET_WIDTH).webpUrl,
@@ -165,9 +190,9 @@ export const IMAGE_SIZES = {
   /**
    * 1g/1l hero (phase 11A): full width above the text on a phone; from `md` the
    * photograph is the second of two equal flex columns of the 80rem measure, and
-   * from `lg` the slightly larger one (`flex-[1.05]`).
+   * from `lg` the larger one (`flex-[1.25]`, five ninths of the measure).
    */
-  homeHero: '(min-width: 90rem) 41rem, (min-width: 48rem) 51vw, 100vw',
+  homeHero: '(min-width: 90rem) 44.5rem, (min-width: 64rem) 56vw, (min-width: 48rem) 50vw, 100vw',
   /** 1g/1l award band (phase 11A): full width on a phone, a 13.75rem column from `md`. */
   homeAward: '(min-width: 48rem) 13.75rem, calc(100vw - 2rem)',
   /** 1g/1l "Om os" excerpt (phase 11A): full width on a phone, a 9.375rem thumbnail from `md`. */
@@ -180,11 +205,11 @@ export const IMAGE_SIZES = {
   takeawayHero: '(min-width: 90rem) 36rem, (min-width: 48rem) 46vw, calc(100vw - 2rem)',
   /**
    * 1i's three Om os frames (phase 14B1). The facade ("Stedet", 4:5) is full width on a
-   * phone and a column capped at 26rem beside the story from `md`; the team photo (16:7)
+   * phone and a column capped at 28rem beside the story from `md`; the team photo (16:7)
    * is the whole content measure at every width; the kitchen (3:2) is the first of two
    * flex columns beside the method, the text column slightly wider from `lg`.
    */
-  aboutVenue: '(min-width: 64rem) 26rem, (min-width: 48rem) 46vw, calc(100vw - 2rem)',
+  aboutVenue: '(min-width: 64rem) 28rem, (min-width: 48rem) 46vw, calc(100vw - 2rem)',
   aboutTeam: '(min-width: 90rem) 75rem, (min-width: 48rem) calc(100vw - 5rem), calc(100vw - 2rem)',
   aboutKitchen: '(min-width: 90rem) 36rem, (min-width: 48rem) 46vw, calc(100vw - 2rem)',
 } as const

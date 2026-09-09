@@ -2,20 +2,17 @@ import { SITE_CONTACT } from '@/content/site/contact'
 import { OPENING_HOURS } from '@/content/site/hours'
 import { socialImage } from '@/content/site/images'
 import { pageMetadata } from '@/lib/seo/metadata'
-import { directionsUrl, formatAddressLine, toPostalAddress } from '@/lib/site/links'
+import { formatAddressLine, toPostalAddress } from '@/lib/site/links'
 
-import { ActionLink } from '@/components/site/ActionLink'
 import { RestaurantJsonLd } from '@/components/site/RestaurantJsonLd'
 import { AddressBlock } from '@/components/site/contact/AddressBlock'
 import { EmailBlock } from '@/components/site/contact/EmailBlock'
-import { FollowUsCard } from '@/components/site/contact/FollowUsCard'
 import { PhoneNumbers } from '@/components/site/contact/PhoneNumbers'
 import { Eyebrow } from '@/components/site/Eyebrow'
 import { GoogleMap } from '@/components/site/GoogleMap'
 import { OpeningHours } from '@/components/site/hours/OpeningHours'
 import { OpenStatus } from '@/components/site/OpenStatus'
 import { PageContainer } from '@/components/site/PageContainer'
-import { PhoneAction } from '@/components/site/PhoneAction'
 
 /**
  * The description names the address, so it is built from the same tracked contact
@@ -37,15 +34,19 @@ export const metadata = pageMetadata(
 )
 
 /**
- * Find os — design 1k (desktop) and 1o (mobile, the primary mobile screen).
+ * Find os — design 1k (desktop) and 1o (mobile, the primary mobile screen), simplified
+ * for launch.
  *
- * The two things a guest arrives here for are at the top and full width on a phone: ring
- * and vis vej. The address is real text, the hours are the site's one schedule, and the
- * map is a Google Maps embed centred on the restaurant's listing, with no map library
- * and no tile request from this origin (§7g).
+ * One column of facts beside one map. Each way of reaching the restaurant is stated
+ * once, under its own label: the address is real text, the primary number is the
+ * "Ring" action inside the Telefon block rather than a second button above it, the
+ * e-mail address follows, and the hours are the site's one schedule. The map is a
+ * Google Maps embed centred on the restaurant's listing, with no map library and no
+ * tile request from this origin (§7g); it is also the page's directions, which is why
+ * there is no separate "Vis vej" here — the bottom bar and the Forside still carry one.
  *
- * The "Følg os" card appears only when the Facebook link is filled in — an empty field
- * removes the whole card rather than leaving a gap (1k, 1o).
+ * The Facebook link lives in the footer of every page, so this page carries no
+ * "Følg os" card of its own.
  */
 export default function FindOsPage() {
   const contact = SITE_CONTACT
@@ -69,30 +70,6 @@ export default function FindOsPage() {
             variant="pill"
             className="mt-4"
           />
-
-          <div className="mt-5 flex flex-col gap-2.5 md:flex-row">
-            {contact.primaryPhone ? (
-              <PhoneAction
-                phone={contact.primaryPhone}
-                label="Ring"
-                showNumber
-                size="large"
-                block
-                className="md:w-auto"
-              />
-            ) : null}
-            {address ? (
-              <ActionLink
-                href={directionsUrl(address)}
-                variant="secondary"
-                size="large"
-                block
-                className="md:w-auto"
-              >
-                Vis vej
-              </ActionLink>
-            ) : null}
-          </div>
 
           {address ? (
             <div className="mt-7">
@@ -130,15 +107,10 @@ export default function FindOsPage() {
           </section>
         </div>
 
-        <div className="flex flex-col gap-4.5">
-          {/* The map takes the height the left column sets, so the two columns end level
-              instead of leaving a block of empty page under the Følg os card. */}
-          {address ? (
-            <GoogleMap address={address} frame="card" className="md:aspect-auto md:flex-1" />
-          ) : null}
-
-          <FollowUsCard facebookUrl={contact.facebookUrl} />
-        </div>
+        {/* The map is the whole right column. On a phone it keeps the drawn 4:3 frame
+            under the facts; from `md` it takes the height the left column sets, so the
+            two columns end level instead of leaving empty page beneath the map. */}
+        {address ? <GoogleMap address={address} frame="card" className="md:aspect-auto" /> : null}
       </div>
     </PageContainer>
   )
