@@ -89,21 +89,18 @@ export const TAKEAWAY_PAGE: TakeawayDocument = {
     'Ring til os, hvis du vil høre mere om mulighederne.',
   ),
   image: launchPhoto('takeaway'),
+  // One section rather than three blocks that all said "ring": the fact that larger
+  // events are catered, that the details are agreed directly, and that a guest can call
+  // to hear what is on offer. The launch copy's sections 1 and 2 are folded together;
+  // the number itself is not repeated here because the hero already shows both.
   sections: [
     {
-      id: 'afsnit-1',
+      id: 'selskaber',
       heading: 'Til selskaber og sammenkomster',
       body: joined(
         'Vi laver mad ud af huset til større arrangementer og sammenkomster.',
-        'Hvad vi kan lave, afhænger af arrangementet, så ring til os, hvis du vil høre nærmere.',
-      ),
-    },
-    {
-      id: 'afsnit-2',
-      heading: 'Ring og hør mere',
-      body: joined(
-        'Har du spørgsmål til mad ud af huset, kan du ringe til os på +45 63 90 83 00.',
-        'Så aftaler vi detaljerne direkte med dig.',
+        'Hvad vi kan lave, afhænger af arrangementet, og vi aftaler detaljerne direkte med dig.',
+        'Ring til os, hvis du vil høre, hvad vi kan tilbyde.',
       ),
     },
   ],

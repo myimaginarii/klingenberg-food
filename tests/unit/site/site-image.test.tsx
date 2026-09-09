@@ -18,8 +18,8 @@ const SLOT = 'dish-photo'
 const PUBLIC = `/media/${SLOT}`
 
 /** A 960 px source, so the ladder is exactly the 480 and 960 rungs. */
-function image(altText: string | null) {
-  return buildStaticPublicImage({ slot: SLOT, alt: altText, width: 960, height: 720 })
+function image(altText: string | null, focus?: string) {
+  return buildStaticPublicImage({ slot: SLOT, alt: altText, width: 960, height: 720, focus })
 }
 
 function render(props: Partial<Parameters<typeof SiteImage>[0]> = {}): string {
@@ -54,6 +54,16 @@ describe('SiteImage with an image', () => {
     expect(html).toContain('width="960"')
     expect(html).toContain('height="720"')
     expect(html).toContain('class="size-full object-cover"')
+  })
+
+  it('frames a photograph on its upper part only when the registry says so', () => {
+    expect(render({ image: image('Burgeren fra siden.', 'center') })).toContain(
+      'class="size-full object-cover"',
+    )
+    expect(render({ image: image('Burgeren fra siden.', 'upper') })).toContain(
+      'class="size-full object-cover object-[50%_20%]"',
+    )
+    expect(() => image('Burgeren fra siden.', 'left')).toThrow(/unknown focus "left"/)
   })
 
   it('renders the authored alt, and alt="" when none is authored', () => {

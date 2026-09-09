@@ -5,7 +5,7 @@ import { MENU } from '@/content/site/menu'
 import { NEWS_ARTICLES } from '@/content/site/news'
 import { HOME_PAGE } from '@/content/site/pages'
 import { articleExcerpt } from '@/lib/news/excerpt'
-import { buildMenuView, selectFeaturedDishes, selectHomepageMonthlyBurger } from '@/lib/menu/view'
+import { buildMenuView, selectFeaturedDishes, selectHomepageMonthlyBurgerSection } from '@/lib/menu/view'
 import { homeMetadata } from '@/lib/seo/metadata'
 import { directionsUrl, toPostalAddress } from '@/lib/site/links'
 
@@ -29,7 +29,8 @@ import { VisitPanel } from '@/components/site/home/VisitPanel'
  * Månedens burger sits between the award and the three featured dishes because it is
  * the freshest thing on the page, and it is an addition to them rather than one of
  * them: publishing it never displaces a featured dish. When there is no active burger
- * the section renders nothing and the page reads exactly as it did before it.
+ * the section draws the menu page's own empty card, so the Forside says honestly that
+ * there is none right now; only an active burger kept off the Forside hides it.
  */
 export const metadata = homeMetadata(
   'Burgerbaren i Carl Nielsen Hallen i Nørre Lyndelse. Vinder af Fyn & Øer ved Danmarks Bedste Burger 2026. Bestilling på telefon.',
@@ -47,7 +48,7 @@ export default function ForsidePage() {
   const now = new Date()
   const menuView = buildMenuView(MENU, OPENING_HOURS, now)
   const featured = selectFeaturedDishes(menuView.categories, home.featuredDishIds)
-  const monthlyBurger = selectHomepageMonthlyBurger(menuView.monthlyBurger)
+  const monthlyBurgerSection = selectHomepageMonthlyBurgerSection(menuView.monthlyBurger)
   const address = toPostalAddress(SITE_CONTACT)
   const latestArticle = NEWS_ARTICLES[0] ?? null
 
@@ -76,7 +77,7 @@ export default function ForsidePage() {
         seal="supplied"
       />
 
-      <MonthlyBurgerFeature burger={monthlyBurger} primaryPhone={SITE_CONTACT.primaryPhone} />
+      <MonthlyBurgerFeature section={monthlyBurgerSection} primaryPhone={SITE_CONTACT.primaryPhone} />
 
       <FeaturedDishes dishes={featured} />
 

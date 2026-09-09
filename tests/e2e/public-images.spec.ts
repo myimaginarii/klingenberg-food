@@ -32,6 +32,7 @@ const PLACEMENTS = [
   { slot: 'dish-odin', path: '/menu/' },
   { slot: 'dish-frigg', path: '/menu/' },
   { slot: 'dish-ragnar', path: '/menu/' },
+  { slot: 'dish-glade-gris', path: '/menu/' },
 ] as const
 
 /** Every `<img>` the site serves from its own rendered derivative folder. */
@@ -103,7 +104,7 @@ test.describe('the rendered derivative ladder', () => {
 
     // The dish photographs are tracked with `alt: null` — they sit beside the dish
     // heading that already names them, so repeating it would be duplicate verbose text.
-    for (const slot of ['dish-odin', 'dish-frigg', 'dish-ragnar']) {
+    for (const slot of ['dish-odin', 'dish-frigg', 'dish-ragnar', 'dish-glade-gris']) {
       expect(photos.photos[slot as 'dish-odin'].alt).toBeNull()
       await expect(page.locator(`img[src^="/media/${slot}/"]`).first()).toHaveAttribute('alt', '')
     }

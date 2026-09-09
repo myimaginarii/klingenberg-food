@@ -52,7 +52,11 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         overrides={OPENING_HOURS.overrides}
       />
 
-      <main id="indhold" className="flex-1">
+      {/* A flex column, so a page shorter than the viewport (Nyheder with nothing
+          published, the 404) can let its last band take the leftover height instead
+          of leaving bare cream above the footer. Every page's children stack exactly
+          as before: they had no margins between them to collapse. */}
+      <main id="indhold" className="flex flex-1 flex-col">
         {children}
       </main>
 

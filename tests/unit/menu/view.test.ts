@@ -8,6 +8,7 @@ import {
   isMonthlyBurgerInWindow,
   selectFeaturedDishes,
   selectHomepageMonthlyBurger,
+  selectHomepageMonthlyBurgerSection,
 } from '@/lib/menu/view'
 import { copenhagenInstantOf } from '@/lib/time/copenhagen'
 import { CONFIRMED_SCHEDULE, closedOverride } from '../fixtures/hours'
@@ -328,5 +329,53 @@ describe('selectHomepageMonthlyBurger', () => {
       'Ragnar',
     ])
     expect(selectHomepageMonthlyBurger(view.monthlyBurger)).not.toBeNull()
+  })
+})
+
+describe('selectHomepageMonthlyBurgerSection', () => {
+  /**
+   * The three states the Forside section can be in, asked end to end from published
+   * content. The empty card is the answer whenever *no* burger is inside its window —
+   * whatever the reason — and "hidden" is reserved for a burger that is active but kept
+   * off the Forside, where the empty card would contradict the menu page.
+   */
+  function section(monthly: MonthlyBurger | null, now: string) {
+    const view = buildMenuView(
+      content({ monthlyBurger: monthly }),
+      HOURS,
+      copenhagenInstantOf(now, '18:00'),
+    )
+
+    return selectHomepageMonthlyBurgerSection(view.monthlyBurger)
+  }
+
+  it('draws an active burger the administration put on the Forside', () => {
+    const result = section(monthlyBurger({ showOnHomepage: true }), '2026-09-15')
+
+    expect(result.kind).toBe('burger')
+    if (result.kind === 'burger') expect(result.burger.name).toBe('Månedens burger')
+  })
+
+  it('draws the empty card when nothing is configured', () => {
+    expect(section(null, '2026-09-15')).toEqual({ kind: 'empty' })
+  })
+
+  it('draws the empty card before starts_on and after ends_on', () => {
+    expect(section(monthlyBurger({ showOnHomepage: true }), '2026-08-31')).toEqual({ kind: 'empty' })
+    expect(section(monthlyBurger({ showOnHomepage: true }), '2026-10-01')).toEqual({ kind: 'empty' })
+  })
+
+  it('hides the section, rather than saying there is none, for an active burger kept off the Forside', () => {
+    expect(section(monthlyBurger({ showOnHomepage: false }), '2026-09-15')).toEqual({ kind: 'hidden' })
+  })
+
+  it('keeps a sold-out burger in the section, carrying its sold-out state', () => {
+    const result = section(
+      monthlyBurger({ showOnHomepage: true, soldOutOn: '2026-09-15' }),
+      '2026-09-15',
+    )
+
+    expect(result.kind).toBe('burger')
+    if (result.kind === 'burger') expect(result.burger.soldOut).toBe(true)
   })
 })

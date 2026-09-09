@@ -5,8 +5,9 @@ import { Section } from '@/components/site/Section'
 import { SiteImage } from '@/components/site/SiteImage'
 import { SoldOutBadge } from '@/components/site/menu/DishBadge'
 import { DishPrice } from '@/components/site/menu/DishPrice'
+import { MonthlyBurgerEmptyCard } from '@/components/site/menu/MonthlyBurgerCard'
 import { formatDatePeriod } from '@/lib/format/danish'
-import type { MonthlyBurgerView } from '@/lib/menu/view'
+import type { HomepageMonthlyBurgerSection } from '@/lib/menu/view'
 
 /**
  * "Månedens burger" on the Forside — its own section, beside the three featured dishes
@@ -30,12 +31,17 @@ import type { MonthlyBurgerView } from '@/lib/menu/view'
  * encodes something true (this is temporary, and here is until when) rather than
  * ornament, and it is the whole of the section's decoration.
  *
- * **This component decides nothing.** Whether there is a burger to show at all —
- * content, date window, `show_on_homepage` — is answered by `buildMenuView` and
- * `selectHomepageMonthlyBurger` (§7d); whether it is sold out is answered by the phase 2
- * rule in `lib/menu/availability.ts` (§7b). A `null` burger renders nothing, which is
- * what hides the section: a guest is never shown a placeholder for a burger that does
- * not exist.
+ * **This component decides nothing.** Which of its three states to draw — the burger,
+ * the empty card, or nothing — is answered by `selectHomepageMonthlyBurgerSection`
+ * (§7d), on top of `buildMenuView`'s window and the "Vis på forsiden" flag; whether it
+ * is sold out is answered by the phase 2 rule in `lib/menu/availability.ts` (§7b).
+ *
+ * **The empty state is the menu page's own card**, `MonthlyBurgerEmptyCard`, drawn once
+ * on the beige band with the section heading inside it. Same sentence, same card
+ * surface, same "Skiftende" chip: a guest who reads "no monthly burger right now" on
+ * the Forside and then on the menu reads one fact told the same way. It is deliberately
+ * small — one card, no photograph frame, no eyebrow above it — so an empty month never
+ * outweighs the award band above it or the three dishes beneath it.
  *
  * The photograph (phase 10C-2) is the burger's one library image — the same model the
  * menu card renders — in the 4:3 frame this section reserved: full width above the
@@ -44,14 +50,23 @@ import type { MonthlyBurgerView } from '@/lib/menu/view'
 const HEADING_ID = 'maanedens-burger-titel'
 
 export function MonthlyBurgerFeature({
-  burger,
+  section,
   primaryPhone,
 }: {
-  burger: MonthlyBurgerView | null
+  section: HomepageMonthlyBurgerSection
   primaryPhone: string | null
 }) {
-  if (burger === null) return null
+  if (section.kind === 'hidden') return null
 
+  if (section.kind === 'empty') {
+    return (
+      <Section tone="beige" ariaLabelledBy={HEADING_ID}>
+        <MonthlyBurgerEmptyCard heading="h2" headingId={HEADING_ID} />
+      </Section>
+    )
+  }
+
+  const burger = section.burger
   const period = formatDatePeriod(burger.startsOn, burger.endsOn)
   const soldOut = burger.soldOut
 

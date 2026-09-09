@@ -4,25 +4,29 @@ import { TAKEAWAY_PAGE } from '@/content/site/pages'
 import { TAKEAWAY_DEFAULT_CTA_LABEL } from '@/lib/site/defaults'
 import { pageMetadata } from '@/lib/seo/metadata'
 
-import { Eyebrow } from '@/components/site/Eyebrow'
 import { PageContainer } from '@/components/site/PageContainer'
 import { PhoneAction } from '@/components/site/PhoneAction'
 import { SiteImage } from '@/components/site/SiteImage'
 import { TakeawayCallToAction } from '@/components/site/takeaway/TakeawayCallToAction'
-import { TakeawaySections } from '@/components/site/takeaway/TakeawaySections'
 
 /**
- * Mad ud af huset — design 1ai (desktop and mobile).
+ * Mad ud af huset - design 1ai (desktop and mobile).
  *
- * The page is built as **free text sections**, not as a list of packages, and that is a
+ * The page is built as **free text**, not as a list of packages, and that is a
  * deliberate content decision rather than a layout one: "Ingen opfundne pakker, priser,
  * minimumsantal, leveringsregler eller bestillingsfrister. Siden er bygget som frie
  * afsnit, netop fordi vi ikke ved, hvad der skal stå" (1ai). 1ab lists all four of those
  * questions as still unanswered, so none of them is invented here.
  *
+ * Two surfaces: the hero, which carries the heading, the intro and both numbers as the
+ * page's `tel:` controls, and one burgundy band beneath it with the tracked section and
+ * a single "Ring og hør mere" action. The band deliberately repeats neither the page
+ * title as an eyebrow nor the numbers; the pre-launch pass found the earlier layout
+ * saying "ring til os" four times over on one screen.
+ *
  * The words and the photograph are the tracked document (`content/site/pages.ts`):
  * 1aj's "Billede (valgfrit)" in 1ai's 4:3 frame, rendered by the one public renderer.
- * Without one, *"fylder teksten hele bredden"* (1aj) — no frame is reserved.
+ * Without one, *"fylder teksten hele bredden"* (1aj) - no frame is reserved.
  */
 export const metadata = pageMetadata(
   'Mad ud af huset',
@@ -30,7 +34,7 @@ export const metadata = pageMetadata(
   { path: '/mad-ud-af-huset', image: socialImage('takeaway') },
 )
 
-const NO_FORM_NOTE = 'Bestilling og aftaler klarer vi over telefonen, så der er ingen formular at udfylde.'
+const PHONE_NOTE = 'Bestilling og aftaler klarer vi over telefonen.'
 
 export default function MadUdAfHusetPage() {
   const takeaway = TAKEAWAY_PAGE
@@ -41,8 +45,7 @@ export default function MadUdAfHusetPage() {
       <PageContainer className="py-page-mobile md:py-page">
         <div className="flex flex-col gap-8 md:flex-row md:items-center md:gap-9">
           <div className="flex-1 lg:flex-[1.1]">
-            <Eyebrow>Mad ud af huset</Eyebrow>
-            <h1 className="font-display text-page mt-3 text-balance">
+            <h1 className="font-display text-page text-balance">
               {takeaway.heading ?? 'Mad ud af huset'}
             </h1>
             {takeaway.intro ? (
@@ -74,7 +77,7 @@ export default function MadUdAfHusetPage() {
               ) : null}
             </div>
 
-            <p className="text-ink-3 text-detail mt-2.5">{NO_FORM_NOTE}</p>
+            <p className="text-ink-3 text-detail mt-2.5">{PHONE_NOTE}</p>
           </div>
 
           {takeaway.image === null ? null : (
@@ -90,11 +93,10 @@ export default function MadUdAfHusetPage() {
         </div>
       </PageContainer>
 
-      <TakeawaySections sections={takeaway.sections} />
-
       <TakeawayCallToAction
+        sections={takeaway.sections}
         primaryPhone={contact.primaryPhone}
-        secondaryPhone={contact.secondaryPhone}
+        ctaLabel={takeaway.ctaLabel ?? TAKEAWAY_DEFAULT_CTA_LABEL}
       />
     </>
   )

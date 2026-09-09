@@ -12,12 +12,12 @@ import { SiteImage } from './SiteImage'
  * The wording is the confirmed competition result and nothing more (1ab): winner of Fyn
  * & Øer, number four in Denmark, Danmarks Bedste Burger 2026, and the note that the
  * competition lists the restaurant under its other name. No jury quote is invented; the
- * competition's own seal is shown only where the restaurant supplied it (the Forside).
+ * competition's own seal is the one the restaurant supplied.
  *
- * The Forside puts the photograph first and the seal last; Om os mirrors it. The
- * Forside also shows the competition's own seal (`seal="supplied"`, the tracked
- * `award.png`) where Om os keeps the drawn ring of type. Both are props rather than a
- * second component.
+ * The Forside puts the photograph first and the seal last; Om os mirrors it. Both pages
+ * show the competition's own seal (`seal="supplied"`, the one tracked `award.png` that
+ * `AwardMark` draws); the drawn ring of type (`seal="drawn"`) remains the default for a
+ * caller without it. Both are props rather than a second component.
  *
  * The photograph (phase 11A) is the Forside document's award image — 1u's
  * "Udmærkelsesfoto (valgfrit)" — in the 4:3 frame the band reserves for it. Om os passes

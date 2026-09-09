@@ -66,7 +66,7 @@ const {
 
 const OUTPUT = join(ROOT, 'public', STATIC_MEDIA_DIRECTORY)
 
-/** @type {{ photos: Record<string, { file: string; width: number; height: number; alt: string | null }> }} */
+/** @type {{ photos: Record<string, { file: string; width: number; height: number; alt: string | null; focus?: string }> }} */
 const registry = JSON.parse(readFileSync(REGISTRY, 'utf8'))
 const registryTime = statSync(REGISTRY).mtimeMs
 

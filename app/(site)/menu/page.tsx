@@ -25,12 +25,11 @@ import { PhoneAction } from '@/components/site/PhoneAction'
  */
 export const metadata = pageMetadata(
   'Menu',
-  'Burgere, ugens ret, tapas og resten af kortet hos Klingenberg Food i Carl Nielsen Hallen. Alle priser i danske kroner.',
+  'Burgere, ugens ret, tapas og resten af kortet hos Klingenberg Food i Carl Nielsen Hallen.',
   { path: '/menu', image: socialImage('home-hero') },
 )
 
 const ALLERGEN_NOTE = 'Spørg os gerne om allergener.'
-const PRICE_NOTE = 'Alle priser i danske kroner.'
 
 export default function MenuPage() {
   const view = buildMenuView(MENU, OPENING_HOURS, new Date())
@@ -40,7 +39,6 @@ export default function MenuPage() {
     <>
       <PageContainer className="pt-page-mobile pb-4 md:pt-page">
         <h1 className="font-display text-page">Menu</h1>
-        <p className="text-ink-2 mt-2 max-w-[52ch] hidden md:block">{PRICE_NOTE}</p>
         <p className="text-ink-2 mt-2.5 flex items-center gap-2.5">
           <span aria-hidden="true" className="border-rule size-4.5 shrink-0 rounded-full border-[1.5px]" />
           {ALLERGEN_NOTE}

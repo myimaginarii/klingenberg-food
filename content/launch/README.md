@@ -32,6 +32,8 @@ of which survived a database reset. The table below is now the whole record.
 | `photos/dish-odin.png` | `odin.png` | The **Odin** dish's photograph on the menu |
 | `photos/dish-ragnar.png` | `ragnar.png` | The **Ragnar** dish's photograph on the menu |
 | `photos/dish-frigg.png` | `double-crispy-chicken-burger.png` | The **Frigg** dish's photograph on the menu and the Forside, **as a temporary stand-in** (2026-09-08): no file named for Frigg was supplied, and this one matches Frigg's confirmed ingredients (panko chicken, pickled red onion, semi-dried tomato, little gem, brioche). The restaurant should confirm or replace it |
+| *(none)* | — | The **Thor** dish **still needs a real photograph** (open as of 2026-09-08). No file named for Thor was supplied, and none of the supplied burger photographs shows its beer-battered onion rings and goat cheese; the nearest, `bacon-red-onion-burger.png`, visibly carries bacon, which Thor does not, so it was tried and withdrawn the same day rather than mislead. Until the restaurant supplies one, Thor renders the menu's reserved no-image frame ("Retfoto") |
+| `photos/dish-glade-gris.png` | `pulled-pork-crispy-burger.png` | The **Glade Gris** dish's photograph on the menu, **as a temporary stand-in** (2026-09-08): no file named for Glade Gris was supplied, and this one matches its confirmed ingredients (pulled pork, puffed pork rind, red cabbage, iceberg, brioche). The restaurant should confirm or replace it |
 | `photos/dish-tapas.png` | `tapaz.png` | The **Tapas** dish's photograph. Stored against the dish; the public Tapas board is a text table by design and renders no photo |
 
 The photographs' descriptions are now tracked with the photographs, in
@@ -49,13 +51,13 @@ The photographs' descriptions are now tracked with the photographs, in
 
 ## What was deliberately left out
 
-Thirteen supplied photographs carry no confirmed dish identity and fill no slot in the
+Twelve supplied photographs carry no confirmed dish identity and fill no slot in the
 finished design, so they are not tracked: `bacon-red-onion-burger`, `bestla`,
 `boefsandwich`, `chicken-red-cabbage-sandwich`, `freja`, `ivar`, `jacksparrow`, `norden`,
-`pulled-pork-crispy-burger`, `shwarma`, `valhalla`, `wienerschnitzel`, `ydun`. A
-resemblance is not an identification; they stay in the operator's `launch-assets/`
-folder for the restaurant to identify later. (`double-crispy-chicken-burger` is the one
-exception, tracked as Frigg's temporary photograph — see the table above.)
+`shwarma`, `valhalla`, `wienerschnitzel`, `ydun`. A resemblance is not an identification;
+they stay in the operator's `launch-assets/` folder for the restaurant to identify later.
+(`double-crispy-chicken-burger` and `pulled-pork-crispy-burger` are the exceptions,
+tracked as the temporary photographs of Frigg and Glade Gris — see the table above.)
 
 The Om os team and kitchen slots and the Forside award slot have no supplied
 photograph and render text-only or as the accepted no-image frame, by design.

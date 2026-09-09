@@ -182,3 +182,36 @@ export function selectHomepageMonthlyBurger(
 
   return monthlyBurger.showOnHomepage ? monthlyBurger : null
 }
+
+/**
+ * What the Forside's Månedens burger section draws — the burger, the empty card, or
+ * nothing at all.
+ *
+ * Three answers, because the section has to be honest in three different situations:
+ *
+ *  * **`burger`** — an active burger the administration put on the Forside. The full
+ *    promotional section, with its real name, photograph and price.
+ *  * **`empty`** — no burger is inside its window today (unfilled, not yet started, or
+ *    expired). The Forside draws the same dashed card the menu page draws
+ *    (`MonthlyBurgerEmptyCard`): a guest is told there is no monthly burger right now,
+ *    in the words the design already approved, and nothing is invented.
+ *  * **`hidden`** — a burger *is* active but "Vis på forsiden" is off. Nothing renders:
+ *    the empty card would say there is no burger while the menu shows one, and that
+ *    flag means "keep it off the Forside", not "say there is none".
+ *
+ * The window and the flag are still {@link buildMenuView} and
+ * {@link selectHomepageMonthlyBurger}'s decisions; this only names the third state.
+ */
+export type HomepageMonthlyBurgerSection =
+  | { kind: 'burger'; burger: MonthlyBurgerView }
+  | { kind: 'empty' }
+  | { kind: 'hidden' }
+
+export function selectHomepageMonthlyBurgerSection(
+  monthlyBurger: MonthlyBurgerView | null,
+): HomepageMonthlyBurgerSection {
+  if (monthlyBurger === null) return { kind: 'empty' }
+
+  const burger = selectHomepageMonthlyBurger(monthlyBurger)
+  return burger === null ? { kind: 'hidden' } : { kind: 'burger', burger }
+}

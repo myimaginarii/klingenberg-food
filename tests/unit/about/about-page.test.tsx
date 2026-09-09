@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import { AboutPageContent } from '@/components/site/about/AboutPageContent'
+import { HOME_PAGE } from '@/content/site/pages'
 import type { AboutDocument } from '@/lib/content/types'
 import { buildStaticPublicImage, IMAGE_SIZES } from '@/lib/images/public'
 
@@ -55,8 +56,17 @@ describe('the words', () => {
 
   it('states the award once, as the confirmed result, without a document field behind it', () => {
     const html = render(WORDS)
-    expect(html).toContain('Vinder af Fyn &amp; Øer og nr. 4 i Danmark')
+    expect(html).toContain('Fyns bedste burger 2026 og nr. 4 i Danmark')
     expect(html).toContain('Danmarks Bedste Burger 2026')
+  })
+
+  it('states the award in exactly the Forside document\'s words, so the two bands agree', () => {
+    const html = render(WORDS)
+    // One result, told once. HOME_PAGE.award is the Forside's copy of the same wording
+    // (`app/(site)/page.tsx` carries it again as the empty-document fallback); if any of
+    // the three drifts, a guest meets two different headlines for one competition.
+    expect(html).toContain(HOME_PAGE.award.title?.replace(/&/g, '&amp;'))
+    expect(html).toContain(HOME_PAGE.award.text?.replace(/&/g, '&amp;'))
   })
 })
 
@@ -94,7 +104,7 @@ describe('the three frames with an image', () => {
     const html = render(withImages)
 
     expect(html.match(/<picture/g)).toHaveLength(3)
-    expect(html).toMatch(/<picture class="[^"]*aspect-portrait[^"]*md:max-w-\[26rem\][^"]*">/)
+    expect(html).toMatch(/<picture class="[^"]*aspect-portrait[^"]*md:max-w-\[28rem\][^"]*">/)
     expect(html).toMatch(/<picture class="[^"]*aspect-team[^"]*">/)
     expect(html).toMatch(/<picture class="[^"]*aspect-hero[^"]*">/)
     expect(html.match(/loading="eager"/g)).toHaveLength(1)

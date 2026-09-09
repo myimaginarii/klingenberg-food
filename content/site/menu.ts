@@ -44,8 +44,6 @@ function category(
   return { id: slug, slug, name, intro: null, note: null, kind: 'dishes', dishes, ...facts }
 }
 
-const MENU_NOTE = 'Som menu med pommes frites og sodavand 124 kr.'
-
 export const MENU_CATEGORIES: MenuCategory[] = [
   category(
     'burgere',
@@ -54,36 +52,36 @@ export const MENU_CATEGORIES: MenuCategory[] = [
       dish('odin', 'Odin', 8900, {
         description:
           '200 g dry aged bøf, sennepsmayo, bacon, cheddar, karameliserede løg, bøftomat, iceberg og briochebolle.',
-        secondaryNote: MENU_NOTE,
         labels: ['Populær'],
         image: launchPhoto('dish-odin'),
       }),
       dish('frigg', 'Frigg', 8900, {
         description:
           'Sprød panko-kylling, avocadomos, syltede rødløg, semi-dried tomat, hjertesalat og briochebolle.',
-        secondaryNote: MENU_NOTE,
         image: launchPhoto('dish-frigg'),
       }),
       dish('ragnar', 'Ragnar', 9700, {
         description:
           'Sliced oksefilet, peberbacon, kartoffelsticks, estragonmayo, peber-spiced cheddar, syltede agurker, iceberg og briochebolle.',
-        secondaryNote: 'Som menu med pommes frites og sodavand 132 kr.',
         image: launchPhoto('dish-ragnar'),
       }),
       dish('thor', 'Thor', 8900, {
         description:
           '200 g dry aged bøf, beer-battered onion rings, syltede rødløg, gedeost, chilimayo, BBQ-sauce, iceberg og briochebolle.',
-        secondaryNote: MENU_NOTE,
       }),
       dish('glade-gris', 'Glade Gris', 8900, {
         description: 'Pulled pork, puffede svær, rødkål, chilimayo, icebergsalat og briochebolle.',
-        secondaryNote: MENU_NOTE,
         labels: ['Pulled pork'],
+        image: launchPhoto('dish-glade-gris'),
       }),
     ],
     {
+      // The menu price is stated here once, for the whole section, rather than repeated
+      // under every card. Four burgers share one menu price; Ragnar's is the exception.
+      // The space between each number and "kr." is a non-breaking space (U+00A0), so a
+      // narrow column never wraps to a line starting with "kr.".
       intro:
-        'Alle burgere serveres i briochebolle. Kan bestilles som menu med pommes frites og sodavand.',
+        'Alle burgere serveres i briochebolle. Som menu med pommes frites og sodavand: 124 kr., Ragnar 132 kr.',
     },
   ),
 
@@ -253,7 +251,7 @@ export const WEEKLY_SPECIAL: WeeklySpecial = {
   },
 }
 
-/** Månedens burger: not supplied (1ab). The menu shows the approved empty card; the Forside shows nothing. */
+/** Månedens burger: not supplied (1ab). The menu and the Forside both show the approved empty card. */
 export const MONTHLY_BURGER: MonthlyBurger | null = null
 
 /** Everything the menu page and the Forside's featured dishes read. */
