@@ -4,6 +4,7 @@
     {
       "id": "burgere",
       "name": "Burgere",
+      "kind": "dishes",
       "intro": "Alle burgere serveres i briochebolle. Som menu med pommes frites og sodavand: 124 kr., Ragnar 132 kr.",
       "dishes": [
         {
@@ -57,6 +58,7 @@
     {
       "id": "andre-retter",
       "name": "Andre retter",
+      "kind": "dishes",
       "dishes": [
         { "id": "fish-n-chips", "name": "Fish n' chips", "price": "85" },
         { "id": "ekstra-fisk", "name": "Ekstra fisk", "price": "42" },
@@ -70,6 +72,7 @@
     {
       "id": "pommes-og-snacks",
       "name": "Pommes & snacks",
+      "kind": "dishes",
       "dishes": [
         { "id": "stor-pommes-frites", "name": "Stor pommes frites", "price": "24" },
         { "id": "lille-pommes-frites", "name": "Lille pommes frites", "price": "17" },
@@ -93,6 +96,7 @@
     {
       "id": "boern",
       "name": "Børn",
+      "kind": "dishes",
       "dishes": [
         { "id": "boerneburger", "name": "Børneburger med pommes frites", "price": "56" },
         { "id": "boernenuggets", "name": "Børnenuggets med pommes frites", "price": "48" }
@@ -101,6 +105,7 @@
     {
       "id": "drikkevarer",
       "name": "Drikkevarer",
+      "kind": "dishes",
       "dishes": [
         { "id": "alm-oel", "name": "Alm. øl", "price": "20" },
         { "id": "specialoel", "name": "Specialøl", "price": "26" },
@@ -120,6 +125,7 @@
     {
       "id": "dessert",
       "name": "Dessert",
+      "kind": "dishes",
       "dishes": [
         { "id": "vaniljeparfait", "name": "Vaniljeparfait med skovens bær og karamel", "price": "35" },
         { "id": "aeblekage", "name": "Æblekage med crumble og flødeskum", "price": "35" },
@@ -129,68 +135,14 @@
     {
       "id": "tapas",
       "name": "Tapas",
+      "kind": "tapas",
       "intro": "Til to personer 295 kr. · hver ekstra person 148 kr.",
-      "dishes": [
-        {
-          "id": "tapas",
-          "name": "Tapas",
-          "price": "295",
-          "secondaryNote": "+148 kr. pr. ekstra person",
-          "tapas": {
-            "groups": [
-              {
-                "id": "base",
-                "heading": "Altid med på bordet",
-                "mode": "fixed",
-                "items": [
-                  "Hjemmebagt brød",
-                  "Rugchips",
-                  "Grissini",
-                  "Saltmandler",
-                  "Syltede rødløg",
-                  "Syltet peberfrugt",
-                  "Kryddersmør",
-                  "Oliven",
-                  "Frugt"
-                ]
-              },
-              {
-                "id": "choose7",
-                "heading": "I vælger 7",
-                "mode": "choose",
-                "choose": 7,
-                "items": [
-                  "Laksetatar",
-                  "Stegte tigerrejer",
-                  "Krondyr-spegepølse med jalapeños",
-                  "Chorizo",
-                  "Serranoskinke",
-                  "Bresaola",
-                  "Hønsesalat",
-                  "Krebsehalesalat",
-                  "Ølpinde",
-                  "Mini porre/bacon-tærte",
-                  "Paté med hvidløg",
-                  "Gouda med brændenælde",
-                  "Gouda med chili",
-                  "Brie"
-                ]
-              },
-              {
-                "id": "dressing",
-                "heading": "Og 3 dressinger",
-                "mode": "choose",
-                "choose": 3,
-                "items": ["Pesto", "Hummus", "Urtemayo", "Estragonmayo", "Chilimayo", "Aioli"]
-              }
-            ]
-          }
-        }
-      ]
+      "dishes": []
     },
     {
       "id": "varm-selv",
       "name": "Varm selv",
+      "kind": "dishes",
       "intro": "Frostvarer til at tage med hjem.",
       "dishes": [
         {

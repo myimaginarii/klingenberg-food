@@ -1,0 +1,58 @@
+{
+  "price": "295",
+  "secondaryNote": "+148 kr. pr. ekstra person",
+  "groups": [
+    {
+      "id": "base",
+      "heading": "Altid med på bordet",
+      "mode": "fixed",
+      "items": [
+        "Hjemmebagt brød",
+        "Rugchips",
+        "Grissini",
+        "Saltmandler",
+        "Syltede rødløg",
+        "Syltet peberfrugt",
+        "Kryddersmør",
+        "Oliven",
+        "Frugt"
+      ]
+    },
+    {
+      "id": "choose7",
+      "heading": "I vælger 7",
+      "mode": "choose",
+      "choose": 7,
+      "items": [
+        "Laksetatar",
+        "Stegte tigerrejer",
+        "Krondyr-spegepølse med jalapeños",
+        "Chorizo",
+        "Serranoskinke",
+        "Bresaola",
+        "Hønsesalat",
+        "Krebsehalesalat",
+        "Ølpinde",
+        "Mini porre/bacon-tærte",
+        "Paté med hvidløg",
+        "Gouda med brændenælde",
+        "Gouda med chili",
+        "Brie"
+      ]
+    },
+    {
+      "id": "dressing",
+      "heading": "Og 3 dressinger",
+      "mode": "choose",
+      "choose": 3,
+      "items": [
+        "Pesto",
+        "Hummus",
+        "Urtemayo",
+        "Estragonmayo",
+        "Chilimayo",
+        "Aioli"
+      ]
+    }
+  ]
+}

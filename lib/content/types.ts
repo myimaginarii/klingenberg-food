@@ -41,11 +41,18 @@ export const TAPAS_GROUP_IDS = ['base', 'choose7', 'dressing'] as const
 export const TAPAS_GROUP_MODES = ['fixed', 'choose'] as const
 
 /**
- * The Tapas content document (§4, decision 3).
+ * The Tapas board — `content/site/tapas.json` (§4, decision 3).
  *
  * Three fixed groups whose ids and count are part of the schema; only the heading and
  * the items are editable. This is a content list and not an ordering configurator:
  * nothing is selectable by a visitor and nothing is priced per item.
+ *
+ * **It is its own document rather than a field on a dish.** The board is one special
+ * structured thing the restaurant edits as a whole — a price for two, the line about
+ * each extra person, and three lists — and none of that is a property an ordinary
+ * burger could have. Keeping it here means {@link Dish} carries only what a dish has,
+ * and the section that shows it says so with its own {@link MenuCategoryKind}, exactly
+ * as the Ugens ret section already names the week's own document.
  */
 export type TapasGroup = {
   id: (typeof TAPAS_GROUP_IDS)[number]
@@ -55,8 +62,11 @@ export type TapasGroup = {
   items: string[]
 }
 
-export type TapasDetails = {
-  kind: 'tapas'
+export type TapasBoard = {
+  /** "Til to personer 295 kr." — the board's one price, in øre. */
+  priceOre: number | null
+  /** The small line beneath it: "+148 kr. pr. ekstra person". */
+  secondaryNote: string | null
   groups: TapasGroup[]
 }
 
@@ -70,8 +80,6 @@ export type Dish = {
   secondaryNote: string | null
   priceOre: number | null
   labels: DishLabel[]
-  /** Present only for the Tapas entry; `null` for every ordinary dish. */
-  tapas: TapasDetails | null
   /** Copenhagen-local date the item was marked sold out. `null` = available (§7b). */
   soldOutOn: IsoDate | null
   /**
@@ -86,20 +94,29 @@ export type Dish = {
   image: PublicImage | null
 }
 
-/** `menu_categories.kind` — an ordinary list of dishes, or the Ugens ret section. */
-export const MENU_CATEGORY_KINDS = ['dishes', 'weekly_special'] as const
+/**
+ * What a menu section holds — the three bodies `MenuCategorySection` can draw.
+ *
+ * `dishes` is an ordinary list of dishes and is what a section means when it says
+ * nothing. The other two name a section whose body is **one other document**: Ugens ret
+ * (`weekly-special.json`) and the tapas board (`tapas.json`). Those two sections carry
+ * no dishes of their own, and there can be at most one of each.
+ */
+export const MENU_CATEGORY_KINDS = ['dishes', 'weekly_special', 'tapas'] as const
 export type MenuCategoryKind = (typeof MENU_CATEGORY_KINDS)[number]
 
 /**
  * Everything the menu page and the Forside read about the menu, as one value: the
  * sections with their dishes attached, the week's special (its empty state included),
- * Månedens burger or `null`, and the allergen line the menu page prints under its title.
+ * Månedens burger or `null`, the tapas board, and the allergen line the menu page
+ * prints under its title.
  */
 export type MenuContent = {
   allergenNote: string | null
   categories: MenuCategory[]
   weeklySpecial: WeeklySpecial
   monthlyBurger: MonthlyBurger | null
+  tapas: TapasBoard
 }
 
 /**

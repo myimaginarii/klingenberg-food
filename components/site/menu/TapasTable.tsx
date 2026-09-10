@@ -1,6 +1,5 @@
 import { formatPrice } from '@/lib/format/danish'
-import type { TapasGroup } from '@/lib/content/types'
-import type { DishView } from '@/lib/menu/view'
+import type { TapasBoard, TapasGroup } from '@/lib/content/types'
 
 /**
  * The tapas board — design 1h and 1m.
@@ -12,17 +11,16 @@ import type { DishView } from '@/lib/menu/view'
  *
  * The design sets the two kinds of list differently, and so does this: what is always on
  * the table runs as one line of names separated by middots, while the two lists you
- * choose from are set as columns you can scan. The group headings and their items come
- * from `dishes.details`, so the kitchen can change the board without a deployment once
- * the editor lands in phase 5.
+ * choose from are set as columns you can scan. The price, the line beneath it and the
+ * three lists are all `content/site/tapas.json`, which the restaurant edits as one
+ * board — nothing here is a property of a dish.
  */
 const CHOICE_NOTE =
   'I vælger ved bordet. Her kan I se, hvad der er at vælge imellem.'
 
-export function TapasTable({ dish }: { dish: DishView }) {
-  const groups = dish.tapas?.groups ?? []
-  const base = groups.find((group) => group.id === 'base')
-  const choices = groups.filter((group) => group.id !== 'base')
+export function TapasTable({ board }: { board: TapasBoard }) {
+  const base = board.groups.find((group) => group.id === 'base')
+  const choices = board.groups.filter((group) => group.id !== 'base')
 
   return (
     <div className="bg-surface border-border rounded-card-lg overflow-hidden border">
@@ -36,14 +34,14 @@ export function TapasTable({ dish }: { dish: DishView }) {
 
         <p className="shrink-0 md:text-right">
           <span className="text-brand-700/75 text-detail block">Til to personer</span>
-          {dish.priceOre === null ? null : (
+          {board.priceOre === null ? null : (
             <b className="tabular-price text-brand-700 text-statement block">
-              {formatPrice(dish.priceOre)}
+              {formatPrice(board.priceOre)}
             </b>
           )}
-          {dish.secondaryNote ? (
+          {board.secondaryNote ? (
             <span className="text-brand-700/75 text-detail block tabular-nums">
-              {dish.secondaryNote}
+              {board.secondaryNote}
             </span>
           ) : null}
         </p>
