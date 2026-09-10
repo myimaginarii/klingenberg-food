@@ -118,7 +118,7 @@ describe('the announcement bar', () => {
   it('accepts an active notice whose expiry passed long ago — expired is hidden, not invalid', () => {
     expect(
       validateAnnouncement(
-        { active: true, message: 'Lukket juleaften', expiresAt: '2020-12-25T00:00:00+01:00' },
+        { active: true, message: 'Lukket juleaften', expiresAt: '2020-12-25T00:00' },
         ANNOUNCEMENT,
       ),
     ).toEqual([])
@@ -126,14 +126,37 @@ describe('the announcement bar', () => {
 
   it('refuses an active notice with nothing to say, or nothing to say it until', () => {
     expect(
-      messages(validateAnnouncement({ active: true, expiresAt: '2026-12-25T00:00:00+01:00' }, ANNOUNCEMENT)),
+      messages(validateAnnouncement({ active: true, expiresAt: '2026-12-25T00:00' }, ANNOUNCEMENT)),
     ).toMatch(/message: Skal udfyldes\./)
     expect(messages(validateAnnouncement({ active: true, message: 'Hej' }, ANNOUNCEMENT))).toMatch(
       /skal have et udløbstidspunkt/,
     )
   })
 
-  it.each(['i morgen', '2026-13-45', '25/12 2026'])('refuses the expiry %j', (expiresAt) => {
+  /**
+   * The offset-bearing forms are the ones phase 4F exists to refuse, and the first of
+   * them is not hypothetical: `2026-09-11T12:00:00Z` is the literal value the Pages CMS
+   * datetime control wrote into `announcement.json` on the `content` branch, from a
+   * browser two hours ahead of UTC, for a notice the restaurant had set to noon. Read
+   * back as an instant it means 14:00 in Copenhagen — the bar outlived its own expiry
+   * by two hours. The fix is to refuse the shape rather than to interpret it.
+   */
+  it.each([
+    'i morgen',
+    '2026-13-45',
+    '25/12 2026',
+    '2026-09-11T12:00:00Z', // the real broken value from the content branch
+    '2026-09-11T12:00Z',
+    '2026-09-11T12:00+02:00',
+    '2026-12-25T00:00:00+01:00', // the old written form, now refused
+    '2026-09-11T12:00:00', // seconds, even without an offset
+    '2026-02-31T12:00', // February has no 31st
+    '2026-02-29T12:00', // 2026 is not a leap year
+    '2026-09-11T25:00', // no such hour
+    '2026-09-11T12:60', // no such minute
+    '2026-09-11 12:00', // a space instead of the T
+    '2026-9-11T12:00', // an unpadded month
+  ])('refuses the expiry %j', (expiresAt) => {
     const problems = validateAnnouncement(
       { active: true, message: 'Hej', expiresAt },
       ANNOUNCEMENT,
@@ -143,12 +166,24 @@ describe('the announcement bar', () => {
     expect(problems[0]?.message).toMatch(/dato med klokkeslæt/)
   })
 
+  it.each(['2026-09-11T12:00', '2026-12-11T12:00', '2028-02-29T00:00', '2026-01-01T23:59'])(
+    'accepts the wall clock %j',
+    (expiresAt) => {
+      // 2028 is a leap year, so its 29th of February is a real day — and 2026-02-29 is
+      // refused above. The pattern and the calendar together decide that; there is no
+      // hand-written month table here.
+      expect(
+        validateAnnouncement({ active: true, message: 'Hej', expiresAt }, ANNOUNCEMENT),
+      ).toEqual([])
+    },
+  )
+
   it('accepts a link to one of the site’s own routes, and refuses one to anywhere else', () => {
     const valid = validateAnnouncement(
       {
         active: true,
         message: 'Nye åbningstider',
-        expiresAt: '2026-10-01T00:00:00+02:00',
+        expiresAt: '2026-10-01T00:00',
         link: { type: 'page', page: '/find-os' },
       },
       ANNOUNCEMENT,
@@ -159,7 +194,7 @@ describe('the announcement bar', () => {
       {
         active: true,
         message: 'Nye åbningstider',
-        expiresAt: '2026-10-01T00:00:00+02:00',
+        expiresAt: '2026-10-01T00:00',
         link: { type: 'page', page: '/admin' },
       },
       ANNOUNCEMENT,
@@ -175,7 +210,7 @@ describe('the announcement bar', () => {
         {
           active: true,
           message: 'Læs mere',
-          expiresAt: '2026-10-01T00:00:00+02:00',
+          expiresAt: '2026-10-01T00:00',
           link: { type: 'url', url, label: 'Læs mere' },
         },
         ANNOUNCEMENT,
@@ -191,7 +226,7 @@ describe('the announcement bar', () => {
       {
         active: true,
         message: 'Læs mere',
-        expiresAt: '2026-10-01T00:00:00+02:00',
+        expiresAt: '2026-10-01T00:00',
         link: { type: 'url', url: 'https://www.facebook.com/carlnielsencafeen' },
       },
       ANNOUNCEMENT,
@@ -207,7 +242,7 @@ describe('the announcement bar', () => {
           {
             active: true,
             message: 'Hej',
-            expiresAt: '2026-10-01T00:00:00+02:00',
+            expiresAt: '2026-10-01T00:00',
             link: { type: 'page', page: '/menu', url: 'https://www.facebook.com/carlnielsencafeen' },
           },
           ANNOUNCEMENT,

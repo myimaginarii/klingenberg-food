@@ -1,12 +1,11 @@
 /**
  * When a message stops being shown — design 1ac, 1ad; technical plan §7c.
  *
- * `announcement.expires_at` is a `timestamptz`: **an instant**, not a civil date. Every
- * comparison in this system is therefore between instants, and never between formatted
- * strings or between a date and a "today" derived from some other timezone. That is the
- * whole of {@link isAnnouncementExpired}, and it is why the public bar and the client
- * guard cannot
- * disagree about whether a message is still current.
+ * `SiteAnnouncement.expiresAt` is **an instant**, not a civil date. Every comparison in
+ * this system is therefore between instants, and never between formatted strings or
+ * between a date and a "today" derived from some other timezone. That is the whole of
+ * {@link isAnnouncementExpired}, and it is why the public bar and the client guard
+ * cannot disagree about whether a message is still current.
  *
  * THIS MODULE IMPORTS NOTHING, ON PURPOSE
  *
@@ -15,20 +14,24 @@
  * It also has to apply *the same rule the server applied*, which means sharing this
  * code rather than restating it. Those two requirements are only compatible if the
  * shared rule drags nothing behind it: no hours engine, no timezone conversion, no
- * schema, no formatting. So the instant rules live here with zero imports, and the
- * editor's civil-time half — 1ad's date and time fields and its suggestion chips, which
- * genuinely need Copenhagen and the opening hours — lives next door in
- * `./expiry-editor.ts` and never reaches the browser.
+ * schema, no formatting. So the instant rules live here with zero imports.
+ *
+ * The civil-time half lives at the other end of the pipeline instead, and never reaches
+ * the browser: `announcement.json` stores a Copenhagen wall clock, and
+ * `lib/content/load/announcement.ts` turns it into the instant this module is handed,
+ * once, at build time, through `lib/time/copenhagen.ts`. Nothing here needs to know
+ * that happened — which is the point of converting at the boundary.
  */
 
 /**
- * Parse a stored `expires_at` into an instant, or `null`.
+ * Parse a loaded `expiresAt` into an instant, or `null`.
  *
- * `null` covers both "there is no expiry" and "the stored value is not a timestamp".
- * The second is unreachable through the application — the schema parses it on the way
- * in and the column is a `timestamptz` — but a function that answers "is this expired?"
- * must not answer "no" to a value it could not read. An invalid date compares false
- * against everything, which is exactly the silent wrong answer §7 warns about.
+ * `null` covers both "there is no expiry" and "the value is not a timestamp". The
+ * second is unreachable through the application — the content check refuses a
+ * malformed expiry and the loader produces this string with `toISOString()` — but a
+ * function that answers "is this expired?" must not answer "no" to a value it could not
+ * read. An invalid date compares false against everything, which is exactly the silent
+ * wrong answer §7 warns about.
  */
 export function parseExpiryInstant(expiresAt: string | null | undefined): Date | null {
   if (typeof expiresAt !== 'string') return null
@@ -45,7 +48,7 @@ export function parseExpiryInstant(expiresAt: string | null | undefined): Date |
  * ("Udløb er påkrævet") — so the safe reading of a missing expiry is "do not show it",
  * not "show it indefinitely".
  *
- * The boundary is inclusive of the expiry instant itself: at exactly `expires_at` the
+ * The boundary is inclusive of the expiry instant itself: at exactly `expiresAt` the
  * message is gone. That matches what the prerendered page decided, so the build and
  * the browser agree at the one instant it matters.
  */

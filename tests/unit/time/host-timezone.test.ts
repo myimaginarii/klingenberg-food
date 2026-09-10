@@ -1,5 +1,6 @@
 import { afterAll, describe, expect, it } from 'vitest'
 
+import { announcementFrom } from '@/lib/content/load/announcement'
 import { findNextOpening, getOpenState } from '@/lib/hours/engine'
 import { describeOpenState, formatWeekdayTime } from '@/lib/hours/format'
 import { resolveSoldOut } from '@/lib/menu/availability'
@@ -19,6 +20,15 @@ import { CONFIRMED_SCHEDULE } from '../fixtures/hours'
  * offset range (UTC+14 and UTC−11), a zone with a half-hour offset, and a southern
  * hemisphere zone whose daylight saving runs opposite to Denmark's. Every expected
  * value below is the same one asserted in the dedicated suites.
+ *
+ * The announcement expiry joined this file in phase 4F, and it is the case with the
+ * sharpest teeth. `announcement.json` stores a Copenhagen wall clock with no offset in
+ * it, and `new Date('2026-09-11T12:00')` — the obvious way to read one, and the way
+ * this loader deliberately does **not** — is defined to mean local time. On a UTC
+ * builder that is 12:00Z; on a New York laptop it is 16:00Z. The bar would then vanish
+ * at a different moment depending on where the site was last built, and nothing about
+ * the file would have changed. So the loader is run here under every host zone and the
+ * answer is asserted to be one instant.
  *
  * Node re-reads `process.env.TZ` for subsequent `Date` operations, and the guard in
  * `runInHostTimezone` fails the test if a platform ever stops honouring that — a silent
@@ -122,6 +132,30 @@ describe.each(HOST_TIMEZONES)('with the host machine in %s', (timeZone) => {
 
     expect(soldOut('2026-08-27T12:59:59.999Z')).toBe(true)
     expect(soldOut('2026-08-27T13:00:00.000Z')).toBe(false)
+  })
+
+  it('resolves an announcement expiry to the same instant', () => {
+    const expiry = (expiresAt: string) =>
+      inZone(
+        () =>
+          announcementFrom(
+            { active: true, message: 'Hej', expiresAt },
+            'content/site/announcement.json',
+          )?.expiresAt,
+      )
+
+    // Summer and winter, the two readings of the same written noon.
+    expect(expiry('2026-09-11T12:00')).toBe('2026-09-11T10:00:00.000Z')
+    expect(expiry('2026-12-11T12:00')).toBe('2026-12-11T11:00:00.000Z')
+
+    // Midnight is where a host-local reading goes wrong by a whole calendar day rather
+    // than by hours, so it is worth one assertion of its own.
+    expect(expiry('2026-01-01T00:00')).toBe('2025-12-31T23:00:00.000Z')
+
+    // And the two wall clocks Denmark's own transitions make awkward, held to the same
+    // deterministic answers `copenhagenInstantOf` gives in the business timezone.
+    expect(expiry('2026-03-29T02:30')).toBe('2026-03-29T01:30:00.000Z')
+    expect(expiry('2026-10-25T02:30')).toBe('2026-10-25T00:30:00.000Z')
   })
 
   it('formats the same Danish strings', () => {
