@@ -2,166 +2,490 @@
   "allergenNote": "Spørg os gerne om allergener.",
   "categories": [
     {
-      "id": "burgere",
       "name": "Burgere",
+      "id": "burgere",
       "kind": "dishes",
       "intro": "Alle burgere serveres i briochebolle. Som menu med pommes frites og sodavand: 124 kr., Ragnar 132 kr.",
       "dishes": [
         {
-          "id": "odin",
           "name": "Odin",
+          "id": "odin",
           "price": "89",
           "description": "200 g dry aged bøf, sennepsmayo, bacon, cheddar, karameliserede løg, bøftomat, iceberg og briochebolle.",
-          "labels": ["Populær"],
+          "labels": [
+            "Populær"
+          ],
           "featured": true,
-          "photo": { "file": "/photos/dish-odin.png", "alt": "", "focus": "center" }
+          "photo": {
+            "file": "/photos/dish-odin.png",
+            "focus": "center"
+          }
         },
         {
-          "id": "frigg",
           "name": "Frigg",
+          "id": "frigg",
           "price": "89",
           "description": "Sprød panko-kylling, avocadomos, syltede rødløg, semi-dried tomat, hjertesalat og briochebolle.",
           "featured": true,
-          "photo": { "file": "/photos/dish-frigg.png", "alt": "", "focus": "upper" }
+          "photo": {
+            "file": "/photos/dish-frigg.png",
+            "focus": "upper"
+          }
         },
         {
-          "id": "ragnar",
           "name": "Ragnar",
+          "id": "ragnar",
           "price": "97",
           "description": "Sliced oksefilet, peberbacon, kartoffelsticks, estragonmayo, peber-spiced cheddar, syltede agurker, iceberg og briochebolle.",
           "featured": true,
-          "photo": { "file": "/photos/dish-ragnar.png", "alt": "", "focus": "center" }
+          "photo": {
+            "file": "/photos/dish-ragnar.png",
+            "focus": "center"
+          }
         },
         {
-          "id": "thor",
           "name": "Thor",
+          "id": "thor",
           "price": "89",
-          "description": "200 g dry aged bøf, beer-battered onion rings, syltede rødløg, gedeost, chilimayo, BBQ-sauce, iceberg og briochebolle."
+          "description": "200 g dry aged bøf, beer-battered onion rings, syltede rødløg, gedeost, chilimayo, BBQ-sauce, iceberg og briochebolle.",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
         },
         {
-          "id": "glade-gris",
           "name": "Glade Gris",
+          "id": "glade-gris",
           "price": "89",
           "description": "Pulled pork, puffede svær, rødkål, chilimayo, icebergsalat og briochebolle.",
-          "labels": ["Pulled pork"],
-          "photo": { "file": "/photos/dish-glade-gris.png", "alt": "", "focus": "center" }
+          "labels": [
+            "Pulled pork"
+          ],
+          "featured": false,
+          "photo": {
+            "file": "/photos/dish-glade-gris.png",
+            "focus": "center"
+          }
         }
       ]
     },
     {
-      "id": "ugens-ret",
       "name": "Ugens ret",
+      "id": "ugens-ret",
       "kind": "weekly_special",
-      "note": "Alle ugens retter kan også laves glutenfrie og laktosefrie. Sig til, når du bestiller.",
-      "dishes": []
+      "note": "Alle ugens retter kan også laves glutenfrie og laktosefrie. Sig til, når du bestiller."
     },
     {
-      "id": "andre-retter",
       "name": "Andre retter",
+      "id": "andre-retter",
       "kind": "dishes",
       "dishes": [
-        { "id": "fish-n-chips", "name": "Fish n' chips", "price": "85" },
-        { "id": "ekstra-fisk", "name": "Ekstra fisk", "price": "42" },
-        { "id": "halv-grillkylling", "name": "½ grillkylling med pommes frites", "price": "85" },
-        { "id": "duerum", "name": "Dürum", "price": "66" },
-        { "id": "chiliolie-hvidloegsolie", "name": "Chiliolie og/eller hvidløgsolie", "price": "5" },
-        { "id": "sandwich-kylling-bacon", "name": "Sandwich, kylling/bacon", "price": "53" },
-        { "id": "sandwich-frikadelle", "name": "Sandwich, frikadelle", "price": "53" }
-      ]
-    },
-    {
-      "id": "pommes-og-snacks",
-      "name": "Pommes & snacks",
-      "kind": "dishes",
-      "dishes": [
-        { "id": "stor-pommes-frites", "name": "Stor pommes frites", "price": "24" },
-        { "id": "lille-pommes-frites", "name": "Lille pommes frites", "price": "17" },
-        { "id": "poelse-med-broed", "name": "Pølse med brød", "price": "26" },
-        { "id": "poelse-uden-broed", "name": "Pølse uden brød", "price": "19" },
-        { "id": "poelsebroed", "name": "Pølsebrød", "price": "8" },
-        { "id": "fransk-hotdog", "name": "Fransk hotdog", "price": "28" },
-        { "id": "poelsemix", "name": "Pølsemix", "price": "46" },
-        { "id": "kebabmix", "name": "Kebabmix", "price": "51" },
-        { "id": "pariser-toast", "name": "Pariser toast", "price": "22" },
-        { "id": "nuggets-med-pommes-frites", "name": "Nuggets med pommes frites", "price": "48" },
         {
-          "id": "snackkurv",
-          "name": "Snackkurv",
-          "price": "52",
-          "secondaryNote": "Løgringe, chicken bites, chilli cheese tops og 1 valgfri dip"
+          "name": "Fish n' chips",
+          "id": "fish-n-chips",
+          "price": "86",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
         },
-        { "id": "dip", "name": "Dip", "price": "10", "secondaryNote": "BBQ · chili · aioli" }
+        {
+          "name": "Ekstra fisk",
+          "id": "ekstra-fisk",
+          "price": "42",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "½ grillkylling med pommes frites",
+          "id": "halv-grillkylling",
+          "price": "85",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Dürum",
+          "id": "duerum",
+          "price": "66",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Chiliolie og/eller hvidløgsolie",
+          "id": "chiliolie-hvidloegsolie",
+          "price": "5",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Sandwich, kylling/bacon",
+          "id": "sandwich-kylling-bacon",
+          "price": "53",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Sandwich, frikadelle",
+          "id": "sandwich-frikadelle",
+          "price": "53",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        }
       ]
     },
     {
-      "id": "boern",
+      "name": "Pommes & snacks",
+      "id": "pommes-og-snacks",
+      "kind": "dishes",
+      "dishes": [
+        {
+          "name": "Stor pommes frites",
+          "id": "stor-pommes-frites",
+          "price": "24",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Lille pommes frites",
+          "id": "lille-pommes-frites",
+          "price": "17",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Pølse med brød",
+          "id": "poelse-med-broed",
+          "price": "26",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Pølse uden brød",
+          "id": "poelse-uden-broed",
+          "price": "19",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Pølsebrød",
+          "id": "poelsebroed",
+          "price": "8",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Fransk hotdog",
+          "id": "fransk-hotdog",
+          "price": "28",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Pølsemix",
+          "id": "poelsemix",
+          "price": "46",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Kebabmix",
+          "id": "kebabmix",
+          "price": "51",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Pariser toast",
+          "id": "pariser-toast",
+          "price": "22",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Nuggets med pommes frites",
+          "id": "nuggets-med-pommes-frites",
+          "price": "48",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Snackkurv",
+          "id": "snackkurv",
+          "price": "52",
+          "secondaryNote": "Løgringe, chicken bites, chilli cheese tops og 1 valgfri dip",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Dip",
+          "id": "dip",
+          "price": "10",
+          "secondaryNote": "BBQ · chili · aioli",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        }
+      ]
+    },
+    {
       "name": "Børn",
+      "id": "boern",
       "kind": "dishes",
       "dishes": [
-        { "id": "boerneburger", "name": "Børneburger med pommes frites", "price": "56" },
-        { "id": "boernenuggets", "name": "Børnenuggets med pommes frites", "price": "48" }
+        {
+          "name": "Børneburger med pommes frites",
+          "id": "boerneburger",
+          "price": "56",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Børnenuggets med pommes frites",
+          "id": "boernenuggets",
+          "price": "48",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        }
       ]
     },
     {
-      "id": "drikkevarer",
       "name": "Drikkevarer",
+      "id": "drikkevarer",
       "kind": "dishes",
       "dishes": [
-        { "id": "alm-oel", "name": "Alm. øl", "price": "20" },
-        { "id": "specialoel", "name": "Specialøl", "price": "26" },
-        { "id": "shaker", "name": "Shaker", "price": "25" },
-        { "id": "sodavand-aqua-dor", "name": "Sodavand / Aqua d'Or", "price": "24" },
-        { "id": "cocio-40", "name": "Cocio 40 cl", "price": "23" },
-        { "id": "cocio-27", "name": "Cocio 27 cl", "price": "19" },
-        { "id": "kildevand", "name": "Kildevand", "price": "12" },
-        { "id": "brikjuice", "name": "Brikjuice", "price": "12" },
-        { "id": "kop-kaffe-te", "name": "1 kop kaffe / te", "price": "15" },
-        { "id": "genopfyld-kaffe", "name": "Genopfyld kaffe", "price": "10" },
-        { "id": "kande-kaffe", "name": "1 kande kaffe", "price": "65" },
-        { "id": "kande-te", "name": "1 kande te", "price": "45" },
-        { "id": "varm-kakao", "name": "Varm kakao med flødeskum", "price": "22" }
+        {
+          "name": "Alm. øl",
+          "id": "alm-oel",
+          "price": "20",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Specialøl",
+          "id": "specialoel",
+          "price": "26",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Shaker",
+          "id": "shaker",
+          "price": "25",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Sodavand / Aqua d'Or",
+          "id": "sodavand-aqua-dor",
+          "price": "24",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Cocio 40 cl",
+          "id": "cocio-40",
+          "price": "23",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Cocio 27 cl",
+          "id": "cocio-27",
+          "price": "19",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Kildevand",
+          "id": "kildevand",
+          "price": "12",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Brikjuice",
+          "id": "brikjuice",
+          "price": "12",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "1 kop kaffe / te",
+          "id": "kop-kaffe-te",
+          "price": "15",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Genopfyld kaffe",
+          "id": "genopfyld-kaffe",
+          "price": "10",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "1 kande kaffe",
+          "id": "kande-kaffe",
+          "price": "65",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "1 kande te",
+          "id": "kande-te",
+          "price": "45",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Varm kakao med flødeskum",
+          "id": "varm-kakao",
+          "price": "22",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        }
       ]
     },
     {
-      "id": "dessert",
       "name": "Dessert",
+      "id": "dessert",
       "kind": "dishes",
       "dishes": [
-        { "id": "vaniljeparfait", "name": "Vaniljeparfait med skovens bær og karamel", "price": "35" },
-        { "id": "aeblekage", "name": "Æblekage med crumble og flødeskum", "price": "35" },
-        { "id": "chokoladekage", "name": "Chokoladekage med chokolademousse og bærkompot", "price": "35" }
+        {
+          "name": "Vaniljeparfait med skovens bær og karamel",
+          "id": "vaniljeparfait",
+          "price": "35",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Æblekage med crumble og flødeskum",
+          "id": "aeblekage",
+          "price": "35",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        },
+        {
+          "name": "Chokoladekage med chokolademousse og bærkompot",
+          "id": "chokoladekage",
+          "price": "35",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
+        }
       ]
     },
     {
-      "id": "tapas",
       "name": "Tapas",
+      "id": "tapas",
       "kind": "tapas",
-      "intro": "Til to personer 295 kr. · hver ekstra person 148 kr.",
-      "dishes": []
+      "intro": "Til to personer 295 kr. · hver ekstra person 148 kr."
     },
     {
-      "id": "varm-selv",
       "name": "Varm selv",
+      "id": "varm-selv",
       "kind": "dishes",
       "intro": "Frostvarer til at tage med hjem.",
       "dishes": [
         {
-          "id": "moerbradgryde",
           "name": "Mørbradgryde med svampe og bacon",
+          "id": "moerbradgryde",
           "price": "108",
-          "secondaryNote": "1 kg · frost"
+          "secondaryNote": "1 kg · frost",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
         },
         {
-          "id": "lasagne",
           "name": "Lasagne",
+          "id": "lasagne",
           "price": "108",
-          "secondaryNote": "1.500 g · nok til 2–3 personer · frost"
+          "secondaryNote": "1.500 g · nok til 2–3 personer · frost",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
         },
         {
-          "id": "tarteletfyld",
           "name": "Tarteletfyld",
+          "id": "tarteletfyld",
           "price": "108",
-          "secondaryNote": "1 kg + 10 skaller · frost"
+          "secondaryNote": "1 kg + 10 skaller · frost",
+          "featured": false,
+          "photo": {
+            "focus": "center"
+          }
         }
       ]
     }
