@@ -791,9 +791,6 @@ content:
           - name: url
             label: Adresse
             type: string
-            pattern:
-              regex: "^https://\\S+$"
-              message: Adressen skal være fuld og starte med https:// efterfulgt af domænet.
             description: >-
               Udfyldes kun, når linktypen er "En adresse et andet sted". Adressen
               skal starte med https:// efterfulgt af domænet.
