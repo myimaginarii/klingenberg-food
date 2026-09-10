@@ -246,17 +246,21 @@ content:
               - name: kind
                 label: Type afsnit
                 type: select
+                default: dishes
                 options:
                   values:
                     - name: dishes
                       label: Almindelige retter
                     - name: weekly_special
-                      label: Ugens ret (henter selv ugens ret)
+                      label: Ugens ret
+                    - name: tapas
+                      label: Tapasbord
                 description: >-
                   "Almindelige retter" er et afsnit med en liste af retter. "Ugens ret"
-                  er afsnittet, der selv henter det, der står under Menu → Ugens ret —
-                  det afsnit skal ikke have retter i listen nedenfor, og der kan kun
-                  være ét af dem.
+                  er afsnittet, der selv henter det, der står under Menu → Ugens ret, og
+                  "Tapasbord" er afsnittet, der selv henter bordet under Menu → Tapas.
+                  De to afsnit skal ikke have retter i listen nedenfor, og der kan kun
+                  være ét af hver.
 
               - name: intro
                 label: Indledning
@@ -280,6 +284,20 @@ content:
                     label: Navn
                     type: string
                     required: true
+
+                  - name: id
+                    label: Kort navn til systemet
+                    type: string
+                    required: true
+                    pattern:
+                      regex: "^[a-z0-9]+(-[a-z0-9]+)*$"
+                      message: >-
+                        Brug små bogstaver og bindestreger, fx "vegetar" eller
+                        "pommes-snacks". Æ, ø og å skrives som ae, oe og aa.
+                    description: >-
+                      Rettens faste navn i systemet. Brug små bogstaver og
+                      bindestreger, fx "glade-gris". Æ, ø og å skrives som ae, oe og
+                      aa. Det skal være forskelligt fra alle andre retters.
 
                   - name: price
                     label: Pris i kroner
@@ -325,22 +343,8 @@ content:
                     component: foto
                     label: Foto af retten
 
-                  - name: id
-                    label: Kort navn til systemet
-                    type: string
-                    required: true
-                    pattern:
-                      regex: "^[a-z0-9]+(-[a-z0-9]+)*$"
-                      message: >-
-                        Brug små bogstaver og bindestreger, fx "vegetar" eller
-                        "pommes-snacks". Æ, ø og å skrives som ae, oe og aa.
-                    description: >-
-                      Rettens faste navn i systemet. Brug små bogstaver og
-                      bindestreger, fx "glade-gris". Æ, ø og å skrives som ae, oe og
-                      aa. Det skal være forskelligt fra alle andre retters.
-
                   # Bæres med, men vises ikke: ingen ret bruger udsolgt-dato i dag, og
-                  # et tomt datofelt på seksogfyrre retter er en fejlkilde uden gevinst.
+                  # et tomt datofelt på femogfyrre retter er en fejlkilde uden gevinst.
                   # Udsolgt sættes på Ugens ret og Månedens burger, hvor det bruges.
                   # "default" er tom som på alle andre datofelter: uden den ville et
                   # datofelt begynde på dags dato, og en gemning kunne gøre hver ret
@@ -352,67 +356,6 @@ content:
                     default: ""
                     options:
                       format: yyyy-MM-dd
-
-                  # Tapasbordet hører til den ret, der bærer det. Det kan ikke få sin
-                  # egen side i menuen til venstre, fordi Pages CMS peger på hele filer
-                  # og ikke ind i en fil — se rapporten. Feltet står her, så bordet
-                  # ikke forsvinder, når retten gemmes.
-                  - name: tapas
-                    label: Tapasbord
-                    type: object
-                    description: >-
-                      Kun retten "Tapas" har et tapasbord. Et afsnit med et tapasbord
-                      viser kun den ret, så læg ikke andre retter i samme afsnit.
-                    fields:
-                      - name: groups
-                        label: Lister på bordet
-                        type: object
-                        list:
-                          min: 3
-                          max: 3
-                          collapsible:
-                            collapsed: true
-                            summary: "{heading}"
-                        fields:
-                          - name: heading
-                            label: Overskrift
-                            type: string
-                            required: true
-                          - name: items
-                            label: Indhold
-                            type: string
-                            list: true
-                            description: >-
-                              Én ting pr. linje. Den samme linje kan kun stå én gang i
-                              listen.
-                          - name: id
-                            label: Listens plads
-                            type: select
-                            readonly: true
-                            options:
-                              values:
-                                - name: base
-                                  label: Altid med
-                                - name: choose7
-                                  label: Man vælger imellem
-                                - name: dressing
-                                  label: Dressinger
-                          - name: mode
-                            label: Slags liste
-                            type: select
-                            readonly: true
-                            options:
-                              values:
-                                - name: fixed
-                                  label: Altid med på bordet
-                                - name: choose
-                                  label: Man vælger et antal
-                          - name: choose
-                            label: Antal, der vælges
-                            type: number
-                            readonly: true
-                            options:
-                              min: 1
 
       # -----------------------------------------------------------------------------
       # UGENS RET
@@ -604,6 +547,99 @@ content:
           - name: photo
             component: foto
             label: Foto af burgeren
+
+      # -----------------------------------------------------------------------------
+      # TAPAS
+      # -----------------------------------------------------------------------------
+      # Tapasbordet er sit eget dokument og ikke et felt på en ret. Afsnittet "Tapas"
+      # under Menukort har typen "Tapasbord" og henter selv det, der står her — som
+      # afsnittet "Ugens ret" henter Ugens ret. De tre lister er faste: hvilken plads
+      # de har på bordet, og om man vælger fra dem, er en del af sitets opbygning og
+      # står derfor låst. Overskrifterne og indholdet i listerne rettes frit.
+      - name: tapas
+        label: Tapas
+        type: file
+        path: content/site/tapas.json
+        format: json
+        operations:
+          create: false
+          rename: false
+          delete: false
+        fields:
+          - name: price
+            label: Pris i kroner
+            type: string
+            pattern:
+              regex: "^\\d+([.,]\\d{1,2})?$"
+              message: Skriv kun tallet, fx 295 eller 295,50.
+            description: >-
+              Prisen for bordet til to personer. Skriv kun tallet, fx 295. Ordene "Til
+              to personer" og "kr." sætter siden selv på.
+
+          - name: secondaryNote
+            label: Ekstra linje
+            type: string
+            description: >-
+              Den lille linje under prisen, fx "+148 kr. pr. ekstra person". Må gerne
+              stå tom.
+
+          - name: groups
+            label: Lister på bordet
+            type: object
+            list:
+              min: 3
+              max: 3
+              collapsible:
+                collapsed: true
+                summary: "{heading}"
+            description: >-
+              De tre lister på bordet. Overskriften og indholdet kan rettes; listens
+              plads og slags er låst, fordi siden sætter dem op efter dem.
+            fields:
+              - name: heading
+                label: Overskrift
+                type: string
+                required: true
+
+              - name: items
+                label: Indhold
+                type: string
+                list: true
+                description: >-
+                  Én ting pr. linje. Listen skal have mindst én linje, og den samme
+                  linje kan kun stå én gang i listen.
+
+              - name: id
+                label: Listens plads
+                type: select
+                readonly: true
+                options:
+                  values:
+                    - name: base
+                      label: Altid med
+                    - name: choose7
+                      label: Man vælger imellem
+                    - name: dressing
+                      label: Dressinger
+
+              - name: mode
+                label: Slags liste
+                type: select
+                readonly: true
+                options:
+                  values:
+                    - name: fixed
+                      label: Altid med på bordet
+                    - name: choose
+                      label: Man vælger et antal
+
+              # Kun på lister, man vælger fra. Listen "Altid med" har intet antal.
+              - name: choose
+                label: Antal, der vælges
+                type: number
+                readonly: true
+                options:
+                  min: 1
 
   # =================================================================================
   # NYHEDER
