@@ -1,7 +1,8 @@
 import { resolveAnnouncementLink } from '@/lib/announcements/link'
 import type { SiteAnnouncement } from '@/lib/content/types'
+import { copenhagenInstantOf } from '@/lib/time/copenhagen'
 
-import { validateAnnouncement } from '../validate/announcement'
+import { announcementExpiryWallClock, validateAnnouncement } from '../validate/announcement'
 import { assertValid } from '../validate/problems'
 
 import { stored } from './cleared'
@@ -21,12 +22,28 @@ import { contentPath, once, readContentJson } from './source'
  * rules already live: an internal destination must be one of the site's own six
  * routes, and an external one must be `https:` and is rendered with
  * `rel="noopener noreferrer"`. A half-filled link resolves to `null` there, and the
- * bar draws plain text. The expiry is likewise the existing guard's: `expiresAt` is
- * the ISO 8601 instant the bar stops being shown, handed on unchanged.
+ * bar draws plain text.
+ *
+ * THE EXPIRY IS THE ONE VALUE THIS LOADER CONVERTS.
+ *
+ * On disk it is a **Copenhagen wall clock** — `2026-09-11T12:00` is what the restaurant
+ * means by "noon on the eleventh", with no offset written down, because the offset is a
+ * fact about the calendar rather than about the notice. The loaded `SiteAnnouncement`
+ * carries an **absolute instant** instead, because that is what the expiry rule
+ * compares and what the client guard is handed: `2026-09-11T10:00:00.000Z` in summer,
+ * and the same wall clock in December resolves to `11:00:00.000Z`.
+ *
+ * The conversion is `copenhagenInstantOf` (`lib/time/copenhagen.ts`), the one module in
+ * the repository that is allowed to name a timezone, and it happens **here and nowhere
+ * else**. Downstream — `AnnouncementRegion`, `AnnouncementExpiryGuard`,
+ * `isAnnouncementExpired` — goes on comparing instants exactly as before and has no
+ * timezone in it at all; putting an `Intl` conversion in the browser would make the bar
+ * disappear at a different moment for a guest whose phone is set to another country.
  */
 export type AnnouncementFile = {
   active: boolean
   message?: string | null
+  /** A Copenhagen wall clock, `YYYY-MM-DDTHH:mm` — **not** an instant. See above. */
   expiresAt?: string | null
   link?: {
     type: 'none' | 'page' | 'url'
@@ -47,6 +64,17 @@ export function announcementFrom(file: AnnouncementFile, where: string): SiteAnn
     )
   }
 
+  // Validation has already refused every shape but the wall clock, so a `null` here
+  // means `announcementFrom` was called directly with an unvalidated document — a
+  // programmer error, and one that must not be resolved into a plausible wrong instant.
+  const wallClock = announcementExpiryWallClock(file.expiresAt)
+  if (wallClock === null) {
+    throw new Error(
+      `${where} has an expiresAt that is not a Copenhagen wall clock (YYYY-MM-DDTHH:mm). ` +
+        `Received: ${JSON.stringify(file.expiresAt)}.`,
+    )
+  }
+
   const link = file.link ?? { type: 'none' }
 
   return {
@@ -61,7 +89,7 @@ export function announcementFrom(file: AnnouncementFile, where: string): SiteAnn
       link_url: stored(link.url),
       link_label: link.label ?? null,
     }),
-    expiresAt: file.expiresAt,
+    expiresAt: copenhagenInstantOf(wallClock.date, wallClock.time).toISOString(),
   }
 }
 
