@@ -51,43 +51,18 @@ export function validateHomePage(file: unknown, where: string): Problem[] {
 
   if (!isBlank(document.award)) panel(problems, at(where, 'award'), document.award)
 
-  const featuredWhere = at(where, 'featured')
-  const featured = object(problems, featuredWhere, document.featured, '{ "dishIds", "note" }')
-  if (featured !== null) {
-    validateFeaturedDishIds(problems, at(featuredWhere, 'dishIds'), featured.dishIds)
-    text(problems, at(featuredWhere, 'note'), featured.note)
+  // "Tre fra menuen" states only the line printed under the cards. Which dishes appear
+  // is each dish's own "Vis på forsiden" in menu.json, so there is no reference here to
+  // check and no way for a menu edit to leave one dangling.
+  if (!isBlank(document.featured)) {
+    const featuredWhere = at(where, 'featured')
+    const featured = object(problems, featuredWhere, document.featured, '{ "note" }')
+    if (featured !== null) text(problems, at(featuredWhere, 'note'), featured.note)
   }
 
   panel(problems, at(where, 'aboutExcerpt'), document.aboutExcerpt, 'heading', 'text')
 
   return problems
-}
-
-/**
- * "Tre fra menuen" names dishes by id.
- *
- * How many is the restaurant's choice — the section renders whichever dishes the list
- * points at, and renders nothing at all when the list is empty, so removing the
- * section is a supported edit rather than a broken page. What is not a choice: each id
- * has to be written once (the cards are keyed by it, and the same dish twice would be
- * the same card twice), and each has to name a dish that exists — which is checked
- * against the menu in `./index.ts`, because it is a question about two files.
- */
-function validateFeaturedDishIds(problems: Problem[], where: string, value: unknown): void {
-  if (isBlank(value)) return
-
-  const ids = array(problems, where, value, '[ "odin", "frigg", "ragnar" ]')
-  if (ids === null) return
-
-  const written: { value: string; where: string }[] = []
-
-  ids.forEach((id, index) => {
-    const idWhere = at(where, index + 1)
-    const dishId = slug(problems, idWhere, id)
-    if (dishId !== null) written.push({ value: dishId, where: idWhere })
-  })
-
-  unique(problems, written, 'Forsiden viser hver ret én gang.')
 }
 
 export function validateAboutPage(file: unknown, where: string): Problem[] {

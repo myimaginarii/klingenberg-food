@@ -1,6 +1,6 @@
 import { parseExpiryInstant } from '@/lib/announcements/expiry'
 
-import { array, date, flag, httpsUrl, isBlank, isSlug, object, photo, text } from './fields'
+import { array, date, flag, isBlank, isSlug, object, photo, text } from './fields'
 import { add, at, shown, type Problem } from './problems'
 
 /**
@@ -20,13 +20,12 @@ import { add, at, shown, type Problem } from './problems'
  * exists — because a draft is a thing somebody is going to publish, and finding the
  * mistake then means finding it in a hurry.
  *
- * **The body is structured, and its links are the injection path.** There is no HTML
- * anywhere in a news article: the renderer walks paragraphs of spans and marks each
- * one bold or a link, so there is nothing to sanitise. The one value that reaches the
- * page as more than text is a span's `href`, which `NewsBody` writes straight into an
- * anchor — so it is held to the site's own external-link rule (`https:`, with a host),
- * which is what refuses `javascript:`, `data:` and a protocol-relative address. That
- * rule was documented in `NewsBody.tsx` from the start; this is where it is enforced.
+ * **The body is a list of paragraphs, and every one of them is text.** An article is
+ * written as `["Første afsnit.", "Andet afsnit."]` — one string per paragraph — and the
+ * loader turns that into the blocks the renderer draws. There is no markup in either
+ * direction, so there is nothing to sanitise and no field that reaches the page as
+ * anything but words. That is also why this file no longer holds a link rule: an
+ * article has no link field for one to be about.
  */
 export function validateNewsArticle(slug: string, file: unknown, where: string): Problem[] {
   const problems: Problem[] = []
@@ -98,6 +97,16 @@ function validateUpdatedAt(
   }
 }
 
+/**
+ * The article's text — a list of paragraphs.
+ *
+ * A **published** article has to say something: an empty list is a page with a
+ * headline and a blank column, which is not a state the design has. A **draft** may be
+ * an empty body, a missing body or a body somebody has started, because a draft is
+ * something being written. What holds either way is that a paragraph is a piece of
+ * text with something in it: a blank line in the list is a gap the renderer would draw
+ * as an empty paragraph, and it is easier to say so here than to notice it on a page.
+ */
 function validateBody(
   problems: Problem[],
   where: string,
@@ -109,56 +118,22 @@ function validateBody(
       add(
         problems,
         where,
-        'En udgivet artikel skal have en tekst. Brødteksten skrives som ' +
-          '{ "blocks": [ { "type": "paragraph", "spans": [ { "text": "..." } ] } ] }.',
+        'En udgivet artikel skal have en tekst. Brødteksten skrives som en liste af afsnit — ' +
+          '[ "Første afsnit.", "Andet afsnit." ].',
       )
     }
     return
   }
 
-  const body = object(problems, where, value, '{ "blocks": [ ... ] }')
-  if (body === null) return
+  const paragraphs = array(problems, where, value, '[ "Første afsnit.", "Andet afsnit." ]')
+  if (paragraphs === null) return
 
-  const blocks = array(problems, at(where, 'blocks'), body.blocks)
-  if (blocks === null) return
-
-  if (published && blocks.length === 0) {
-    add(problems, at(where, 'blocks'), 'En udgivet artikel skal have mindst ét afsnit.')
+  if (published && paragraphs.length === 0) {
+    add(problems, where, 'En udgivet artikel skal have mindst ét afsnit.')
     return
   }
 
-  blocks.forEach((entry, index) => {
-    const blockWhere = at(where, `afsnit ${index + 1}`)
-    const block = object(problems, blockWhere, entry, '{ "type": "paragraph", "spans": [ ... ] }')
-    if (block === null) return
-
-    if (block.type !== 'paragraph') {
-      add(
-        problems,
-        at(blockWhere, 'type'),
-        'Skal have "type": "paragraph" — det er den eneste slags afsnit siden kan vise. ' +
-          `Fik: ${shown(block.type)}.`,
-      )
-    }
-
-    const spans = array(problems, at(blockWhere, 'spans'), block.spans)
-    if (spans === null) return
-
-    spans.forEach((spanEntry, spanIndex) => {
-      const spanWhere = at(blockWhere, `tekst ${spanIndex + 1}`)
-      const span = object(
-        problems,
-        spanWhere,
-        spanEntry,
-        '{ "text": "..." } og kan have "bold": true eller et link: ' +
-          '"href": "https://www.facebook.com/carlnielsencafeen"',
-      )
-      if (span === null) return
-
-      text(problems, at(spanWhere, 'text'), span.text, { required: true })
-      flag(problems, at(spanWhere, 'bold'), span.bold)
-
-      if (!isBlank(span.href)) httpsUrl(problems, at(spanWhere, 'href'), span.href)
-    })
+  paragraphs.forEach((paragraph, index) => {
+    text(problems, at(where, `afsnit ${index + 1}`), paragraph, { required: true })
   })
 }

@@ -32,24 +32,21 @@ const messages = (problems: readonly Problem[]) =>
 const home = (over: Record<string, unknown> = {}) => ({
   hero: { heading: 'Burgeren der vandt Fyn', intro: 'Vi laver burgere.', photo: null },
   award: { photo: null },
-  featured: { dishIds: ['odin', 'frigg'], note: 'Alle burgere kan bestilles som menu.' },
+  featured: { note: 'Alle burgere kan bestilles som menu.' },
   aboutExcerpt: { heading: 'Mad fra hallen', text: 'Vi er et lokalt spisested.', photo: null },
   ...over,
 })
 
 describe('the page documents', () => {
-  it('accepts a Forside with any number of featured dishes, including none', () => {
+  /**
+   * "Tre fra menuen" states only the line printed under the cards. Since phase 4B the
+   * dishes themselves carry "Vis på forsiden", so the Forside document names no dish
+   * and there is nothing here that a menu edit could leave pointing at nothing.
+   */
+  it('accepts a Forside that names no dish at all', () => {
     expect(validateHomePage(home(), HOME)).toEqual([])
-    expect(validateHomePage(home({ featured: { dishIds: [] } }), HOME)).toEqual([])
-    expect(
-      validateHomePage(home({ featured: { dishIds: ['odin', 'frigg', 'ragnar', 'thor'] } }), HOME),
-    ).toEqual([])
-  })
-
-  it('refuses the same dish featured twice — the cards are keyed by the id', () => {
-    expect(messages(validateHomePage(home({ featured: { dishIds: ['odin', 'odin'] } }), HOME))).toMatch(
-      /dishIds → 2: "odin" står mere end ét sted\. Forsiden viser hver ret én gang\./,
-    )
+    expect(validateHomePage(home({ featured: { note: null } }), HOME)).toEqual([])
+    expect(validateHomePage(home({ featured: undefined }), HOME)).toEqual([])
   })
 
   it('refuses a Forside missing an object a loader reaches straight into', () => {
@@ -201,19 +198,23 @@ describe('npm run check:content', () => {
     expect(result.stderr).toMatch(/email/)
   })
 
-  /** The one rule that spans two files: the Forside names dishes the menu must have. */
-  it('catches a featured dish that is not on the menu', () => {
+  /**
+   * Phase 4B removed the site's one cross-document reference rather than checking it
+   * harder: a dish carries its own "Vis på forsiden", so taking a featured dish off
+   * the menu takes it off the Forside and leaves nothing behind to dangle.
+   */
+  it('accepts the menu with a featured dish deleted — nothing points at it', () => {
     const root = fixture(({ read, write }) => {
-      const page = read('content/site/pages/home.json') as { featured: { dishIds: string[] } }
-      page.featured.dishIds = ['odin', 'loke', 'ragnar']
-      write('content/site/pages/home.json', page)
+      const menu = read('content/site/menu.json') as {
+        categories: { dishes: { id: string }[] }[]
+      }
+      for (const category of menu.categories) {
+        category.dishes = category.dishes.filter((dish) => dish.id !== 'odin')
+      }
+      write('content/site/menu.json', menu)
     })
 
-    const result = run(root)
-
-    expect(result.status).toBe(1)
-    expect(result.stderr).toMatch(/content\/site\/pages\/home\.json → featured → dishIds → 2/)
-    expect(result.stderr).toMatch(/Der findes ingen ret med id'et "loke" i menuen/)
+    expect(run(root).status).toBe(0)
   })
 
   it('reports an unreadable file rather than crashing on it', () => {

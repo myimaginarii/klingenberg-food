@@ -31,6 +31,7 @@ function dish(overrides: Partial<Dish> = {}): Dish {
     labels: [],
     tapas: null,
     soldOutOn: null,
+    featured: false,
     image: null,
     ...overrides,
   }
@@ -233,29 +234,79 @@ describe('buildMenuView', () => {
 })
 
 describe('selectFeaturedDishes', () => {
-  const view = buildMenuView(
-    content({
-      categories: [
-        category({ dishes: [dish({ id: 'a', name: 'Odin' }), dish({ id: 'b', name: 'Frigg' })] }),
-      ],
-    }),
-    HOURS,
-    copenhagenInstantOf('2026-09-02', '18:00'),
-  )
+  /**
+   * The Forside band reads the menu itself: a dish carries "Vis på forsiden", and the
+   * band shows every dish that does. There is no list of ids anywhere, so there is
+   * nothing that can point at a dish that is gone — the cases below are the whole of
+   * what an editor can do to the band, and none of them needs a second file.
+   */
+  function featuredNames(...dishes: readonly Dish[]): string[] {
+    const view = buildMenuView(
+      content({
+        categories: [
+          category({ id: 'cat-burgere', slug: 'burgere', dishes: dishes.slice(0, 2) }),
+          category({ id: 'cat-andre', slug: 'andre', name: 'Andre', dishes: dishes.slice(2) }),
+        ],
+      }),
+      HOURS,
+      copenhagenInstantOf('2026-09-02', '18:00'),
+    )
 
-  it('returns the dishes in the order the administration chose', () => {
-    expect(selectFeaturedDishes(view.categories, ['b', 'a']).map((entry) => entry.name)).toEqual([
-      'Frigg',
-      'Odin',
-    ])
+    return selectFeaturedDishes(view.categories).map((entry) => entry.name)
+  }
+
+  it('returns the featured dishes in the order the menu is written', () => {
+    expect(
+      featuredNames(
+        dish({ id: 'a', name: 'Odin', featured: true }),
+        dish({ id: 'b', name: 'Frigg', featured: true }),
+        dish({ id: 'c', name: 'Ragnar', featured: true }),
+      ),
+    ).toEqual(['Odin', 'Frigg', 'Ragnar'])
   })
 
-  it('drops a reference to a dish that no longer exists rather than leaving a hole', () => {
-    expect(selectFeaturedDishes(view.categories, ['a', 'gone', 'b'])).toHaveLength(2)
+  it('leaves out a dish that is not featured — missing and false are the same answer', () => {
+    expect(
+      featuredNames(
+        dish({ id: 'a', name: 'Odin', featured: true }),
+        dish({ id: 'b', name: 'Frigg', featured: false }),
+        dish({ id: 'c', name: 'Ragnar' }),
+      ),
+    ).toEqual(['Odin'])
   })
 
-  it('returns nothing when no dish has been featured', () => {
-    expect(selectFeaturedDishes(view.categories, [])).toEqual([])
+  it('simply loses the card when a featured dish is taken off the menu', () => {
+    expect(
+      featuredNames(
+        dish({ id: 'a', name: 'Odin', featured: true }),
+        dish({ id: 'c', name: 'Ragnar', featured: true }),
+      ),
+    ).toEqual(['Odin', 'Ragnar'])
+  })
+
+  it('gains a card the moment a dish is switched on', () => {
+    expect(
+      featuredNames(
+        dish({ id: 'a', name: 'Odin', featured: true }),
+        dish({ id: 'b', name: 'Frigg' }),
+        dish({ id: 'c', name: 'Ragnar', featured: true }),
+      ),
+    ).toEqual(['Odin', 'Ragnar'])
+  })
+
+  it('counts nothing: none, one and four are all valid bands', () => {
+    expect(featuredNames(dish({ id: 'a', name: 'Odin' }), dish({ id: 'b', name: 'Frigg' }))).toEqual(
+      [],
+    )
+    expect(featuredNames(dish({ id: 'a', name: 'Odin', featured: true }))).toEqual(['Odin'])
+    expect(
+      featuredNames(
+        dish({ id: 'a', name: 'Odin', featured: true }),
+        dish({ id: 'b', name: 'Frigg', featured: true }),
+        dish({ id: 'c', name: 'Ragnar', featured: true }),
+        dish({ id: 'd', name: 'Thor', featured: true }),
+      ),
+    ).toEqual(['Odin', 'Frigg', 'Ragnar', 'Thor'])
   })
 })
 
@@ -305,15 +356,15 @@ describe('selectHomepageMonthlyBurger', () => {
     expect(selectHomepageMonthlyBurger(view.monthlyBurger)).toBeNull()
   })
 
-  it('never takes one of the three featured slots away from a normal dish', () => {
+  it('never takes one of the featured slots away from a normal dish', () => {
     const view = buildMenuView(
       content({
         categories: [
           category({
             dishes: [
-              dish({ id: 'a', name: 'Odin' }),
-              dish({ id: 'b', name: 'Frigg' }),
-              dish({ id: 'c', name: 'Ragnar' }),
+              dish({ id: 'a', name: 'Odin', featured: true }),
+              dish({ id: 'b', name: 'Frigg', featured: true }),
+              dish({ id: 'c', name: 'Ragnar', featured: true }),
             ],
           }),
         ],
@@ -323,7 +374,7 @@ describe('selectHomepageMonthlyBurger', () => {
       copenhagenInstantOf('2026-09-15', '18:00'),
     )
 
-    expect(selectFeaturedDishes(view.categories, ['a', 'b', 'c']).map((d) => d.name)).toEqual([
+    expect(selectFeaturedDishes(view.categories).map((d) => d.name)).toEqual([
       'Odin',
       'Frigg',
       'Ragnar',

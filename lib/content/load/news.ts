@@ -1,10 +1,11 @@
-import type { NewsArticle, NewsBody } from '@/lib/content/types'
+import type { NewsArticle, NewsBody, NewsParagraph } from '@/lib/content/types'
 import { isNewsSlug } from '@/lib/news/slug'
 import type { IsoDate } from '@/lib/time/calendar'
 
 import { validateNewsArticle } from '../validate/news'
 import { assertValid } from '../validate/problems'
 
+import { stored } from './cleared'
 import { resolvePhoto, type PhotoField } from './photo'
 import { contentPath, listContentJson, once, readContentJson } from './source'
 
@@ -30,9 +31,12 @@ import { contentPath, listContentJson, once, readContentJson } from './source'
  * `lastModified` — and it is a written-down value rather than one derived from the
  * repository's history, so what the page claims is what somebody stated.
  *
- * **The body is structured, never HTML** (§8). It is the same `NewsBody` document the
- * renderer has always taken — paragraphs of spans, each span optionally bold or a link
- * — so there is nothing to parse and no sanitizer to get wrong.
+ * **The body is a list of paragraphs** — `["Første afsnit.", "Andet afsnit."]` — and
+ * one line each is the whole of what an editor writes. This loader is where that list
+ * becomes the block document `NewsBody` renders (§8): one `paragraph` block per
+ * string, in order. There is no HTML in either direction, nothing to parse and no
+ * sanitizer to get wrong, because a paragraph is a string and a string is drawn as
+ * text.
  *
  * There are no articles yet. The list page renders its empty state, the Forside's
  * "Seneste nyt" column is absent, the sitemap carries no article and the article route
@@ -46,7 +50,13 @@ export type NewsFile = {
   updatedAt?: string | null
   category?: string | null
   photo?: PhotoField | null
-  body: NewsBody
+  /** One string per paragraph, in the order they are read. */
+  body: string[]
+}
+
+/** The stored paragraphs as the renderer's block document. */
+export function newsBodyFrom(paragraphs: readonly string[]): NewsBody {
+  return { blocks: paragraphs.map((text): NewsParagraph => ({ type: 'paragraph', text })) }
 }
 
 /** The article one file means, or `null` for a draft. `slug` is the file's name. */
@@ -72,8 +82,10 @@ export function newsArticleFrom(slug: string, file: NewsFile): NewsArticle | nul
     slug,
     category: file.category ?? null,
     displayDate: file.publishedAt,
-    updatedAt: file.updatedAt ?? file.publishedAt,
-    body: file.body,
+    // An untouched "Senest rettet" control writes `""`, which means the article has
+    // not been corrected — the same as leaving the field out (`./cleared.ts`).
+    updatedAt: stored(file.updatedAt) ?? file.publishedAt,
+    body: newsBodyFrom(file.body ?? []),
     image: resolvePhoto(file.photo, where),
   }
 }

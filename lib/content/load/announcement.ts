@@ -4,6 +4,7 @@ import type { SiteAnnouncement } from '@/lib/content/types'
 import { validateAnnouncement } from '../validate/announcement'
 import { assertValid } from '../validate/problems'
 
+import { stored } from './cleared'
 import { contentPath, once, readContentJson } from './source'
 
 /**
@@ -52,8 +53,12 @@ export function announcementFrom(file: AnnouncementFile, where: string): SiteAnn
     message: file.message,
     link: resolveAnnouncementLink({
       link_type: link.type,
-      link_page: link.page ?? null,
-      link_url: link.url ?? null,
+      // The resolver's consistency rule is written about `null`: "type": "none" with a
+      // page left behind is no link at all. A Pages CMS form clears those two controls
+      // to `""` (`./cleared.ts`), which has to read as the same emptiness or a
+      // switched-off link would resolve as a half-filled one.
+      link_page: stored(link.page),
+      link_url: stored(link.url),
       link_label: link.label ?? null,
     }),
     expiresAt: file.expiresAt,

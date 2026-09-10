@@ -17,6 +17,7 @@ import {
 } from '../validate/menu'
 import { assertValid } from '../validate/problems'
 
+import { stored } from './cleared'
 import { resolvePhoto, type PhotoField } from './photo'
 import { oreFromKroner } from './price'
 import { contentPath, once, readContentJson } from './source'
@@ -29,9 +30,9 @@ import { keepPriceTogether, prose } from './text'
  *
  * **One document for the menu.** The nine sections, in the order of the category bar,
  * each holding its dishes in their confirmed order — names, prices, descriptions, the
- * small grey line beneath a name, the labels the approved frames print, and the tapas
- * board's three lists. A dish's `id` is its stable identity (the Forside's featured
- * dishes name three of them); a section's `id` is also its slug and its anchor.
+ * small grey line beneath a name, the labels the approved frames print, the tapas
+ * board's three lists, and the `featured` flag that puts a dish on the Forside. A
+ * dish's `id` is its stable identity; a section's `id` is also its slug and its anchor.
  *
  * **Two small documents for what changes every week and every month.** Ugens ret and
  * Månedens burger each carry an `active` flag: inactive is the state the confirmed
@@ -51,7 +52,7 @@ type TapasGroupFile = {
   id: TapasGroup['id']
   heading: string
   mode: TapasGroup['mode']
-  choose?: number | null
+  choose?: number | '' | null
   items: string[]
 }
 
@@ -63,6 +64,8 @@ type DishFile = {
   secondaryNote?: string | null
   labels?: string[]
   soldOutOn?: IsoDate | null
+  /** "Vis på forsiden" — absent and `false` both mean the Forside does not show it. */
+  featured?: boolean
   photo?: PhotoField | null
   /** Present only for the Tapas board — three lists in one document (§4, decision 3). */
   tapas?: { groups: TapasGroupFile[] } | null
@@ -84,8 +87,8 @@ type MenuFile = {
 
 type WeeklySpecialFile = {
   active: boolean
-  isoYear?: number | null
-  isoWeek?: number | null
+  isoYear?: number | '' | null
+  isoWeek?: number | '' | null
   days?: string[]
   name?: string | null
   description?: string | null
@@ -160,17 +163,18 @@ function dishFrom(file: DishFile, where: string): Dish {
                 id: group.id,
                 heading: group.heading,
                 mode: group.mode,
-                choose: group.choose ?? null,
+                choose: stored(group.choose),
                 items: group.items,
               }),
             ),
           },
-    soldOutOn: file.soldOutOn ?? null,
+    soldOutOn: stored(file.soldOutOn),
+    featured: file.featured === true,
     image: resolvePhoto(file.photo, where),
   }
 }
 
-/** Refuse an id that appears twice: the Forside names dishes by id, and an anchor names a section. */
+/** Refuse an id that appears twice: it is a React key, and an anchor names a section. */
 function assertUnique(kind: string, ids: readonly string[], where: string): void {
   const seen = new Set<string>()
   for (const id of ids) {
@@ -217,14 +221,14 @@ export function weeklySpecialFrom(file: WeeklySpecialFile, where: string): Weekl
   const saturday = file.saturday ?? { enabled: false }
 
   return {
-    isoYear: file.isoYear ?? null,
-    isoWeek: file.isoWeek ?? null,
+    isoYear: stored(file.isoYear),
+    isoWeek: stored(file.isoWeek),
     days: file.days ?? [],
     name: file.name ?? null,
     description: prose(file.description),
     priceSmallOre: oreFromKroner(file.priceSmall, where),
     priceLargeOre: oreFromKroner(file.priceLarge, where),
-    soldOutOn: file.soldOutOn ?? null,
+    soldOutOn: stored(file.soldOutOn),
     image: resolvePhoto(file.photo, where),
     saturday: {
       enabled: saturday.enabled,
@@ -232,7 +236,7 @@ export function weeklySpecialFrom(file: WeeklySpecialFile, where: string): Weekl
       description: prose(saturday.description),
       priceOre: oreFromKroner(saturday.price, `${where} (lørdagsmenu)`),
       deadline: saturday.deadline ?? null,
-      soldOutOn: saturday.soldOutOn ?? null,
+      soldOutOn: stored(saturday.soldOutOn),
     },
   }
 }
@@ -255,9 +259,9 @@ export function monthlyBurgerFrom(file: MonthlyBurgerFile, where: string): Month
     name: file.name,
     description: prose(file.description),
     priceOre: oreFromKroner(file.price, where),
-    startsOn: file.startsOn ?? null,
-    endsOn: file.endsOn ?? null,
-    soldOutOn: file.soldOutOn ?? null,
+    startsOn: stored(file.startsOn),
+    endsOn: stored(file.endsOn),
+    soldOutOn: stored(file.soldOutOn),
     showOnHomepage: file.showOnHomepage ?? true,
     image: resolvePhoto(file.photo, where),
   }

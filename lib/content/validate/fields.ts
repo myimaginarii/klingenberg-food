@@ -45,13 +45,18 @@ export function isBlank(value: unknown): value is null | undefined | '' {
 }
 
 /**
- * True only for the two values that mean "there is nothing here".
+ * True only for the two values that mean "the field is not there at all".
  *
- * An empty string is *not* one of them for a price or a date. Those fields are parsed
- * downstream — `oreFromKroner('')` throws, and an empty `soldOutOn` would be compared
- * against a real date — so `""` is a value somebody left half-typed rather than a
- * field they cleared. A prose field and a photograph read it the other way, which is
- * why there are two predicates and not one.
+ * {@link isBlank} is what nearly every check uses, and it is the one to reach for: a
+ * field an editor cleared is `""` in a Pages CMS form and `null` in hand-written JSON,
+ * and both mean the same thing everywhere on this site — for a price, a date, a
+ * number, a photograph and a piece of prose alike. The loaders make the two spellings
+ * into one value (`lib/content/load/cleared.ts`).
+ *
+ * This narrower predicate is left for the two places where `""` is *not* the same
+ * answer: a true/false switch, where an empty string is a malformed value rather than
+ * an unset one, and a photograph's alternative text, where `""` is a deliberate answer
+ * meaning "read this picture as decoration".
  */
 export function isAbsent(value: unknown): value is null | undefined {
   return value === null || value === undefined
@@ -145,7 +150,15 @@ export function flag(
   return value
 }
 
-/** A whole number, at least `min` and — where the domain has an upper end — at most `max`. */
+/**
+ * A whole number, at least `min` and — where the domain has an upper end — at most
+ * `max`.
+ *
+ * Every caller decides for itself whether the field may be left out, because that is a
+ * question about the document and not about counting: an optional number is guarded
+ * with {@link isBlank} at the call site, which is what lets a cleared Pages CMS number
+ * field (`""`) mean the same as no field at all.
+ */
 export function whole(
   problems: Problem[],
   where: string,
@@ -207,9 +220,13 @@ export function slug(problems: Problem[], where: string, value: unknown): string
  * string into whole øre, so what it accepts *is* what a valid price is. A number
  * rather than a string, a negative amount, a currency suffix, three decimals and
  * anything else are refused there and reported here.
+ *
+ * An empty field is an item with no price, not a mistake — the Forside's "fra 124 kr."
+ * line and several menu sections already price nothing per dish. A price cleared in a
+ * Pages CMS form arrives as `""`, and the loader reads that as no price too.
  */
 export function price(problems: Problem[], where: string, value: unknown): void {
-  if (isAbsent(value)) return
+  if (isBlank(value)) return
 
   try {
     oreFromKroner(value as string, where)
@@ -223,14 +240,20 @@ export function price(problems: Problem[], where: string, value: unknown): void 
   }
 }
 
-/** A calendar date, `YYYY-MM-DD`, that actually exists — 2026-02-31 does not. */
+/**
+ * A calendar date, `YYYY-MM-DD`, that actually exists — 2026-02-31 does not.
+ *
+ * An empty date control writes `""`, which is the same answer as no date at all: an
+ * optional one is simply not set, and a required one is still refused, by the same
+ * "Skal udfyldes." a missing field gets.
+ */
 export function date(
   problems: Problem[],
   where: string,
   value: unknown,
   options: { required?: boolean } = {},
 ): string | null {
-  if (isAbsent(value)) {
+  if (isBlank(value)) {
     if (options.required === true) add(problems, where, 'Skal udfyldes — f.eks. "2026-12-24".')
     return null
   }

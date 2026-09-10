@@ -34,12 +34,17 @@ describe('oreFromKroner', () => {
     expect(oreFromKroner(' 24 ', 'test')).toBe(2400)
   })
 
-  it('answers null for a priceless entry', () => {
+  /**
+   * Three spellings of "this entry has no price": the field left out, written `null`
+   * by hand, or cleared in a Pages CMS form, which writes `""` (phase 4B).
+   */
+  it('answers null for a priceless entry, however the field was emptied', () => {
     expect(oreFromKroner(null, 'test')).toBeNull()
     expect(oreFromKroner(undefined, 'test')).toBeNull()
+    expect(oreFromKroner('', 'test')).toBeNull()
   })
 
-  it.each(['', '89 kr.', '12,345', '-5', '1.2.3', 'gratis'])('refuses %j, naming the entry', (value) => {
+  it.each(['89 kr.', '12,345', '-5', '1.2.3', 'gratis', ' '])('refuses %j, naming the entry', (value) => {
     expect(() => oreFromKroner(value, 'content/site/menu.json: dish "odin"')).toThrow(
       /content\/site\/menu\.json: dish "odin": a price is written in kroner/,
     )
@@ -92,6 +97,31 @@ describe('keepPriceTogether', () => {
     expect(keepPriceTogether(joined)).toBe(joined)
   })
 
+  /**
+   * A dish somebody opened in Pages CMS and saved without changing anything: every
+   * optional control it did not use comes back as `""`, and the photograph comes back
+   * as an object with no file selected. It has to load as the dish it was — the same
+   * value, not a nearly-identical one (phase 4B).
+   */
+  it('reads a dish whose optional controls are all empty as a dish with none', () => {
+    const bare = { id: 'thor', name: 'Thor', price: '89' }
+    const saved = {
+      ...bare,
+      description: null,
+      secondaryNote: null,
+      soldOutOn: '',
+      photo: { file: '', alt: '', focus: 'center' },
+    }
+    const load = (dish: unknown) =>
+      menuCategoriesFrom(
+        { categories: [{ id: 'burgere', name: 'Burgere', dishes: [dish] as never }] } as never,
+        'test',
+      )[0]?.dishes[0]
+
+    expect(load(saved)).toEqual(load(bare))
+    expect(load(saved)).toMatchObject({ priceOre: 8900, soldOutOn: null, image: null, featured: false })
+  })
+
   it('reads an absent prose field as null and a present one exactly as written', () => {
     expect(prose(null)).toBeNull()
     expect(prose(undefined)).toBeNull()
@@ -122,6 +152,25 @@ describe('openingHoursFrom', () => {
       {
         schedule: week,
         overrides: [{ date: '2026-12-24', kind: 'closed', status: 'published' }],
+      },
+      'hours.json',
+    )
+    expect(hours.overrides).toEqual([
+      { date: '2026-12-24', kind: 'closed', opensAt: null, closesAt: null, status: 'published' },
+    ])
+  })
+
+  /**
+   * A closed special day has no hours, and there are two ways for it to say so: `null`
+   * from a hand-written file, `""` from a Pages CMS time field nobody filled in.
+   */
+  it('reads an emptied time control as no time, exactly as null', () => {
+    const hours = openingHoursFrom(
+      {
+        schedule: week,
+        overrides: [
+          { date: '2026-12-24', kind: 'closed', opensAt: '', closesAt: '', status: 'published' },
+        ],
       },
       'hours.json',
     )
@@ -177,6 +226,43 @@ describe('announcementFrom', () => {
     })
   })
 
+  /**
+   * The resolver's consistency rule is written about `null`: a link of one kind with
+   * the other kind's field still filled in is no link at all. A Pages CMS form clears
+   * the controls it is not using to `""` rather than to `null`, so a perfectly ordinary
+   * page link arrives with an empty `url` beside it — and used to resolve to nothing
+   * (phase 4B).
+   */
+  it('reads a control the editor left empty as empty, not as the other kind of link', () => {
+    expect(
+      announcementFrom(
+        {
+          active: true,
+          message: 'Nye åbningstider',
+          expiresAt: '2026-10-01T00:00:00+02:00',
+          link: { type: 'page', page: '/find-os', url: '', label: '' },
+        },
+        where,
+      )?.link,
+    ).toEqual({ href: '/find-os', label: 'Find os', external: false })
+
+    expect(
+      announcementFrom(
+        {
+          active: true,
+          message: 'Læs mere',
+          expiresAt: '2026-10-01T00:00:00+02:00',
+          link: { type: 'url', url: 'https://www.facebook.com/carlnielsencafeen', page: '', label: 'Læs mere' },
+        },
+        where,
+      )?.link,
+    ).toEqual({
+      href: 'https://www.facebook.com/carlnielsencafeen',
+      label: 'Læs mere',
+      external: true,
+    })
+  })
+
   it('drops a link the resolver refuses, and renders the message alone', () => {
     const announcement = announcementFrom(
       {
@@ -197,7 +283,7 @@ describe('newsArticleFrom', () => {
     title: 'Ny burger i oktober',
     published: true,
     publishedAt: '2026-10-01',
-    body: { blocks: [{ type: 'paragraph', spans: [{ text: 'Menu til 124 kr.' }] }] },
+    body: ['Menu til 124 kr.'],
   }
 
   it('reads a published file as the article at the address its file name gives', () => {
@@ -211,7 +297,7 @@ describe('newsArticleFrom', () => {
       updatedAt: '2026-10-01',
       image: null,
     })
-    expect(article?.body.blocks[0]?.spans[0]?.text).toBe('Menu til 124 kr.')
+    expect(article?.body.blocks[0]).toEqual({ type: 'paragraph', text: 'Menu til 124 kr.' })
   })
 
   it('keeps a stated updatedAt', () => {

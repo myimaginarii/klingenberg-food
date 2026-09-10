@@ -18,7 +18,7 @@ const article = (over: Record<string, unknown> = {}) => ({
   title: 'Ny burger i oktober',
   published: true,
   publishedAt: '2026-10-01',
-  body: { blocks: [{ type: 'paragraph', spans: [{ text: 'Menu til 124 kr.' }] }] },
+  body: ['Menu til 124 kr.'],
   ...over,
 })
 
@@ -71,36 +71,32 @@ describe('a news article', () => {
     expect(messages(news('a', article({ body: undefined })))).toMatch(
       /En udgivet artikel skal have en tekst/,
     )
-    expect(messages(news('a', article({ body: { blocks: [] } })))).toMatch(
-      /mindst ét afsnit/,
-    )
+    expect(messages(news('a', article({ body: [] })))).toMatch(/mindst ét afsnit/)
   })
 
   /**
-   * `NewsBody` writes a span's `href` straight into an anchor. That is the only value
-   * in an article that reaches the page as more than text, and this is the rule that
-   * has always been documented for it.
+   * The body an editor writes: one string per paragraph, and nothing else to decide.
+   * A draft may be unfinished; a paragraph that is there has to say something, because
+   * a blank line in the list is an empty `<p>` on the page.
    */
-  it.each([
-    'javascript:alert(1)',
-    'data:text/html,<script>alert(1)</script>',
-    '//example.test/x',
-    'http://example.test/x',
-    '/menu',
-  ])('refuses the link %j inside an article', (href) => {
-    const problems = news(
-      'a',
-      article({ body: { blocks: [{ type: 'paragraph', spans: [{ text: 'Læs mere', href }] }] } }),
-    )
-
-    expect(problems[0]?.where).toBe('content/site/news/a.json → body → afsnit 1 → tekst 1 → href')
-    expect(problems[0]?.message).toMatch(/fuld https-adresse/)
+  it('takes the body as a plain list of paragraphs', () => {
+    expect(news('a', article({ body: ['Første afsnit.', 'Andet afsnit.'] }))).toEqual([])
+    expect(news('kladde', { published: false, body: [] })).toEqual([])
   })
 
-  it('refuses a block type the renderer has no component for', () => {
+  it('refuses a paragraph that is not text, and one that is blank', () => {
+    expect(messages(news('a', article({ body: ['Fint.', 7] })))).toMatch(
+      /body → afsnit 2: Skal være tekst i anførselstegn/,
+    )
+    expect(messages(news('a', article({ body: ['Fint.', '   '] })))).toMatch(
+      /body → afsnit 2: Skal udfyldes/,
+    )
+  })
+
+  it('refuses a body that is not a list at all', () => {
     expect(
-      messages(news('a', article({ body: { blocks: [{ type: 'image', spans: [] }] } }))),
-    ).toMatch(/Skal have "type": "paragraph"/)
+      messages(news('a', article({ body: { blocks: [{ type: 'paragraph', text: 'Hej' }] } }))),
+    ).toMatch(/Skal være en liste/)
   })
 })
 

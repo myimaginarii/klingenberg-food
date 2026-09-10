@@ -74,6 +74,14 @@ export type Dish = {
   tapas: TapasDetails | null
   /** Copenhagen-local date the item was marked sold out. `null` = available (§7b). */
   soldOutOn: IsoDate | null
+  /**
+   * "Vis på forsiden" — whether this dish is one of the ones the Forside's "Tre fra
+   * menuen" band shows (1g). It is a property of the dish rather than a list kept on
+   * the Forside, so removing a dish removes it from the Forside too and there is no
+   * reference left pointing at nothing. The band shows however many dishes carry it,
+   * in the order the menu itself is written.
+   */
+  featured: boolean
   /** The dish's library photo as the public site renders it, or `null` (phase 10C-2). */
   image: PublicImage | null
 }
@@ -167,24 +175,27 @@ export type SiteAnnouncement = {
   expiresAt: string
 }
 
-/** One run of text inside a news paragraph. The editor offers exactly bold and link (§7f). */
-export type NewsSpan = {
-  text: string
-  bold?: boolean
-  href?: string
-}
-
+/** One paragraph of a news article — the only kind of block the renderer draws. */
 export type NewsParagraph = {
   type: 'paragraph'
-  spans: NewsSpan[]
+  text: string
 }
 
 /**
- * `news.body`, stored as structured JSON rather than HTML (§8).
+ * `news.body`, as the renderer walks it (§8).
  *
- * There is no HTML parsing anywhere in the renderer, no `dangerouslySetInnerHTML`, and
- * therefore no sanitizer to get wrong. A new node type is a deliberate, reviewable
- * schema change — not an open HTML field.
+ * **On disk an article's body is a plain list of paragraphs** — `["Første afsnit.",
+ * "Andet afsnit."]` — and `lib/content/load/news.ts` is what turns that list into the
+ * blocks below. The editor writes sentences; nothing about a document model reaches
+ * the person writing the news.
+ *
+ * The block wrapper stays because it is the renderer's own shape and its extension
+ * point: `type` is what a second kind of block (a picture between two paragraphs, say)
+ * would be added as, deliberately and with a component to draw it, rather than by
+ * opening the field to markup. There is no HTML parsing anywhere in the renderer, no
+ * `dangerouslySetInnerHTML` and therefore no sanitizer to get wrong — and, since a
+ * paragraph is now one string, nothing inside an article reaches the page as anything
+ * but text.
  */
 export type NewsBody = {
   blocks: NewsParagraph[]
@@ -217,8 +228,14 @@ export type HomeDocument = {
   hero: { heading: string | null; intro: string | null; image: PublicImage | null }
   /** The confirmed result's words (`AwardContent`, shared with Om os) and the band's own photograph. */
   award: AwardContent & { image: PublicImage | null }
-  /** "Tre fra menuen" (1g): three dish ids, and the menu-price line printed beneath the cards. */
-  featured: { dishIds: string[]; note: string | null }
+  /**
+   * "Tre fra menuen" (1g): the menu-price line printed beneath the cards.
+   *
+   * *Which* dishes appear is not here. Each dish carries its own `featured` flag in
+   * `menu.json` (see {@link Dish}), so the Forside holds no list of ids that a menu
+   * edit could leave pointing at a dish that is gone.
+   */
+  featured: { note: string | null }
   aboutExcerpt: { heading: string | null; text: string | null; image: PublicImage | null }
 }
 

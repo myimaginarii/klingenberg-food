@@ -11,18 +11,26 @@
  * Both separators are accepted because both are written by hand; one or two decimals
  * are accepted for the same reason. Anything else — a number rather than a string, a
  * currency suffix, three decimals — is refused loudly at build time rather than rounded
- * into a price nobody chose.
+ * into a price nobody chose. An **empty** field is not one of those: it is a dish with
+ * no price, whichever of the two ways it was emptied.
  */
+
+import { isCleared } from './cleared'
 
 const KRONER = /^(\d+)(?:[.,](\d{1,2}))?$/
 
 /**
  * The whole number of øre a stored kroner string means — `null` for a priceless entry.
  *
+ * A price field that was never filled in is `null` when the JSON was written by hand
+ * and `""` when it was cleared in a Pages CMS form (`./cleared.ts`). Both are the same
+ * answer — this entry has no price — and both give `null`. Anything else non-empty is
+ * still parsed, so a price typed wrong is refused rather than dropped.
+ *
  * @param where What is being priced, for the message a bad value produces.
  */
 export function oreFromKroner(value: string | null | undefined, where: string): number | null {
-  if (value === null || value === undefined) return null
+  if (isCleared(value)) return null
 
   const match = typeof value === 'string' ? KRONER.exec(value.trim()) : null
   if (match === null) {

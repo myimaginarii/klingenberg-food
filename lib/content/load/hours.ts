@@ -10,6 +10,7 @@ import { WEEKDAY_KEYS, type IsoDate, type IsoTime, type WeekdayKey } from '@/lib
 import { validateHours } from '../validate/hours'
 import { assertValid } from '../validate/problems'
 
+import { stored } from './cleared'
 import { contentPath, once, readContentJson } from './source'
 
 /**
@@ -68,8 +69,10 @@ export function openingHoursFrom(file: HoursFile, where: string): OpeningHours {
     (override): OpeningHoursOverride => ({
       date: override.date,
       kind: override.kind,
-      opensAt: override.opensAt ?? null,
-      closesAt: override.closesAt ?? null,
+      // A closed day has no times, and a Pages CMS form clears a time field to `""`
+      // rather than to `null` (`./cleared.ts`). The engine takes `null` for "no time".
+      opensAt: stored(override.opensAt),
+      closesAt: stored(override.closesAt),
       status: override.status,
     }),
   )
