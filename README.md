@@ -16,7 +16,7 @@ static host serves it.
 ## How it works
 
 ```
-content/site/*.ts        the restaurant's content, as typed TypeScript
+content/site/**/*.json   the restaurant's content, as JSON read by lib/content/load/
 content/launch/photos/   the photographs, as supplied
         │
         │  npm run build
@@ -31,12 +31,12 @@ nothing to log into and nothing to keep running.
 
 | What | Where |
 |---|---|
-| Menu: nine sections, forty-six dishes, the tapas board | [`content/site/menu.ts`](content/site/menu.ts) |
-| Opening hours and one-off changes | [`content/site/hours.ts`](content/site/hours.ts) |
-| Address, telephone numbers, e-mail, Facebook | [`content/site/contact.ts`](content/site/contact.ts) |
-| Forside, Om os and Mad ud af huset wording | [`content/site/pages.ts`](content/site/pages.ts) |
-| News articles (there are none yet) | [`content/site/news.ts`](content/site/news.ts) |
-| The sitewide message bar (there is none) | [`content/site/announcement.ts`](content/site/announcement.ts) |
+| Menu: nine sections, forty-six dishes, the tapas board | [`content/site/menu.json`](content/site/menu.json), [`weekly-special.json`](content/site/weekly-special.json), [`monthly-burger.json`](content/site/monthly-burger.json) |
+| Opening hours and one-off changes | [`content/site/hours.json`](content/site/hours.json) |
+| Address, telephone numbers, e-mail, Facebook | [`content/site/contact.json`](content/site/contact.json) |
+| Forside, Om os and Mad ud af huset wording | [`content/site/pages/`](content/site/pages/), the award in [`award.json`](content/site/award.json) |
+| News articles (there are none yet) | [`content/site/news/`](content/site/news/) |
+| The sitewide message bar (there is none) | [`content/site/announcement.json`](content/site/announcement.json) |
 | The photographs, and the description each one carries | [`content/site/photos.json`](content/site/photos.json) |
 
 Each file explains what it holds and what adding an entry means. Nothing is invented:

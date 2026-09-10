@@ -1,6 +1,6 @@
-import { SITE_ANNOUNCEMENT } from '@/content/site/announcement'
-import { SITE_CONTACT } from '@/content/site/contact'
-import { OPENING_HOURS } from '@/content/site/hours'
+import { loadAnnouncement } from '@/lib/content/load/announcement'
+import { loadContact } from '@/lib/content/load/contact'
+import { loadOpeningHours } from '@/lib/content/load/hours'
 import { directionsUrl, toPostalAddress } from '@/lib/site/links'
 import { FOOTER_NAV, MAIN_NAV } from '@/lib/site/navigation'
 
@@ -15,7 +15,8 @@ import { SiteHeader } from '@/components/site/layout/SiteHeader'
  * Header, content, footer and the persistent mobile bar, built once here so that the
  * six pages and the 404 cannot drift apart. Everything the shell needs — the contact
  * facts, the opening hours, the navigation and the announcement — is the tracked
- * content under `content/site/`, read at build time; the site has no database.
+ * content under `content/site/`, read at build time through `lib/content/load/`; the
+ * site has no database.
  *
  * **The announcement bar** (1ac) sits in the flow above `<SiteHeader>`.
  * `<AnnouncementRegion>` renders nothing when there is no current message, so a site
@@ -29,7 +30,9 @@ import { SiteHeader } from '@/components/site/layout/SiteHeader'
  * for an address that matches no route, so a lost guest keeps the navigation.
  */
 export function SiteShell({ children }: { children: React.ReactNode }) {
-  const address = toPostalAddress(SITE_CONTACT)
+  const contact = loadContact()
+  const hours = loadOpeningHours()
+  const address = toPostalAddress(contact)
 
   return (
     <div className="flex min-h-screen flex-col pb-[calc(var(--spacing-bottom-nav)+env(safe-area-inset-bottom))] md:pb-0">
@@ -43,13 +46,13 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         Spring til indhold
       </a>
 
-      <AnnouncementRegion announcement={SITE_ANNOUNCEMENT} />
+      <AnnouncementRegion announcement={loadAnnouncement()} />
 
       <SiteHeader
         items={MAIN_NAV}
-        contact={SITE_CONTACT}
-        schedule={OPENING_HOURS.schedule}
-        overrides={OPENING_HOURS.overrides}
+        contact={contact}
+        schedule={hours.schedule}
+        overrides={hours.overrides}
       />
 
       {/* A flex column, so a page shorter than the viewport (Nyheder with nothing
@@ -60,10 +63,10 @@ export function SiteShell({ children }: { children: React.ReactNode }) {
         {children}
       </main>
 
-      <SiteFooter items={FOOTER_NAV} contact={SITE_CONTACT} schedule={OPENING_HOURS.schedule} />
+      <SiteFooter items={FOOTER_NAV} contact={contact} schedule={hours.schedule} />
 
       <MobileBottomNav
-        primaryPhone={SITE_CONTACT.primaryPhone}
+        primaryPhone={contact.primaryPhone}
         directionsHref={address === null ? null : directionsUrl(address)}
       />
     </div>

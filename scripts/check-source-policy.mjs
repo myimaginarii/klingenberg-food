@@ -45,13 +45,26 @@ const DOMAIN_ALLOWED_FILES = new Set(
     'lib/config/site.ts',
     'scripts/check-source-policy.mjs',
     'scripts/serve-static.mjs',
+    // The suite that runs this script over fixture trees has to name an outside address.
+    'tests/unit/policy/source-policy.test.ts',
     'README.md',
     'package-lock.json',
   ].map(normalise),
 )
 
-/** Directories exempt from the domain rule (documentation records decisions, not code). */
-const DOMAIN_ALLOWED_DIRS = ['docs/']
+/**
+ * Directories exempt from the domain rule.
+ *
+ *   * `docs/` records decisions; it is not code.
+ *   * `content/site/` is the restaurant's editable content, read by the loaders in
+ *     `lib/content/load/` at build time. An address written there — the Facebook page,
+ *     an announcement's link, a news article's link — is a *fact the restaurant states*,
+ *     not the site's own origin baked into its source, so the §10d rule ("choosing our
+ *     domain later must be configuration, not a code change") does not apply to it.
+ *     Only the domain rule is relaxed: the no-backend rule below still scans every
+ *     content file, because a backend name is wrong wherever it appears.
+ */
+const DOMAIN_ALLOWED_DIRS = ['docs/', 'content/site/']
 
 /**
  * Hosts that are infrastructure rather than "our site". Each one is here because a
@@ -66,10 +79,10 @@ const ALLOWED_HOSTS = new Set([
   'www.schema.org',
   'www.w3.org', // SVG / XML namespaces
   'www.google.com', // Google Maps directions URL and the Find os embed (§7g)
-  // The restaurant's Facebook page is a confirmed business fact and is tracked as
-  // content in `content/site/contact.ts`. It is a third-party profile URL, not this
-  // site's origin, so the §10d rule — "choosing our domain later must be
-  // configuration, not a code change" — does not apply to it.
+  // The restaurant's Facebook page is a confirmed business fact, tracked as content in
+  // `content/site/contact.json` (exempt above) and asserted by name in the unit suites
+  // under `tests/`, which are not. It is a third-party profile URL, not this site's
+  // origin, so the §10d rule does not apply to it there either.
   'www.facebook.com',
 ])
 
@@ -114,8 +127,8 @@ const BACKEND_NAMES = [
 
 /**
  * Where a backend name may still be written down: the documentation that records why
- * the backend was retired, this file, which has to name what it forbids, and the two
- * suites that assert the same absence from inside the application tree.
+ * the backend was retired, this file, which has to name what it forbids, and the
+ * suites that assert the same absence from inside the application tree or exercise this script.
  */
 const BACKEND_ALLOWED_FILES = new Set(
   [
@@ -124,6 +137,7 @@ const BACKEND_ALLOWED_FILES = new Set(
     'package-lock.json',
     'tests/unit/policy/public-javascript.test.ts',
     'tests/unit/announcements/expiry-guard-source.test.ts',
+    'tests/unit/policy/source-policy.test.ts',
   ].map(normalise),
 )
 const BACKEND_ALLOWED_DIRS = ['docs/']

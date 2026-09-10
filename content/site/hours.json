@@ -1,0 +1,12 @@
+{
+  "schedule": {
+    "mon": { "closed": true, "from": null, "to": null },
+    "tue": { "closed": true, "from": null, "to": null },
+    "wed": { "closed": false, "from": "15:00", "to": "20:00" },
+    "thu": { "closed": false, "from": "15:00", "to": "20:00" },
+    "fri": { "closed": false, "from": "15:00", "to": "20:00" },
+    "sat": { "closed": false, "from": "17:00", "to": "20:00" },
+    "sun": { "closed": false, "from": "17:00", "to": "20:00" }
+  },
+  "overrides": []
+}

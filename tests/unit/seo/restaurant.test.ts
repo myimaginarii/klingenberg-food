@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
-import { SITE_CONTACT } from '@/content/site/contact'
-import { OPENING_HOURS } from '@/content/site/hours'
+import { loadContact } from '@/lib/content/load/contact'
+import { loadOpeningHours } from '@/lib/content/load/hours'
 import type { SiteContact } from '@/lib/content/types'
 import { buildStaticPublicImage, seoImageOf } from '@/lib/images/public'
 import { serializeJsonLd } from '@/lib/seo/json-ld'
@@ -30,9 +30,9 @@ const IMAGE = seoImageOf(
 
 function block(overrides: Partial<Parameters<typeof restaurantJsonLd>[0]> = {}) {
   return restaurantJsonLd({
-    contact: SITE_CONTACT,
-    schedule: OPENING_HOURS.schedule,
-    overrides: OPENING_HOURS.overrides,
+    contact: loadContact(),
+    schedule: loadOpeningHours().schedule,
+    overrides: loadOpeningHours().overrides,
     ...overrides,
   })
 }
@@ -197,7 +197,7 @@ describe('specialOpeningHoursJsonLd', () => {
   })
 
   it('is absent from the block while the tracked content lists no override', () => {
-    expect(OPENING_HOURS.overrides).toEqual([])
+    expect(loadOpeningHours().overrides).toEqual([])
     expect('specialOpeningHoursSpecification' in block()).toBe(false)
   })
 })

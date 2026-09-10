@@ -1,13 +1,16 @@
 import { AboutPageContent } from '@/components/site/about/AboutPageContent'
 import { socialImage } from '@/content/site/images'
-import { ABOUT_PAGE } from '@/content/site/pages'
+import { loadAward } from '@/lib/content/load/award'
+import { loadAboutPage } from '@/lib/content/load/pages'
 import { pageMetadata } from '@/lib/seo/metadata'
 
 /**
  * Om os — design 1i.
  *
- * The page renders the tracked Om os document (`content/site/pages.ts`) and no more:
- * the story, the team's paragraph, the method and the venue photograph. The team and
+ * The page renders the tracked Om os document (`content/site/pages/about.json`, read
+ * through `lib/content/load/`) and no more: the story, the team's paragraph, the
+ * method and the venue photograph. The award band prints the one confirmed result
+ * (`content/site/award.json`), the same words the Forside's band carries. The team and
  * kitchen frames have no supplied photograph and render text-only, by design.
  */
 export const metadata = pageMetadata(
@@ -17,5 +20,5 @@ export const metadata = pageMetadata(
 )
 
 export default function OmOsPage() {
-  return <AboutPageContent about={ABOUT_PAGE} />
+  return <AboutPageContent about={loadAboutPage()} award={loadAward()} />
 }

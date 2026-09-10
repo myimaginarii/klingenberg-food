@@ -1,7 +1,6 @@
-import { SITE_CONTACT } from '@/content/site/contact'
 import { socialImage } from '@/content/site/images'
-import { TAKEAWAY_PAGE } from '@/content/site/pages'
-import { TAKEAWAY_DEFAULT_CTA_LABEL } from '@/lib/site/defaults'
+import { loadContact } from '@/lib/content/load/contact'
+import { loadTakeawayPage } from '@/lib/content/load/pages'
 import { pageMetadata } from '@/lib/seo/metadata'
 
 import { PageContainer } from '@/components/site/PageContainer'
@@ -20,13 +19,15 @@ import { TakeawayCallToAction } from '@/components/site/takeaway/TakeawayCallToA
  *
  * Two surfaces: the hero, which carries the heading, the intro and both numbers as the
  * page's `tel:` controls, and one burgundy band beneath it with the tracked section and
- * a single "Ring og hør mere" action. The band deliberately repeats neither the page
- * title as an eyebrow nor the numbers; the pre-launch pass found the earlier layout
- * saying "ring til os" four times over on one screen.
+ * a single call to action. The band deliberately repeats neither the page title as an
+ * eyebrow nor the numbers; the pre-launch pass found the earlier layout saying "ring
+ * til os" four times over on one screen.
  *
- * The words and the photograph are the tracked document (`content/site/pages.ts`):
- * 1aj's "Billede (valgfrit)" in 1ai's 4:3 frame, rendered by the one public renderer.
- * Without one, *"fylder teksten hele bredden"* (1aj) - no frame is reserved.
+ * The words, the button's label, the line under the numbers and the photograph are the
+ * tracked document (`content/site/pages/takeaway.json`, read through
+ * `lib/content/load/`): 1aj's "Billede (valgfrit)" in 1ai's 4:3 frame, rendered by the
+ * one public renderer. Without one, *"fylder teksten hele bredden"* (1aj) - no frame is
+ * reserved.
  */
 export const metadata = pageMetadata(
   'Mad ud af huset',
@@ -34,11 +35,9 @@ export const metadata = pageMetadata(
   { path: '/mad-ud-af-huset', image: socialImage('takeaway') },
 )
 
-const PHONE_NOTE = 'Bestilling og aftaler klarer vi over telefonen.'
-
 export default function MadUdAfHusetPage() {
-  const takeaway = TAKEAWAY_PAGE
-  const contact = SITE_CONTACT
+  const takeaway = loadTakeawayPage()
+  const contact = loadContact()
 
   return (
     <>
@@ -58,7 +57,7 @@ export default function MadUdAfHusetPage() {
               {contact.primaryPhone ? (
                 <PhoneAction
                   phone={contact.primaryPhone}
-                  label={takeaway.ctaLabel ?? TAKEAWAY_DEFAULT_CTA_LABEL}
+                  label={takeaway.ctaLabel}
                   stacked
                   size="large"
                   block
@@ -77,7 +76,9 @@ export default function MadUdAfHusetPage() {
               ) : null}
             </div>
 
-            <p className="text-ink-3 text-detail mt-2.5">{PHONE_NOTE}</p>
+            {takeaway.phoneNote ? (
+              <p className="text-ink-3 text-detail mt-2.5">{takeaway.phoneNote}</p>
+            ) : null}
           </div>
 
           {takeaway.image === null ? null : (
@@ -96,7 +97,7 @@ export default function MadUdAfHusetPage() {
       <TakeawayCallToAction
         sections={takeaway.sections}
         primaryPhone={contact.primaryPhone}
-        ctaLabel={takeaway.ctaLabel ?? TAKEAWAY_DEFAULT_CTA_LABEL}
+        ctaLabel={takeaway.ctaLabel}
       />
     </>
   )

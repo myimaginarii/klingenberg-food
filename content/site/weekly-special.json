@@ -1,0 +1,20 @@
+{
+  "active": false,
+  "isoYear": null,
+  "isoWeek": null,
+  "days": [],
+  "name": null,
+  "description": null,
+  "priceSmall": null,
+  "priceLarge": null,
+  "soldOutOn": null,
+  "photo": null,
+  "saturday": {
+    "enabled": false,
+    "name": null,
+    "description": null,
+    "price": null,
+    "deadline": null,
+    "soldOutOn": null
+  }
+}

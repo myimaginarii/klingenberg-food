@@ -4,7 +4,7 @@ import { Eyebrow } from '@/components/site/Eyebrow'
 import { PageContainer } from '@/components/site/PageContainer'
 import { Section } from '@/components/site/Section'
 import { SiteImage } from '@/components/site/SiteImage'
-import type { AboutDocument } from '@/lib/content/types'
+import type { AboutDocument, AwardContent } from '@/lib/content/types'
 import { ABOUT_DEFAULT_HEADING, ABOUT_DEFAULT_METHOD_HEADING } from '@/lib/site/defaults'
 
 /**
@@ -30,27 +30,23 @@ import { ABOUT_DEFAULT_HEADING, ABOUT_DEFAULT_METHOD_HEADING } from '@/lib/site/
  * eller roller" (1i). That simplification is respected: there is no team-member list.
  *
  * THE AWARD BAND IS NOT THE DOCUMENT'S. Its words are the confirmed competition result
- * (1ab) and are stated here, once; its photograph is the Forside document's own
- * (`home.award.image_id`, the Owner's). Om os carries no second award source, so the
- * band draws no photograph frame (§0am). The seal beside the words is the same tracked
- * competition seal the Forside shows (`seal="supplied"`, `public/brand/award.png`), not
- * a second copy of it.
+ * (1ab) — the one tracked `award` (`content/site/award.json`), the same words the
+ * Forside's band carries, handed in beside the document so the two pages cannot state
+ * two different headlines for one competition. Its photograph is the Forside document's
+ * own; Om os carries no second award source, so the band draws no photograph frame
+ * (§0am). The seal beside the words is the same tracked competition seal the Forside
+ * shows (`seal="supplied"`, `public/brand/award.png`), not a second copy of it.
  */
 
 const TEAM_HEADING = 'Holdet'
-/**
- * The same words the Forside's band carries (`HOME_PAGE.award` in
- * `content/site/pages.ts`, and its fallback in `app/(site)/page.tsx`): the regional win
- * and the national placing, worded so neither can be read as having won Denmark. The
- * two pages state one result, so they have to state it identically — a guest who reads
- * the band on the Forside and again on Om os must not meet two different headlines.
- */
-const AWARD = {
-  title: 'Fyns bedste burger 2026 og nr. 4 i Danmark',
-  text: 'Ved Danmarks Bedste Burger 2026 vandt vi regionen Fyn & Øer, og på landsplan blev vi nr. 4. I konkurrencen er vi opført som Carl Nielsen Caféen, Årslev.',
-}
 
-export function AboutPageContent({ about }: { about: AboutDocument | null }) {
+export function AboutPageContent({
+  about,
+  award,
+}: {
+  about: AboutDocument | null
+  award: AwardContent
+}) {
   return (
     <>
       <PageContainer className="py-page-mobile md:py-page">
@@ -82,8 +78,8 @@ export function AboutPageContent({ about }: { about: AboutDocument | null }) {
 
       <AwardBand
         headingId="om-os-udmaerkelse"
-        title={AWARD.title}
-        text={AWARD.text}
+        title={award.title}
+        text={award.text}
         sealFirst
         seal="supplied"
       />

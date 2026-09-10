@@ -2,8 +2,9 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 
 import { AboutPageContent } from '@/components/site/about/AboutPageContent'
-import { HOME_PAGE } from '@/content/site/pages'
-import type { AboutDocument } from '@/lib/content/types'
+import { loadAward } from '@/lib/content/load/award'
+import { loadHomePage } from '@/lib/content/load/pages'
+import type { AboutDocument, AwardContent } from '@/lib/content/types'
 import { buildStaticPublicImage, IMAGE_SIZES } from '@/lib/images/public'
 
 /**
@@ -31,8 +32,10 @@ const WORDS: AboutDocument = {
   method: { heading: 'Sådan laver vi burgere', text: 'Råvarer og brød.', image: null },
 }
 
-function render(about: AboutDocument | null): string {
-  return renderToStaticMarkup(<AboutPageContent about={about} />)
+const AWARD: AwardContent = loadAward()
+
+function render(about: AboutDocument | null, award: AwardContent = AWARD): string {
+  return renderToStaticMarkup(<AboutPageContent about={about} award={award} />)
 }
 
 describe('the words', () => {
@@ -62,11 +65,19 @@ describe('the words', () => {
 
   it('states the award in exactly the Forside document\'s words, so the two bands agree', () => {
     const html = render(WORDS)
-    // One result, told once. HOME_PAGE.award is the Forside's copy of the same wording
-    // (`app/(site)/page.tsx` carries it again as the empty-document fallback); if any of
-    // the three drifts, a guest meets two different headlines for one competition.
-    expect(html).toContain(HOME_PAGE.award.title?.replace(/&/g, '&amp;'))
-    expect(html).toContain(HOME_PAGE.award.text?.replace(/&/g, '&amp;'))
+    // One result, told once: both pages read `content/site/award.json`. If the Forside
+    // document ever carried different words, a guest would meet two different
+    // headlines for one competition.
+    const home = loadHomePage()
+    expect(html).toContain(home.award.title.replace(/&/g, '&amp;'))
+    expect(html).toContain(home.award.text.replace(/&/g, '&amp;'))
+  })
+
+  it('prints whatever award it is handed, and nothing of its own', () => {
+    const html = render(WORDS, { title: 'Titel til prøve', text: 'Tekst til prøve.' })
+    expect(html).toContain('Titel til prøve')
+    expect(html).toContain('Tekst til prøve.')
+    expect(html).not.toContain('Fyns bedste burger')
   })
 })
 

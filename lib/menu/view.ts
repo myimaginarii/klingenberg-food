@@ -128,7 +128,7 @@ export function buildMenuView(
 }
 
 /**
- * The three dishes the Forside features, in the order `content/site/pages.ts` lists them.
+ * The three dishes the Forside features, in the order `content/site/pages/` lists them.
  *
  * A referenced dish that has since been deleted or unpublished simply drops out — the
  * design shows three cards, never a hole where one used to be (§7e, item 4).

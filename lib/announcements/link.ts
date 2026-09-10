@@ -14,7 +14,7 @@ import { MAIN_NAV, type SiteRoute } from '@/lib/site/navigation'
  *     so neither can be shipped without the other.
  *
  * Everything here is pure: it decides what a tracked announcement *means*. The
- * announcement itself is `content/site/announcement.ts`, so the only way a link reaches
+ * announcement itself is `content/site/announcement.json`, so the only way a link reaches
  * a page is through a tracked, reviewed commit — but the rules stand anyway, because a
  * typo in a commit is exactly as capable of producing a bad anchor as a form was.
  *

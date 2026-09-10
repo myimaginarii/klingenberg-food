@@ -7,19 +7,16 @@ import type { DishView } from '@/lib/menu/view'
 /**
  * "Tre fra menuen" — design 1g and 1l.
  *
- * Which three is an editorial choice the owner makes in the Forsiden editor
- * (`pages.home.featured_dish_ids`, §5); this component only renders whichever dishes
- * that list currently points at. A dish that has since been deleted simply drops out
- * rather than leaving a hole (§7e, item 4).
+ * Which three is an editorial choice made in the Forside document
+ * (`content/site/pages/home.json`, `featured.dishIds`); this component only renders
+ * whichever dishes that list currently points at. A dish that has since been deleted
+ * simply drops out rather than leaving a hole (§7e, item 4).
  *
- * The menu-price line beneath the cards is page copy from 1g. It moves into the Forsiden
- * document when that editor is built in phase 11; until then it lives here, beside the
- * cards it describes, rather than being invented per render.
+ * The menu-price line beneath the cards is the same document's `featured.note` — it
+ * states a price, so it is the restaurant's to edit beside the cards it describes.
+ * Without one, no line is drawn.
  */
-const MENU_PRICE_NOTE =
-  'Alle burgere kan bestilles som menu med pommes frites og sodavand fra 124 kr.'
-
-export function FeaturedDishes({ dishes }: { dishes: DishView[] }) {
+export function FeaturedDishes({ dishes, note }: { dishes: DishView[]; note: string | null }) {
   if (dishes.length === 0) return null
 
   return (
@@ -42,10 +39,12 @@ export function FeaturedDishes({ dishes }: { dishes: DishView[] }) {
         ))}
       </ul>
 
-      <p className="text-ink-2 mt-4 flex items-center gap-2.5 tabular-nums">
-        <span aria-hidden="true" className="bg-rule size-2 shrink-0 rounded-full" />
-        {MENU_PRICE_NOTE}
-      </p>
+      {note ? (
+        <p className="text-ink-2 mt-4 flex items-center gap-2.5 tabular-nums">
+          <span aria-hidden="true" className="bg-rule size-2 shrink-0 rounded-full" />
+          {note}
+        </p>
+      ) : null}
     </Section>
   )
 }
