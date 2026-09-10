@@ -83,7 +83,7 @@
         {
           "name": "Fish n' chips",
           "id": "fish-n-chips",
-          "price": "86",
+          "price": "85",
           "featured": false,
           "photo": {
             "focus": "center"
