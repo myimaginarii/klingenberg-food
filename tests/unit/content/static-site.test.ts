@@ -1,10 +1,10 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { describe, expect, it } from 'vitest'
 
-import { launchPhoto } from '@/content/site/images'
-import photos from '@/content/site/photos.json'
+import { resolvePhoto } from '@/lib/content/load/photo'
+import { readImageManifest } from '@/lib/images/manifest'
 import { loadAnnouncement } from '@/lib/content/load/announcement'
 import { loadAward } from '@/lib/content/load/award'
 import { loadContact } from '@/lib/content/load/contact'
@@ -37,6 +37,9 @@ const EVERY_DISH = MENU_CATEGORIES.flatMap((category) => category.dishes)
 const HOME = loadHomePage()
 const ABOUT = loadAboutPage()
 const TAKEAWAY = loadTakeawayPage()
+
+/** One dish by id — the menu names four of them in the photograph assertions below. */
+const dish = (id: string) => EVERY_DISH.find((entry) => entry.id === id)
 
 describe('the confirmed menu', () => {
   it('has exactly the nine sections, in the approved order', () => {
@@ -221,29 +224,59 @@ describe('the content files', () => {
 })
 
 describe('the photographs', () => {
-  it('fill exactly the slots the launch record names', () => {
-    expect(HOME.hero.image).toEqual(launchPhoto('home-hero'))
-    expect(HOME.aboutExcerpt.image).toEqual(launchPhoto('about-venue'))
-    expect(ABOUT.venueImage).toEqual(launchPhoto('about-venue'))
-    expect(TAKEAWAY.image).toEqual(launchPhoto('takeaway'))
-    expect(EVERY_DISH.find((dish) => dish.id === 'odin')?.image).toEqual(launchPhoto('dish-odin'))
-    expect(EVERY_DISH.find((dish) => dish.id === 'ragnar')?.image).toEqual(launchPhoto('dish-ragnar'))
-    expect(EVERY_DISH.find((dish) => dish.id === 'frigg')?.image).toEqual(launchPhoto('dish-frigg'))
-    expect(EVERY_DISH.find((dish) => dish.id === 'glade-gris')?.image).toEqual(
-      launchPhoto('dish-glade-gris'),
+  /** The image a content field would produce for this file — the loader, not a copy of it. */
+  function photo(file: string, alt = '', focus = 'center') {
+    return resolvePhoto({ file, alt, focus }, 'tests/unit/content/static-site.test.ts')
+  }
+
+  it('are the files the content selects, and no frame invents one', () => {
+    expect(HOME.hero.image).toEqual(photo('/photos/home-hero.png', 'Burger med bacon og spejlæg'))
+    expect(HOME.aboutExcerpt.image).toEqual(
+      photo('/photos/about-venue.png', 'Spisesalen hos Klingenberg Food'),
     )
-    // Thor and the other frames have no supplied photograph and stay their no-image state.
-    expect(EVERY_DISH.find((dish) => dish.id === 'thor')?.image).toBeNull()
+    expect(ABOUT.venueImage).toEqual(
+      photo('/photos/about-venue.png', 'Spisesalen hos Klingenberg Food'),
+    )
+    expect(TAKEAWAY.image).toEqual(photo('/photos/takeaway.png', 'Tre sandwiches'))
+    expect(dish('odin')?.image).toEqual(photo('/photos/dish-odin.png'))
+    expect(dish('ragnar')?.image).toEqual(photo('/photos/dish-ragnar.png'))
+    expect(dish('glade-gris')?.image).toEqual(photo('/photos/dish-glade-gris.png'))
+
+    // Frigg's photograph is a portrait whose subject stands high on the plate, so the
+    // menu's square frame keeps its top rather than its centre (see ImageFocus). The
+    // Forside's featured card anchors its own 3:2 frame; the selected crop is the
+    // dish's, once, and each frame is free to hold it where its shape needs.
+    expect(dish('frigg')?.image).toEqual(photo('/photos/dish-frigg.png', '', 'upper'))
+    expect(dish('frigg')?.image?.focus).toBe('upper')
+
+    // Thor has no supplied photograph and renders the menu's reserved "Retfoto" frame;
+    // the other empty frames are text-only by design. Nothing is faked to fill them.
+    expect(dish('thor')?.image).toBeNull()
     expect(HOME.award.image).toBeNull()
     expect(ABOUT.team.image).toBeNull()
     expect(ABOUT.method.image).toBeNull()
-    expect(EVERY_DISH.filter((dish) => dish.image !== null)).toHaveLength(4)
+    expect(MENU.weeklySpecial.image).toBeNull()
+    expect(EVERY_DISH.filter((entry) => entry.image !== null)).toHaveLength(4)
   })
 
-  it('name only rungs the ladder plans for the recorded size, under /media/', () => {
-    for (const [slot, photo] of Object.entries(photos.photos)) {
-      const image = launchPhoto(slot as keyof typeof photos.photos)
-      const planned = planDerivatives(photo.width, photo.height)
+  it('hear their tracked description, or nothing at all — never an invented one', () => {
+    // The dish photographs sit beside the heading that already names the dish, so an
+    // empty description is the correct answer and renders alt="".
+    for (const id of ['odin', 'frigg', 'ragnar', 'glade-gris']) {
+      expect(dish(id)?.image?.alt, id).toBe('')
+    }
+    expect(HOME.hero.image?.alt).toBe('Burger med bacon og spejlæg')
+    expect(ABOUT.venueImage?.alt).toBe('Spisesalen hos Klingenberg Food')
+    expect(TAKEAWAY.image?.alt).toBe('Tre sandwiches')
+  })
+
+  it('name only rungs the ladder plans for the measured size, under /media/', () => {
+    const manifest = readImageManifest().photos
+    expect(Object.keys(manifest).length).toBeGreaterThan(0)
+
+    for (const [slot, measured] of Object.entries(manifest)) {
+      const image = photo(`/photos/${measured.file}`)!
+      const planned = planDerivatives(measured.width, measured.height)
 
       expect(image.candidates.map((candidate) => [candidate.width, candidate.height])).toEqual(
         planned.map((size) => [size.width, size.height]),
@@ -254,7 +287,42 @@ describe('the photographs', () => {
       }
       expect(image.width).toBe(planned[planned.length - 1]!.width)
       expect(image.src).toMatch(/\.webp$/)
-      expect(image.alt).toBe(photo.alt ?? '')
+    }
+  })
+
+  /**
+   * The promise the whole pipeline exists to keep: a page never names a file the build
+   * did not write. Every URL the site would print is checked against the directory the
+   * prebuild step rendered — which is also what proves the reconciliation is honest,
+   * because a stale folder cannot satisfy a URL nothing emits.
+   */
+  it('emit only URLs that exist as rendered derivatives', () => {
+    const rendered = [
+      HOME.hero.image,
+      HOME.award.image,
+      HOME.aboutExcerpt.image,
+      ABOUT.venueImage,
+      ABOUT.team.image,
+      ABOUT.method.image,
+      TAKEAWAY.image,
+      MENU.weeklySpecial.image,
+      MENU.monthlyBurger?.image ?? null,
+      ...EVERY_DISH.map((entry) => entry.image),
+    ].filter((image) => image !== null)
+
+    const urls = new Set<string>()
+    for (const image of rendered) {
+      urls.add(image.src)
+      for (const candidate of image.candidates) {
+        urls.add(candidate.avifUrl)
+        urls.add(candidate.webpUrl)
+      }
+    }
+
+    expect(urls.size).toBeGreaterThan(0)
+    for (const url of urls) {
+      expect(url.startsWith('/media/'), url).toBe(true)
+      expect(existsSync(join(process.cwd(), 'public', ...url.split('/'))), url).toBe(true)
     }
   })
 
@@ -265,5 +333,9 @@ describe('the photographs', () => {
     ])
     expect(image.src).toBe('/media/small/300.webp')
     expect(image.avifSrcSet).toBe('/media/small/300.avif 300w')
+
+    const everything = JSON.stringify([HOME.hero.image, dish('odin')?.image])
+    expect(everything).not.toContain('/photos/')
+    expect(everything).not.toContain('.png')
   })
 })

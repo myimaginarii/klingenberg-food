@@ -12,21 +12,21 @@
           "price": "89",
           "description": "200 g dry aged bøf, sennepsmayo, bacon, cheddar, karameliserede løg, bøftomat, iceberg og briochebolle.",
           "labels": ["Populær"],
-          "photo": "dish-odin"
+          "photo": { "file": "/photos/dish-odin.png", "alt": "", "focus": "center" }
         },
         {
           "id": "frigg",
           "name": "Frigg",
           "price": "89",
           "description": "Sprød panko-kylling, avocadomos, syltede rødløg, semi-dried tomat, hjertesalat og briochebolle.",
-          "photo": "dish-frigg"
+          "photo": { "file": "/photos/dish-frigg.png", "alt": "", "focus": "upper" }
         },
         {
           "id": "ragnar",
           "name": "Ragnar",
           "price": "97",
           "description": "Sliced oksefilet, peberbacon, kartoffelsticks, estragonmayo, peber-spiced cheddar, syltede agurker, iceberg og briochebolle.",
-          "photo": "dish-ragnar"
+          "photo": { "file": "/photos/dish-ragnar.png", "alt": "", "focus": "center" }
         },
         {
           "id": "thor",
@@ -40,7 +40,7 @@
           "price": "89",
           "description": "Pulled pork, puffede svær, rødkål, chilimayo, icebergsalat og briochebolle.",
           "labels": ["Pulled pork"],
-          "photo": "dish-glade-gris"
+          "photo": { "file": "/photos/dish-glade-gris.png", "alt": "", "focus": "center" }
         }
       ]
     },

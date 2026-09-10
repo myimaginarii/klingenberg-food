@@ -1,7 +1,8 @@
 # Launch content — safeguarded source material
 
 This folder holds the source material needed to reproduce the finished public site's
-real copy and photographs. It is **not read by the application** at build or run time.
+real copy, and the record of where each photograph came from. It is **not read by the
+application** at build or run time.
 It was created before the static rebuild (branch `static-rebuild`, archive tag
 `pre-static-rebuild`) so that the finished design could not be lost when the
 Supabase/admin architecture was retired. It since has been: the site now renders from
@@ -21,23 +22,32 @@ of which survived a database reset. The table below is now the whole record.
   On 2026-09-08 the wording the site renders (`content/site/pages/`, the award band,
   the menu notes and the empty states) was revised for natural Danish; the facts,
   names, prices and numbers are unchanged, and this file stays as supplied.
-- `photos/` — the supplied photographs the finished design actually uses, byte for
-  byte as supplied, renamed after the slot they fill.
+- `photos/` — the supplied photographs that fill no slot in the finished design but are
+  identified. Only `dish-tapas.png` is left here (see the table).
+
+**The photographs the site renders moved out of this folder on 2026-09-10.** They now
+live in `public/photos/`, one tracked file each, named for the thing they show — that
+directory is the site's photograph library and the folder a future Pages CMS uploads
+into, so a photograph is selected by picking a file rather than by editing a registry.
+Every file below is byte for byte the one that was supplied; only the name changed, and
+the table stays the record of where each one came from.
 
 | Tracked file | Supplied as | Where the finished design uses it |
 |---|---|---|
-| `photos/home-hero-bacon-egg-burger.png` | `bacon-egg-burger.png` | Forside hero photograph (an unnamed dish; the hero makes no dish claim) |
-| `photos/about-venue-dining-room.png` | `facade.png` | Om os venue slot ("Billede af stedet" — the dining room, not an exterior) **and** the Forside "Om os (uddrag)" slot: one photograph, two surfaces |
-| `photos/takeaway-sandwich-trio.png` | `sandwich-trio.png` | Mad ud af huset page photograph |
-| `photos/dish-odin.png` | `odin.png` | The **Odin** dish's photograph on the menu |
-| `photos/dish-ragnar.png` | `ragnar.png` | The **Ragnar** dish's photograph on the menu |
-| `photos/dish-frigg.png` | `double-crispy-chicken-burger.png` | The **Frigg** dish's photograph on the menu and the Forside, **as a temporary stand-in** (2026-09-08): no file named for Frigg was supplied, and this one matches Frigg's confirmed ingredients (panko chicken, pickled red onion, semi-dried tomato, little gem, brioche). The restaurant should confirm or replace it |
+| `public/photos/home-hero.png` | `bacon-egg-burger.png` | Forside hero photograph (an unnamed dish; the hero makes no dish claim) |
+| `public/photos/about-venue.png` | `facade.png` | Om os venue slot ("Billede af stedet" — the dining room, not an exterior) **and** the Forside "Om os (uddrag)" slot: one photograph, two surfaces |
+| `public/photos/takeaway.png` | `sandwich-trio.png` | Mad ud af huset page photograph |
+| `public/photos/dish-odin.png` | `odin.png` | The **Odin** dish's photograph on the menu |
+| `public/photos/dish-ragnar.png` | `ragnar.png` | The **Ragnar** dish's photograph on the menu |
+| `public/photos/dish-frigg.png` | `double-crispy-chicken-burger.png` | The **Frigg** dish's photograph on the menu and the Forside, **as a temporary stand-in** (2026-09-08): no file named for Frigg was supplied, and this one matches Frigg's confirmed ingredients (panko chicken, pickled red onion, semi-dried tomato, little gem, brioche). The restaurant should confirm or replace it |
 | *(none)* | — | The **Thor** dish **still needs a real photograph** (open as of 2026-09-08). No file named for Thor was supplied, and none of the supplied burger photographs shows its beer-battered onion rings and goat cheese; the nearest, `bacon-red-onion-burger.png`, visibly carries bacon, which Thor does not, so it was tried and withdrawn the same day rather than mislead. Until the restaurant supplies one, Thor renders the menu's reserved no-image frame ("Retfoto") |
-| `photos/dish-glade-gris.png` | `pulled-pork-crispy-burger.png` | The **Glade Gris** dish's photograph on the menu, **as a temporary stand-in** (2026-09-08): no file named for Glade Gris was supplied, and this one matches its confirmed ingredients (pulled pork, puffed pork rind, red cabbage, iceberg, brioche). The restaurant should confirm or replace it |
-| `photos/dish-tapas.png` | `tapaz.png` | The **Tapas** dish's photograph. Stored against the dish; the public Tapas board is a text table by design and renders no photo |
+| `public/photos/dish-glade-gris.png` | `pulled-pork-crispy-burger.png` | The **Glade Gris** dish's photograph on the menu, **as a temporary stand-in** (2026-09-08): no file named for Glade Gris was supplied, and this one matches its confirmed ingredients (pulled pork, puffed pork rind, red cabbage, iceberg, brioche). The restaurant should confirm or replace it |
+| `photos/dish-tapas.png` | `tapaz.png` | The **Tapas** dish's photograph. It stays here: the public Tapas board is a text table by design and renders no photograph, so nothing selects this file and it is not part of the site's library |
 
-The photographs' descriptions are now tracked with the photographs, in
-`content/site/photos.json`, which is what the pages read.
+Each photograph's description and crop are now tracked with the **content that shows
+it** — the dish in `content/site/menu.json`, the section in `content/site/pages/` —
+rather than in a registry of their own, so selecting a photograph, describing it and
+framing it are one edit in one place.
 
 ## What is kept elsewhere
 

@@ -10,7 +10,7 @@ import type {
 import { MONTHLY_BURGER_MENU_SECTION_SLUG } from '@/lib/menu/monthly'
 import type { IsoDate } from '@/lib/time/calendar'
 
-import { resolvePhoto } from './photo'
+import { resolvePhoto, type PhotoField } from './photo'
 import { oreFromKroner } from './price'
 import { contentPath, once, readContentJson } from './source'
 import { keepPriceTogether, prose } from './text'
@@ -56,7 +56,7 @@ type DishFile = {
   secondaryNote?: string | null
   labels?: string[]
   soldOutOn?: IsoDate | null
-  photo?: string | null
+  photo?: PhotoField | null
   /** Present only for the Tapas board — three lists in one document (§4, decision 3). */
   tapas?: { groups: TapasGroupFile[] } | null
 }
@@ -85,7 +85,7 @@ type WeeklySpecialFile = {
   priceSmall?: string | null
   priceLarge?: string | null
   soldOutOn?: IsoDate | null
-  photo?: string | null
+  photo?: PhotoField | null
   saturday?: {
     enabled: boolean
     name?: string | null
@@ -105,7 +105,7 @@ type MonthlyBurgerFile = {
   endsOn?: IsoDate | null
   soldOutOn?: IsoDate | null
   showOnHomepage?: boolean
-  photo?: string | null
+  photo?: PhotoField | null
 }
 
 /**

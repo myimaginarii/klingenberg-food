@@ -1,4 +1,4 @@
-import { socialImage } from '@/content/site/images'
+import { siteShareImage } from '@/lib/seo/share'
 import { loadContact } from '@/lib/content/load/contact'
 import { loadOpeningHours } from '@/lib/content/load/hours'
 import { serializeJsonLd } from '@/lib/seo/json-ld'
@@ -47,7 +47,7 @@ export function RestaurantJsonLd() {
       overrides: hours.overrides,
       // The same photograph the share card names, so a machine reading the page and a
       // messaging app rendering its link are looking at one asset.
-      image: socialImage('home-hero'),
+      image: siteShareImage(),
       award: AWARD,
     }),
   )

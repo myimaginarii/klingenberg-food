@@ -1,4 +1,4 @@
-import { socialImage } from '@/content/site/images'
+import { venueShareImage } from '@/lib/seo/share'
 import { loadContact } from '@/lib/content/load/contact'
 import { loadOpeningHours } from '@/lib/content/load/hours'
 import { pageMetadata } from '@/lib/seo/metadata'
@@ -31,7 +31,7 @@ function describeWhere(): string {
 export const metadata = pageMetadata(
   'Find os og åbningstider',
   `${describeWhere()}. Se åbningstider og ring for at bestille.`,
-  { path: '/find-os', image: socialImage('about-venue') },
+  { path: '/find-os', image: venueShareImage() },
 )
 
 /**

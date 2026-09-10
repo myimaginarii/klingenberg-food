@@ -80,7 +80,7 @@ export function derivativePath(slot: string, width: number, format: DerivativeFo
  *
  * `public/<STATIC_MEDIA_DIRECTORY>/<slot>/<width>.<format>`, rendered once by
  * `scripts/images/build-static-derivatives.mjs` from the tracked photographs in
- * `content/launch/photos/` and served as ordinary static files.
+ * `public/photos/` and served as ordinary static files.
  */
 export const STATIC_MEDIA_DIRECTORY = 'media'
 

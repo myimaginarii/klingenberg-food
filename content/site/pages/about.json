@@ -6,7 +6,7 @@
     "Burgerne fylder en stor del af vores menu, og i 2026 vandt vi Fyn & Øer i Danmarks Bedste Burger. I den samlede konkurrence blev vi nr. 4 i Danmark.",
     "Vi vil gerne være et sted, hvor man kan komme forbi og få god mad i uformelle omgivelser."
   ],
-  "venuePhoto": "about-venue",
+  "venuePhoto": { "file": "/photos/about-venue.png", "alt": "Spisesalen hos Klingenberg Food", "focus": "center" },
   "team": {
     "text": "Bag Klingenberg Food står et lille hold, som tager sig af køkkenet og den daglige drift. Vi holder tingene nede på jorden og prøver at give gæsterne et godt måltid, om de så kommer efter en burger, ugens ret eller noget helt andet fra menuen.",
     "photo": null
