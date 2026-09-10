@@ -1,0 +1,1094 @@
+# Pages CMS — redaktionsopsætning for Klingenberg Food
+#
+# Denne fil beskriver, hvad restauranten kan rette i, og hvordan felterne hedder på
+# dansk. Den læses kun af Pages CMS — hverken Next.js, byggescriptet eller testene
+# rører den.
+#
+# TRE REGLER, DER GÆLDER HELE FILEN
+#
+#   1. Indholdet ligger i content/site/. Hver fil under "content:" nedenfor svarer til
+#      præcis én JSON-fil, og hvert felt svarer til præcis én nøgle i den fil.
+#      Feltnavnene ("name:") er JSON-nøglerne og må ikke laves om. Kun etiketterne
+#      ("label:") er til mennesker.
+#
+#   2. Alt, der gemmes, kontrolleres af scripts/check-content.mjs, når sitet bygges.
+#      Den kontrol er den sidste sikkerhed: den skriver på dansk, hvad der er galt, og
+#      hvor. Opsætningen her forsøger at gøre en fejl svær at lave — den erstatter ikke
+#      kontrollen.
+#
+#   3. Felter, der er "readonly", er faste oplysninger om huset eller om en konkurrence.
+#      De vises, så man kan se dem, men de rettes ikke herfra.
+#
+# Layout, farver, skrifttyper, sidernes adresser, SEO, sitemap, sikkerhedsindstillinger
+# og Google-kortet står ikke i denne fil og kan ikke rettes fra Pages CMS.
+
+# ---------------------------------------------------------------------------------
+# BILLEDER
+# ---------------------------------------------------------------------------------
+# Alle fotografier ligger ét sted: public/photos/. Byggeriet måler hvert billede og
+# laver selv de mindre udgaver, sitet bruger — man vælger kun billedet.
+#
+# "output: /photos" er det, der bliver skrevet ned i indholdet, og det er præcis det,
+# sitet forventer at læse: /photos/<navn>.<endelse>.
+#
+# "rename: safe" gør et filnavn med mellemrum, store bogstaver eller æ/ø/å om til et
+# navn, der kan bruges som adresse. Det er nødvendigt: sitet afviser et filnavn, der
+# ikke består af små bogstaver, tal og enkelte bindestreger.
+#
+# Mapperne public/media/ (genererede udgaver), generated/ og content/launch/photos/
+# nævnes bevidst ikke. De er byggeriets egne og skal ikke kunne vælges eller slettes.
+media:
+  input: public/photos
+  output: /photos
+  rename: safe
+  extensions: [jpg, jpeg, png, webp]
+  categories: [image]
+
+# ---------------------------------------------------------------------------------
+# GENERELLE INDSTILLINGER
+# ---------------------------------------------------------------------------------
+settings:
+  content:
+    # Behold nøgler i JSON-filerne, som ikke står i denne opsætning, i stedet for at
+    # slette dem ved gemning. Det er et sikkerhedsnet og ikke en undskyldning: hvert
+    # felt, der findes i indholdet i dag, er skrevet ind nedenfor — som redigerbart,
+    # låst eller skjult — netop for ikke at være afhængig af dette flag.
+    merge: true
+  commit:
+    # Skriv den, der retter, som forfatter på ændringen, når navn og mail er kendt.
+    identity: user
+
+# ---------------------------------------------------------------------------------
+# GENBRUGTE FELTER
+# ---------------------------------------------------------------------------------
+components:
+  # Et fotografi, som det gemmes overalt på sitet:
+  #   { "file": "/photos/navn.png", "alt": "", "focus": "center" }
+  # Lades "Billede" stå tomt, viser rammen sig uden foto. Det er en gyldig tilstand og
+  # ikke en fejl.
+  foto:
+    type: object
+    label: Foto
+    fields:
+      - name: file
+        label: Billede
+        type: image
+        description: >-
+          Vælg et billede fra fotomappen, eller læg et nyt op. Lad feltet stå tomt,
+          hvis der ikke skal være et billede her.
+      - name: alt
+        label: Alternativ tekst
+        type: string
+        description: >-
+          En kort beskrivelse af, hvad man ser på billedet. Den bliver læst højt for
+          gæster, der bruger oplæsning. Feltet må gerne stå tomt, når teksten ved siden
+          af allerede beskriver billedet — så bliver fotoet læst som pynt.
+      - name: focus
+        label: Beskæring
+        type: select
+        default: center
+        options:
+          values:
+            - name: center
+              label: Centreret
+            - name: upper
+              label: Højere beskæring
+        description: >-
+          Hvilken del af billedet der bevares, når rammen skal beskære. Vælg
+          "Højere beskæring", hvis motivet sidder højt oppe i billedet.
+
+  # Én ugedag i den almindelige uge:
+  #   { "closed": false, "from": "15:00", "to": "20:00" }
+  # Alle syv dage skal stå i ugeplanen. En lukket dag har ingen tider.
+  ugedag:
+    type: object
+    fields:
+      - name: closed
+        label: Lukket
+        type: boolean
+      - name: from
+        label: Fra
+        type: string
+        pattern:
+          regex: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          message: Skriv klokkeslættet som 15:00.
+        description: Skrives som 15:00. Lades tom på en lukket dag.
+      - name: to
+        label: Til
+        type: string
+        pattern:
+          regex: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+          message: Skriv klokkeslættet som 20:00.
+        description: Skrives som 20:00. Lades tom på en lukket dag.
+
+content:
+  # =================================================================================
+  # FORSIDE
+  # =================================================================================
+  - name: forside
+    label: Forside
+    type: file
+    path: content/site/pages/home.json
+    format: json
+    operations:
+      create: false
+      rename: false
+      delete: false
+    fields:
+      - name: hero
+        label: Øverst på siden
+        type: object
+        fields:
+          - name: heading
+            label: Overskrift
+            type: string
+          - name: intro
+            label: Indledning
+            type: text
+          - name: photo
+            component: foto
+            label: Foto øverst
+
+      - name: award
+        label: Udmærkelsen
+        type: object
+        readonly: true
+        description: >-
+          Båndet med udmærkelsen er et fast designelement. Teksten står under
+          "Udmærkelse" nederst i menuen og rettes ikke her.
+        fields:
+          - name: photo
+            component: foto
+            label: Foto
+
+      - name: featured
+        label: Tre fra menuen
+        type: object
+        fields:
+          - name: dishIds
+            label: Retter, der vises
+            type: string
+            list: true
+            readonly: true
+            description: >-
+              De retter, forsiden fremhæver, står her med deres korte systemnavn fra
+              menuen. Feltet er låst indtil videre: Pages CMS kan ikke slå retter op
+              inde i menufilen, og et navn skrevet forkert ville fjerne retten fra
+              forsiden. Sig til, hvis der skal vises andre retter.
+          - name: note
+            label: Note under retterne
+            type: text
+
+      - name: aboutExcerpt
+        label: Om os på forsiden
+        type: object
+        fields:
+          - name: heading
+            label: Overskrift
+            type: string
+          - name: text
+            label: Tekst
+            type: text
+          - name: photo
+            component: foto
+            label: Foto
+
+  # =================================================================================
+  # MENU
+  # =================================================================================
+  - name: menu
+    label: Menu
+    type: group
+    items:
+      # -----------------------------------------------------------------------------
+      # MENUKORT
+      # -----------------------------------------------------------------------------
+      - name: menukort
+        label: Menukort
+        type: file
+        path: content/site/menu.json
+        format: json
+        operations:
+          create: false
+          rename: false
+          delete: false
+        fields:
+          - name: allergenNote
+            label: Note om allergener
+            type: string
+
+          - name: categories
+            label: Afsnit på menuen
+            type: object
+            list:
+              min: 1
+              collapsible:
+                collapsed: true
+                summary: "{name}"
+            description: >-
+              Menuen er delt op i afsnit. Træk i et afsnit for at flytte det — de står
+              på siden i den rækkefølge, de står her.
+            fields:
+              - name: name
+                label: Overskrift
+                type: string
+                required: true
+
+              - name: id
+                label: Kort navn til systemet
+                type: string
+                required: true
+                pattern:
+                  regex: "^[a-z0-9]+(-[a-z0-9]+)*$"
+                  message: >-
+                    Brug små bogstaver og bindestreger, fx "vegetar" eller
+                    "pommes-snacks". Æ, ø og å skrives som ae, oe og aa.
+                description: >-
+                  Bruges som afsnittets adresse i kategorilinjen øverst på menuen.
+                  Brug små bogstaver og bindestreger, fx "vegetar" eller
+                  "pommes-snacks". Æ, ø og å skrives som ae, oe og aa. Lav det ikke om
+                  på et afsnit, der allerede findes — så virker gamle links til det
+                  ikke længere.
+
+              - name: kind
+                label: Type afsnit
+                type: select
+                options:
+                  values:
+                    - name: dishes
+                      label: Almindelige retter
+                    - name: weekly_special
+                      label: Ugens ret (henter selv ugens ret)
+                description: >-
+                  "Almindelige retter" er et afsnit med en liste af retter. "Ugens ret"
+                  er afsnittet, der selv henter det, der står under Menu → Ugens ret —
+                  det afsnit skal ikke have retter i listen nedenfor, og der kan kun
+                  være ét af dem.
+
+              - name: intro
+                label: Indledning
+                type: text
+                description: Kort tekst under overskriften. Må gerne stå tom.
+
+              - name: note
+                label: Ekstra note
+                type: text
+                description: Ekstra linje til afsnittet, fx om glutenfri. Må gerne stå tom.
+
+              - name: dishes
+                label: Retter
+                type: object
+                list:
+                  collapsible:
+                    collapsed: true
+                    summary: "{name} — {price} kr."
+                fields:
+                  - name: name
+                    label: Navn
+                    type: string
+                    required: true
+
+                  - name: price
+                    label: Pris i kroner
+                    type: string
+                    pattern:
+                      regex: "^\\d+([.,]\\d{1,2})?$"
+                      message: >-
+                        Skriv kun tallet, fx 89 eller 89,50. Ingen "kr." og intet
+                        minus.
+                    description: >-
+                      Skriv kun tallet, fx 89 eller 89,50. Ordet "kr." sætter siden
+                      selv på.
+
+                  - name: description
+                    label: Beskrivelse
+                    type: text
+                    description: Hvad retten indeholder. Må gerne stå tom.
+
+                  - name: secondaryNote
+                    label: Ekstra linje
+                    type: string
+                    description: >-
+                      En lille linje under prisen, fx "+148 kr. pr. ekstra person".
+                      Må gerne stå tom.
+
+                  - name: labels
+                    label: Mærkater
+                    type: string
+                    list: true
+                    description: >-
+                      Små mærkater på retten, fx "Populær", "Ny", "Stærk" eller
+                      "Vegetar". De fire får hver sin farve; alle andre vises neutralt.
+                      Den samme mærkat kan kun stå én gang.
+
+                  - name: photo
+                    component: foto
+                    label: Foto af retten
+
+                  - name: id
+                    label: Kort navn til systemet
+                    type: string
+                    required: true
+                    pattern:
+                      regex: "^[a-z0-9]+(-[a-z0-9]+)*$"
+                      message: >-
+                        Brug små bogstaver og bindestreger, fx "vegetar" eller
+                        "pommes-snacks". Æ, ø og å skrives som ae, oe og aa.
+                    description: >-
+                      Rettens faste navn i systemet. Brug små bogstaver og
+                      bindestreger, fx "glade-gris". Æ, ø og å skrives som ae, oe og
+                      aa. Det skal være forskelligt fra alle andre retters.
+
+                  # Bæres med, men vises ikke: ingen ret bruger udsolgt-dato i dag, og
+                  # et tomt datofelt på seksogfyrre retter er en fejlkilde uden gevinst.
+                  # Udsolgt sættes på Ugens ret og Månedens burger, hvor det bruges.
+                  - name: soldOutOn
+                    label: Udsolgt fra og med
+                    type: date
+                    hidden: true
+                    options:
+                      format: yyyy-MM-dd
+
+                  # Tapasbordet hører til den ret, der bærer det. Det kan ikke få sin
+                  # egen side i menuen til venstre, fordi Pages CMS peger på hele filer
+                  # og ikke ind i en fil — se rapporten. Feltet står her, så bordet
+                  # ikke forsvinder, når retten gemmes.
+                  - name: tapas
+                    label: Tapasbord
+                    type: object
+                    description: >-
+                      Kun retten "Tapas" har et tapasbord. Et afsnit med et tapasbord
+                      viser kun den ret, så læg ikke andre retter i samme afsnit.
+                    fields:
+                      - name: groups
+                        label: Lister på bordet
+                        type: object
+                        list:
+                          min: 3
+                          max: 3
+                          collapsible:
+                            collapsed: true
+                            summary: "{heading}"
+                        fields:
+                          - name: heading
+                            label: Overskrift
+                            type: string
+                            required: true
+                          - name: items
+                            label: Indhold
+                            type: string
+                            list: true
+                            description: >-
+                              Én ting pr. linje. Den samme linje kan kun stå én gang i
+                              listen.
+                          - name: id
+                            label: Listens plads
+                            type: select
+                            readonly: true
+                            options:
+                              values:
+                                - name: base
+                                  label: Altid med
+                                - name: choose7
+                                  label: Man vælger imellem
+                                - name: dressing
+                                  label: Dressinger
+                          - name: mode
+                            label: Slags liste
+                            type: select
+                            readonly: true
+                            options:
+                              values:
+                                - name: fixed
+                                  label: Altid med på bordet
+                                - name: choose
+                                  label: Man vælger et antal
+                          - name: choose
+                            label: Antal, der vælges
+                            type: number
+                            readonly: true
+                            options:
+                              min: 1
+
+      # -----------------------------------------------------------------------------
+      # UGENS RET
+      # -----------------------------------------------------------------------------
+      - name: ugens-ret
+        label: Ugens ret
+        type: file
+        path: content/site/weekly-special.json
+        format: json
+        operations:
+          create: false
+          rename: false
+          delete: false
+        fields:
+          - name: active
+            label: Vis ugens ret
+            type: boolean
+            description: >-
+              Slå fra, når der ikke er en ugens ret. Så vises afsnittet ikke på menuen,
+              og teksten nedenfor bliver stående, til den skal bruges igen.
+
+          - name: name
+            label: Navn på retten
+            type: string
+
+          - name: description
+            label: Beskrivelse
+            type: text
+
+          - name: isoWeek
+            label: Ugenummer
+            type: number
+            options:
+              min: 1
+              max: 53
+            description: Tallet, der vises som fx "Uge 42".
+
+          - name: days
+            label: Dage, retten serveres
+            type: select
+            options:
+              multiple: true
+              values:
+                - name: mon
+                  label: Mandag
+                - name: tue
+                  label: Tirsdag
+                - name: wed
+                  label: Onsdag
+                - name: thu
+                  label: Torsdag
+                - name: fri
+                  label: Fredag
+                - name: sat
+                  label: Lørdag
+                - name: sun
+                  label: Søndag
+
+          - name: priceSmall
+            label: Pris, lille portion
+            type: string
+            pattern:
+              regex: "^\\d+([.,]\\d{1,2})?$"
+              message: Skriv kun tallet, fx 89 eller 89,50.
+            description: Skriv kun tallet, fx 89. Ordet "kr." sætter siden selv på.
+
+          - name: priceLarge
+            label: Pris, stor portion
+            type: string
+            pattern:
+              regex: "^\\d+([.,]\\d{1,2})?$"
+              message: Skriv kun tallet, fx 89 eller 89,50.
+
+          - name: soldOutOn
+            label: Udsolgt fra og med
+            type: date
+            default: ""
+            options:
+              format: yyyy-MM-dd
+            description: >-
+              Sæt en dato, hvis retten er udsolgt. Lad feltet stå tomt, når den kan
+              bestilles.
+
+          - name: photo
+            component: foto
+            label: Foto af retten
+
+          - name: saturday
+            label: Lørdagsmenu
+            type: object
+            fields:
+              - name: enabled
+                label: Vis lørdagsmenu
+                type: boolean
+              - name: name
+                label: Navn på retten
+                type: string
+              - name: description
+                label: Beskrivelse
+                type: text
+              - name: price
+                label: Pris i kroner
+                type: string
+                pattern:
+                  regex: "^\\d+([.,]\\d{1,2})?$"
+                  message: Skriv kun tallet, fx 89 eller 89,50.
+              - name: deadline
+                label: Bestilling senest
+                type: string
+                description: Skrives som tekst, fx "torsdag kl. 12".
+              - name: soldOutOn
+                label: Udsolgt fra og med
+                type: date
+                default: ""
+                options:
+                  format: yyyy-MM-dd
+
+          # Året, ugenummeret hører til. Bæres med, men vises ingen steder på sitet.
+          - name: isoYear
+            label: Årstal
+            type: number
+            hidden: true
+
+      # -----------------------------------------------------------------------------
+      # MÅNEDENS BURGER
+      # -----------------------------------------------------------------------------
+      - name: maanedens-burger
+        label: Månedens burger
+        type: file
+        path: content/site/monthly-burger.json
+        format: json
+        operations:
+          create: false
+          rename: false
+          delete: false
+        fields:
+          - name: active
+            label: Vis månedens burger
+            type: boolean
+            description: >-
+              Slå fra, når der ikke er en månedens burger. Kortet vises på menuen i
+              afsnittet "Burgere".
+
+          - name: name
+            label: Navn på burgeren
+            type: string
+
+          - name: description
+            label: Beskrivelse
+            type: text
+
+          - name: price
+            label: Pris i kroner
+            type: string
+            pattern:
+              regex: "^\\d+([.,]\\d{1,2})?$"
+              message: Skriv kun tallet, fx 89 eller 89,50.
+            description: Skriv kun tallet, fx 89. Ordet "kr." sætter siden selv på.
+
+          - name: startsOn
+            label: Vises fra
+            type: date
+            default: ""
+            options:
+              format: yyyy-MM-dd
+            description: Første dag, burgeren vises. Lad stå tom, hvis den vises med det samme.
+
+          - name: endsOn
+            label: Vises til og med
+            type: date
+            default: ""
+            options:
+              format: yyyy-MM-dd
+            description: >-
+              Sidste dag, burgeren vises. Slutdatoen må ikke ligge før startdatoen.
+              Lad stå tom, hvis den skal blive stående.
+
+          - name: soldOutOn
+            label: Udsolgt fra og med
+            type: date
+            default: ""
+            options:
+              format: yyyy-MM-dd
+
+          - name: showOnHomepage
+            label: Vis også på forsiden
+            type: boolean
+
+          - name: photo
+            component: foto
+            label: Foto af burgeren
+
+  # =================================================================================
+  # NYHEDER
+  # =================================================================================
+  - name: nyheder
+    label: Nyheder
+    type: collection
+    path: content/site/news
+    format: json
+    exclude: [".gitkeep"]
+    filename:
+      template: "{primary}.json"
+      field: create
+    view:
+      fields: [title, published, publishedAt]
+      primary: title
+      sort: [publishedAt, title]
+      search: [title]
+      default:
+        sort: publishedAt
+        order: desc
+    fields:
+      - name: title
+        label: Overskrift
+        type: string
+        required: true
+
+      - name: published
+        label: Udgivet
+        type: boolean
+        description: >-
+          Slå til, når artiklen skal kunne læses på sitet. Er den slået fra, er
+          artiklen en kladde: den vises ingen steder og har ingen adresse.
+
+      - name: publishedAt
+        label: Dato
+        type: date
+        required: true
+        options:
+          format: yyyy-MM-dd
+        description: Den dato, der står på artiklen, og som listen sorteres efter.
+
+      - name: updatedAt
+        label: Senest rettet
+        type: date
+        default: ""
+        options:
+          format: yyyy-MM-dd
+        description: >-
+          Udfyldes kun, hvis artiklen er rettet efter den blev udgivet. Datoen kan ikke
+          ligge før datoen ovenfor.
+
+      - name: category
+        label: Kategori
+        type: string
+        description: Et enkelt ord over overskriften, fx "Nyhed". Må gerne stå tom.
+
+      - name: photo
+        component: foto
+        label: Foto til artiklen
+
+      - name: body
+        label: Brødtekst
+        type: object
+        description: >-
+          Teksten er delt op i afsnit, og hvert afsnit i et eller flere tekststykker.
+          Skal et enkelt ord være fed, eller skal en del af sætningen være et link,
+          deles afsnittet op i flere tekststykker.
+        fields:
+          - name: blocks
+            label: Afsnit
+            type: object
+            list:
+              collapsible:
+                collapsed: false
+                summary: "Afsnit {index}"
+            fields:
+              - name: spans
+                label: Tekststykker
+                type: object
+                list:
+                  min: 1
+                  collapsible:
+                    collapsed: false
+                    summary: "{text}"
+                fields:
+                  - name: text
+                    label: Tekst
+                    type: text
+                    required: true
+                  - name: bold
+                    label: Fed
+                    type: boolean
+                  - name: href
+                    label: Link
+                    type: string
+                    pattern:
+                      regex: "^https://\\S+$"
+                      message: Et link skal være en fuld adresse, der starter med https:// efterfulgt af domænet.
+                    description: >-
+                      Gør tekststykket til et link. Skal være en fuld adresse, der
+                      starter med https:// efterfulgt af domænet. Må gerne stå tom.
+              - name: type
+                label: Afsnitstype
+                type: select
+                default: paragraph
+                options:
+                  values:
+                    - name: paragraph
+                      label: Almindeligt afsnit
+                description: >-
+                  Der findes indtil videre kun én slags afsnit. Lad feltet stå, som det
+                  er.
+
+  # =================================================================================
+  # NOTIFIKATIONSBJÆLKE
+  # =================================================================================
+  - name: notifikationsbjaelke
+    label: Notifikationsbjælke
+    type: file
+    path: content/site/announcement.json
+    format: json
+    operations:
+      create: false
+      rename: false
+      delete: false
+    fields:
+      - name: active
+        label: Vis bjælke
+        type: boolean
+        description: >-
+          Bjælken står øverst på alle sider. Der er kun én besked ad gangen — en ny
+          besked erstatter den forrige.
+
+      - name: message
+        label: Besked
+        type: text
+
+      - name: expiresAt
+        label: Udløber
+        type: date
+        default: ""
+        options:
+          time: true
+          format: "yyyy-MM-dd'T'HH:mm:ssXXX"
+        description: >-
+          Tidspunktet, hvor beskeden forsvinder af sig selv. En aktiv besked skal have
+          et udløb — ellers ville den blive stående for evigt. Vælg et tidspunkt, der
+          ligger frem i tiden.
+
+      - name: link
+        label: Link i bjælken
+        type: object
+        fields:
+          - name: type
+            label: Linktype
+            type: select
+            default: none
+            options:
+              values:
+                - name: none
+                  label: Intet link
+                - name: page
+                  label: En side her på sitet
+                - name: url
+                  label: En adresse et andet sted
+          - name: page
+            label: Side
+            type: select
+            options:
+              values:
+                - name: /
+                  label: Forside
+                - name: /menu
+                  label: Menu
+                - name: /mad-ud-af-huset
+                  label: Mad ud af huset
+                - name: /om-os
+                  label: Om os
+                - name: /nyheder
+                  label: Nyheder
+                - name: /find-os
+                  label: Find os
+            description: Udfyldes kun, når linktypen er "En side her på sitet".
+          - name: url
+            label: Adresse
+            type: string
+            pattern:
+              regex: "^https://\\S+$"
+              message: Adressen skal være fuld og starte med https:// efterfulgt af domænet.
+            description: >-
+              Udfyldes kun, når linktypen er "En adresse et andet sted". Adressen
+              skal starte med https:// efterfulgt af domænet.
+          - name: label
+            label: Linktekst
+            type: string
+            description: >-
+              Det, der står på knappen. En adresse et andet sted skal have en
+              linktekst; peger linket på en af sitets egne sider, bruges sidens eget
+              navn, hvis feltet står tomt.
+
+  # =================================================================================
+  # MAD UD AF HUSET
+  # =================================================================================
+  - name: mad-ud-af-huset
+    label: Mad ud af huset
+    type: file
+    path: content/site/pages/takeaway.json
+    format: json
+    operations:
+      create: false
+      rename: false
+      delete: false
+    fields:
+      - name: heading
+        label: Overskrift
+        type: string
+      - name: intro
+        label: Indledning
+        type: text
+      - name: photo
+        component: foto
+        label: Foto øverst
+      - name: phoneNote
+        label: Note om bestilling
+        type: text
+      - name: ctaLabel
+        label: Tekst på knappen
+        type: string
+        required: true
+        description: >-
+          Knappen ringer op til hovednummeret under "Kontaktoplysninger". Der skal stå
+          noget på den.
+      - name: sections
+        label: Afsnit
+        type: object
+        list:
+          collapsible:
+            collapsed: true
+            summary: "{heading}"
+        fields:
+          - name: heading
+            label: Overskrift
+            type: string
+          - name: body
+            label: Tekst
+            type: text
+          - name: id
+            label: Kort navn til systemet
+            type: string
+            required: true
+            pattern:
+              regex: "^[a-z0-9]+(-[a-z0-9]+)*$"
+              message: >-
+                Brug små bogstaver og bindestreger, fx "selskaber". Æ, ø og å skrives
+                som ae, oe og aa.
+            description: >-
+              Afsnittets adresse på siden. Brug små bogstaver og bindestreger, fx
+              "selskaber". Æ, ø og å skrives som ae, oe og aa.
+
+  # =================================================================================
+  # OM OS
+  # =================================================================================
+  - name: om-os
+    label: Om os
+    type: file
+    path: content/site/pages/about.json
+    format: json
+    operations:
+      create: false
+      rename: false
+      delete: false
+    fields:
+      - name: heading
+        label: Overskrift
+        type: string
+      - name: story
+        label: Historien
+        type: text
+        list: true
+        description: Ét afsnit pr. felt. Træk i et afsnit for at flytte det.
+      - name: venuePhoto
+        component: foto
+        label: Foto af stedet
+      - name: team
+        label: Holdet
+        type: object
+        fields:
+          - name: text
+            label: Tekst
+            type: text
+          - name: photo
+            component: foto
+            label: Foto
+      - name: method
+        label: Fra køkkenet
+        type: object
+        fields:
+          - name: heading
+            label: Overskrift
+            type: string
+          - name: text
+            label: Tekst
+            type: text
+          - name: photo
+            component: foto
+            label: Foto
+
+  # =================================================================================
+  # KONTAKT OG ÅBNINGSTIDER
+  # =================================================================================
+  - name: kontakt-og-aabningstider
+    label: Kontakt og åbningstider
+    type: group
+    items:
+      # -----------------------------------------------------------------------------
+      # KONTAKTOPLYSNINGER
+      # -----------------------------------------------------------------------------
+      - name: kontaktoplysninger
+        label: Kontaktoplysninger
+        type: file
+        path: content/site/contact.json
+        format: json
+        operations:
+          create: false
+          rename: false
+          delete: false
+        fields:
+          - name: primaryPhone
+            label: Telefon
+            type: string
+            required: true
+            description: >-
+              Hovednummeret. Det er det, alle "ring op"-knapper på sitet bruger. Otte
+              cifre, fx "+45 63 90 83 00" eller "63 90 83 00".
+          - name: secondaryPhone
+            label: Ekstra telefon
+            type: string
+            description: Otte cifre. Må gerne stå tom.
+          - name: email
+            label: E-mail
+            type: string
+            required: true
+          - name: facebookUrl
+            label: Facebook-side
+            type: string
+            description: >-
+              Fuld adresse til restaurantens egen Facebook-side, fx
+              "https://www.facebook.com/carlnielsencafeen".
+
+          - name: venueName
+            label: Stedets navn
+            type: string
+            readonly: true
+            description: >-
+              Adressen er låst, fordi kortet på "Find os" peger på præcis dette sted.
+              Skal den rettes, skal kortet rettes med.
+          - name: addressLine1
+            label: Vej og nummer
+            type: string
+            readonly: true
+          - name: postalCode
+            label: Postnummer
+            type: string
+            readonly: true
+          - name: city
+            label: By
+            type: string
+            readonly: true
+
+      # -----------------------------------------------------------------------------
+      # ÅBNINGSTIDER
+      # -----------------------------------------------------------------------------
+      - name: aabningstider
+        label: Åbningstider
+        type: file
+        path: content/site/hours.json
+        format: json
+        operations:
+          create: false
+          rename: false
+          delete: false
+        fields:
+          - name: schedule
+            label: Almindelig uge
+            type: object
+            description: >-
+              Sæt "Lukket" til på de dage, I holder lukket, og lad "Fra" og "Til" stå
+              tomme. På en åben dag skal begge tidspunkter udfyldes, og der lukkes
+              senere på dagen, end der åbnes.
+            fields:
+              - name: mon
+                component: ugedag
+                label: Mandag
+              - name: tue
+                component: ugedag
+                label: Tirsdag
+              - name: wed
+                component: ugedag
+                label: Onsdag
+              - name: thu
+                component: ugedag
+                label: Torsdag
+              - name: fri
+                component: ugedag
+                label: Fredag
+              - name: sat
+                component: ugedag
+                label: Lørdag
+              - name: sun
+                component: ugedag
+                label: Søndag
+
+          - name: overrides
+            label: Særlige dage
+            type: object
+            list:
+              collapsible:
+                collapsed: true
+                summary: "{date}"
+            description: >-
+              Helligdage, ferielukning og dage med andre tider end normalt. En dato kan
+              kun stå ét sted, når den er sat til "Vises på siden".
+            fields:
+              - name: date
+                label: Dato
+                type: date
+                required: true
+                options:
+                  format: yyyy-MM-dd
+              - name: kind
+                label: Type
+                type: select
+                default: closed
+                options:
+                  values:
+                    - name: closed
+                      label: Lukket hele dagen
+                    - name: custom
+                      label: Andre tider end normalt
+              - name: opensAt
+                label: Åbner
+                type: string
+                pattern:
+                  regex: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                  message: Skriv klokkeslættet som 12:00.
+                description: >-
+                  Udfyldes kun ved "Andre tider end normalt". Skrives som 12:00.
+              - name: closesAt
+                label: Lukker
+                type: string
+                pattern:
+                  regex: "^([01][0-9]|2[0-3]):[0-5][0-9]$"
+                  message: Skriv klokkeslættet som 16:00.
+                description: >-
+                  Udfyldes kun ved "Andre tider end normalt". Skrives som 16:00.
+              - name: status
+                label: Status
+                type: select
+                default: draft
+                options:
+                  values:
+                    - name: draft
+                      label: Kladde — vises ikke
+                    - name: published
+                      label: Vises på siden
+
+  # =================================================================================
+  # UDMÆRKELSE
+  # =================================================================================
+  - name: udmaerkelse
+    label: Udmærkelse
+    type: file
+    path: content/site/award.json
+    format: json
+    operations:
+      create: false
+      rename: false
+      delete: false
+    fields:
+      - name: title
+        label: Overskrift
+        type: string
+        readonly: true
+      - name: text
+        label: Tekst
+        type: text
+        readonly: true
+        description: >-
+          Teksten om konkurrencen er låst. Den gengiver et resultat, der er afgjort
+          udefra, og skal ikke kunne skrives om i forbifarten. Sig til, hvis den skal
+          rettes.
