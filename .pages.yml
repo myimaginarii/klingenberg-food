@@ -748,7 +748,6 @@ content:
         default: ""
         options:
           time: true
-          format: "yyyy-MM-dd'T'HH:mm:ssXXX"
         description: >-
           Tidspunktet, hvor beskeden forsvinder af sig selv. En aktiv besked skal have
           et udløb — ellers ville den blive stående for evigt. Vælg et tidspunkt, der
