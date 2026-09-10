@@ -1,11 +1,8 @@
 {
-  "active": false,
-  "message": null,
-  "expiresAt": null,
+  "active": true,
+  "message": "Dette er en midlertidig test af notifikationsbjælken.",
+  "expiresAt": "2026-09-11T12:00:00Z",
   "link": {
-    "type": "none",
-    "page": null,
-    "url": null,
-    "label": null
+    "type": "none"
   }
 }
