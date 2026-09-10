@@ -164,17 +164,10 @@ content:
       - name: featured
         label: Tre fra menuen
         type: object
+        description: >-
+          Hvilke retter der vises i båndet, vælges på selve retten under Menu →
+          Menukort med "Vis på forsiden". Her står kun linjen under retterne.
         fields:
-          - name: dishIds
-            label: Retter, der vises
-            type: string
-            list: true
-            readonly: true
-            description: >-
-              De retter, forsiden fremhæver, står her med deres korte systemnavn fra
-              menuen. Feltet er låst indtil videre: Pages CMS kan ikke slå retter op
-              inde i menufilen, og et navn skrevet forkert ville fjerne retten fra
-              forsiden. Sig til, hvis der skal vises andre retter.
           - name: note
             label: Note under retterne
             type: text
@@ -321,6 +314,13 @@ content:
                       "Vegetar". De fire får hver sin farve; alle andre vises neutralt.
                       Den samme mærkat kan kun stå én gang.
 
+                  - name: featured
+                    label: Vis på forsiden
+                    type: boolean
+                    description: >-
+                      Vis retten blandt de fremhævede retter på forsiden. Retterne
+                      vises i den rækkefølge, de står i menuen.
+
                   - name: photo
                     component: foto
                     label: Foto af retten
@@ -342,10 +342,14 @@ content:
                   # Bæres med, men vises ikke: ingen ret bruger udsolgt-dato i dag, og
                   # et tomt datofelt på seksogfyrre retter er en fejlkilde uden gevinst.
                   # Udsolgt sættes på Ugens ret og Månedens burger, hvor det bruges.
+                  # "default" er tom som på alle andre datofelter: uden den ville et
+                  # datofelt begynde på dags dato, og en gemning kunne gøre hver ret
+                  # udsolgt. Et tomt felt læses som "ikke udsolgt".
                   - name: soldOutOn
                     label: Udsolgt fra og med
                     type: date
                     hidden: true
+                    default: ""
                     options:
                       format: yyyy-MM-dd
 
@@ -661,58 +665,16 @@ content:
         component: foto
         label: Foto til artiklen
 
+      # Artiklens tekst gemmes som en liste af afsnit — ét tekstfelt pr. afsnit, som
+      # "Historien" under Om os. Der er ingen formatering: siden viser teksten, som
+      # den skrives.
       - name: body
-        label: Brødtekst
-        type: object
+        label: Tekst
+        type: text
+        list: true
         description: >-
-          Teksten er delt op i afsnit, og hvert afsnit i et eller flere tekststykker.
-          Skal et enkelt ord være fed, eller skal en del af sætningen være et link,
-          deles afsnittet op i flere tekststykker.
-        fields:
-          - name: blocks
-            label: Afsnit
-            type: object
-            list:
-              collapsible:
-                collapsed: false
-                summary: "Afsnit {index}"
-            fields:
-              - name: spans
-                label: Tekststykker
-                type: object
-                list:
-                  min: 1
-                  collapsible:
-                    collapsed: false
-                    summary: "{text}"
-                fields:
-                  - name: text
-                    label: Tekst
-                    type: text
-                    required: true
-                  - name: bold
-                    label: Fed
-                    type: boolean
-                  - name: href
-                    label: Link
-                    type: string
-                    pattern:
-                      regex: "^https://\\S+$"
-                      message: Et link skal være en fuld adresse, der starter med https:// efterfulgt af domænet.
-                    description: >-
-                      Gør tekststykket til et link. Skal være en fuld adresse, der
-                      starter med https:// efterfulgt af domænet. Må gerne stå tom.
-              - name: type
-                label: Afsnitstype
-                type: select
-                default: paragraph
-                options:
-                  values:
-                    - name: paragraph
-                      label: Almindeligt afsnit
-                description: >-
-                  Der findes indtil videre kun én slags afsnit. Lad feltet stå, som det
-                  er.
+          Ét afsnit pr. felt. Træk i et afsnit for at flytte det. En udgivet artikel
+          skal have mindst ét afsnit, og et afsnit må ikke stå tomt.
 
   # =================================================================================
   # NOTIFIKATIONSBJÆLKE
