@@ -185,6 +185,12 @@ export type MonthlyBurger = {
  * `expiresAt` is an ISO 8601 **instant** string rather than a `Date`, for the reason
  * stated at the top of this file: it is handed to a Client Component — the expiry guard
  * §7c calls for — and a primitive is what survives that boundary unchanged.
+ *
+ * **It is not the value written on disk.** `announcement.json` stores a Copenhagen wall
+ * clock — `2026-09-11T12:00`, no offset — and `lib/content/load/announcement.ts` is
+ * where that becomes the instant here (`2026-09-11T10:00:00.000Z`). The two forms are
+ * deliberately different strings so that nothing can pass a raw document off as a
+ * loaded one, and the conversion has exactly one home.
  */
 export type SiteAnnouncement = {
   message: string

@@ -240,7 +240,7 @@ describe('announcementFrom', () => {
     expect(announcementFrom({ active: false }, where)).toBeNull()
     expect(
       announcementFrom(
-        { active: false, message: 'Lukket juleaften', expiresAt: '2026-12-25T00:00:00+01:00' },
+        { active: false, message: 'Lukket juleaften', expiresAt: '2026-12-25T00:00' },
         where,
       ),
     ).toBeNull()
@@ -257,14 +257,16 @@ describe('announcementFrom', () => {
       {
         active: true,
         message: 'Nye åbningstider fra 1. oktober',
-        expiresAt: '2026-10-01T00:00:00+02:00',
+        expiresAt: '2026-10-01T00:00',
         link: { type: 'page', page: '/find-os' },
       },
       where,
     )
     expect(announcement).toEqual({
       message: 'Nye åbningstider fra 1. oktober',
-      expiresAt: '2026-10-01T00:00:00+02:00',
+      // Midnight on 1 October is still summer time in Denmark, so the wall clock the
+      // file holds resolves to 22:00Z the evening before.
+      expiresAt: '2026-09-30T22:00:00.000Z',
       link: { href: '/find-os', label: 'Find os', external: false },
     })
   })
@@ -282,7 +284,7 @@ describe('announcementFrom', () => {
         {
           active: true,
           message: 'Nye åbningstider',
-          expiresAt: '2026-10-01T00:00:00+02:00',
+          expiresAt: '2026-10-01T00:00',
           link: { type: 'page', page: '/find-os', url: '', label: '' },
         },
         where,
@@ -294,7 +296,7 @@ describe('announcementFrom', () => {
         {
           active: true,
           message: 'Læs mere',
-          expiresAt: '2026-10-01T00:00:00+02:00',
+          expiresAt: '2026-10-01T00:00',
           link: { type: 'url', url: 'https://www.facebook.com/carlnielsencafeen', page: '', label: 'Læs mere' },
         },
         where,
@@ -311,13 +313,77 @@ describe('announcementFrom', () => {
       {
         active: true,
         message: 'Menu til 89 kr. i dag',
-        expiresAt: '2026-10-01T00:00:00+02:00',
+        expiresAt: '2026-10-01T00:00',
         link: { type: 'url', url: 'http://example.test/', label: 'Læs mere' },
       },
       where,
     )
     expect(announcement?.link).toBeNull()
     expect(announcement?.message).toBe('Menu til 89 kr. i dag')
+  })
+
+  /**
+   * The phase 4F conversion — the only value this loader transforms.
+   *
+   * The file holds a Copenhagen wall clock and the loaded announcement holds an
+   * absolute instant, so the same written time is a different moment in July than it is
+   * in December. That is the whole reason the offset is *not* stored: the restaurant
+   * writes "noon" once and means noon in both halves of the year.
+   *
+   * The DST rules themselves are not restated here. `copenhagenInstantOf` owns them and
+   * `tests/unit/time/copenhagen.test.ts` pins them; these assertions only prove that
+   * this loader goes through that function and hands on what it answered.
+   */
+  describe('the Copenhagen wall clock it is given', () => {
+    const at = (expiresAt: string) =>
+      announcementFrom({ active: true, message: 'Hej', expiresAt }, where)?.expiresAt
+
+    it('resolves a summer wall clock on CEST, two hours ahead of UTC', () => {
+      expect(at('2026-09-11T12:00')).toBe('2026-09-11T10:00:00.000Z')
+    })
+
+    it('resolves a winter wall clock on CET, one hour ahead of UTC', () => {
+      expect(at('2026-12-11T12:00')).toBe('2026-12-11T11:00:00.000Z')
+    })
+
+    it('follows the same wall clock across both transitions of one year', () => {
+      // Noon, written four times, meaning four different instants either side of the
+      // last Sunday in March and the last Sunday in October.
+      expect(at('2026-03-28T12:00')).toBe('2026-03-28T11:00:00.000Z') // CET
+      expect(at('2026-03-30T12:00')).toBe('2026-03-30T10:00:00.000Z') // CEST
+      expect(at('2026-10-24T12:00')).toBe('2026-10-24T10:00:00.000Z') // CEST
+      expect(at('2026-10-26T12:00')).toBe('2026-10-26T11:00:00.000Z') // CET
+    })
+
+    it('uses the existing rule for a wall clock the spring-forward skips', () => {
+      // 02:30 does not happen on 29 March 2026: the clocks jump 02:00 → 03:00.
+      // `copenhagenInstantOf` moves forward by the length of the gap, so this is the
+      // instant whose Copenhagen reading is 03:30 — 01:30Z.
+      expect(at('2026-03-29T02:30')).toBe('2026-03-29T01:30:00.000Z')
+    })
+
+    it('uses the existing rule for a wall clock the autumn repeat gives twice', () => {
+      // 02:30 happens twice on 25 October 2026: the clocks fall back 03:00 → 02:00.
+      // `copenhagenInstantOf` takes the **first** occurrence, still on CEST — 00:30Z,
+      // not the 01:30Z repeat.
+      expect(at('2026-10-25T02:30')).toBe('2026-10-25T00:30:00.000Z')
+    })
+
+    /**
+     * Phase 4E's Pages CMS wrote `2026-09-11T12:00:00Z` for a notice set to noon, from
+     * a browser on CEST — which as an instant is 14:00 in Copenhagen. Validation
+     * refuses that shape now (`tests/unit/content/validate/news-and-announcement.test.ts`);
+     * this asserts the loader will not quietly resolve it either if it is handed one
+     * directly, rather than truncating it to its first sixteen characters.
+     */
+    it.each(['2026-09-11T12:00:00Z', '2026-09-11T12:00+02:00', '2026-09-11T25:00'])(
+      'refuses to resolve %j, by name',
+      (expiresAt) => {
+        expect(() =>
+          announcementFrom({ active: true, message: 'Hej', expiresAt }, where),
+        ).toThrow(/is not a Copenhagen wall clock/)
+      },
+    )
   })
 })
 

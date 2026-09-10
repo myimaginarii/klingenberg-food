@@ -207,6 +207,26 @@ export function parseIsoTime(value: IsoTime): ClockTime {
   return { hour, minute }
 }
 
+/**
+ * Is this a time of day the 24-hour clock has?
+ *
+ * The predicate form of {@link parseIsoTime}, and the counterpart of {@link isIsoDate},
+ * for the same one reason that one exists: a value somebody typed into a field is
+ * *expected* to be malformed sometimes, and a content check needs an answer rather than
+ * a throw. Every other caller holds a value that was already validated on the way in,
+ * and for those the parser's throw remains the right behaviour.
+ */
+export function isIsoTime(value: unknown): value is IsoTime {
+  if (typeof value !== 'string') return false
+
+  try {
+    parseIsoTime(value)
+    return true
+  } catch {
+    return false
+  }
+}
+
 /** Render a time of day as `HH:MM`. */
 export function formatIsoTime({ hour, minute }: ClockTime): IsoTime {
   return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
