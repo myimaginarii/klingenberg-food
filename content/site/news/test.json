@@ -1,0 +1,11 @@
+{
+  "title": "TEst",
+  "published": false,
+  "publishedAt": "2026-09-10",
+  "photo": {
+    "focus": "center"
+  },
+  "body": [
+    "Test test"
+  ]
+}
