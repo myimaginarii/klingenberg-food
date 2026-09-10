@@ -7,6 +7,9 @@ import type {
 } from '@/lib/hours/types'
 import { WEEKDAY_KEYS, type IsoDate, type IsoTime, type WeekdayKey } from '@/lib/time/calendar'
 
+import { validateHours } from '../validate/hours'
+import { assertValid } from '../validate/problems'
+
 import { contentPath, once, readContentJson } from './source'
 
 /**
@@ -74,6 +77,9 @@ export function openingHoursFrom(file: HoursFile, where: string): OpeningHours {
   return { schedule, overrides }
 }
 
-export const loadOpeningHours = once(
-  (): OpeningHours => openingHoursFrom(readContentJson<HoursFile>('hours.json'), contentPath('hours.json')),
-)
+export const loadOpeningHours = once((): OpeningHours => {
+  const file = readContentJson<HoursFile>('hours.json')
+  assertValid(validateHours(file, contentPath('hours.json')))
+
+  return openingHoursFrom(file, contentPath('hours.json'))
+})

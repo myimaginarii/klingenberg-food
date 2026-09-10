@@ -1,5 +1,8 @@
 import type { AwardContent } from '@/lib/content/types'
 
+import { validateAward } from '../validate/pages'
+import { assertValid } from '../validate/problems'
+
 import { contentPath, once, readContentJson } from './source'
 
 /**
@@ -18,6 +21,7 @@ type AwardFile = { title?: string | null; text?: string | null }
 
 export const loadAward = once((): AwardContent => {
   const file = readContentJson<AwardFile>('award.json')
+  assertValid(validateAward(file, contentPath('award.json')))
 
   if (!file.title || !file.text) {
     throw new Error(`${contentPath('award.json')} needs both a title and a text.`)

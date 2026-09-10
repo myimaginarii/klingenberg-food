@@ -3,9 +3,15 @@ name: CI
 # CI (technical plan §9, §14).
 #
 # The site is a static export with no backend, so the pipeline is short and needs no
-# credentials of any kind: typecheck -> lint -> source policy -> unit tests, then the
-# build and the browser suite against the generated `out/` directory, plus `npm audit`
-# and CodeQL.
+# credentials of any kind: typecheck -> lint -> source policy -> content -> unit tests,
+# then the build and the browser suite against the generated `out/` directory, plus
+# `npm audit` and CodeQL.
+#
+# The content check runs in the fast job, before the build and the browser suite: a
+# menu with a price nobody can read should cost fifteen seconds, not fifteen minutes.
+# The required status check for `main` is this job's name — "Typecheck, lint, unit
+# tests" — and it is deliberately unchanged, so no ruleset has to be edited to gain
+# the new gate.
 #
 # Third-party actions are pinned by commit SHA, never by tag (§14) — a moving tag is a
 # supply-chain hole. The comment records which release each SHA is.
@@ -58,6 +64,12 @@ jobs:
       # No hard-coded domains, no `set -x`, and no backend of any kind (§8, §10d).
       - name: Source policy
         run: npm run check:policy
+
+      # Every editable file under `content/site/`, held to the rules the loaders apply
+      # (`lib/content/validate/`). This is the gate a Pages CMS edit has to pass before
+      # it can reach production, and it reports in Danish, for the person who made it.
+      - name: Content
+        run: npm run check:content
 
       - name: Unit tests
         run: npm test

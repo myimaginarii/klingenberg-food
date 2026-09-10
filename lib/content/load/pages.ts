@@ -1,5 +1,12 @@
 import type { AboutDocument, HomeDocument, TakeawayDocument, TakeawaySection } from '@/lib/content/types'
 
+import {
+  validateAboutPage,
+  validateHomePage,
+  validateTakeawayPage,
+} from '../validate/pages'
+import { assertValid } from '../validate/problems'
+
 import { loadAward } from './award'
 import { resolvePhoto, type PhotoField } from './photo'
 import { contentPath, once, readContentJson } from './source'
@@ -49,6 +56,7 @@ type TakeawayFile = {
 export const loadHomePage = once((): HomeDocument => {
   const where = contentPath('pages', 'home.json')
   const file = readContentJson<HomeFile>('pages', 'home.json')
+  assertValid(validateHomePage(file, where))
 
   return {
     hero: {
@@ -69,6 +77,7 @@ export const loadHomePage = once((): HomeDocument => {
 export const loadAboutPage = once((): AboutDocument => {
   const where = contentPath('pages', 'about.json')
   const file = readContentJson<AboutFile>('pages', 'about.json')
+  assertValid(validateAboutPage(file, where))
 
   return {
     heading: file.heading ?? null,
@@ -86,6 +95,7 @@ export const loadAboutPage = once((): AboutDocument => {
 export const loadTakeawayPage = once((): TakeawayDocument => {
   const where = contentPath('pages', 'takeaway.json')
   const file = readContentJson<TakeawayFile>('pages', 'takeaway.json')
+  assertValid(validateTakeawayPage(file, where))
 
   // The call to action is the page's one button; a page without its label would be a
   // button with nothing on it, so the label is required rather than defaulted.

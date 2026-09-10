@@ -23,7 +23,8 @@
     "pretest:watch": "npm run images:static",
     "test:watch": "vitest",
     "check:policy": "node scripts/check-source-policy.mjs",
-    "check": "npm run typecheck && npm run lint && npm run check:policy && npm run test",
+    "check:content": "npm run images:static && node scripts/check-content.mjs",
+    "check": "npm run typecheck && npm run lint && npm run check:policy && npm run check:content && npm run test",
     "check:all": "npm run check && npm run build && npm run test:e2e"
   },
   "dependencies": {
