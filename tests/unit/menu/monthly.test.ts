@@ -104,7 +104,12 @@ describe('the window rule the menu and the Forside share', () => {
 
   function shownOnMenu(now: Date): boolean {
     const view = buildMenuView(
-      { categories: [], weeklySpecial: null, monthlyBurger: publicBurger() },
+      {
+        categories: [],
+        weeklySpecial: null,
+        monthlyBurger: publicBurger(),
+        tapas: { priceOre: null, secondaryNote: null, groups: [] },
+      },
       HOURS,
       now,
     )

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { announcementFrom } from '@/lib/content/load/announcement'
 import { openingHoursFrom } from '@/lib/content/load/hours'
-import { menuCategoriesFrom } from '@/lib/content/load/menu'
+import { menuCategoriesFrom, tapasBoardFrom } from '@/lib/content/load/menu'
 import { loadNews, newsArticleFrom, type NewsFile } from '@/lib/content/load/news'
 import { oreFromKroner } from '@/lib/content/load/price'
 import { keepPriceTogether, prose } from '@/lib/content/load/text'
@@ -126,6 +126,49 @@ describe('keepPriceTogether', () => {
     expect(prose(null)).toBeNull()
     expect(prose(undefined)).toBeNull()
     expect(prose('+148 kr. pr. ekstra person')).toBe('+148 kr. pr. ekstra person')
+  })
+})
+
+/**
+ * The tapas board is read from its own document (phase 4D), so its conversion is a
+ * function of that file and nothing else: a kroner price becomes øre, an emptied
+ * `choose` becomes `null` whichever way it was emptied, and the lists arrive in the
+ * order they are written. No dish is involved at any point.
+ */
+describe('tapasBoardFrom', () => {
+  const groups = [
+    { id: 'base' as const, heading: 'Altid med', mode: 'fixed' as const, items: ['Oliven'] },
+    {
+      id: 'choose7' as const,
+      heading: 'I vælger 7',
+      mode: 'choose' as const,
+      choose: 7,
+      items: ['Brie', 'Chorizo'],
+    },
+  ]
+
+  it('turns the written board into the one the renderer draws', () => {
+    expect(
+      tapasBoardFrom({ price: '295', secondaryNote: '+148 kr. pr. ekstra person', groups }, 'test'),
+    ).toEqual({
+      priceOre: 29500,
+      secondaryNote: '+148 kr. pr. ekstra person',
+      groups: [
+        { id: 'base', heading: 'Altid med', mode: 'fixed', choose: null, items: ['Oliven'] },
+        { id: 'choose7', heading: 'I vælger 7', mode: 'choose', choose: 7, items: ['Brie', 'Chorizo'] },
+      ],
+    })
+  })
+
+  it('reads a board whose optional controls were cleared as a board with none', () => {
+    const cleared = tapasBoardFrom(
+      { price: '', secondaryNote: null, groups: [{ ...groups[0]!, choose: '' }] },
+      'test',
+    )
+
+    expect(cleared.priceOre).toBeNull()
+    expect(cleared.secondaryNote).toBeNull()
+    expect(cleared.groups[0]?.choose).toBeNull()
   })
 })
 

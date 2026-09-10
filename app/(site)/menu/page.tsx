@@ -67,6 +67,7 @@ export default function MenuPage() {
             category={category}
             weeklySpecial={view.weeklySpecial}
             monthlyBurger={view.monthlyBurger}
+            tapas={view.tapas}
             first={index === 0}
           />
         ))}

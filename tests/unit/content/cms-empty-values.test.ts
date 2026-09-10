@@ -70,6 +70,7 @@ type Files = {
 /** Every tracked document, so a whole-tree edit does not have to name them one by one. */
 const DOCUMENTS = [
   'menu.json',
+  'tapas.json',
   'weekly-special.json',
   'monthly-burger.json',
   'hours.json',

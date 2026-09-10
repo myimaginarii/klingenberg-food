@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { validateMenu, validateMonthlyBurger, validateWeeklySpecial } from '@/lib/content/validate/menu'
+import {
+  validateMenu,
+  validateMonthlyBurger,
+  validateTapas,
+  validateWeeklySpecial,
+} from '@/lib/content/validate/menu'
 import type { Problem } from '@/lib/content/validate/problems'
 
 /**
@@ -58,6 +63,27 @@ describe('a menu the restaurant is allowed to have', () => {
     ]
     expect(check({ categories: four })).toEqual([])
     expect(check({ categories: four.slice(0, 2) })).toEqual([])
+  })
+
+  /**
+   * Adding, removing and reordering dishes is the edit the restaurant makes most often,
+   * and nothing about it is counted or fixed here — not how many a section has, not
+   * which order they are in, and not which of them the Forside shows.
+   */
+  it('accepts dishes being added, removed and reordered, featured ones included', () => {
+    const odin = dish({ featured: true })
+    const frigg = dish({ id: 'frigg', name: 'Frigg', featured: true })
+    const thor = dish({ id: 'thor', name: 'Thor' })
+
+    expect(check(menu({ categories: [category({ dishes: [odin, frigg, thor] })] }))).toEqual([])
+    expect(check(menu({ categories: [category({ dishes: [thor, odin, frigg] })] }))).toEqual([])
+    expect(check(menu({ categories: [category({ dishes: [frigg] })] }))).toEqual([])
+    expect(check(menu({ categories: [category({ dishes: [] })] }))).toEqual([])
+  })
+
+  it('accepts a section that says it holds ordinary dishes, and one that says nothing', () => {
+    expect(check(menu({ categories: [category({ kind: 'dishes' })] }))).toEqual([])
+    expect(check(menu({ categories: [category()] }))).toEqual([])
   })
 
   it('accepts a label nobody has approved: the badge draws an unknown label in the neutral tone', () => {
@@ -159,60 +185,95 @@ describe('a menu that would break a page', () => {
     expect(problems[0]?.message).toMatch(/rigtig dato skrevet som "2026-12-24"/)
   })
 
-  it('refuses a section type outside the two the renderer switches on', () => {
-    expect(messages(check(menu({ categories: [category({ kind: 'tapas' })] })))).toMatch(
-      /kind: Skal være "dishes" eller "weekly_special"/,
+  it('refuses a section type outside the three the renderer switches on', () => {
+    expect(messages(check(menu({ categories: [category({ kind: 'dessert' })] })))).toMatch(
+      /kind: Skal være "dishes", "weekly_special" eller "tapas"/,
     )
   })
 
-  it('refuses a second weekly-special section: Ugens ret is one document, not two cards', () => {
-    const problems = check({
-      categories: [
-        category({ id: 'uge-1', name: 'Uge 1', kind: 'weekly_special', dishes: [] }),
-        category({ id: 'uge-2', name: 'Uge 2', kind: 'weekly_special', dishes: [] }),
-      ],
-    })
+  it('refuses a second section of a kind that draws one document', () => {
+    const twice = (kind: string) =>
+      check({
+        categories: [
+          category({ id: 'et', name: 'Et', kind, dishes: [] }),
+          category({ id: 'to', name: 'To', kind, dishes: [] }),
+        ],
+      })
 
-    expect(messages(problems)).toMatch(/Kun én sektion kan have "kind": "weekly_special"/)
+    expect(messages(twice('weekly_special'))).toMatch(
+      /Kun én sektion kan have "kind": "weekly_special"\. Den viser Ugens ret/,
+    )
+    expect(messages(twice('tapas'))).toMatch(
+      /Kun én sektion kan have "kind": "tapas"\. Den viser tapasbordet, som er ét dokument \(content\/site\/tapas\.json\)/,
+    )
   })
 
   /**
    * Two of the three bodies `MenuCategorySection` can draw replace the section's dish
    * list rather than adding to it, so a dish put in one of those sections is a dish
    * nobody will ever see. Neither restriction is fixed here: lifting one means
-   * changing the renderer, which phase 3 does not do.
+   * changing the renderer.
    */
   it('refuses a dish put in a section whose body replaces the dish list', () => {
     const weekly = check({
       categories: [category({ id: 'ugens-ret', name: 'Ugens ret', kind: 'weekly_special' })],
     })
-    expect(messages(weekly)).toMatch(/retterne her ville ikke blive vist nogen steder/)
-
-    const board = { groups: [{ id: 'base', heading: 'Altid med', mode: 'fixed', items: ['Brød'] }] }
-    const beside = check(
-      menu({
-        categories: [
-          category({ dishes: [dish({ tapas: board }), dish({ id: 'pommes', name: 'Pommes' })] }),
-        ],
-      }),
+    expect(messages(weekly)).toMatch(
+      /Denne sektion viser Ugens ret \(content\/site\/weekly-special\.json\) i stedet for en liste af retter/,
     )
-    expect(messages(beside)).toMatch(/Et tapasbord fylder hele sektionen/)
 
-    const two = check(
-      menu({
-        categories: [
-          category({
-            dishes: [dish({ tapas: board }), dish({ id: 'tapas-2', tapas: board })],
-          }),
-        ],
-      }),
+    const board = check({
+      categories: [category({ id: 'tapas', name: 'Tapas', kind: 'tapas' })],
+    })
+    expect(messages(board)).toMatch(
+      /Denne sektion viser tapasbordet \(content\/site\/tapas\.json\) i stedet for en liste af retter/,
     )
-    expect(messages(two)).toMatch(/Et tapasbord fylder hele sektionen/)
+  })
+
+  /**
+   * The board moved out of the dish in phase 4D. A leftover `tapas` field is content
+   * nobody would ever see again, so it is named rather than quietly dropped — and the
+   * sentence says where the board lives now.
+   */
+  it('refuses a leftover tapas field on a dish, and names the document it moved to', () => {
+    const problems = withDish({ tapas: { groups: [] } })
+
+    expect(problems[0]?.where).toBe('content/site/menu.json → Burgere → Odin → tapas')
+    expect(problems[0]?.message).toMatch(
+      /ikke længere et felt på en ret.*content\/site\/tapas\.json.*"kind": "tapas"/s,
+    )
   })
 })
 
 describe('the tapas board', () => {
-  const board = (groups: unknown[]) => withDish({ tapas: { groups } })
+  const TAPAS = 'content/site/tapas.json'
+  const board = (groups: unknown[], over: Record<string, unknown> = {}) =>
+    validateTapas({ price: '295', groups, ...over }, TAPAS)
+
+  it('accepts the confirmed board, and one with no price', () => {
+    const groups = [
+      { id: 'base', heading: 'Altid med på bordet', mode: 'fixed', items: ['Hjemmebagt brød'] },
+    ]
+    expect(board(groups, { secondaryNote: '+148 kr. pr. ekstra person' })).toEqual([])
+    expect(board(groups, { price: null })).toEqual([])
+    expect(board(groups, { price: '' })).toEqual([])
+  })
+
+  it('refuses a price the menu parser cannot read, and a note that is not text', () => {
+    expect(
+      messages(board([{ id: 'base', heading: 'Altid med', mode: 'fixed', items: ['Brie'] }], { price: '295 kr.' })),
+    ).toMatch(/tapas\.json → price: Prisen skrives i kroner/)
+    expect(
+      messages(
+        board([{ id: 'base', heading: 'Altid med', mode: 'fixed', items: ['Brie'] }], { secondaryNote: 7 }),
+      ),
+    ).toMatch(/tapas\.json → secondaryNote: Skal være tekst/)
+  })
+
+  it('refuses a board that is not an object, and one with no lists', () => {
+    expect(messages(validateTapas('nej', TAPAS))).toMatch(/tapas\.json: Skal være/)
+    expect(messages(board([]))).toMatch(/Et tapasbord skal have mindst én liste/)
+  })
 
   it('accepts the shape the renderer draws', () => {
     expect(

@@ -3,7 +3,7 @@ import { contentPath, listContentJson, readContentJson } from '../load/source'
 import { validateAnnouncement } from './announcement'
 import { validateContact } from './contact'
 import { validateHours } from './hours'
-import { validateMenu, validateMonthlyBurger, validateWeeklySpecial } from './menu'
+import { validateMenu, validateMonthlyBurger, validateTapas, validateWeeklySpecial } from './menu'
 import { validateNewsArticle } from './news'
 import { validateAboutPage, validateAward, validateHomePage, validateTakeawayPage } from './pages'
 import { add, type Problem } from './problems'
@@ -18,7 +18,7 @@ import { add, type Problem } from './problems'
  *
  * CROSS-DOCUMENT RULES: there are none, and that is the design.
  *
- * There are eight small JSON files and one directory, not a database, so nothing here
+ * There are eleven small JSON files and one directory, not a database, so nothing here
  * builds a reference graph. One relationship used to exist — the Forside named three
  * dishes by id — and it was removed rather than checked harder: a dish now carries its
  * own "Vis på forsiden" flag, so deleting a dish removes it from the Forside and there
@@ -35,6 +35,7 @@ import { add, type Problem } from './problems'
 /** The tracked documents, in the order an editor would think of them. */
 const DOCUMENTS = [
   { segments: ['menu.json'], validate: validateMenu },
+  { segments: ['tapas.json'], validate: validateTapas },
   { segments: ['weekly-special.json'], validate: validateWeeklySpecial },
   { segments: ['monthly-burger.json'], validate: validateMonthlyBurger },
   { segments: ['hours.json'], validate: validateHours },
