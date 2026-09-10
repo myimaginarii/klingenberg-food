@@ -1,6 +1,9 @@
 import type { SiteContact } from '@/lib/content/types'
 
-import { once, readContentJson } from './source'
+import { validateContact } from '../validate/contact'
+import { assertValid } from '../validate/problems'
+
+import { contentPath, once, readContentJson } from './source'
 
 /**
  * The restaurant's confirmed contact facts — `content/site/contact.json` (design 1ab;
@@ -19,6 +22,7 @@ type ContactFile = Partial<Record<keyof Omit<SiteContact, 'mapAttribution'>, str
 
 export const loadContact = once((): SiteContact => {
   const file = readContentJson<ContactFile>('contact.json')
+  assertValid(validateContact(file, contentPath('contact.json')))
 
   return {
     venueName: file.venueName ?? null,

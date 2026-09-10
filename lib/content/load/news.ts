@@ -2,6 +2,9 @@ import type { NewsArticle, NewsBody } from '@/lib/content/types'
 import { isNewsSlug } from '@/lib/news/slug'
 import type { IsoDate } from '@/lib/time/calendar'
 
+import { validateNewsArticle } from '../validate/news'
+import { assertValid } from '../validate/problems'
+
 import { resolvePhoto, type PhotoField } from './photo'
 import { contentPath, listContentJson, once, readContentJson } from './source'
 
@@ -82,7 +85,12 @@ export function newsArticleFrom(slug: string, file: NewsFile): NewsArticle | nul
  */
 export const loadNews = once((): NewsArticle[] =>
   listContentJson('news')
-    .map((slug) => newsArticleFrom(slug, readContentJson<NewsFile>('news', `${slug}.json`)))
+    .map((slug) => {
+      const file = readContentJson<NewsFile>('news', `${slug}.json`)
+      assertValid(validateNewsArticle(slug, file, contentPath('news', `${slug}.json`)))
+
+      return newsArticleFrom(slug, file)
+    })
     .filter((article): article is NewsArticle => article !== null)
     .sort((a, b) =>
       a.displayDate === b.displayDate

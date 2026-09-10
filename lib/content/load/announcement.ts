@@ -1,6 +1,9 @@
 import { resolveAnnouncementLink } from '@/lib/announcements/link'
 import type { SiteAnnouncement } from '@/lib/content/types'
 
+import { validateAnnouncement } from '../validate/announcement'
+import { assertValid } from '../validate/problems'
+
 import { contentPath, once, readContentJson } from './source'
 
 /**
@@ -57,7 +60,9 @@ export function announcementFrom(file: AnnouncementFile, where: string): SiteAnn
   }
 }
 
-export const loadAnnouncement = once(
-  (): SiteAnnouncement | null =>
-    announcementFrom(readContentJson<AnnouncementFile>('announcement.json'), contentPath('announcement.json')),
-)
+export const loadAnnouncement = once((): SiteAnnouncement | null => {
+  const file = readContentJson<AnnouncementFile>('announcement.json')
+  assertValid(validateAnnouncement(file, contentPath('announcement.json')))
+
+  return announcementFrom(file, contentPath('announcement.json'))
+})

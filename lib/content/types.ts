@@ -32,6 +32,15 @@ export type SiteContact = {
 export type DishLabel = string
 
 /**
+ * The three group ids and the two list modes, as values rather than as a type alone —
+ * the same shape `IMAGE_FOCUSES` and `WEEKDAY_KEYS` already have, so the content
+ * validator (`lib/content/validate/`) can hold a stored value against the vocabulary
+ * without a second copy of it living next to the checker.
+ */
+export const TAPAS_GROUP_IDS = ['base', 'choose7', 'dressing'] as const
+export const TAPAS_GROUP_MODES = ['fixed', 'choose'] as const
+
+/**
  * The Tapas content document (§4, decision 3).
  *
  * Three fixed groups whose ids and count are part of the schema; only the heading and
@@ -39,9 +48,9 @@ export type DishLabel = string
  * nothing is selectable by a visitor and nothing is priced per item.
  */
 export type TapasGroup = {
-  id: 'base' | 'choose7' | 'dressing'
+  id: (typeof TAPAS_GROUP_IDS)[number]
   heading: string
-  mode: 'fixed' | 'choose'
+  mode: (typeof TAPAS_GROUP_MODES)[number]
   choose: number | null
   items: string[]
 }
@@ -70,7 +79,8 @@ export type Dish = {
 }
 
 /** `menu_categories.kind` — an ordinary list of dishes, or the Ugens ret section. */
-export type MenuCategoryKind = 'dishes' | 'weekly_special'
+export const MENU_CATEGORY_KINDS = ['dishes', 'weekly_special'] as const
+export type MenuCategoryKind = (typeof MENU_CATEGORY_KINDS)[number]
 
 /**
  * Everything the menu page and the Forside read about the menu, as one value: the

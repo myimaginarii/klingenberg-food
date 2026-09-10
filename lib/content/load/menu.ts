@@ -10,6 +10,13 @@ import type {
 import { MONTHLY_BURGER_MENU_SECTION_SLUG } from '@/lib/menu/monthly'
 import type { IsoDate } from '@/lib/time/calendar'
 
+import {
+  validateMenu,
+  validateMonthlyBurger,
+  validateWeeklySpecial,
+} from '../validate/menu'
+import { assertValid } from '../validate/problems'
+
 import { resolvePhoto, type PhotoField } from './photo'
 import { oreFromKroner } from './price'
 import { contentPath, once, readContentJson } from './source'
@@ -256,20 +263,29 @@ export function monthlyBurgerFrom(file: MonthlyBurgerFile, where: string): Month
   }
 }
 
-/** Everything the menu page and the Forside read about the menu. */
+/**
+ * Everything the menu page and the Forside read about the menu.
+ *
+ * The three files are held to `lib/content/validate/` before a single value is read
+ * out of them, so a malformed menu stops the build with every mistake named in Danish
+ * rather than with the first `TypeError` a conversion happens to hit. The conversions
+ * below keep their own refusals — they are the second lock on the same door, in the
+ * idiom this codebase already uses for a photograph's path.
+ */
 export const loadMenu = once((): MenuContent => {
   const menu = readContentJson<MenuFile>('menu.json')
+  assertValid(validateMenu(menu, contentPath('menu.json')))
+
+  const weekly = readContentJson<WeeklySpecialFile>('weekly-special.json')
+  assertValid(validateWeeklySpecial(weekly, contentPath('weekly-special.json')))
+
+  const monthly = readContentJson<MonthlyBurgerFile>('monthly-burger.json')
+  assertValid(validateMonthlyBurger(monthly, contentPath('monthly-burger.json')))
 
   return {
     allergenNote: prose(menu.allergenNote),
     categories: menuCategoriesFrom(menu, contentPath('menu.json')),
-    weeklySpecial: weeklySpecialFrom(
-      readContentJson<WeeklySpecialFile>('weekly-special.json'),
-      contentPath('weekly-special.json'),
-    ),
-    monthlyBurger: monthlyBurgerFrom(
-      readContentJson<MonthlyBurgerFile>('monthly-burger.json'),
-      contentPath('monthly-burger.json'),
-    ),
+    weeklySpecial: weeklySpecialFrom(weekly, contentPath('weekly-special.json')),
+    monthlyBurger: monthlyBurgerFrom(monthly, contentPath('monthly-burger.json')),
   }
 })
