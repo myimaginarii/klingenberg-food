@@ -4,6 +4,7 @@ import type {
   MenuCategoryKind,
   MenuContent,
   MonthlyBurger,
+  TapasBoard,
   TapasGroup,
   WeeklySpecial,
 } from '@/lib/content/types'
@@ -13,6 +14,7 @@ import type { IsoDate } from '@/lib/time/calendar'
 import {
   validateMenu,
   validateMonthlyBurger,
+  validateTapas,
   validateWeeklySpecial,
 } from '../validate/menu'
 import { assertValid } from '../validate/problems'
@@ -30,14 +32,21 @@ import { keepPriceTogether, prose } from './text'
  *
  * **One document for the menu.** The nine sections, in the order of the category bar,
  * each holding its dishes in their confirmed order — names, prices, descriptions, the
- * small grey line beneath a name, the labels the approved frames print, the tapas
- * board's three lists, and the `featured` flag that puts a dish on the Forside. A
- * dish's `id` is its stable identity; a section's `id` is also its slug and its anchor.
+ * small grey line beneath a name, the labels the approved frames print, and the
+ * `featured` flag that puts a dish on the Forside. A dish's `id` is its stable identity;
+ * a section's `id` is also its slug and its anchor.
  *
- * **Two small documents for what changes every week and every month.** Ugens ret and
- * Månedens burger each carry an `active` flag: inactive is the state the confirmed
- * content leaves the site in — the approved "Ingen lørdagsmenu denne uge" card and
- * the approved empty Månedens burger card — and nothing is invented to fill them.
+ * **A section whose body is another document says so with its `kind`.** `weekly_special`
+ * is Ugens ret and `tapas` is the tapas board; both carry no dishes of their own, and
+ * the section is where the restaurant decides *whether* and *where* on the card that
+ * body appears. Nothing here matches a section by name.
+ *
+ * **Three small documents beside the menu.** Ugens ret and Månedens burger each carry
+ * an `active` flag: inactive is the state the confirmed content leaves the site in —
+ * the approved "Ingen lørdagsmenu denne uge" card and the approved empty Månedens
+ * burger card — and nothing is invented to fill them. The tapas board
+ * (`tapas.json`) has no such flag, because a board that is not shown is a section the
+ * restaurant removed, not a document in an empty state.
  *
  * **Prices are stored in kroner and used in øre.** The string on disk is what a person
  * writes on a menu ("89"); `./price.ts` turns it into the whole number of øre the
@@ -56,6 +65,12 @@ type TapasGroupFile = {
   items: string[]
 }
 
+type TapasFile = {
+  price?: string | null
+  secondaryNote?: string | null
+  groups: TapasGroupFile[]
+}
+
 type DishFile = {
   id: string
   name: string
@@ -67,8 +82,6 @@ type DishFile = {
   /** "Vis på forsiden" — absent and `false` both mean the Forside does not show it. */
   featured?: boolean
   photo?: PhotoField | null
-  /** Present only for the Tapas board — three lists in one document (§4, decision 3). */
-  tapas?: { groups: TapasGroupFile[] } | null
 }
 
 type CategoryFile = {
@@ -153,21 +166,6 @@ function dishFrom(file: DishFile, where: string): Dish {
     secondaryNote: prose(file.secondaryNote),
     priceOre: oreFromKroner(file.price, where),
     labels: file.labels ?? [],
-    tapas:
-      file.tapas === null || file.tapas === undefined
-        ? null
-        : {
-            kind: 'tapas',
-            groups: file.tapas.groups.map(
-              (group): TapasGroup => ({
-                id: group.id,
-                heading: group.heading,
-                mode: group.mode,
-                choose: stored(group.choose),
-                items: group.items,
-              }),
-            ),
-          },
     soldOutOn: stored(file.soldOutOn),
     featured: file.featured === true,
     image: resolvePhoto(file.photo, where),
@@ -268,9 +266,37 @@ export function monthlyBurgerFrom(file: MonthlyBurgerFile, where: string): Month
 }
 
 /**
+ * The tapas board — `content/site/tapas.json` (§4, decision 3).
+ *
+ * One price, the line about each extra person, and the three lists, read as one
+ * document because that is how the restaurant edits it: a board is not an ordinary
+ * dish that happens to have lists attached, and no ordinary dish carries any part of
+ * it. `TapasTable` draws exactly these three values.
+ *
+ * The group ids, their count and the two list modes are the schema's, held to it by
+ * `lib/content/validate/menu.ts` before this runs; what is editable is the headings,
+ * the items and how many are chosen.
+ */
+export function tapasBoardFrom(file: TapasFile, where: string): TapasBoard {
+  return {
+    priceOre: oreFromKroner(file.price, where),
+    secondaryNote: prose(file.secondaryNote),
+    groups: file.groups.map(
+      (group): TapasGroup => ({
+        id: group.id,
+        heading: group.heading,
+        mode: group.mode,
+        choose: stored(group.choose),
+        items: group.items,
+      }),
+    ),
+  }
+}
+
+/**
  * Everything the menu page and the Forside read about the menu.
  *
- * The three files are held to `lib/content/validate/` before a single value is read
+ * The four files are held to `lib/content/validate/` before a single value is read
  * out of them, so a malformed menu stops the build with every mistake named in Danish
  * rather than with the first `TypeError` a conversion happens to hit. The conversions
  * below keep their own refusals — they are the second lock on the same door, in the
@@ -286,10 +312,14 @@ export const loadMenu = once((): MenuContent => {
   const monthly = readContentJson<MonthlyBurgerFile>('monthly-burger.json')
   assertValid(validateMonthlyBurger(monthly, contentPath('monthly-burger.json')))
 
+  const tapas = readContentJson<TapasFile>('tapas.json')
+  assertValid(validateTapas(tapas, contentPath('tapas.json')))
+
   return {
     allergenNote: prose(menu.allergenNote),
     categories: menuCategoriesFrom(menu, contentPath('menu.json')),
     weeklySpecial: weeklySpecialFrom(weekly, contentPath('weekly-special.json')),
     monthlyBurger: monthlyBurgerFrom(monthly, contentPath('monthly-burger.json')),
+    tapas: tapasBoardFrom(tapas, contentPath('tapas.json')),
   }
 })

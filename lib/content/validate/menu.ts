@@ -1,4 +1,9 @@
-import { MENU_CATEGORY_KINDS, TAPAS_GROUP_IDS, TAPAS_GROUP_MODES } from '@/lib/content/types'
+import {
+  MENU_CATEGORY_KINDS,
+  TAPAS_GROUP_IDS,
+  TAPAS_GROUP_MODES,
+  type MenuCategoryKind,
+} from '@/lib/content/types'
 import { WEEKDAY_KEYS } from '@/lib/time/calendar'
 
 import {
@@ -19,7 +24,8 @@ import {
 import { add, at, readableName, type Problem } from './problems'
 
 /**
- * What a usable menu is — `menu.json`, `weekly-special.json`, `monthly-burger.json`.
+ * What a usable menu is — `menu.json`, `tapas.json`, `weekly-special.json`,
+ * `monthly-burger.json`.
  *
  * Every rule here is one the *renderer* actually depends on. The restaurant is meant
  * to add and remove dishes, add and remove sections, change every price and reorder
@@ -40,20 +46,32 @@ import { add, at, readableName, type Problem } from './problems'
  *     whole menu.
  *   * **`kind` and the tapas vocabulary are closed sets** the renderer switches on.
  *     A name outside them silently produces the wrong body.
- *   * **One weekly-special section, at most.** The section renders *the* week's
- *     special, which is one document; two sections would print the same card twice.
- *     Zero is allowed — removing the section removes Ugens ret from the menu, which
- *     `MenuCategorySection` handles by rendering nothing.
- *   * **One tapas board per section, at most, and nothing beside it.**
- *     `MenuCategorySection` replaces the whole section body with the first dish that
- *     carries a tapas document, so a second board — and every ordinary dish beside it
- *     — would silently disappear. A `weekly_special` section replaces its body the
- *     same way. Both are refused here and neither is fixed here: lifting either
- *     restriction means changing the renderer, which this phase does not do.
+ *   * **A section whose body is another document holds no dishes, and there is at most
+ *     one of it.** `weekly_special` draws Ugens ret and `tapas` draws the board;
+ *     `MenuCategorySection` replaces the whole section body in both cases, so a dish
+ *     left in such a section is a dish nobody would ever see, and a second such
+ *     section would print the same one document twice. Zero of either is allowed —
+ *     removing the section removes that body from the menu, which the renderer
+ *     handles by drawing nothing. Neither restriction is fixed here: lifting one
+ *     means changing the renderer.
  *
  * A section with no dishes is deliberately fine: `ugens-ret` has none today, and an
  * editor building a new section starts from an empty one.
  */
+
+/**
+ * The two section kinds whose body is one other document, and which document that is.
+ *
+ * Written once because three rules read it: a section of this kind holds no dishes,
+ * there is at most one of it, and the sentence a mistake gets has to name the file the
+ * restaurant would go and edit instead.
+ */
+type SingleDocumentKind = Exclude<MenuCategoryKind, 'dishes'>
+
+const SINGLE_DOCUMENT_BODIES: Record<SingleDocumentKind, { what: string; file: string }> = {
+  weekly_special: { what: 'Ugens ret', file: 'content/site/weekly-special.json' },
+  tapas: { what: 'tapasbordet', file: 'content/site/tapas.json' },
+}
 
 export function validateMenu(file: unknown, where: string): Problem[] {
   const problems: Problem[] = []
@@ -77,7 +95,8 @@ export function validateMenu(file: unknown, where: string): Problem[] {
 
   const sectionIds: { value: string; where: string }[] = []
   const dishIds: { value: string; where: string }[] = []
-  const weeklySections: string[] = []
+  /** The sections claiming each single-document body, so a second one can be named. */
+  const claimed = new Map<SingleDocumentKind, string[]>()
 
   categories.forEach((entry, index) => {
     const label = readableName(entry, 'name', `sektion ${index + 1}`)
@@ -93,21 +112,22 @@ export function validateMenu(file: unknown, where: string): Problem[] {
     text(problems, at(sectionWhere, 'intro'), category.intro)
     text(problems, at(sectionWhere, 'note'), category.note)
 
+    let kind: MenuCategoryKind | null = 'dishes'
     if (!isBlank(category.kind)) {
-      const kind = oneOf(
+      kind = oneOf(
         problems,
         at(sectionWhere, 'kind'),
         category.kind,
         MENU_CATEGORY_KINDS,
         'Udelades betyder "dishes".',
       )
-      if (kind === 'weekly_special') weeklySections.push(label)
+    }
+    if (kind !== null && kind !== 'dishes') {
+      claimed.set(kind, [...(claimed.get(kind) ?? []), label])
     }
 
     const dishes = array(problems, at(sectionWhere, 'dishes'), category.dishes)
     if (dishes === null) return
-
-    let tapasBoards = 0
 
     dishes.forEach((dishEntry, dishIndex) => {
       const dishWhere = at(sectionWhere, readableName(dishEntry, 'name', `ret ${dishIndex + 1}`))
@@ -126,29 +146,28 @@ export function validateMenu(file: unknown, where: string): Problem[] {
       photo(problems, at(dishWhere, 'photo'), dish.photo)
       validateLabels(problems, at(dishWhere, 'labels'), dish.labels)
 
-      if (!isBlank(dish.tapas)) {
-        tapasBoards += 1
-        validateTapas(problems, at(dishWhere, 'tapas'), dish.tapas)
+      // The board used to be a field on this dish. Nothing reads it now, so a leftover
+      // one would be content nobody would ever see again — said plainly, once, rather
+      // than left to be discovered as three missing lists on the menu.
+      if (dish.tapas !== undefined) {
+        add(
+          problems,
+          at(dishWhere, 'tapas'),
+          'Tapasbordet er ikke længere et felt på en ret. Det står i sit eget dokument ' +
+            '(content/site/tapas.json), og afsnittet, der viser det, har "kind": "tapas". ' +
+            'Fjern feltet her — indholdet i det bliver ikke vist nogen steder.',
+        )
       }
     })
 
-    if (category.kind === 'weekly_special' && dishes.length > 0) {
+    if (kind !== null && kind !== 'dishes' && dishes.length > 0) {
+      const body = SINGLE_DOCUMENT_BODIES[kind]
       add(
         problems,
         at(sectionWhere, 'dishes'),
-        'Denne sektion viser Ugens ret (content/site/weekly-special.json) i stedet for en liste ' +
-          'af retter — retterne her ville ikke blive vist nogen steder. Flyt dem til en anden ' +
-          'sektion, eller fjern "kind": "weekly_special".',
-      )
-    }
-
-    if (tapasBoards > 1 || (tapasBoards === 1 && dishes.length > 1)) {
-      add(
-        problems,
-        at(sectionWhere, 'dishes'),
-        'Et tapasbord fylder hele sektionen: når en ret har et "tapas"-felt, viser sektionen kun ' +
-          'den ret, og de øvrige retter — og et ekstra tapasbord — bliver ikke vist. Læg dem i ' +
-          'en anden sektion.',
+        `Denne sektion viser ${body.what} (${body.file}) i stedet for en liste af retter — ` +
+          'retterne her ville ikke blive vist nogen steder. Flyt dem til en anden sektion, ' +
+          `eller vælg en anden type afsnit end "${kind}".`,
       )
     }
   })
@@ -165,12 +184,14 @@ export function validateMenu(file: unknown, where: string): Problem[] {
       'skal være unikt i hele menuen.',
   )
 
-  if (weeklySections.length > 1) {
+  for (const [kind, sections] of claimed) {
+    if (sections.length < 2) continue
+    const body = SINGLE_DOCUMENT_BODIES[kind]
     add(
       problems,
       at(where, 'categories'),
-      'Kun én sektion kan have "kind": "weekly_special". Den viser Ugens ret, som er ét dokument ' +
-        `(content/site/weekly-special.json). Sektionerne der har det nu: ${weeklySections.join(', ')}.`,
+      `Kun én sektion kan have "kind": "${kind}". Den viser ${body.what}, som er ét dokument ` +
+        `(${body.file}). Sektionerne der har det nu: ${sections.join(', ')}.`,
     )
   }
 
@@ -197,23 +218,36 @@ function validateLabels(problems: Problem[], where: string, value: unknown): voi
 }
 
 /**
- * The tapas board — three lists and a price (§4, decision 3).
+ * The tapas board — `tapas.json`: a price, one small line and three lists (§4,
+ * decision 3).
+ *
+ * It is its own document rather than a field on a dish, so an ordinary dish carries
+ * nothing of it and the editor that opens it shows nothing else. Which section draws
+ * it is `menu.json`'s answer, given by that section's `kind`.
  *
  * `TapasTable` prints the group headings and the items, and uses each item as its
  * React key, so an item repeated inside a group is a real fault rather than a
  * duplicate word. `mode` and `choose` are the board's own bookkeeping: a list you
- * choose from states how many, and a list that is always on the table does not.
+ * choose from states how many, and a list that is always on the table does not. The
+ * price is optional in the same way every other price on the site is — an empty one
+ * simply prints no price — and the group ids stay a closed set because the renderer
+ * singles out `base` and lays the other lists out beside it.
  */
-function validateTapas(problems: Problem[], where: string, value: unknown): void {
-  const board = object(problems, where, value, '{ "groups": [ ... ] }')
-  if (board === null) return
+export function validateTapas(file: unknown, where: string): Problem[] {
+  const problems: Problem[] = []
+
+  const board = object(problems, where, file)
+  if (board === null) return problems
+
+  price(problems, at(where, 'price'), board.price)
+  text(problems, at(where, 'secondaryNote'), board.secondaryNote)
 
   const groups = array(problems, at(where, 'groups'), board.groups)
-  if (groups === null) return
+  if (groups === null) return problems
 
   if (groups.length === 0) {
     add(problems, at(where, 'groups'), 'Et tapasbord skal have mindst én liste.')
-    return
+    return problems
   }
 
   const ids: { value: string; where: string }[] = []
@@ -272,6 +306,8 @@ function validateTapas(problems: Problem[], where: string, value: unknown): void
   })
 
   unique(problems, ids, 'Et tapasbord kan kun have én liste af hver slags.')
+
+  return problems
 }
 
 /**

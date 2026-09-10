@@ -1,4 +1,4 @@
-import type { Dish, MenuCategory, MonthlyBurger, WeeklySpecial } from '@/lib/content/types'
+import type { Dish, MenuCategory, MonthlyBurger, TapasBoard, WeeklySpecial } from '@/lib/content/types'
 import { formatWeekdayName } from '@/lib/hours/format'
 import type { OpeningHoursOverride, WeeklySchedule } from '@/lib/hours/types'
 import { WEEKDAY_KEYS, type WeekdayKey } from '@/lib/time/calendar'
@@ -43,6 +43,14 @@ export type MenuView = {
   weeklySpecial: WeeklySpecialView | null
   /** The published burger when today falls inside its window, otherwise `null`. */
   monthlyBurger: MonthlyBurgerView | null
+  /**
+   * The tapas board, carried through unchanged.
+   *
+   * Nothing about it is time-dependent — a board is not sold out and has no window —
+   * so there is no `TapasBoardView`. It travels here so the menu page hands its
+   * sections one value rather than reaching past the view for the section that draws it.
+   */
+  tapas: TapasBoard
 }
 
 type Hours = {
@@ -91,7 +99,12 @@ export function isMonthlyBurgerInWindow(burger: MonthlyBurger, now: Date): boole
 }
 
 export function buildMenuView(
-  content: { categories: MenuCategory[]; weeklySpecial: WeeklySpecial | null; monthlyBurger: MonthlyBurger | null },
+  content: {
+    categories: MenuCategory[]
+    weeklySpecial: WeeklySpecial | null
+    monthlyBurger: MonthlyBurger | null
+    tapas: TapasBoard
+  },
   hours: Hours,
   now: Date,
 ): MenuView {
@@ -124,7 +137,7 @@ export function buildMenuView(
       ? { ...burger, soldOut: isSoldOut(burger.soldOutOn, hours, now) }
       : null
 
-  return { categories, weeklySpecial, monthlyBurger }
+  return { categories, weeklySpecial, monthlyBurger, tapas: content.tapas }
 }
 
 /**

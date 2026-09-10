@@ -24,9 +24,16 @@ import { CONFIRMED_SCHEDULE } from '../fixtures/hours'
  * `lib/content/load/` hand it to the pages.
  *
  * These are the numbers and the absences the conversion promised: nine sections,
- * forty-six dishes, no "Salat efter sæson", nothing invented for the week, the month,
- * the news or the announcement — and a photograph model whose every URL names a rung
- * the build actually renders.
+ * forty-five dishes and the tapas board beside them, no "Salat efter sæson", nothing
+ * invented for the week, the month, the news or the announcement — and a photograph
+ * model whose every URL names a rung the build actually renders.
+ *
+ * **Forty-five, and it used to be written as forty-six.** The board was once a
+ * forty-sixth "dish" carrying the three lists as a field; phase 4D moved it into
+ * `content/site/tapas.json` and gave its section its own `kind`, so the menu document
+ * now holds forty-five real dishes and the board is counted where it lives. Nothing on
+ * the page changed: the board never rendered a dish heading or a dish card, which the
+ * end-to-end suite has always asserted by counting forty-five headings on /menu.
  */
 
 const NO_BREAK_SPACE = String.fromCharCode(0xa0)
@@ -56,11 +63,50 @@ describe('the confirmed menu', () => {
     ])
   })
 
-  it('has exactly forty-six dishes, every one priced in whole øre', () => {
-    expect(EVERY_DISH).toHaveLength(46)
+  it('has exactly forty-five dishes, every one priced in whole øre', () => {
+    expect(EVERY_DISH).toHaveLength(45)
     for (const dish of EVERY_DISH) {
       expect(Number.isInteger(dish.priceOre) && (dish.priceOre ?? 0) > 0, dish.name).toBe(true)
     }
+  })
+
+  /**
+   * The one thing an ordinary dish must *not* have, stated as a fact about the loaded
+   * menu rather than about one file: no dish carries the tapas board, or any part of
+   * it, as a field. That is what keeps every dish's editor an ordinary dish form.
+   */
+  it('gives no dish a tapas field, in the domain or on disk', () => {
+    for (const dish of EVERY_DISH) {
+      expect(Object.keys(dish), dish.name).not.toContain('tapas')
+    }
+
+    const onDisk = JSON.parse(
+      readFileSync(join(process.cwd(), 'content', 'site', 'menu.json'), 'utf8'),
+    ) as { categories: { dishes: Record<string, unknown>[] }[] }
+    for (const category of onDisk.categories) {
+      for (const dish of category.dishes) {
+        expect(Object.keys(dish), String(dish.name)).not.toContain('tapas')
+      }
+    }
+  })
+
+  /** Every section says what it is, so nothing in the menu loads as an unset type. */
+  it('names every section’s type explicitly, and only Ugens ret is the weekly one', () => {
+    const onDisk = JSON.parse(
+      readFileSync(join(process.cwd(), 'content', 'site', 'menu.json'), 'utf8'),
+    ) as { categories: { id: string; kind?: string }[] }
+
+    expect(onDisk.categories.map((category) => [category.id, category.kind])).toEqual([
+      ['burgere', 'dishes'],
+      ['ugens-ret', 'weekly_special'],
+      ['andre-retter', 'dishes'],
+      ['pommes-og-snacks', 'dishes'],
+      ['boern', 'dishes'],
+      ['drikkevarer', 'dishes'],
+      ['dessert', 'dishes'],
+      ['tapas', 'tapas'],
+      ['varm-selv', 'dishes'],
+    ])
   })
 
   it('states the burger menu price once, under Burgere, and on no card', () => {
@@ -97,21 +143,55 @@ describe('the confirmed menu', () => {
     expect(EVERY_DISH.some((dish) => /salat efter s/i.test(dish.name))).toBe(false)
   })
 
+  /**
+   * The board, in full — the price, the line beneath it, the three lists in their order
+   * and every item in each. It is the whole confirmed board rather than a shape check,
+   * because moving it out of `menu.json` had to change nothing a guest reads.
+   */
   it('carries the tapas board as the one structured document', () => {
-    const tapas = EVERY_DISH.filter((dish) => dish.tapas !== null)
-    expect(tapas.map((dish) => dish.name)).toEqual(['Tapas'])
+    const sections = MENU_CATEGORIES.filter((category) => category.kind === 'tapas')
+    expect(sections.map((category) => category.slug)).toEqual(['tapas'])
+    expect(sections[0]?.dishes).toEqual([])
+    expect(sections[0]?.intro).toBe('Til to personer 295 kr. · hver ekstra person 148 kr.')
 
-    const document = tapas[0]!.tapas!
-    expect(document.kind).toBe('tapas')
-    expect(document.groups.map((group) => [group.id, group.mode, group.choose])).toEqual([
-      ['base', 'fixed', null],
-      ['choose7', 'choose', 7],
-      ['dressing', 'choose', 3],
+    const board = MENU.tapas
+    expect(board.priceOre).toBe(29500)
+    expect(board.secondaryNote).toBe('+148 kr. pr. ekstra person')
+    expect(board.groups.map((group) => [group.id, group.heading, group.mode, group.choose])).toEqual([
+      ['base', 'Altid med på bordet', 'fixed', null],
+      ['choose7', 'I vælger 7', 'choose', 7],
+      ['dressing', 'Og 3 dressinger', 'choose', 3],
     ])
-    for (const group of document.groups) {
-      expect(group.heading.length).toBeGreaterThan(0)
-      expect(group.items.length).toBeGreaterThan(0)
-    }
+    expect(board.groups.map((group) => group.items)).toEqual([
+      [
+        'Hjemmebagt brød',
+        'Rugchips',
+        'Grissini',
+        'Saltmandler',
+        'Syltede rødløg',
+        'Syltet peberfrugt',
+        'Kryddersmør',
+        'Oliven',
+        'Frugt',
+      ],
+      [
+        'Laksetatar',
+        'Stegte tigerrejer',
+        'Krondyr-spegepølse med jalapeños',
+        'Chorizo',
+        'Serranoskinke',
+        'Bresaola',
+        'Hønsesalat',
+        'Krebsehalesalat',
+        'Ølpinde',
+        'Mini porre/bacon-tærte',
+        'Paté med hvidløg',
+        'Gouda med brændenælde',
+        'Gouda med chili',
+        'Brie',
+      ],
+      ['Pesto', 'Hummus', 'Urtemayo', 'Estragonmayo', 'Chilimayo', 'Aioli'],
+    ])
   })
 
   it('marks nothing sold out and names only the confirmed Ugens ret note', () => {

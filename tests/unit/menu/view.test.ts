@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { Dish, MenuCategory, MonthlyBurger, WeeklySpecial } from '@/lib/content/types'
+import type { Dish, MenuCategory, MonthlyBurger, TapasBoard, WeeklySpecial } from '@/lib/content/types'
 import {
   buildMenuView,
   categoryAnchorId,
@@ -29,7 +29,6 @@ function dish(overrides: Partial<Dish> = {}): Dish {
     secondaryNote: null,
     priceOre: 8900,
     labels: [],
-    tapas: null,
     soldOutOn: null,
     featured: false,
     image: null,
@@ -87,6 +86,18 @@ function monthlyBurger(overrides: Partial<MonthlyBurger> = {}): MonthlyBurger {
   }
 }
 
+/** The tapas board is time-independent, so the view carries it through untouched. */
+function tapasBoard(overrides: Partial<TapasBoard> = {}): TapasBoard {
+  return {
+    priceOre: 29500,
+    secondaryNote: '+148 kr. pr. ekstra person',
+    groups: [
+      { id: 'base', heading: 'Altid med på bordet', mode: 'fixed', choose: null, items: ['Oliven'] },
+    ],
+    ...overrides,
+  }
+}
+
 type MenuContent = Parameters<typeof buildMenuView>[0]
 
 function content(overrides: Partial<MenuContent> = {}): MenuContent {
@@ -94,6 +105,7 @@ function content(overrides: Partial<MenuContent> = {}): MenuContent {
     categories: [category()],
     weeklySpecial: null,
     monthlyBurger: null,
+    tapas: tapasBoard(),
     ...overrides,
   }
 }

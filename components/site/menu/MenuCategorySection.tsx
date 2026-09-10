@@ -1,3 +1,4 @@
+import type { TapasBoard } from '@/lib/content/types'
 import { MONTHLY_BURGER_MENU_SECTION_SLUG } from '@/lib/menu/monthly'
 import type { MenuCategoryView, MonthlyBurgerView, WeeklySpecialView } from '@/lib/menu/view'
 
@@ -15,10 +16,14 @@ import { WeeklySpecial } from './WeeklySpecial'
  * from the content rather than from a hard-coded list of names:
  *
  *  * a section whose `kind` is `weekly_special` is Ugens ret and Lørdagsmenu;
- *  * a section holding an entry with a tapas document is the tapas board;
+ *  * a section whose `kind` is `tapas` is the tapas board;
  *  * a section whose dishes are **described** gets photo cards, and a plain price list
  *    gets two-column rows — which is exactly how the design separates Burgere from
  *    Andre retter, Pommes & snacks, Børn, Drikkevarer, Dessert and Varm selv.
+ *
+ * The first two sections draw one *other* document each and hold no dishes of their
+ * own; the restaurant decides whether and where on the card they appear by keeping,
+ * removing or moving the section.
  *
  * The one placement that is genuinely fixed by the design rather than by data is
  * Månedens burger, which sits at the end of Burgere (1h).
@@ -29,11 +34,13 @@ export function MenuCategorySection({
   category,
   weeklySpecial,
   monthlyBurger,
+  tapas,
   first = false,
 }: {
   category: MenuCategoryView
   weeklySpecial: WeeklySpecialView | null
   monthlyBurger: MonthlyBurgerView | null
+  tapas: TapasBoard
   /** The page's first section: its first photo is above the fold and loads eagerly. */
   first?: boolean
 }) {
@@ -48,6 +55,7 @@ export function MenuCategorySection({
         category={category}
         weeklySpecial={weeklySpecial}
         monthlyBurger={monthlyBurger}
+        tapas={tapas}
         first={first}
       />
     </MenuSection>
@@ -58,19 +66,20 @@ function CategoryBody({
   category,
   weeklySpecial,
   monthlyBurger,
+  tapas,
   first,
 }: {
   category: MenuCategoryView
   weeklySpecial: WeeklySpecialView | null
   monthlyBurger: MonthlyBurgerView | null
+  tapas: TapasBoard
   first: boolean
 }) {
   if (category.kind === 'weekly_special') {
     return weeklySpecial === null ? null : <WeeklySpecial weekly={weeklySpecial} />
   }
 
-  const tapas = category.dishes.find((dish) => dish.tapas !== null)
-  if (tapas !== undefined) return <TapasTable dish={tapas} />
+  if (category.kind === 'tapas') return <TapasTable board={tapas} />
 
   const showsMonthlyBurger = category.slug === MONTHLY_BURGER_CATEGORY_SLUG
   const asCards = category.dishes.some((dish) => dish.description !== null)
