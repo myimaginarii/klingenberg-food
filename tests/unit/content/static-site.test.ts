@@ -7,11 +7,13 @@ import { resolvePhoto } from '@/lib/content/load/photo'
 import { readImageManifest } from '@/lib/images/manifest'
 import { loadAnnouncement } from '@/lib/content/load/announcement'
 import { loadAward } from '@/lib/content/load/award'
+import { stored } from '@/lib/content/load/cleared'
 import { loadContact } from '@/lib/content/load/contact'
 import { loadOpeningHours } from '@/lib/content/load/hours'
 import { loadMenu } from '@/lib/content/load/menu'
 import { loadNews } from '@/lib/content/load/news'
 import { loadAboutPage, loadHomePage, loadTakeawayPage } from '@/lib/content/load/pages'
+import { listContentJson, readContentJson } from '@/lib/content/load/source'
 import { planDerivatives } from '@/lib/images/derivatives'
 import { buildStaticPublicImage } from '@/lib/images/public'
 import { buildMenuView, selectFeaturedDishes } from '@/lib/menu/view'
@@ -23,10 +25,18 @@ import { CONFIRMED_SCHEDULE } from '../fixtures/hours'
  * confirmed facts (design 1ab; `content/launch/launch-copy.md`) — as the loaders in
  * `lib/content/load/` hand it to the pages.
  *
- * These are the numbers and the absences the conversion promised: nine sections,
- * forty-five dishes and the tapas board beside them, no "Salat efter sæson", nothing
- * invented for the week, the month, the news or the announcement — and a photograph
- * model whose every URL names a rung the build actually renders.
+ * These are the numbers the conversion promised: nine sections, forty-five dishes and
+ * the tapas board beside them, no "Salat efter sæson", and a photograph model whose
+ * every URL names a rung the build actually renders.
+ *
+ * **What is deliberately not written down here is today's operating state.** A week, a
+ * month, an announcement, an article and a sold-out sign are the five things the
+ * restaurant publishes and withdraws from Pages CMS. This file used to assert that
+ * there were none of them, which turned an ordinary publication into a red build — the
+ * phase 4E/4F rehearsal on live content is what proved it. Each of those is now a
+ * *correspondence* with the tracked documents instead: shown exactly where a document
+ * says so, and never otherwise. That the same rule holds once something *is* published
+ * is proved on real files in `tests/unit/content/authored-content.test.ts`.
  *
  * **Forty-five, and it used to be written as forty-six.** The board was once a
  * forty-sixth "dish" carrying the three lists as a field; phase 4D moved it into
@@ -194,8 +204,24 @@ describe('the confirmed menu', () => {
     ])
   })
 
-  it('marks nothing sold out and names only the confirmed Ugens ret note', () => {
-    expect(EVERY_DISH.every((dish) => dish.soldOutOn === null)).toBe(true)
+  /**
+   * "Udsolgt i dag" is a switch the kitchen flips from a phone, so what is asserted is
+   * that the loaded menu says exactly what the tracked dish says — not that no dish is
+   * ever sold out. `stored` is the loader's own reading of an emptied control
+   * (`lib/content/load/cleared.ts`), asked rather than restated.
+   */
+  it('marks a dish sold out only where its own entry says so, and names one weekly section', () => {
+    const onDisk = new Map(
+      readContentJson<{ categories: { dishes: { id: string; soldOutOn?: string | '' | null }[] }[] }>(
+        'menu.json',
+      ).categories.flatMap((category) =>
+        category.dishes.map((dish) => [dish.id, stored(dish.soldOutOn)] as const),
+      ),
+    )
+
+    for (const dish of EVERY_DISH) {
+      expect(dish.soldOutOn, dish.name).toBe(onDisk.get(dish.id) ?? null)
+    }
     expect(MENU_CATEGORIES.find((category) => category.kind === 'weekly_special')?.slug).toBe('ugens-ret')
   })
 
@@ -203,12 +229,45 @@ describe('the confirmed menu', () => {
     expect(MENU.allergenNote).toBe('Spørg os gerne om allergener.')
   })
 
-  it('has no week, no month and no announcement — nothing invented', () => {
-    expect(MENU.weeklySpecial.name).toBeNull()
-    expect(MENU.weeklySpecial.saturday.enabled).toBe(false)
-    expect(MENU.monthlyBurger).toBeNull()
-    expect(loadAnnouncement()).toBeNull()
-    expect(loadNews()).toEqual([])
+  /**
+   * Nothing invented — as a correspondence with the tracked documents, rather than as
+   * "there are none of them".
+   *
+   * The claim worth keeping is that the site shows a week, a month, an announcement or
+   * an article **exactly where a tracked document says so**: no fallback week, no
+   * placeholder burger, no announcement conjured out of the message fields that sit on
+   * disk while the flag is off, and no article that is not a published file. Written the
+   * other way round it also asserted that the restaurant had published nothing, which is
+   * not a fact about this codebase and not one CI may hold it to.
+   *
+   * Today every flag is off, so each line below reads `false`. That is the point: the
+   * day one of them is on, the assertion follows the document instead of failing. The
+   * published side of the same rule is proved on real files in
+   * `tests/unit/content/authored-content.test.ts`.
+   */
+  it('shows a week, a month, an announcement and news only where a document says so', () => {
+    const weekly = readContentJson<{ active: boolean; saturday?: { enabled?: boolean } }>(
+      'weekly-special.json',
+    )
+    const monthly = readContentJson<{ active: boolean }>('monthly-burger.json')
+    const announcement = readContentJson<{ active: boolean }>('announcement.json')
+
+    // An active week is held to having a name by `validateWeeklySpecial`, and an
+    // inactive one loads as the approved empty card — so "there is a week" and "the
+    // document is active" are the same question.
+    expect(MENU.weeklySpecial.name !== null).toBe(weekly.active)
+    expect(MENU.weeklySpecial.saturday.enabled).toBe(
+      weekly.active && weekly.saturday?.enabled === true,
+    )
+    expect(MENU.monthlyBurger !== null).toBe(monthly.active)
+    expect(loadAnnouncement() !== null).toBe(announcement.active)
+
+    // Every published file and nothing else. Compared as a set: which articles exist is
+    // this assertion's business, and the order they are listed in is the loader's own.
+    const published = listContentJson('news').filter(
+      (slug) => readContentJson<{ published?: boolean }>('news', `${slug}.json`).published === true,
+    )
+    expect(loadNews().map((article) => article.slug).sort()).toEqual([...published].sort())
   })
 
   /**
@@ -223,7 +282,6 @@ describe('the confirmed menu', () => {
       'Frigg',
       'Ragnar',
     ])
-    expect(view.monthlyBurger).toBeNull()
   })
 
   it('marks those three dishes and no others in the tracked menu', () => {
@@ -343,11 +401,12 @@ describe('the photographs', () => {
 
     // Thor has no supplied photograph and renders the menu's reserved "Retfoto" frame;
     // the other empty frames are text-only by design. Nothing is faked to fill them.
+    // (Ugens ret's frame is not listed here: whether there is a week at all is today's
+    // operating state, and it is asserted where the rest of that state is.)
     expect(dish('thor')?.image).toBeNull()
     expect(HOME.award.image).toBeNull()
     expect(ABOUT.team.image).toBeNull()
     expect(ABOUT.method.image).toBeNull()
-    expect(MENU.weeklySpecial.image).toBeNull()
     expect(EVERY_DISH.filter((entry) => entry.image !== null)).toHaveLength(4)
   })
 

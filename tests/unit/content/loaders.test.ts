@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { announcementFrom } from '@/lib/content/load/announcement'
 import { openingHoursFrom } from '@/lib/content/load/hours'
 import { menuCategoriesFrom, tapasBoardFrom } from '@/lib/content/load/menu'
-import { loadNews, newsArticleFrom, type NewsFile } from '@/lib/content/load/news'
+import { newsArticleFrom, type NewsFile } from '@/lib/content/load/news'
 import { oreFromKroner } from '@/lib/content/load/price'
 import { keepPriceTogether, prose } from '@/lib/content/load/text'
 
@@ -427,10 +427,10 @@ describe('newsArticleFrom', () => {
   })
 
   /**
-   * There are no articles yet, so the article shape is proved on a fixture rather than
-   * on an invented file in `content/site/news/`. An article's photograph is the same
-   * field every other surface uses — the same object, the same refusals — so a news
-   * image needs nothing of its own when the first article is written.
+   * The article shape is proved on a fixture rather than on whatever happens to be in
+   * `content/site/news/`, which is the restaurant's to fill. An article's photograph is
+   * the same field every other surface uses — the same object, the same refusals — so a
+   * news image needs nothing of its own.
    */
   it('takes the same optional photograph field as every other surface', () => {
     expect(newsArticleFrom('a', { ...file, photo: null })?.image).toBeNull()
@@ -447,9 +447,5 @@ describe('newsArticleFrom', () => {
     expect(() =>
       newsArticleFrom('a', { ...file, photo: { file: '../secret.png' } }),
     ).toThrow(/content\/site\/news\/a\.json/)
-  })
-
-  it('finds no article in the tree: nothing has been written, and nothing is invented', () => {
-    expect(loadNews()).toEqual([])
   })
 })

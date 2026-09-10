@@ -1,9 +1,15 @@
-import { execFileSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { afterAll, describe, expect, it } from 'vitest'
+
+import {
+  checkContent as check,
+  contentFixture as fixture,
+  loadedContent as loaded,
+  removeContentFixtures,
+  type ContentFiles as Files,
+} from '../../support/content-fixture'
 
 /**
  * What a Pages CMS save does to the tracked content, and why it changes nothing —
@@ -29,43 +35,15 @@ import { afterAll, describe, expect, it } from 'vitest'
  *   3. A *required* field left empty still fails. `""` meaning "not filled in" is only
  *      safe if "not filled in" is still refused where the site needs a value.
  *
- * The comparison is made through `tests/support/load-content.mjs`, which prints what a
- * directory loads to, because the loaders resolve their content from the process
- * working directory and a copy can only be asked about by running against it.
+ * The comparison is made through `tests/support/content-fixture.ts`, which copies the
+ * tracked tree and prints what a directory loads to, because the loaders resolve their
+ * content from the process working directory and a copy can only be asked about by
+ * running against it.
  */
 
 const ROOT = process.cwd()
-const PROBE = join(ROOT, 'tests', 'support', 'load-content.mjs')
-const CHECK = join(ROOT, 'scripts', 'check-content.mjs')
 
-const roots: string[] = []
-
-afterAll(() => {
-  for (const root of roots) rmSync(root, { recursive: true, force: true })
-})
-
-/** A copy of the real content in a temporary directory, with an edit applied to it. */
-function fixture(edit: (files: Files) => void): string {
-  const root = mkdtempSync(join(tmpdir(), 'cms-empty-'))
-  roots.push(root)
-
-  mkdirSync(join(root, 'content'), { recursive: true })
-  cpSync(join(ROOT, 'content', 'site'), join(root, 'content', 'site'), { recursive: true })
-  mkdirSync(join(root, 'generated'), { recursive: true })
-  cpSync(join(ROOT, 'generated', 'images.json'), join(root, 'generated', 'images.json'))
-
-  edit({
-    read: (path) => JSON.parse(readFileSync(join(root, path), 'utf8')) as unknown,
-    write: (path, value) => writeFileSync(join(root, path), `${JSON.stringify(value, null, 2)}\n`),
-  })
-
-  return root
-}
-
-type Files = {
-  read: (path: string) => unknown
-  write: (path: string, value: unknown) => void
-}
+afterAll(removeContentFixtures)
 
 /** Every tracked document, so a whole-tree edit does not have to name them one by one. */
 const DOCUMENTS = [
@@ -108,33 +86,30 @@ function asSaved(value: unknown, key?: string): unknown {
   return value
 }
 
-/** Run `check:content` over a directory the way CI and a person both run it. */
-function check(cwd: string): { status: number; stderr: string } {
-  try {
-    execFileSync(process.execPath, [CHECK], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })
-    return { status: 0, stderr: '' }
-  } catch (error) {
-    const failure = error as { status?: number; stderr?: string }
-    return { status: failure.status ?? -1, stderr: failure.stderr ?? '' }
-  }
-}
-
-/** What a directory's content loads to, as the JSON the probe prints. */
-function loaded(cwd: string): string {
-  return execFileSync(process.execPath, [PROBE], { cwd, encoding: 'utf8' })
-}
-
 describe('an untouched Pages CMS save', () => {
   const saved = fixture(({ read, write }) => {
     for (const path of DOCUMENTS) write(path, asSaved(read(path)))
   })
 
+  /**
+   * The guard against a vacuous suite. It used to name three fields of
+   * `weekly-special.json` and expect each of them empty, which was really an assertion
+   * that no week had been published; the fields a document happens to be leaving unset
+   * this week are the restaurant's business. What this suite needs is only that the save
+   * *did* rewrite the tree — stated as the rule `asSaved` follows, over whichever
+   * documents currently hold a `null`.
+   */
   it('rewrites something — otherwise the rest of this suite proves nothing', () => {
-    const before = readFileSync(join(ROOT, 'content', 'site', 'weekly-special.json'), 'utf8')
-    const after = readFileSync(join(saved, 'content', 'site', 'weekly-special.json'), 'utf8')
+    const holdsNull = (path: string) => /:\s*null/.test(readFileSync(path, 'utf8'))
+    const emptied = DOCUMENTS.filter((path) => holdsNull(join(ROOT, path)))
 
-    expect(after).not.toBe(before)
-    expect(JSON.parse(after)).toMatchObject({ isoWeek: '', soldOutOn: '', priceSmall: '' })
+    expect(emptied.length).toBeGreaterThan(0)
+    for (const path of emptied) {
+      expect(holdsNull(join(saved, path)), path).toBe(false)
+      expect(readFileSync(join(saved, path), 'utf8'), path).not.toBe(
+        readFileSync(join(ROOT, path), 'utf8'),
+      )
+    }
   })
 
   it('passes check:content', () => {
