@@ -649,6 +649,12 @@ content:
     type: collection
     path: content/site/news
     format: json
+    # En artikels filnavn er dens adresse på sitet. Den må laves og slettes, men ikke
+    # omdøbes: et nyt filnavn ville flytte artiklen til en ny adresse.
+    operations:
+      create: true
+      rename: false
+      delete: true
     exclude: [".gitkeep"]
     filename:
       template: "{primary}.json"
