@@ -11,7 +11,7 @@ import { WEEKDAY_KEYS, type WeekdayKey } from '@/lib/time/calendar'
  *
  * Built here rather than in JSX so the shape is a value a unit test can hold still, and
  * built from the *same tracked facts the pages print*: the contact document
- * (`content/site/contact.ts`) and the one weekly schedule (`content/site/hours.ts`).
+ * (`content/site/contact.json`) and the one weekly schedule (`content/site/hours.json`).
  * There is no second copy of the address, the telephone number or the hours anywhere in
  * this file, which is what makes the markup unable to drift from the page.
  *

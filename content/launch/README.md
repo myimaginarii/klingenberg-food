@@ -18,7 +18,7 @@ of which survived a database reset. The table below is now the whole record.
   launch text that must not be extended with unconfirmed facts. It has **not** been
   rewritten or humanized here. In the finished design each editor field was filled by
   joining that field's source paragraphs, unrewritten (technical plan, phase 14B2).
-  On 2026-09-08 the wording the site renders (`content/site/pages.ts`, the award band,
+  On 2026-09-08 the wording the site renders (`content/site/pages/`, the award band,
   the menu notes and the empty states) was revised for natural Danish; the facts,
   names, prices and numbers are unchanged, and this file stays as supplied.
 - `photos/` — the supplied photographs the finished design actually uses, byte for

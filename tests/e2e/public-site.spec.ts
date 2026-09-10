@@ -325,7 +325,7 @@ test.describe('the menu', () => {
     // it, and no card repeats it; the four 89 kr. burgers and Ragnar keep their prices.
     const burgers = page.locator('#menu-burgere')
     // getByText normalises whitespace, so the plain-space string matches; the raw text
-    // check below proves the non-breaking space between number and "kr." survived.
+    // check below proves the loader put a non-breaking space between number and "kr.".
     const menuPriceLine = burgers.getByText(
       'Som menu med pommes frites og sodavand: 124 kr., Ragnar 132 kr.',
     )

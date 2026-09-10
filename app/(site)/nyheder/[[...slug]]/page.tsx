@@ -2,9 +2,9 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-import { SITE_CONTACT } from '@/content/site/contact'
 import { socialImage } from '@/content/site/images'
-import { NEWS_ARTICLES } from '@/content/site/news'
+import { loadContact } from '@/lib/content/load/contact'
+import { loadNews } from '@/lib/content/load/news'
 import type { NewsArticle } from '@/lib/content/types'
 import { seoImageOf } from '@/lib/images/public'
 import { articleExcerpt } from '@/lib/news/excerpt'
@@ -34,19 +34,20 @@ import { Section } from '@/components/site/Section'
  * written is one more generated page. `dynamicParams` is off, so an address that
  * names no article is a 404 rather than a render.
  *
- * The articles are the tracked list (`content/site/news.ts`); nothing else decides
- * what is published. The article page follows the approved system rather than
- * introducing a new design (§7f): title, category, date, image frame, body, a link
- * back to the list, and the phone call to action the whole site carries. Its selected
- * photograph is also the `og:image` and the `NewsArticle` JSON-LD `image`.
+ * The articles are the tracked, published list (`content/site/news/`, read through
+ * `lib/content/load/news.ts`); nothing else decides what is published. The article
+ * page follows the approved system rather than introducing a new design (§7f): title,
+ * category, date, image frame, body, a link back to the list, and the phone call to
+ * action the whole site carries. Its selected photograph is also the `og:image` and
+ * the `NewsArticle` JSON-LD `image`.
  */
 export const dynamicParams = false
 
 type NewsParams = { params: Promise<{ slug?: string[] }> }
 
-/** The list, then one address per tracked article. Zero articles is one route. */
+/** The list, then one address per published article. Zero articles is one route. */
 export function generateStaticParams(): { slug: string[] }[] {
-  return [{ slug: [] }, ...NEWS_ARTICLES.map((article) => ({ slug: [article.slug] }))]
+  return [{ slug: [] }, ...loadNews().map((article) => ({ slug: [article.slug] }))]
 }
 
 /** The article a request names, `null` for the list, `undefined` for no such article. */
@@ -54,7 +55,7 @@ async function resolveArticle(params: NewsParams['params']): Promise<NewsArticle
   const { slug } = await params
   if (slug === undefined || slug.length === 0) return null
   if (slug.length !== 1) return undefined
-  return NEWS_ARTICLES.find((article) => article.slug === slug[0])
+  return loadNews().find((article) => article.slug === slug[0])
 }
 
 const LIST_METADATA = pageMetadata(
@@ -83,7 +84,7 @@ export async function generateMetadata({ params }: NewsParams): Promise<Metadata
 
 export default async function NyhederPage({ params }: NewsParams) {
   const article = await resolveArticle(params)
-  if (article === null) return <NewsList articles={NEWS_ARTICLES} />
+  if (article === null) return <NewsList articles={loadNews()} />
   if (article === undefined) notFound()
 
   return <NewsArticlePage article={article} />
@@ -134,6 +135,8 @@ function NewsList({ articles }: { articles: readonly NewsArticle[] }) {
 }
 
 function NewsArticlePage({ article }: { article: NewsArticle }) {
+  const contact = loadContact()
+
   return (
     <PageContainer className="py-7 md:py-11">
       {/*
@@ -172,8 +175,8 @@ function NewsArticlePage({ article }: { article: NewsArticle }) {
           <span aria-hidden="true">←</span>
           Alle nyheder
         </Link>
-        {SITE_CONTACT.primaryPhone ? (
-          <PhoneAction phone={SITE_CONTACT.primaryPhone} label="Bestil på telefon" showNumber />
+        {contact.primaryPhone ? (
+          <PhoneAction phone={contact.primaryPhone} label="Bestil på telefon" showNumber />
         ) : null}
       </div>
     </PageContainer>

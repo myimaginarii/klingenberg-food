@@ -1,22 +1,27 @@
+import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+
 import { describe, expect, it } from 'vitest'
 
-import { SITE_ANNOUNCEMENT } from '@/content/site/announcement'
-import { SITE_CONTACT } from '@/content/site/contact'
-import { OPENING_HOURS } from '@/content/site/hours'
 import { launchPhoto } from '@/content/site/images'
-import { MENU, MENU_CATEGORIES, MONTHLY_BURGER, WEEKLY_SPECIAL } from '@/content/site/menu'
-import { NEWS_ARTICLES } from '@/content/site/news'
-import { ABOUT_PAGE, HOME_PAGE, TAKEAWAY_PAGE } from '@/content/site/pages'
 import photos from '@/content/site/photos.json'
-import { buildMenuView, selectFeaturedDishes } from '@/lib/menu/view'
+import { loadAnnouncement } from '@/lib/content/load/announcement'
+import { loadAward } from '@/lib/content/load/award'
+import { loadContact } from '@/lib/content/load/contact'
+import { loadOpeningHours } from '@/lib/content/load/hours'
+import { loadMenu } from '@/lib/content/load/menu'
+import { loadNews } from '@/lib/content/load/news'
+import { loadAboutPage, loadHomePage, loadTakeawayPage } from '@/lib/content/load/pages'
 import { planDerivatives } from '@/lib/images/derivatives'
 import { buildStaticPublicImage } from '@/lib/images/public'
+import { buildMenuView, selectFeaturedDishes } from '@/lib/menu/view'
 
 import { CONFIRMED_SCHEDULE } from '../fixtures/hours'
 
 /**
- * The tracked public content — the static rebuild's source of truth, held to the
- * confirmed facts (design 1ab; `content/launch/launch-copy.md`).
+ * The tracked public content — the static site's source of truth, held to the
+ * confirmed facts (design 1ab; `content/launch/launch-copy.md`) — as the loaders in
+ * `lib/content/load/` hand it to the pages.
  *
  * These are the numbers and the absences the conversion promised: nine sections,
  * forty-six dishes, no "Salat efter sæson", nothing invented for the week, the month,
@@ -24,7 +29,14 @@ import { CONFIRMED_SCHEDULE } from '../fixtures/hours'
  * the build actually renders.
  */
 
+const NO_BREAK_SPACE = String.fromCharCode(0xa0)
+
+const MENU = loadMenu()
+const MENU_CATEGORIES = MENU.categories
 const EVERY_DISH = MENU_CATEGORIES.flatMap((category) => category.dishes)
+const HOME = loadHomePage()
+const ABOUT = loadAboutPage()
+const TAKEAWAY = loadTakeawayPage()
 
 describe('the confirmed menu', () => {
   it('has exactly the nine sections, in the approved order', () => {
@@ -50,9 +62,11 @@ describe('the confirmed menu', () => {
 
   it('states the burger menu price once, under Burgere, and on no card', () => {
     const burgers = MENU_CATEGORIES.find((category) => category.slug === 'burgere')
-    // Number and "kr." are joined by a non-breaking space so the price never wraps.
+    // The editor writes ordinary spaces; for this one field the loader joins each number
+    // to "kr." with a non-breaking space so the price never wraps. This is the rendered
+    // result — and the only prose on the site that gets it.
     expect(burgers?.intro).toBe(
-      'Alle burgere serveres i briochebolle. Som menu med pommes frites og sodavand: 124 kr., Ragnar 132 kr.',
+      `Alle burgere serveres i briochebolle. Som menu med pommes frites og sodavand: 124${NO_BREAK_SPACE}kr., Ragnar 132${NO_BREAK_SPACE}kr.`,
     )
     // The confirmed prices, and no per-card note repeating the menu price.
     expect(burgers?.dishes.map((dish) => [dish.name, dish.priceOre, dish.secondaryNote])).toEqual([
@@ -84,17 +98,16 @@ describe('the confirmed menu', () => {
     const tapas = EVERY_DISH.filter((dish) => dish.tapas !== null)
     expect(tapas.map((dish) => dish.name)).toEqual(['Tapas'])
 
-    // The document is tracked TypeScript, so its shape is a compile-time fact; what
-    // is worth asserting is that every group it holds is renderable — a heading, a
-    // mode, and items for the reader to choose from.
     const document = tapas[0]!.tapas!
     expect(document.kind).toBe('tapas')
-    expect(document.groups.length).toBeGreaterThan(0)
+    expect(document.groups.map((group) => [group.id, group.mode, group.choose])).toEqual([
+      ['base', 'fixed', null],
+      ['choose7', 'choose', 7],
+      ['dressing', 'choose', 3],
+    ])
     for (const group of document.groups) {
       expect(group.heading.length).toBeGreaterThan(0)
-      expect(['fixed', 'choose']).toContain(group.mode)
       expect(group.items.length).toBeGreaterThan(0)
-      expect(group.mode === 'choose' ? group.choose : null).not.toBe(0)
     }
   })
 
@@ -103,28 +116,39 @@ describe('the confirmed menu', () => {
     expect(MENU_CATEGORIES.find((category) => category.kind === 'weekly_special')?.slug).toBe('ugens-ret')
   })
 
+  it('prints the allergen line under the menu title', () => {
+    expect(MENU.allergenNote).toBe('Spørg os gerne om allergener.')
+  })
+
   it('has no week, no month and no announcement — nothing invented', () => {
-    expect(WEEKLY_SPECIAL.name).toBeNull()
-    expect(WEEKLY_SPECIAL.saturday.enabled).toBe(false)
-    expect(MONTHLY_BURGER).toBeNull()
-    expect(SITE_ANNOUNCEMENT).toBeNull()
-    expect(NEWS_ARTICLES).toEqual([])
+    expect(MENU.weeklySpecial.name).toBeNull()
+    expect(MENU.weeklySpecial.saturday.enabled).toBe(false)
+    expect(MENU.monthlyBurger).toBeNull()
+    expect(loadAnnouncement()).toBeNull()
+    expect(loadNews()).toEqual([])
   })
 
   it('resolves the three featured dishes the Forside names', () => {
-    const view = buildMenuView(MENU, OPENING_HOURS, new Date('2026-09-09T16:00:00+02:00'))
-    expect(selectFeaturedDishes(view.categories, HOME_PAGE.featuredDishIds).map((dish) => dish.name)).toEqual([
+    const view = buildMenuView(MENU, loadOpeningHours(), new Date('2026-09-09T16:00:00+02:00'))
+    expect(selectFeaturedDishes(view.categories, HOME.featured.dishIds).map((dish) => dish.name)).toEqual([
       'Odin',
       'Frigg',
       'Ragnar',
     ])
     expect(view.monthlyBurger).toBeNull()
   })
+
+  it('hands every caller the same value, so the shell and a page share one object', () => {
+    expect(loadMenu()).toBe(MENU)
+    expect(loadOpeningHours()).toBe(loadOpeningHours())
+    expect(loadContact()).toBe(loadContact())
+  })
 })
 
 describe('the confirmed facts', () => {
   it('states the address, the two numbers, the e-mail address and the Facebook page', () => {
-    expect(SITE_CONTACT).toMatchObject({
+    expect(loadContact()).toEqual({
+      venueName: 'Carl Nielsen Hallen',
       addressLine1: 'Lumbyvej 62',
       postalCode: '5792',
       city: 'Nørre Lyndelse',
@@ -132,26 +156,44 @@ describe('the confirmed facts', () => {
       secondaryPhone: '+45 51 79 45 66',
       email: 'soebylarsen@gmail.com',
       facebookUrl: 'https://www.facebook.com/carlnielsencafeen',
+      mapAttribution: null,
     })
   })
 
   it('is the confirmed schedule the engine suites are written against, with no overrides', () => {
-    expect(OPENING_HOURS.schedule).toEqual(CONFIRMED_SCHEDULE)
-    expect(OPENING_HOURS.overrides).toEqual([])
+    expect(loadOpeningHours().schedule).toEqual(CONFIRMED_SCHEDULE)
+    expect(loadOpeningHours().overrides).toEqual([])
   })
 
   it('carries the launch copy headings verbatim', () => {
-    expect(HOME_PAGE.hero.heading).toBe('Burgeren der vandt Fyn')
-    expect(ABOUT_PAGE.heading).toBe('Mad fra Carl Nielsen Hallen')
-    expect(ABOUT_PAGE.storyBlocks).toHaveLength(4)
-    expect(TAKEAWAY_PAGE.heading).toBe('Mad ud af huset')
-    expect(TAKEAWAY_PAGE.sections.map((section) => section.heading)).toEqual([
+    expect(HOME.hero.heading).toBe('Burgeren der vandt Fyn')
+    expect(ABOUT.heading).toBe('Mad fra Carl Nielsen Hallen')
+    expect(ABOUT.storyBlocks).toHaveLength(4)
+    expect(TAKEAWAY.heading).toBe('Mad ud af huset')
+    expect(TAKEAWAY.sections.map((section) => section.heading)).toEqual([
       'Til selskaber og sammenkomster',
     ])
   })
 
+  it('states one award, in the same words on the Forside and on Om os', () => {
+    const award = loadAward()
+    expect(award.title).toBe('Fyns bedste burger 2026 og nr. 4 i Danmark')
+    expect(award.text).toContain('Danmarks Bedste Burger 2026')
+    expect(HOME.award.title).toBe(award.title)
+    expect(HOME.award.text).toBe(award.text)
+  })
+
+  it('carries the takeaway button label, the phone line and the featured menu-price line', () => {
+    expect(TAKEAWAY.ctaLabel).toBe('Ring og hør mere')
+    expect(TAKEAWAY.phoneNote).toBe('Bestilling og aftaler klarer vi over telefonen.')
+    // An ordinary space before "kr.": only the Burgere intro carries the non-breaking one.
+    expect(HOME.featured.note).toBe(
+      'Alle burgere kan bestilles som menu med pommes frites og sodavand fra 124 kr.',
+    )
+  })
+
   it('invents no catering term', () => {
-    const text = [TAKEAWAY_PAGE.intro, ...TAKEAWAY_PAGE.sections.map((section) => section.body)]
+    const text = [TAKEAWAY.intro, ...TAKEAWAY.sections.map((section) => section.body)]
       .join(' ')
       .toLowerCase()
     for (const invented of ['minimum', 'kuverter', 'levering', 'depositum', 'senest 48']) {
@@ -160,12 +202,30 @@ describe('the confirmed facts', () => {
   })
 })
 
+describe('the content files', () => {
+  function* jsonFiles(directory: string): Generator<string> {
+    for (const entry of readdirSync(directory)) {
+      const full = join(directory, entry)
+      if (statSync(full).isDirectory()) yield* jsonFiles(full)
+      else if (entry.endsWith('.json')) yield full
+    }
+  }
+
+  it('are written with ordinary spaces — no editor has to type a non-breaking space', () => {
+    const files = [...jsonFiles(join(process.cwd(), 'content', 'site'))]
+    expect(files.length).toBeGreaterThan(5)
+    for (const file of files) {
+      expect(readFileSync(file, 'utf8'), file).not.toContain(NO_BREAK_SPACE)
+    }
+  })
+})
+
 describe('the photographs', () => {
   it('fill exactly the slots the launch record names', () => {
-    expect(HOME_PAGE.hero.image).toEqual(launchPhoto('home-hero'))
-    expect(HOME_PAGE.aboutExcerpt.image).toEqual(launchPhoto('about-venue'))
-    expect(ABOUT_PAGE.venueImage).toEqual(launchPhoto('about-venue'))
-    expect(TAKEAWAY_PAGE.image).toEqual(launchPhoto('takeaway'))
+    expect(HOME.hero.image).toEqual(launchPhoto('home-hero'))
+    expect(HOME.aboutExcerpt.image).toEqual(launchPhoto('about-venue'))
+    expect(ABOUT.venueImage).toEqual(launchPhoto('about-venue'))
+    expect(TAKEAWAY.image).toEqual(launchPhoto('takeaway'))
     expect(EVERY_DISH.find((dish) => dish.id === 'odin')?.image).toEqual(launchPhoto('dish-odin'))
     expect(EVERY_DISH.find((dish) => dish.id === 'ragnar')?.image).toEqual(launchPhoto('dish-ragnar'))
     expect(EVERY_DISH.find((dish) => dish.id === 'frigg')?.image).toEqual(launchPhoto('dish-frigg'))
@@ -174,9 +234,9 @@ describe('the photographs', () => {
     )
     // Thor and the other frames have no supplied photograph and stay their no-image state.
     expect(EVERY_DISH.find((dish) => dish.id === 'thor')?.image).toBeNull()
-    expect(HOME_PAGE.award.image).toBeNull()
-    expect(ABOUT_PAGE.team.image).toBeNull()
-    expect(ABOUT_PAGE.method.image).toBeNull()
+    expect(HOME.award.image).toBeNull()
+    expect(ABOUT.team.image).toBeNull()
+    expect(ABOUT.method.image).toBeNull()
     expect(EVERY_DISH.filter((dish) => dish.image !== null)).toHaveLength(4)
   })
 

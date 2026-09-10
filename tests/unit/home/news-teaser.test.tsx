@@ -76,11 +76,11 @@ describe('the selection, asserted over the Forside’s own source', () => {
   const source = readFileSync(join(process.cwd(), 'app', '(site)', 'page.tsx'), 'utf-8')
 
   it('reads the tracked, newest-first list and nothing else', () => {
-    expect(source).toContain("import { NEWS_ARTICLES } from '@/content/site/news'")
+    expect(source).toContain("import { loadNews } from '@/lib/content/load/news'")
   })
 
   it('takes the list’s first entry and otherwise nothing', () => {
-    expect(source).toContain('NEWS_ARTICLES[0] ?? null')
+    expect(source).toContain('loadNews()[0] ?? null')
   })
 
   it('hard-codes no article: every title on the Forside comes from data', () => {

@@ -44,3 +44,8 @@ export function launchPhoto(slot: PhotoSlot): PublicImage {
 export function socialImage(slot: PhotoSlot): SeoImage {
   return seoImageOf(launchPhoto(slot))
 }
+
+/** True when `value` names a photograph the registry carries — a slot content may refer to. */
+export function isPhotoSlot(value: unknown): value is PhotoSlot {
+  return typeof value === 'string' && Object.hasOwn(photos.photos, value)
+}

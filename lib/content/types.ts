@@ -6,8 +6,8 @@ import type { IsoDate } from '@/lib/time/calendar'
  * The shape of published content as the public site consumes it — technical plan §4.
  *
  * One shape per thing the site renders, written the way a page needs it: camelCase,
- * prices in øre, dates as civil `YYYY-MM-DD` strings. `content/site/` is authored
- * against these types, so a content file that is missing a field or spells one wrong
+ * prices in øre, dates as civil `YYYY-MM-DD` strings. `content/site/` is read through `lib/content/load/`
+ * into these types, so a content file that is missing a field or spells one wrong
  * is a build error rather than an empty section on the live site.
  *
  * Nothing here is a `Date`. Every value is a primitive that survives serialisation
@@ -72,6 +72,27 @@ export type Dish = {
 /** `menu_categories.kind` — an ordinary list of dishes, or the Ugens ret section. */
 export type MenuCategoryKind = 'dishes' | 'weekly_special'
 
+/**
+ * Everything the menu page and the Forside read about the menu, as one value: the
+ * sections with their dishes attached, the week's special (its empty state included),
+ * Månedens burger or `null`, and the allergen line the menu page prints under its title.
+ */
+export type MenuContent = {
+  allergenNote: string | null
+  categories: MenuCategory[]
+  weeklySpecial: WeeklySpecial
+  monthlyBurger: MonthlyBurger | null
+}
+
+/**
+ * The confirmed competition result (1ab), printed by the Forside's award band and by
+ * Om os's — one result, stated once (`content/site/award.json`).
+ */
+export type AwardContent = {
+  title: string
+  text: string
+}
+
 /** `menu_categories` with its dishes already attached — one grouped read, never N+1. */
 export type MenuCategory = {
   id: string
@@ -122,7 +143,7 @@ export type MonthlyBurger = {
 /**
  * `announcement` — the one sitewide message, as the public bar renders it (§4, §7c).
  *
- * Whether there is an announcement at all is answered by `content/site/announcement.ts`
+ * Whether there is an announcement at all is answered by `content/site/announcement.json`
  * being `null` or not; this type is only what the bar needs to draw one — the words,
  * the optional link and the instant it stops being shown.
  *
@@ -184,8 +205,10 @@ export type NewsArticle = {
  */
 export type HomeDocument = {
   hero: { heading: string | null; intro: string | null; image: PublicImage | null }
-  award: { title: string | null; text: string | null; image: PublicImage | null }
-  featuredDishIds: string[]
+  /** The confirmed result's words (`AwardContent`, shared with Om os) and the band's own photograph. */
+  award: AwardContent & { image: PublicImage | null }
+  /** "Tre fra menuen" (1g): three dish ids, and the menu-price line printed beneath the cards. */
+  featured: { dishIds: string[]; note: string | null }
   aboutExcerpt: { heading: string | null; text: string | null; image: PublicImage | null }
 }
 
@@ -208,8 +231,11 @@ export type TakeawayDocument = {
   heading: string | null
   intro: string | null
   image: PublicImage | null
+  /** The line under the hero's two numbers — "Bestilling og aftaler klarer vi over telefonen." */
+  phoneNote: string | null
   sections: TakeawaySection[]
-  ctaLabel: string | null
+  /** The words on the page's call to action, required: a button with nothing on it is not a state. */
+  ctaLabel: string
 }
 
 /**

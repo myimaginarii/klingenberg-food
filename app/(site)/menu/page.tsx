@@ -1,7 +1,7 @@
-import { SITE_CONTACT } from '@/content/site/contact'
-import { OPENING_HOURS } from '@/content/site/hours'
 import { socialImage } from '@/content/site/images'
-import { MENU } from '@/content/site/menu'
+import { loadContact } from '@/lib/content/load/contact'
+import { loadOpeningHours } from '@/lib/content/load/hours'
+import { loadMenu } from '@/lib/content/load/menu'
 import { buildMenuView } from '@/lib/menu/view'
 import { pageMetadata } from '@/lib/seo/metadata'
 import { toPostalAddress } from '@/lib/site/links'
@@ -19,9 +19,9 @@ import { PhoneAction } from '@/components/site/PhoneAction'
  * collapses and no price is behind an interaction: "ni sektioner i træk, ingen
  * accordions" (1m).
  *
- * The sections, their order, their dishes and every price are the tracked menu
- * (`content/site/menu.ts`). What each section *looks* like is decided by
- * `MenuCategorySection` from the content it holds.
+ * The sections, their order, their dishes, every price and the allergen line are the
+ * tracked menu (`content/site/menu.json`, read through `lib/content/load/`). What each
+ * section *looks* like is decided by `MenuCategorySection` from the content it holds.
  */
 export const metadata = pageMetadata(
   'Menu',
@@ -29,23 +29,26 @@ export const metadata = pageMetadata(
   { path: '/menu', image: socialImage('home-hero') },
 )
 
-const ALLERGEN_NOTE = 'Spørg os gerne om allergener.'
-
 export default function MenuPage() {
-  const view = buildMenuView(MENU, OPENING_HOURS, new Date())
-  const address = toPostalAddress(SITE_CONTACT)
+  const menu = loadMenu()
+  const contact = loadContact()
+  const hours = loadOpeningHours()
+  const view = buildMenuView(menu, hours, new Date())
+  const address = toPostalAddress(contact)
 
   return (
     <>
       <PageContainer className="pt-page-mobile pb-4 md:pt-page">
         <h1 className="font-display text-page">Menu</h1>
-        <p className="text-ink-2 mt-2.5 flex items-center gap-2.5">
-          <span aria-hidden="true" className="border-rule size-4.5 shrink-0 rounded-full border-[1.5px]" />
-          {ALLERGEN_NOTE}
-        </p>
-        {SITE_CONTACT.primaryPhone ? (
+        {menu.allergenNote ? (
+          <p className="text-ink-2 mt-2.5 flex items-center gap-2.5">
+            <span aria-hidden="true" className="border-rule size-4.5 shrink-0 rounded-full border-[1.5px]" />
+            {menu.allergenNote}
+          </p>
+        ) : null}
+        {contact.primaryPhone ? (
           <PhoneAction
-            phone={SITE_CONTACT.primaryPhone}
+            phone={contact.primaryPhone}
             label="Bestil på telefon"
             showNumber
             size="large"
@@ -69,7 +72,7 @@ export default function MenuPage() {
         ))}
       </PageContainer>
 
-      <MenuOrderBar contact={SITE_CONTACT} address={address} schedule={OPENING_HOURS.schedule} />
+      <MenuOrderBar contact={contact} address={address} schedule={hours.schedule} />
     </>
   )
 }

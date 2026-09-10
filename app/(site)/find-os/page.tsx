@@ -1,6 +1,6 @@
-import { SITE_CONTACT } from '@/content/site/contact'
-import { OPENING_HOURS } from '@/content/site/hours'
 import { socialImage } from '@/content/site/images'
+import { loadContact } from '@/lib/content/load/contact'
+import { loadOpeningHours } from '@/lib/content/load/hours'
 import { pageMetadata } from '@/lib/seo/metadata'
 import { formatAddressLine, toPostalAddress } from '@/lib/site/links'
 
@@ -19,8 +19,9 @@ import { PageContainer } from '@/components/site/PageContainer'
  * facts the page prints — never a second copy of the address.
  */
 function describeWhere(): string {
-  const address = toPostalAddress(SITE_CONTACT)
-  const place = [SITE_CONTACT.venueName, address === null ? null : formatAddressLine(address)]
+  const contact = loadContact()
+  const address = toPostalAddress(contact)
+  const place = [contact.venueName, address === null ? null : formatAddressLine(address)]
     .filter((part): part is string => part !== null)
     .join(', ')
 
@@ -49,8 +50,8 @@ export const metadata = pageMetadata(
  * "Følg os" card of its own.
  */
 export default function FindOsPage() {
-  const contact = SITE_CONTACT
-  const hours = OPENING_HOURS
+  const contact = loadContact()
+  const hours = loadOpeningHours()
   const address = toPostalAddress(contact)
 
   return (

@@ -1,9 +1,9 @@
-import { SITE_CONTACT } from '@/content/site/contact'
-import { OPENING_HOURS } from '@/content/site/hours'
 import { socialImage } from '@/content/site/images'
-import { MENU } from '@/content/site/menu'
-import { NEWS_ARTICLES } from '@/content/site/news'
-import { HOME_PAGE } from '@/content/site/pages'
+import { loadContact } from '@/lib/content/load/contact'
+import { loadOpeningHours } from '@/lib/content/load/hours'
+import { loadMenu } from '@/lib/content/load/menu'
+import { loadNews } from '@/lib/content/load/news'
+import { loadHomePage } from '@/lib/content/load/pages'
 import { articleExcerpt } from '@/lib/news/excerpt'
 import { buildMenuView, selectFeaturedDishes, selectHomepageMonthlyBurgerSection } from '@/lib/menu/view'
 import { homeMetadata } from '@/lib/seo/metadata'
@@ -22,7 +22,8 @@ import { VisitPanel } from '@/components/site/home/VisitPanel'
  *
  * The page reads and composes; every section is its own component. The words, the
  * photographs, the award wording and the three featured dishes are the tracked Forside
- * document (`content/site/pages.ts`), and this page renders whatever it says.
+ * document (`content/site/pages/home.json`, read through `lib/content/load/`), and
+ * this page renders whatever it says.
  *
  * The section order alternates the two approved page surfaces — cream hero, burgundy
  * award, beige Månedens burger, cream Tre fra menuen, beige Seneste nyt, cream Besøg.
@@ -37,20 +38,16 @@ export const metadata = homeMetadata(
   { image: socialImage('home-hero') },
 )
 
-/** The confirmed result (1ab), for a document whose award section is empty. Nothing invented. */
-const AWARD_FALLBACK = {
-  title: 'Fyns bedste burger 2026 og nr. 4 i Danmark',
-  text: 'Ved Danmarks Bedste Burger 2026 vandt vi regionen Fyn & Øer, og på landsplan blev vi nr. 4. I konkurrencen er vi opført som Carl Nielsen Caféen, Årslev.',
-}
-
 export default function ForsidePage() {
-  const home = HOME_PAGE
+  const home = loadHomePage()
+  const contact = loadContact()
+  const hours = loadOpeningHours()
   const now = new Date()
-  const menuView = buildMenuView(MENU, OPENING_HOURS, now)
-  const featured = selectFeaturedDishes(menuView.categories, home.featuredDishIds)
+  const menuView = buildMenuView(loadMenu(), hours, now)
+  const featured = selectFeaturedDishes(menuView.categories, home.featured.dishIds)
   const monthlyBurgerSection = selectHomepageMonthlyBurgerSection(menuView.monthlyBurger)
-  const address = toPostalAddress(SITE_CONTACT)
-  const latestArticle = NEWS_ARTICLES[0] ?? null
+  const address = toPostalAddress(contact)
+  const latestArticle = loadNews()[0] ?? null
 
   return (
     <>
@@ -62,24 +59,24 @@ export default function ForsidePage() {
       <HomeHero
         heading={home.hero.heading ?? 'Klingenberg Food'}
         intro={home.hero.intro}
-        schedule={OPENING_HOURS.schedule}
-        overrides={OPENING_HOURS.overrides}
-        primaryPhone={SITE_CONTACT.primaryPhone}
+        schedule={hours.schedule}
+        overrides={hours.overrides}
+        primaryPhone={contact.primaryPhone}
         directionsHref={address === null ? null : directionsUrl(address)}
         image={home.hero.image}
       />
 
       <AwardBand
         headingId="udmaerkelse-titel"
-        title={home.award.title ?? AWARD_FALLBACK.title}
-        text={home.award.text ?? AWARD_FALLBACK.text}
+        title={home.award.title}
+        text={home.award.text}
         image={home.award.image}
         seal="supplied"
       />
 
-      <MonthlyBurgerFeature section={monthlyBurgerSection} primaryPhone={SITE_CONTACT.primaryPhone} />
+      <MonthlyBurgerFeature section={monthlyBurgerSection} primaryPhone={contact.primaryPhone} />
 
-      <FeaturedDishes dishes={featured} />
+      <FeaturedDishes dishes={featured} note={home.featured.note} />
 
       <NewsAndAbout
         latestArticle={latestArticle}
@@ -90,10 +87,10 @@ export default function ForsidePage() {
       />
 
       <VisitPanel
-        contact={SITE_CONTACT}
+        contact={contact}
         address={address}
-        schedule={OPENING_HOURS.schedule}
-        overrides={OPENING_HOURS.overrides}
+        schedule={hours.schedule}
+        overrides={hours.overrides}
       />
     </>
   )

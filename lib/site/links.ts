@@ -31,7 +31,7 @@ export function telHref(phone: string): string {
 /**
  * `mailto:` href for the stored public e-mail address.
  *
- * The address is a tracked contact fact (`content/site/contact.ts`), so nothing is
+ * The address is a tracked contact fact (`content/site/contact.json`), so nothing is
  * escaped or re-shaped here beyond surrounding whitespace. There is no subject, no body
  * and no second recipient: the link opens an empty message to the restaurant.
  */

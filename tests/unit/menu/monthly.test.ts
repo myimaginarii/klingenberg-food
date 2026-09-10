@@ -74,7 +74,7 @@ describe('monthlyWindowPhase', () => {
 })
 
 describe('the window rule the menu and the Forside share', () => {
-  /** The same burger, as `content/site/menu.ts` hands it to the public view. */
+  /** The same burger, as `content/site/menu.json` hands it to the public view. */
   function publicBurger(overrides: Partial<MonthlyBurger> = {}): MonthlyBurger {
     return {
       name: 'Efterårsburgeren',
