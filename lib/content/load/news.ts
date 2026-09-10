@@ -2,7 +2,7 @@ import type { NewsArticle, NewsBody } from '@/lib/content/types'
 import { isNewsSlug } from '@/lib/news/slug'
 import type { IsoDate } from '@/lib/time/calendar'
 
-import { resolvePhoto } from './photo'
+import { resolvePhoto, type PhotoField } from './photo'
 import { contentPath, listContentJson, once, readContentJson } from './source'
 
 /**
@@ -42,7 +42,7 @@ export type NewsFile = {
   publishedAt: IsoDate
   updatedAt?: string | null
   category?: string | null
-  photo?: string | null
+  photo?: PhotoField | null
   body: NewsBody
 }
 

@@ -1,7 +1,7 @@
-import { socialImage } from '@/content/site/images'
 import { loadContact } from '@/lib/content/load/contact'
 import { loadTakeawayPage } from '@/lib/content/load/pages'
 import { pageMetadata } from '@/lib/seo/metadata'
+import { shareImage } from '@/lib/seo/share'
 
 import { PageContainer } from '@/components/site/PageContainer'
 import { PhoneAction } from '@/components/site/PhoneAction'
@@ -32,7 +32,7 @@ import { TakeawayCallToAction } from '@/components/site/takeaway/TakeawayCallToA
 export const metadata = pageMetadata(
   'Mad ud af huset',
   'Klingenberg Food laver mad ud af huset til fester og større selskaber. Ring og hør nærmere.',
-  { path: '/mad-ud-af-huset', image: socialImage('takeaway') },
+  { path: '/mad-ud-af-huset', image: shareImage(loadTakeawayPage().image) },
 )
 
 export default function MadUdAfHusetPage() {

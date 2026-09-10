@@ -10,9 +10,10 @@ import {
  *
  * One pure representation of a tracked photograph as the public site renders it: the
  * authored description, the AVIF and WebP candidates of the derivative ladder, one
- * WebP fallback, and the intrinsic dimensions a layout needs. Built from exactly three
- * tracked facts — the slot, the description and the source dimensions, all stated in
- * `content/site/photos.json` — and nothing else.
+ * WebP fallback, and the intrinsic dimensions a layout needs. Built from exactly four
+ * facts — the slot and the source dimensions, both derived from the file itself
+ * (`lib/images/photos.ts`, `generated/images.json`), and the description and the crop,
+ * both chosen by the content that shows the photograph — and nothing else.
  *
  * WHAT A CANDIDATE IS, AND IS NOT. Every URL here is a site-relative path under
  * `public/media/`, composed through the one central path builder from the slot and the
@@ -103,12 +104,13 @@ export function publicImageFocus(value: unknown): ImageFocus {
 }
 
 /**
- * The public model of one tracked photograph (`content/site/photos.json`).
+ * The public model of one tracked photograph (`public/photos/`, measured into
+ * `generated/images.json`).
  *
- * The rungs are `planDerivatives()`'s over the recorded dimensions, so this function
- * and the build-time script that renders the files agree by construction — and the
- * script refuses a source whose measured size differs from the recorded one, so a
- * model can never name a rung that was not rendered. `alt` follows
+ * The rungs are `planDerivatives()`'s over the measured dimensions, so this function
+ * and the build-time script that renders the files agree by construction — both plan
+ * from the same measurement of the same file, so a model can never name a rung that
+ * was not rendered. `alt` follows
  * {@link publicImageAlt}: the authored wording, or `''`; `focus` follows
  * {@link publicImageFocus}.
  */

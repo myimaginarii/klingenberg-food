@@ -17,10 +17,11 @@ static host serves it.
 
 ```
 content/site/**/*.json   the restaurant's content, as JSON read by lib/content/load/
-content/launch/photos/   the photographs, as supplied
+public/photos/           the photographs themselves, one tracked file each
         │
         │  npm run build
         ▼
+generated/images.json    each photograph's measured size, written by sharp
 public/media/<slot>/     AVIF + WebP derivatives, rendered by sharp at build time
 out/                     the finished site: one index.html per page, plus the assets
 ```
@@ -37,7 +38,7 @@ nothing to log into and nothing to keep running.
 | Forside, Om os and Mad ud af huset wording | [`content/site/pages/`](content/site/pages/), the award in [`award.json`](content/site/award.json) |
 | News articles (there are none yet) | [`content/site/news/`](content/site/news/) |
 | The sitewide message bar (there is none) | [`content/site/announcement.json`](content/site/announcement.json) |
-| The photographs, and the description each one carries | [`content/site/photos.json`](content/site/photos.json) |
+| The photographs | [`public/photos/`](public/photos/) — each one selected, described and cropped by the content that shows it |
 
 Each file explains what it holds and what adding an entry means. Nothing is invented:
 where the restaurant has not supplied a fact, the page renders its designed empty state
@@ -55,16 +56,30 @@ change that breaks one of those is a failing test, not a surprise on the live si
 
 ### Adding a photograph
 
-1. Put the file in `content/launch/photos/`.
-2. Add an entry to `content/site/photos.json` — the slot name, the file, its measured
-   width and height, and the description a screen reader should hear (`null` renders
-   `alt=""`, which is right for a photograph sitting beside the text that names it).
-3. Reference the slot with `launchPhoto('<slot>')` where the page needs it.
+1. Put the file in `public/photos/`, named in lower-case letters, digits and single
+   hyphens: `dish-odin.png`, `home-hero.jpg`. `jpg`, `jpeg`, `png` and `webp` are
+   accepted; the name is the photograph's identity everywhere else.
+2. Name it from the content that shows it, in that thing's own JSON file:
 
-`scripts/images/build-static-derivatives.mjs` renders the derivative ladder — AVIF and
-WebP at 480 / 960 / 1440 / 2160, never upscaled — into `public/media/<slot>/` on every
-build, and refuses a source whose real dimensions differ from the recorded ones. The
-rendered files are git-ignored; the tracked source and the registry are the record.
+   ```json
+   "photo": { "file": "/photos/dish-odin.png", "alt": "", "focus": "center" }
+   ```
+
+   `alt` is the description a screen reader hears — empty is right for a photograph
+   sitting beside the text that already names it, and nothing is invented to fill it.
+   `focus` is `center` or `upper`, and says which part of the photograph a frame keeps
+   when it has to crop. `null` instead of the object means the frame has no photograph,
+   which is a real answer: the menu draws its reserved "Retfoto" card, and the pages
+   that have no photograph give their text the full width.
+
+Nothing else is maintained by hand. `scripts/images/build-static-derivatives.mjs` runs
+before every dev server, build and test run: it measures each source with sharp into
+`generated/images.json`, renders the derivative ladder — AVIF and WebP at
+480 / 960 / 1440 / 2160, never upscaled — into `public/media/<name>/`, and deletes
+whatever the current photographs no longer plan, so a replaced or removed photograph
+leaves nothing stale behind. It refuses a name it cannot use, two files that would claim
+one folder, and a file it cannot read as an image. Both outputs are git-ignored; the
+photographs and the content that names them are the record.
 
 ## Deployment
 

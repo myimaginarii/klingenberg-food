@@ -7,9 +7,14 @@
 next-env.d.ts
 
 # the static site's photographs — rendered by `scripts/images/build-static-derivatives.mjs`
-# from the tracked sources in content/launch/photos/ on every build (prebuild), never
-# committed: the sources and content/site/photos.json are the record.
+# from the tracked sources in public/photos/ before every dev server, build and test
+# run, never committed: the sources and the content that names them are the record.
 /public/media
+
+# the generated image manifest — the measured size of every photograph in public/photos/,
+# written by the same script. A build product and not content: a clean checkout has none,
+# and the prebuild step writes it before anything reads it.
+/generated
 
 # production
 /build

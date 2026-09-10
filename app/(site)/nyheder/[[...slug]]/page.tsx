@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
 
-import { socialImage } from '@/content/site/images'
+import { siteShareImage } from '@/lib/seo/share'
 import { loadContact } from '@/lib/content/load/contact'
 import { loadNews } from '@/lib/content/load/news'
 import type { NewsArticle } from '@/lib/content/types'
@@ -61,7 +61,7 @@ async function resolveArticle(params: NewsParams['params']): Promise<NewsArticle
 const LIST_METADATA = pageMetadata(
   'Nyheder',
   'Lukkedage, nye retter, særlige åbningstider og andet nyt fra Klingenberg Food i Carl Nielsen Hallen.',
-  { path: '/nyheder', image: socialImage('home-hero') },
+  { path: '/nyheder', image: siteShareImage() },
 )
 
 export async function generateMetadata({ params }: NewsParams): Promise<Metadata> {

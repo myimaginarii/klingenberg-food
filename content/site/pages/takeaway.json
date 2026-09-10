@@ -1,7 +1,7 @@
 {
   "heading": "Mad ud af huset",
   "intro": "Skal du bruge mad til en fest eller en anden sammenkomst, laver vi også mad ud af huset. Ring til os, hvis du vil høre mere om mulighederne.",
-  "photo": "takeaway",
+  "photo": { "file": "/photos/takeaway.png", "alt": "Tre sandwiches", "focus": "center" },
   "phoneNote": "Bestilling og aftaler klarer vi over telefonen.",
   "ctaLabel": "Ring og hør mere",
   "sections": [

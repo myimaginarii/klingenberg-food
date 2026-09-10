@@ -1,7 +1,7 @@
 import type { AboutDocument, HomeDocument, TakeawayDocument, TakeawaySection } from '@/lib/content/types'
 
 import { loadAward } from './award'
-import { resolvePhoto } from './photo'
+import { resolvePhoto, type PhotoField } from './photo'
 import { contentPath, once, readContentJson } from './source'
 import { prose } from './text'
 
@@ -10,9 +10,10 @@ import { prose } from './text'
  * `content/site/pages/{home,about,takeaway}.json`: the confirmed launch copy
  * (`content/launch/launch-copy.md`), reworded for natural Danish on 2026-09-08.
  *
- * Each file is one page's editable words and the slot names of its photographs; a
- * photograph is the `content/site/photos.json` entry the slot names, and `null` is the
- * frame's accepted no-image state. The pages' own vocabulary — a default heading for a
+ * Each file is one page's editable words and its selected photographs; a photograph is
+ * a file in `public/photos/` with the description and crop chosen here
+ * (`./photo.ts`), and `null` is the frame's accepted no-image state. The pages' own
+ * vocabulary — a default heading for a
  * document that sets none — stays with the pages (`lib/site/defaults.ts`); only what the
  * restaurant writes is here.
  *
@@ -22,24 +23,24 @@ import { prose } from './text'
  */
 
 type HomeFile = {
-  hero: { heading?: string | null; intro?: string | null; photo?: string | null }
-  award?: { photo?: string | null }
+  hero: { heading?: string | null; intro?: string | null; photo?: PhotoField | null }
+  award?: { photo?: PhotoField | null }
   featured: { dishIds: string[]; note?: string | null }
-  aboutExcerpt: { heading?: string | null; text?: string | null; photo?: string | null }
+  aboutExcerpt: { heading?: string | null; text?: string | null; photo?: PhotoField | null }
 }
 
 type AboutFile = {
   heading?: string | null
   story?: string[]
-  venuePhoto?: string | null
-  team: { text?: string | null; photo?: string | null }
-  method: { heading?: string | null; text?: string | null; photo?: string | null }
+  venuePhoto?: PhotoField | null
+  team: { text?: string | null; photo?: PhotoField | null }
+  method: { heading?: string | null; text?: string | null; photo?: PhotoField | null }
 }
 
 type TakeawayFile = {
   heading?: string | null
   intro?: string | null
-  photo?: string | null
+  photo?: PhotoField | null
   phoneNote?: string | null
   ctaLabel?: string | null
   sections?: { id: string; heading?: string | null; body?: string | null }[]

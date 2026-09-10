@@ -1,4 +1,4 @@
-import { socialImage } from '@/content/site/images'
+import { siteShareImage } from '@/lib/seo/share'
 import { loadContact } from '@/lib/content/load/contact'
 import { loadOpeningHours } from '@/lib/content/load/hours'
 import { loadMenu } from '@/lib/content/load/menu'
@@ -35,7 +35,7 @@ import { VisitPanel } from '@/components/site/home/VisitPanel'
  */
 export const metadata = homeMetadata(
   'Burgerbaren i Carl Nielsen Hallen i Nørre Lyndelse. Vinder af Fyn & Øer ved Danmarks Bedste Burger 2026. Bestilling på telefon.',
-  { image: socialImage('home-hero') },
+  { image: siteShareImage() },
 )
 
 export default function ForsidePage() {

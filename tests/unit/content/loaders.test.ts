@@ -231,6 +231,29 @@ describe('newsArticleFrom', () => {
     expect(() => newsArticleFrom('uden-titel', { ...file, title: '' })).toThrow(/has no title/)
   })
 
+  /**
+   * There are no articles yet, so the article shape is proved on a fixture rather than
+   * on an invented file in `content/site/news/`. An article's photograph is the same
+   * field every other surface uses — the same object, the same refusals — so a news
+   * image needs nothing of its own when the first article is written.
+   */
+  it('takes the same optional photograph field as every other surface', () => {
+    expect(newsArticleFrom('a', { ...file, photo: null })?.image).toBeNull()
+    expect(newsArticleFrom('a', file)?.image).toBeNull()
+
+    const illustrated = newsArticleFrom('a', {
+      ...file,
+      photo: { file: '/photos/dish-odin.png', alt: 'Odin på tallerkenen.', focus: 'upper' },
+    })
+    expect(illustrated?.image?.alt).toBe('Odin på tallerkenen.')
+    expect(illustrated?.image?.focus).toBe('upper')
+    expect(illustrated?.image?.src).toMatch(/^\/media\/dish-odin\/\d+\.webp$/)
+
+    expect(() =>
+      newsArticleFrom('a', { ...file, photo: { file: '../secret.png' } }),
+    ).toThrow(/content\/site\/news\/a\.json/)
+  })
+
   it('finds no article in the tree: nothing has been written, and nothing is invented', () => {
     expect(loadNews()).toEqual([])
   })

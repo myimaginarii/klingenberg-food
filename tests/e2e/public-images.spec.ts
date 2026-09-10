@@ -1,7 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import photos from '@/content/site/photos.json'
+import { loadHomePage } from '@/lib/content/load/pages'
 import { planDerivatives } from '@/lib/images/derivatives'
+import { readImageManifest } from '@/lib/images/manifest'
 
 import { waitForPublicShell } from './support/public-shell'
 
@@ -11,18 +12,19 @@ import { waitForPublicShell } from './support/public-shell'
  * The promise: **every image a guest sees is a processed derivative the build wrote
  * into `public/media/`, served from this origin, at a rung the model actually planned.**
  * There is no storage service, no image proxy and no runtime resizing — the whole
- * pipeline ran once, at build time, from the five tracked photographs in
- * `content/site/photos.json`, and this suite reads back what a browser gets.
+ * pipeline ran once, at build time, over the tracked photographs in `public/photos/`,
+ * and this suite reads back what a browser gets.
+ *
+ * The expectations come from the two generated-from-source facts and never from a
+ * second copy of them: the manifest says what was measured, and the loaded content says
+ * which photograph each surface selected and what its description is.
  *
  * Both widths run it, because the frames draw different slots at 375 and 1440 and
  * `sizes` must pick a different rung for each.
  */
 
-/** The tracked registry, as a list. */
-const PHOTOS = Object.entries(photos.photos) as [
-  string,
-  { file: string; width: number; height: number; alt: string | null },
-][]
+/** What the build measured, as a list. */
+const PHOTOS = Object.entries(readImageManifest().photos)
 
 /** Where each slot is drawn, so a rendered page can be checked rather than the JSON. */
 const PLACEMENTS = [
@@ -65,7 +67,7 @@ test.describe('the rendered derivative ladder', () => {
     await page.goto('/')
     await waitForPublicShell(page)
 
-    const registry = new Map(PHOTOS)
+    const measured = new Map(PHOTOS)
     const sources = await mediaImages(page).evaluateAll((nodes) =>
       nodes.map((node) => (node as HTMLImageElement).getAttribute('src') ?? ''),
     )
@@ -74,8 +76,8 @@ test.describe('the rendered derivative ladder', () => {
 
     for (const source of sources) {
       const [, , slot, file] = source.split('/')
-      const photo = registry.get(slot!)
-      expect(photo, `${source} names a slot that is not in photos.json`).toBeDefined()
+      const photo = measured.get(slot!)
+      expect(photo, `${source} names a slot no photograph in public/photos/ produces`).toBeDefined()
 
       // The rung must be one `planDerivatives` chose for that source; nothing else exists.
       const planned = planDerivatives(photo!.width, photo!.height).map((size) => size.width)
@@ -88,24 +90,47 @@ test.describe('the rendered derivative ladder', () => {
     }
   })
 
-  test('the tracked description is what a screen reader hears', async ({ page }) => {
+  /**
+   * The source photographs are tracked under `public/`, so the export carries them.
+   * That is the deliberate simplicity of the CMS media folder — but nothing the site
+   * renders may point at one: a page that served an unprocessed original would be
+   * downloading megabytes where it planned kilobytes.
+   */
+  test('no page points a browser at an unprocessed source photograph', async ({ page }) => {
+    for (const path of ['/', '/menu/', '/om-os/', '/mad-ud-af-huset/']) {
+      await page.goto(path)
+      await waitForPublicShell(page)
+
+      const referenced = await page
+        .locator('img, source')
+        .evaluateAll((nodes) =>
+          nodes
+            .flatMap((node) => [node.getAttribute('src') ?? '', node.getAttribute('srcset') ?? ''])
+            .filter((value) => value.includes('/photos/')),
+        )
+
+      expect(referenced, path).toEqual([])
+    }
+  })
+
+  test('the selected description is what a screen reader hears', async ({ page }) => {
     await page.goto('/')
     await waitForPublicShell(page)
 
-    const hero = page.locator('img[src^="/media/home-hero/"]').first()
-    await expect(hero).toHaveAttribute('alt', photos.photos['home-hero'].alt!)
+    const alt = loadHomePage().hero.image?.alt
+    expect(alt).toBeTruthy()
+    await expect(page.locator('img[src^="/media/home-hero/"]').first()).toHaveAttribute('alt', alt!)
   })
 
-  test('a photograph with no tracked description renders alt="" rather than an invented one', async ({
+  test('a photograph with no selected description renders alt="" rather than an invented one', async ({
     page,
   }) => {
     await page.goto('/menu/')
     await waitForPublicShell(page)
 
-    // The dish photographs are tracked with `alt: null` — they sit beside the dish
+    // The dish photographs carry an empty description — they sit beside the dish
     // heading that already names them, so repeating it would be duplicate verbose text.
     for (const slot of ['dish-odin', 'dish-frigg', 'dish-ragnar', 'dish-glade-gris']) {
-      expect(photos.photos[slot as 'dish-odin'].alt).toBeNull()
       await expect(page.locator(`img[src^="/media/${slot}/"]`).first()).toHaveAttribute('alt', '')
     }
   })

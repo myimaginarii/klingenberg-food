@@ -1,4 +1,4 @@
-import { socialImage } from '@/content/site/images'
+import { siteShareImage } from '@/lib/seo/share'
 import { loadContact } from '@/lib/content/load/contact'
 import { loadOpeningHours } from '@/lib/content/load/hours'
 import { loadMenu } from '@/lib/content/load/menu'
@@ -26,7 +26,7 @@ import { PhoneAction } from '@/components/site/PhoneAction'
 export const metadata = pageMetadata(
   'Menu',
   'Burgere, ugens ret, tapas og resten af kortet hos Klingenberg Food i Carl Nielsen Hallen.',
-  { path: '/menu', image: socialImage('home-hero') },
+  { path: '/menu', image: siteShareImage() },
 )
 
 export default function MenuPage() {
