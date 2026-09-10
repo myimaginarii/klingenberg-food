@@ -27,12 +27,17 @@ import { prose } from './text'
  * The Forside's award band is the one section not written in its own file: its words
  * are the confirmed competition result (`award.json`, read by Om os too), and
  * `home.json` contributes only the band's photograph.
+ *
+ * "Tre fra menuen" is the other: the Forside states the menu-price line printed under
+ * the cards, and *which* dishes appear is each dish's own "Vis på forsiden" flag in
+ * `menu.json` (`./menu.ts`, `selectFeaturedDishes`). The Forside holds no list of dish
+ * ids, so no menu edit can leave one pointing at a dish that is gone.
  */
 
 type HomeFile = {
   hero: { heading?: string | null; intro?: string | null; photo?: PhotoField | null }
   award?: { photo?: PhotoField | null }
-  featured: { dishIds: string[]; note?: string | null }
+  featured?: { note?: string | null }
   aboutExcerpt: { heading?: string | null; text?: string | null; photo?: PhotoField | null }
 }
 
@@ -65,7 +70,7 @@ export const loadHomePage = once((): HomeDocument => {
       image: resolvePhoto(file.hero.photo, `${where}: hero`),
     },
     award: { ...loadAward(), image: resolvePhoto(file.award?.photo, `${where}: award`) },
-    featured: { dishIds: file.featured.dishIds, note: prose(file.featured.note) },
+    featured: { note: prose(file.featured?.note) },
     aboutExcerpt: {
       heading: file.aboutExcerpt.heading ?? null,
       text: prose(file.aboutExcerpt.text),

@@ -5,7 +5,6 @@ import {
   array,
   date,
   flag,
-  isAbsent,
   isBlank,
   object,
   oneOf,
@@ -35,10 +34,10 @@ import { add, at, readableName, type Problem } from './problems'
  *     `#menu-<id>` that the sticky category bar links to, so it has to be a slug and
  *     it has to be unique — two sections sharing one id give the bar two chips that
  *     jump to the same place.
- *   * **A dish id is an identity.** The Forside names three of them
- *     (`featured.dishIds`) and React keys every card by it. Uniqueness is checked
- *     across the whole document rather than within one section, because that is the
- *     scope the Forside looks up in.
+ *   * **A dish id is an identity.** React keys every card by it, on the menu and in
+ *     the Forside's "Tre fra menuen" band. Uniqueness is checked across the whole
+ *     document rather than within one section, because both surfaces draw from the
+ *     whole menu.
  *   * **`kind` and the tapas vocabulary are closed sets** the renderer switches on.
  *     A name outside them silently produces the wrong body.
  *   * **One weekly-special section, at most.** The section renders *the* week's
@@ -55,20 +54,6 @@ import { add, at, readableName, type Problem } from './problems'
  * A section with no dishes is deliberately fine: `ugens-ret` has none today, and an
  * editor building a new section starts from an empty one.
  */
-
-/** Every dish in the document, so the Forside's references can be checked against it. */
-export function menuDishIds(file: unknown): string[] {
-  const categories = (file as { categories?: unknown })?.categories
-  if (!Array.isArray(categories)) return []
-
-  return categories.flatMap((category: unknown) => {
-    const dishes = (category as { dishes?: unknown })?.dishes
-    if (!Array.isArray(dishes)) return []
-    return dishes
-      .map((dish: unknown) => (dish as { id?: unknown })?.id)
-      .filter((id): id is string => typeof id === 'string')
-  })
-}
 
 export function validateMenu(file: unknown, where: string): Problem[] {
   const problems: Problem[] = []
@@ -137,6 +122,7 @@ export function validateMenu(file: unknown, where: string): Problem[] {
       text(problems, at(dishWhere, 'secondaryNote'), dish.secondaryNote)
       price(problems, at(dishWhere, 'price'), dish.price)
       date(problems, at(dishWhere, 'soldOutOn'), dish.soldOutOn)
+      flag(problems, at(dishWhere, 'featured'), dish.featured)
       photo(problems, at(dishWhere, 'photo'), dish.photo)
       validateLabels(problems, at(dishWhere, 'labels'), dish.labels)
 
@@ -175,8 +161,8 @@ export function validateMenu(file: unknown, where: string): Problem[] {
   unique(
     problems,
     dishIds,
-    'Id’et er rettens faste identitet — forsiden henviser til retter med det — så det skal være ' +
-      'unikt i hele menuen.',
+    'Id’et er rettens faste identitet, og både menuen og forsiden bruger det som nøgle, så det ' +
+      'skal være unikt i hele menuen.',
   )
 
   if (weeklySections.length > 1) {
@@ -314,7 +300,7 @@ export function validateWeeklySpecial(file: unknown, where: string): Problem[] {
 
   // `WeeklySpecial` prints "Uge 42" from this one number; `isoYear` is stored beside it
   // and never rendered anywhere, so it is carried rather than checked.
-  if (!isAbsent(document.isoWeek)) whole(problems, at(where, 'isoWeek'), document.isoWeek, 1, 53)
+  if (!isBlank(document.isoWeek)) whole(problems, at(where, 'isoWeek'), document.isoWeek, 1, 53)
 
   validateWeekdays(problems, at(where, 'days'), document.days)
 

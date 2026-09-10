@@ -128,33 +128,29 @@ export function buildMenuView(
 }
 
 /**
- * The three dishes the Forside features, in the order `content/site/pages/` lists them.
+ * The dishes the Forside features — "Tre fra menuen" (1g).
  *
- * A referenced dish that has since been deleted or unpublished simply drops out — the
- * design shows three cards, never a hole where one used to be (§7e, item 4).
+ * The answer is read off the menu itself: a dish carries `featured` ("Vis på
+ * forsiden"), and the band shows every dish that does, in the order the menu is
+ * written. Nothing points across documents, so a dish that is deleted or un-featured
+ * simply stops appearing and cannot leave a card missing without saying why.
  *
- * These three slots are the ordinary menu dishes and nothing else. Månedens burger has
- * its own Forside section and never takes one of them: publishing it does not push a
+ * **How many is the restaurant's choice.** Three is what the confirmed menu marks and
+ * what the design was drawn around, but nothing here counts: none is an empty band,
+ * four is four cards.
+ *
+ * These slots are the ordinary menu dishes and nothing else. Månedens burger has its
+ * own Forside section and never takes one of them: publishing it does not push a
  * normal featured dish off the page.
  */
-export function selectFeaturedDishes(
-  categories: readonly MenuCategoryView[],
-  featuredDishIds: readonly string[],
-): DishView[] {
-  const byId = new Map<string, DishView>()
-  for (const category of categories) {
-    for (const dish of category.dishes) byId.set(dish.id, dish)
-  }
-
-  return featuredDishIds
-    .map((id) => byId.get(id))
-    .filter((dish): dish is DishView => dish !== undefined)
+export function selectFeaturedDishes(categories: readonly MenuCategoryView[]): DishView[] {
+  return categories.flatMap((category) => category.dishes.filter((dish) => dish.featured))
 }
 
 /**
  * Månedens burger as the Forside shows it — or `null`, which hides the whole section.
  *
- * The Forside has a dedicated Månedens burger section beside its three featured dishes,
+ * The Forside has a dedicated Månedens burger section beside its featured dishes,
  * not instead of one of them, so this is a second, independent question and not a
  * variation on {@link selectFeaturedDishes}.
  *

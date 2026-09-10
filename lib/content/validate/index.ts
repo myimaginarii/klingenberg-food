@@ -3,10 +3,10 @@ import { contentPath, listContentJson, readContentJson } from '../load/source'
 import { validateAnnouncement } from './announcement'
 import { validateContact } from './contact'
 import { validateHours } from './hours'
-import { menuDishIds, validateMenu, validateMonthlyBurger, validateWeeklySpecial } from './menu'
+import { validateMenu, validateMonthlyBurger, validateWeeklySpecial } from './menu'
 import { validateNewsArticle } from './news'
 import { validateAboutPage, validateAward, validateHomePage, validateTakeawayPage } from './pages'
-import { add, at, type Problem } from './problems'
+import { add, type Problem } from './problems'
 
 /**
  * The whole of `content/site/`, checked in one pass — what `npm run check:content` runs.
@@ -16,21 +16,16 @@ import { add, at, type Problem } from './problems'
  * calls, so there is one statement of what valid content is and this is simply all of
  * it at once. What this pass adds on top is the questions no single file can answer.
  *
- * CROSS-DOCUMENT RULES, and why there are only two kinds.
+ * CROSS-DOCUMENT RULES: there are none, and that is the design.
  *
  * There are eight small JSON files and one directory, not a database, so nothing here
- * builds a reference graph. Two relationships actually exist between files, and both
- * are checked:
- *
- *   * **The Forside names dishes by id.** `featured.dishIds` points into `menu.json`.
- *     At render time a dish that has gone is simply left out — the design shows cards,
- *     never a hole (§7e) — which is right on the page and wrong in a repository: it
- *     means a mistyped id is a card that quietly stops appearing. So the reference is
- *     checked here, where it can be reported, rather than made fatal in the loader,
- *     where it would change what the page does.
- *   * **Every photograph names a file.** That one is not written below because it does
- *     not need to be: each `photo` field is resolved against `public/photos/` and the
- *     generated manifest as it is validated, by the same functions the loaders use.
+ * builds a reference graph. One relationship used to exist — the Forside named three
+ * dishes by id — and it was removed rather than checked harder: a dish now carries its
+ * own "Vis på forsiden" flag, so deleting a dish removes it from the Forside and there
+ * is nothing left to dangle. The only other relationship, **every photograph names a
+ * file**, is not written below because it does not need to be: each `photo` field is
+ * resolved against `public/photos/` and the generated manifest as it is validated, by
+ * the same functions the loaders use.
  *
  * A file that cannot be read or is not valid JSON is reported as a problem like any
  * other, rather than thrown: the point of this pass is to say everything that is wrong
@@ -56,7 +51,6 @@ const DOCUMENTS = [
 
 export function validateSiteContent(): Problem[] {
   const problems: Problem[] = []
-  const read = new Map<string, unknown>()
 
   for (const document of DOCUMENTS) {
     const where = contentPath(...document.segments)
@@ -73,7 +67,6 @@ export function validateSiteContent(): Problem[] {
       continue
     }
 
-    read.set(document.segments.join('/'), file)
     problems.push(...document.validate(file, where))
   }
 
@@ -85,37 +78,6 @@ export function validateSiteContent(): Problem[] {
       add(problems, where, 'Filen kunne ikke læses — den er ikke gyldig JSON.')
     }
   }
-
-  const menu = read.get('menu.json')
-  const home = read.get('pages/home.json')
-  if (menu !== undefined && home !== undefined) {
-    problems.push(...validateFeaturedReferences(home, menu))
-  }
-
-  return problems
-}
-
-/** The Forside's dish ids must name dishes the menu actually has. */
-function validateFeaturedReferences(home: unknown, menu: unknown): Problem[] {
-  const problems: Problem[] = []
-
-  const dishIds = (home as { featured?: { dishIds?: unknown } })?.featured?.dishIds
-  if (!Array.isArray(dishIds)) return problems
-
-  const onTheMenu = new Set(menuDishIds(menu))
-  const where = at(contentPath('pages', 'home.json'), 'featured', 'dishIds')
-
-  dishIds.forEach((id, index) => {
-    if (typeof id !== 'string' || onTheMenu.has(id)) return
-
-    add(
-      problems,
-      at(where, index + 1),
-      `Der findes ingen ret med id'et "${id}" i menuen (${contentPath('menu.json')}). ` +
-        'Forsiden ville vise et kort mindre uden at sige hvorfor. Ret id’et, eller vælg ' +
-        'en anden ret.',
-    )
-  })
 
   return problems
 }

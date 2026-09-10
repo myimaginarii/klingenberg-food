@@ -99,12 +99,37 @@ describe('a menu that would break a page', () => {
 
   /** The grammar itself is `oreFromKroner`'s; this proves the field goes through it. */
   it('refuses a price the menu parser cannot read, naming the dish', () => {
-    for (const price of [89, '89 kr.', '']) {
+    for (const price of [89, '89 kr.', '12,345', '-5']) {
       const problems = withDish({ price })
 
       expect(problems[0]?.where).toBe('content/site/menu.json → Burgere → Odin → price')
       expect(problems[0]?.message).toMatch(/Prisen skrives i kroner .* f\.eks\. "89", "89,50"/)
     }
+  })
+
+  /**
+   * A dish with no price is an ordinary dish — several sections price nothing per item
+   * — and there are two ways to say so. `null` is what somebody writing the JSON types;
+   * `""` is what a Pages CMS price field holds after it has been cleared (phase 4B).
+   * Both are accepted here and both load as no price.
+   */
+  it('accepts a dish with no price, written as null, as "" or left out', () => {
+    expect(withDish({ price: null })).toEqual([])
+    expect(withDish({ price: '' })).toEqual([])
+    expect(check(menu({ categories: [category({ dishes: [{ id: 'odin', name: 'Odin' }] })] }))).toEqual([])
+  })
+
+  /**
+   * "Vis på forsiden" — the flag that puts a dish in the Forside's band (phase 4B).
+   * Missing and `false` are the same answer; anything that is not a true/false switch
+   * is refused, because the renderer reads it as one.
+   */
+  it('takes the Forside flag as a true/false switch, absent meaning off', () => {
+    expect(withDish({ featured: true })).toEqual([])
+    expect(withDish({ featured: false })).toEqual([])
+    expect(messages(withDish({ featured: 'ja' }))).toMatch(
+      /Odin → featured: Skal være true eller false/,
+    )
   })
 
   it('refuses a dish with no name, and a section with no heading', () => {

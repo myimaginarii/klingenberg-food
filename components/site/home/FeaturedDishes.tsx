@@ -7,10 +7,11 @@ import type { DishView } from '@/lib/menu/view'
 /**
  * "Tre fra menuen" — design 1g and 1l.
  *
- * Which three is an editorial choice made in the Forside document
- * (`content/site/pages/home.json`, `featured.dishIds`); this component only renders
- * whichever dishes that list currently points at. A dish that has since been deleted
- * simply drops out rather than leaving a hole (§7e, item 4).
+ * Which dishes appear is an editorial choice made on the dishes themselves — "Vis på
+ * forsiden" in `content/site/menu.json` — and this component renders whichever ones
+ * carry it, in menu order. A dish that is deleted or switched off simply stops
+ * appearing rather than leaving a hole (§7e, item 4); the heading is the section's
+ * name, not a count.
  *
  * The menu-price line beneath the cards is the same document's `featured.note` — it
  * states a price, so it is the restaurant's to edit beside the cards it describes.

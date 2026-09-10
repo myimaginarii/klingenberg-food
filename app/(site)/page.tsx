@@ -21,13 +21,14 @@ import { VisitPanel } from '@/components/site/home/VisitPanel'
  * Forside — design 1g (desktop) and 1l (mobile).
  *
  * The page reads and composes; every section is its own component. The words, the
- * photographs, the award wording and the three featured dishes are the tracked Forside
- * document (`content/site/pages/home.json`, read through `lib/content/load/`), and
- * this page renders whatever it says.
+ * photographs and the award wording are the tracked Forside document
+ * (`content/site/pages/home.json`, read through `lib/content/load/`), and this page
+ * renders whatever it says. Which dishes "Tre fra menuen" shows is the menu's own
+ * answer — a dish carries "Vis på forsiden" — so the Forside names no dish.
  *
  * The section order alternates the two approved page surfaces — cream hero, burgundy
  * award, beige Månedens burger, cream Tre fra menuen, beige Seneste nyt, cream Besøg.
- * Månedens burger sits between the award and the three featured dishes because it is
+ * Månedens burger sits between the award and the featured dishes because it is
  * the freshest thing on the page, and it is an addition to them rather than one of
  * them: publishing it never displaces a featured dish. When there is no active burger
  * the section draws the menu page's own empty card, so the Forside says honestly that
@@ -44,7 +45,7 @@ export default function ForsidePage() {
   const hours = loadOpeningHours()
   const now = new Date()
   const menuView = buildMenuView(loadMenu(), hours, now)
-  const featured = selectFeaturedDishes(menuView.categories, home.featured.dishIds)
+  const featured = selectFeaturedDishes(menuView.categories)
   const monthlyBurgerSection = selectHomepageMonthlyBurgerSection(menuView.monthlyBurger)
   const address = toPostalAddress(contact)
   const latestArticle = loadNews()[0] ?? null

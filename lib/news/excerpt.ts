@@ -8,6 +8,6 @@ export function articleExcerpt(article: NewsArticle): string | null {
   const first = article.body.blocks[0]
   if (first === undefined) return null
 
-  const text = first.spans.map((span) => span.text).join('').trim()
+  const text = first.text.trim()
   return text.length > 0 ? text : null
 }

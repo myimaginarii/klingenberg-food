@@ -131,14 +131,26 @@ describe('the confirmed menu', () => {
     expect(loadNews()).toEqual([])
   })
 
-  it('resolves the three featured dishes the Forside names', () => {
+  /**
+   * The confirmed Forside band, after phase 4B moved the choice onto the dishes: the
+   * same three burgers, in the same order, now read off `menu.json`'s own "Vis på
+   * forsiden" rather than a list of ids kept on the Forside.
+   */
+  it('resolves the three featured dishes, in menu order', () => {
     const view = buildMenuView(MENU, loadOpeningHours(), new Date('2026-09-09T16:00:00+02:00'))
-    expect(selectFeaturedDishes(view.categories, HOME.featured.dishIds).map((dish) => dish.name)).toEqual([
+    expect(selectFeaturedDishes(view.categories).map((dish) => dish.name)).toEqual([
       'Odin',
       'Frigg',
       'Ragnar',
     ])
     expect(view.monthlyBurger).toBeNull()
+  })
+
+  it('marks those three dishes and no others in the tracked menu', () => {
+    const featured = MENU.categories.flatMap((category) =>
+      category.dishes.filter((dish) => dish.featured).map((dish) => dish.id),
+    )
+    expect(featured).toEqual(['odin', 'frigg', 'ragnar'])
   })
 
   it('hands every caller the same value, so the shell and a page share one object', () => {
