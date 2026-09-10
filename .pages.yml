@@ -652,7 +652,7 @@ content:
     exclude: [".gitkeep"]
     filename:
       template: "{primary}.json"
-      field: create
+      field: false
     view:
       fields: [title, published, publishedAt]
       primary: title
