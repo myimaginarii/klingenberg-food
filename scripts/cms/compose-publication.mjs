@@ -39,6 +39,16 @@
  * with `core.autocrlf=true`, where every CMS file on disk carries CRLF that the blob
  * does not — a publication that rewrote every line of every file it touched.
  *
+ * WHAT A PUBLICATION INPUT IS, NARROWLY. One mode: `100644`, a plain non-executable
+ * regular file. A symbolic link and a submodule are not files; an executable is one the
+ * composed tree could not honestly promise, because the checkout this writes does not
+ * carry the bit. And under `public/photos/` the name itself must be a photograph the
+ * site can render — one file, directly in the directory, named by the rule
+ * `lib/images/photos.ts` already holds every stored `file` value to. Both are shape
+ * checks at the edge, and neither replaces what comes later: `npm run check:content`
+ * still validates the content, and the image build still decides whether a file is
+ * genuinely readable image data.
+ *
  * USAGE
  *
  *     node scripts/cms/compose-publication.mjs --content <ref> [--main <ref>]
@@ -79,11 +89,22 @@ registerHooks({
 // has to be exactly the one the loader turns into an address (`lib/content/load/news.ts`).
 const { NEWS_SLUG_PATTERN } = await import('../../lib/news/slug.ts')
 
+// The photograph file-name shape, likewise imported rather than restated. `lib/images/
+// photos.ts` is already the gate the loaders and the image build parse a stored `file`
+// value through; `isPhotoFileName` is that same rule asked of a name on disk, so the
+// door here and the vocabulary the site renders cannot drift apart.
+const { isPhotoFileName, PHOTO_EXTENSIONS, PHOTO_SOURCE_DIRECTORY } = await import(
+  '../../lib/images/photos.ts'
+)
+
+/** Where the photograph sources are tracked: `public/photos`, named by the module above. */
+const PHOTO_DIRECTORY = `public/${PHOTO_SOURCE_DIRECTORY}`
+
 /**
  * THE POSITIVE ALLOW-LIST. The only two prefixes owner-authored data may occupy.
  * A path is a publication input if and only if it lies under one of these.
  */
-export const PUBLICATION_ROOTS = Object.freeze(['content/site', 'public/photos'])
+export const PUBLICATION_ROOTS = Object.freeze(['content/site', PHOTO_DIRECTORY])
 
 /** One file per article, and the file name is the address (`lib/content/load/news.ts`). */
 const NEWS_DIRECTORY = 'content/site/news'
@@ -100,8 +121,17 @@ const TRACKED_DOTFILE = '.gitkeep'
 /** A plain, unremarkable file name. No dot-prefix, no leading `-`, no colon, no space. */
 const SAFE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]*$/
 
-/** The two modes a regular file has. A symlink (120000) and a submodule (160000) are not files. */
-const REGULAR_FILE_MODES = new Set(['100644', '100755'])
+/**
+ * The one mode a publication input may carry: a plain, non-executable regular file.
+ *
+ * A symbolic link (120000) and a submodule (160000) are not files at all. An executable
+ * regular file (100755) is one, but not one a CMS has any reason to produce — the two
+ * roots hold JSON and photographs — and accepting it would make the composed tree and
+ * the checkout disagree: {@link applyPublication} writes blobs with `writeFileSync`,
+ * which does not carry the bit across. Narrowing the mode is the fix; a `chmod` would
+ * only teach this door to reproduce a permission nobody wants published.
+ */
+const PUBLICATION_FILE_MODE = '100644'
 
 /** Photographs are a megabyte at most; this is a bound, not a budget. */
 const MAX_BUFFER = 64 * 1024 * 1024
@@ -156,14 +186,16 @@ export function publicationPathProblem(path, mode) {
     return `it is not under ${PUBLICATION_ROOTS.map((root) => `${root}/`).join(' or ')}`
   }
 
-  if (!REGULAR_FILE_MODES.has(mode)) {
+  if (mode !== PUBLICATION_FILE_MODE) {
     const what =
       mode === '120000'
         ? 'a symbolic link'
         : mode === '160000'
           ? 'a submodule'
-          : `mode ${mode}`
-    return `it is ${what}, and a publication input is a plain file`
+          : mode === '100755'
+            ? 'executable'
+            : `mode ${mode}`
+    return `it is ${what}, and a publication input is a plain non-executable file (${PUBLICATION_FILE_MODE})`
   }
 
   if (isAbsolute(path) || path.startsWith('/')) return 'it is an absolute path'
@@ -190,6 +222,20 @@ export function publicationPathProblem(path, mode) {
       if (!NEWS_SLUG_PATTERN.test(name.slice(0, -'.json'.length))) {
         return `"${name}" is not <slug>.json — lower-case letters, digits and single hyphens`
       }
+    }
+  }
+
+  if (path.startsWith(`${PHOTO_DIRECTORY}/`)) {
+    const name = path.slice(PHOTO_DIRECTORY.length + 1)
+    if (name.includes('/')) {
+      return `${PHOTO_DIRECTORY}/ holds one file per photograph and no subdirectories`
+    }
+    // The site's own photograph vocabulary, asked of the name rather than restated:
+    // a lower-case slug and one of the four raster extensions. It is what refuses
+    // `foo.svg`, `foo.html`, `foo.js`, `My Photo.png`, `foo_bar.png` — and `.gitkeep`,
+    // which this directory does not track, because it is never empty.
+    if (!isPhotoFileName(name)) {
+      return `"${name}" is not <navn>.${PHOTO_EXTENSIONS.join('|')} — lower-case letters, digits and single hyphens`
     }
   }
 

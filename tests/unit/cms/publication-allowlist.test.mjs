@@ -132,21 +132,28 @@ afterAll(() => {
 })
 
 /**
- * One extra commit on `content` carrying a tree entry a Windows working tree cannot
- * hold: a symbolic link (mode 120000), written through a scratch index so the
- * fixture's own index and checkout stay untouched. This is how an untrusted branch
- * would offer one, and on a Linux runner it is what a checkout would materialise.
+ * One extra commit on `content` carrying a tree entry at a mode this machine's working
+ * tree may not be able to hold — a symbolic link (120000), or an executable (100755),
+ * neither of which a Windows checkout records. It is written through a scratch index so
+ * the fixture's own index and checkout stay untouched, which is both how an untrusted
+ * branch would offer one and what a Linux runner's checkout would materialise.
+ *
+ * `contents` is hashed into a blob, except for a gitlink (160000), which points at a
+ * commit: pass `null` and the fixture's own `main` commit is used.
  */
-function addSymlinkEntry(root, path, target) {
-  const oid = execFileSync('git', ['-C', root, 'hash-object', '-w', '--stdin'], {
-    input: target,
-    encoding: 'utf8',
-  }).trim()
+function addTreeEntry(root, mode, path, contents) {
+  const oid =
+    contents === null
+      ? git(root, ['rev-parse', 'main']).trim()
+      : execFileSync('git', ['-C', root, 'hash-object', '-w', '--stdin'], {
+          input: contents,
+          encoding: 'utf8',
+        }).trim()
 
   const env = { ...process.env, GIT_INDEX_FILE: join(scratch('publication-index-'), 'index') }
 
   git(root, ['read-tree', 'content'], env)
-  git(root, ['update-index', '--add', '--cacheinfo', `120000,${oid},${path}`], env)
+  git(root, ['update-index', '--add', '--cacheinfo', `${mode},${oid},${path}`], env)
   const tree = git(root, ['write-tree'], env).trim()
   const commit = git(root, ['commit-tree', tree, '-p', 'content', '-m', 'hostile'], env).trim()
   git(root, ['branch', '-f', 'content', commit])
@@ -392,7 +399,7 @@ describe('what may not cross the boundary', () => {
 
   it('refuses the whole publication when a symbolic link is offered', () => {
     const root = fixture({ 'content/site/hours.json': '{ "weekly": ["søndag"] }\n' })
-    addSymlinkEntry(root, 'content/site/news/link.json', '../../../.github/workflows/ci.yml')
+    addTreeEntry(root, '120000', 'content/site/news/link.json', '../../../.github/workflows/ci.yml')
 
     const { code, output, tree } = publish(root)
 
@@ -402,6 +409,68 @@ describe('what may not cross the boundary', () => {
     // Fail closed: the valid edit in the same commit is not published either.
     expect(text(tree, 'content/site/hours.json')).toBe(MAIN['content/site/hours.json'])
     expect(exists(tree, 'content/site/news/link.json')).toBe(false)
+  })
+
+  it('refuses the whole publication when an executable file is offered', () => {
+    // Nothing a CMS writes into these two directories is executable, and the composer
+    // could not honour the bit if it were: `applyPublication` writes blobs with
+    // `writeFileSync`, so an accepted 100755 would leave the composed tree and the
+    // checkout disagreeing about the same file.
+    const root = fixture({ 'content/site/hours.json': '{ "weekly": ["søndag"] }\n' })
+    addTreeEntry(root, '100755', 'content/site/menu.json', '{ "sections": ["hostile"] }\n')
+
+    const { code, output, tree } = publish(root)
+
+    expect(code).toBe(1)
+    expect(output).toContain('content/site/menu.json')
+    expect(output).toContain('executable')
+    // Fail closed, exactly as for a symbolic link: the valid edit beside it in the same
+    // commit is not published, and the hostile file itself never reaches the tree.
+    expect(text(tree, 'content/site/hours.json')).toBe(MAIN['content/site/hours.json'])
+    expect(text(tree, 'content/site/menu.json')).toBe(MAIN['content/site/menu.json'])
+  })
+
+  it('refuses the whole publication when a submodule is offered', () => {
+    // A gitlink points at a commit, so the fixture hands one over rather than hashing a
+    // blob: the entry has to be the shape git actually stores for a submodule.
+    const root = fixture({ 'content/site/hours.json': '{ "weekly": ["søndag"] }\n' })
+    addTreeEntry(root, '160000', 'public/photos/vendor', null)
+
+    const { code, output, tree } = publish(root)
+
+    expect(code).toBe(1)
+    expect(output).toContain('public/photos/vendor')
+    expect(output).toContain('submodule')
+    expect(text(tree, 'content/site/hours.json')).toBe(MAIN['content/site/hours.json'])
+    expect(exists(tree, 'public/photos/vendor')).toBe(false)
+  })
+
+  it('refuses a photograph whose name is not a photograph, and publishes nothing', () => {
+    const { code, output, tree } = publish(
+      fixture({
+        'public/photos/tracker.svg': '<svg onload="fetch(1)"></svg>\n',
+        'content/site/hours.json': '{ "weekly": ["mandag"] }\n',
+      }),
+    )
+
+    expect(code).toBe(1)
+    expect(output).toContain('public/photos/tracker.svg')
+    expect(exists(tree, 'public/photos/tracker.svg')).toBe(false)
+    expect(text(tree, 'content/site/hours.json')).toBe(MAIN['content/site/hours.json'])
+  })
+
+  it('refuses a photograph hidden in a subdirectory, and publishes nothing', () => {
+    const { code, output, tree } = publish(
+      fixture({
+        'public/photos/archive/old-hero.png': 'png-bytes-archived',
+        'content/site/hours.json': '{ "weekly": ["tirsdag"] }\n',
+      }),
+    )
+
+    expect(code).toBe(1)
+    expect(output).toContain('public/photos/archive/old-hero.png')
+    expect(exists(tree, 'public/photos/archive/old-hero.png')).toBe(false)
+    expect(text(tree, 'content/site/hours.json')).toBe(MAIN['content/site/hours.json'])
   })
 
   it('refuses a news file whose name is not a slug, and publishes nothing', () => {
@@ -486,11 +555,67 @@ describe('the path-safety check, turned directly', () => {
     }
   })
 
-  it('refuses anything that is not a regular file', () => {
-    expect(publicationPathProblem('content/site/menu.json', '120000')).toContain('symbolic link')
-    expect(publicationPathProblem('public/photos/dish-odin.png', '160000')).toContain('submodule')
+  it('accepts one file mode and refuses every other', () => {
+    // 100644 is the whole of it: a plain, non-executable regular file. Nothing a CMS
+    // writes here is executable, and `applyPublication` could not reproduce the bit if
+    // it were — so an accepted 100755 would mean a composed tree the checkout disagrees
+    // with. Narrowing the mode, rather than teaching the writer to `chmod`, is the fix.
     expect(publicationPathProblem('content/site/menu.json', '100644')).toBeNull()
-    expect(publicationPathProblem('content/site/menu.json', '100755')).toBeNull()
+    expect(publicationPathProblem('public/photos/dish-odin.png', '100644')).toBeNull()
+
+    expect(publicationPathProblem('content/site/menu.json', '100755')).toContain('executable')
+    expect(publicationPathProblem('public/photos/dish-odin.png', '100755')).toContain('executable')
+    expect(publicationPathProblem('content/site/menu.json', '120000')).toContain('symbolic link')
+    expect(publicationPathProblem('public/photos/dish-odin.png', '120000')).toContain(
+      'symbolic link',
+    )
+    expect(publicationPathProblem('content/site/menu.json', '160000')).toContain('submodule')
+    expect(publicationPathProblem('public/photos/dish-odin.png', '160000')).toContain('submodule')
+    expect(publicationPathProblem('content/site/menu.json', '040000')).not.toBeNull()
+  })
+
+  it('holds a photograph to the file name the site renders it by', () => {
+    // The rule is `lib/images/photos.ts`, reused rather than restated: one file directly
+    // in public/photos/, a lower-case slug, one of four raster extensions.
+    for (const name of [
+      'home-hero.png',
+      'dish-glade-gris.png',
+      'about-venue.png',
+      'takeaway.jpg',
+      'frokost.jpeg',
+      'aften.webp',
+      'sommer2026.png',
+    ]) {
+      expect(publicationPathProblem(`public/photos/${name}`, '100644'), name).toBeNull()
+    }
+
+    for (const name of [
+      'foo.svg',
+      'foo.html',
+      'foo.js',
+      'foo.json',
+      'My Photo.png',
+      'foo_bar.png',
+      'Foo.png',
+      'foo.PNG',
+      'foo--bar.png',
+      '-foo.png',
+      'foo-.png',
+      'foo.png.js',
+      'foo.bar.png',
+      'foo',
+      'foo.avif',
+      'foo.tiff',
+      // Not tracked in this repository, and not invented here: public/photos/ is never
+      // empty, so it has no reason to carry the one dotfile content/site/news/ does.
+      '.gitkeep',
+    ]) {
+      expect(publicationPathProblem(`public/photos/${name}`, '100644'), name).not.toBeNull()
+    }
+
+    expect(publicationPathProblem('public/photos/archive/photo.png', '100644')).toContain(
+      'no subdirectories',
+    )
   })
 
   it('holds a news file to the slug the loader turns into an address', () => {
