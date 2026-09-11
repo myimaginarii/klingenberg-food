@@ -92,9 +92,12 @@ describe('the confirmed menu', () => {
 
     const onDisk = JSON.parse(
       readFileSync(join(process.cwd(), 'content', 'site', 'menu.json'), 'utf8'),
-    ) as { categories: { dishes: Record<string, unknown>[] }[] }
+    ) as { categories: { dishes?: Record<string, unknown>[] }[] }
     for (const category of onDisk.categories) {
-      for (const dish of category.dishes) {
+      // Read off disk, so `dishes` may be missing rather than empty: that is how Pages
+      // CMS writes a section holding none (`lib/content/load/menu.ts`). The loaded menu
+      // above always has the list; the raw file is the one that may not.
+      for (const dish of category.dishes ?? []) {
         expect(Object.keys(dish), String(dish.name)).not.toContain('tapas')
       }
     }
@@ -212,10 +215,11 @@ describe('the confirmed menu', () => {
    */
   it('marks a dish sold out only where its own entry says so, and names one weekly section', () => {
     const onDisk = new Map(
-      readContentJson<{ categories: { dishes: { id: string; soldOutOn?: string | '' | null }[] }[] }>(
-        'menu.json',
-      ).categories.flatMap((category) =>
-        category.dishes.map((dish) => [dish.id, stored(dish.soldOutOn)] as const),
+      readContentJson<{
+        categories: { dishes?: { id: string; soldOutOn?: string | '' | null }[] }[]
+      }>('menu.json').categories.flatMap((category) =>
+        // Raw again: a section Pages CMS saved with no dishes has no `dishes` key.
+        (category.dishes ?? []).map((dish) => [dish.id, stored(dish.soldOutOn)] as const),
       ),
     )
 

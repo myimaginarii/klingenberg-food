@@ -162,22 +162,38 @@ describe('an untouched Pages CMS save', () => {
   })
 
   /**
-   * And specifically the rule that broke the build. The two menu sections that draw
-   * another document are the ones that carry `"dishes": []`, so they are the ones a
-   * save leaves without a `dishes` key at all — named here rather than left implied,
-   * because "the save rewrote something" would still pass if this stopped happening.
+   * And specifically the rule that broke the build, proved on an empty list this test
+   * puts there.
+   *
+   * It used to look for `"dishes": []` in the tracked menu and count the sections
+   * carrying it. That was an assertion about which spelling happened to be committed,
+   * and it stopped measuring anything the moment the restaurant's own save landed: once
+   * Pages CMS has written the file, no section holds an empty list, so there was nothing
+   * left to find and the guard failed. The condition the rule is about is built here
+   * instead — every section given an empty list, then put through the same save — so the
+   * rule is proved whichever spelling `content/site/menu.json` currently uses.
    */
-  it('leaves out the dishes list of every section that had an empty one', () => {
+  it('leaves out the dishes list of a section that had an empty one', () => {
     const sections = (root: string) =>
-      (JSON.parse(readFileSync(join(root, MENU), 'utf8')) as { categories: object[] }).categories
+      (JSON.parse(readFileSync(join(root, MENU), 'utf8')) as { categories: Record<string, unknown>[] })
+        .categories
 
-    const wereEmpty = sections(ROOT).filter(
-      (section) => (section as { dishes?: unknown[] }).dishes?.length === 0,
-    )
-    expect(wereEmpty.length).toBeGreaterThan(0)
+    const emptied: Record<string, unknown>[] = sections(ROOT).map((section) => ({
+      ...section,
+      dishes: [],
+    }))
+    const written = (
+      asSaved(withMenuDefaults({ categories: emptied })) as { categories: Record<string, unknown>[] }
+    ).categories
 
-    const written = sections(saved).filter((section) => 'dishes' in section)
-    expect(written).toHaveLength(sections(ROOT).length - wereEmpty.length)
+    expect(written).toHaveLength(emptied.length)
+    for (const [index, section] of written.entries()) {
+      expect(section, String(emptied[index]?.id)).not.toHaveProperty('dishes')
+    }
+
+    // And the save the rest of this suite is made from writes no empty list either —
+    // whatever the tracked menu holds, what comes out has the list or has no key.
+    for (const section of sections(saved)) expect(section.dishes, String(section.id)).not.toEqual([])
   })
 
   it('passes check:content', () => {
@@ -190,44 +206,70 @@ describe('an untouched Pages CMS save', () => {
 })
 
 /**
- * The save that actually broke the build, on its own — the real menu from
- * `origin/content` (7c00ae4, "Update content/site/menu.json (via Pages CMS)"), where
- * `dishes` is missing from Ugens ret and from Tapasbordet and present everywhere else.
+ * A menu section that holds no dishes, in both spellings the file is allowed to use —
+ * the case that actually broke the build, on the one document.
  *
- * The suite above models the whole serialisation and applies it to every document;
- * this is the one file, edited by hand into exactly the shape the restaurant's own
- * save left on disk, so the case survives any later change to that model. It is built
- * from the tracked menu rather than checked in as a copy of it, because a second copy
- * of the menu in this repository would be a second menu to keep up to date — and the
- * only thing 7c00ae4 does that matters here is drop those two lists. (The real file
- * also reorders keys, drops blank strings and writes the schema's defaults; that this
- * changes nothing is what the suite above proves.)
+ * `"dishes": []` is what somebody editing the JSON writes, and is what the tracked menu
+ * held until the restaurant's first Pages CMS save. **No `dishes` key at all** is what
+ * that save wrote, and what `origin/content` (7c00ae4, "Update content/site/menu.json
+ * (via Pages CMS)") has held since. The site must not be able to tell them apart
+ * (`lib/content/validate/menu.ts`, `lib/content/load/menu.ts`).
+ *
+ * The suite above models the whole serialisation and applies it to every document; this
+ * builds both shapes of the one file. Both are built from the tracked menu rather than
+ * checked in as copies of it, because a second copy of the menu in this repository would
+ * be a second menu to keep up to date. Each dishless section is rewritten into the
+ * spelling under test, so whichever spelling happens to be committed today the other is
+ * still exercised and neither case can go quietly vacuous. (The real 7c00ae4 also
+ * reorders keys, drops blank strings and writes the schema's defaults; that this changes
+ * nothing is what the suite above proves.)
+ *
+ * Which sections these are is the restaurant's business — Ugens ret and Tapasbordet
+ * today — so they are found by the contract rather than named.
  */
-describe('the Pages CMS menu save that left two sections without a dishes list', () => {
-  const emptied: unknown[] = []
+describe('a menu section that holds no dishes', () => {
+  const rewritten = (spelling: (section: Record<string, unknown>) => void) => {
+    const ids: unknown[] = []
 
-  const withoutEmptyDishes = fixture(({ read, write }) => {
-    const menu = read(MENU) as { categories: Record<string, unknown>[] }
+    const root = fixture(({ read, write }) => {
+      const menu = read(MENU) as { categories: Record<string, unknown>[] }
 
-    for (const section of menu.categories) {
-      if ((section.dishes as unknown[] | undefined)?.length !== 0) continue
-      delete section.dishes
-      emptied.push(section.id)
-    }
+      for (const section of menu.categories) {
+        // The raw contract: a missing list and an empty list both mean "no dishes".
+        if (((section.dishes ?? []) as unknown[]).length !== 0) continue
+        spelling(section)
+        ids.push(section.id)
+      }
 
-    write(MENU, menu)
+      write(MENU, menu)
+    })
+
+    return { root, ids }
+  }
+
+  const withoutTheKey = rewritten((section) => {
+    delete section.dishes
+  })
+  const withAnEmptyList = rewritten((section) => {
+    section.dishes = []
   })
 
-  it('is a save that dropped a list — otherwise the two cases below prove nothing', () => {
-    expect(emptied.length).toBeGreaterThan(0)
+  it('is in the tracked menu at all — otherwise the cases below prove nothing', () => {
+    expect(withoutTheKey.ids.length).toBeGreaterThan(0)
+    expect(withAnEmptyList.ids).toEqual(withoutTheKey.ids)
   })
 
-  it('passes check:content', () => {
-    expect(check(withoutEmptyDishes)).toEqual({ status: 0, stderr: '' })
+  it('passes check:content with no dishes key', () => {
+    expect(check(withoutTheKey.root)).toEqual({ status: 0, stderr: '' })
   })
 
-  it('loads to exactly the menu the tracked content loads to', () => {
-    expect(loaded(withoutEmptyDishes)).toBe(loaded(ROOT))
+  it('passes check:content with an empty dishes list', () => {
+    expect(check(withAnEmptyList.root)).toEqual({ status: 0, stderr: '' })
+  })
+
+  it('loads to exactly the menu the tracked content loads to, in either spelling', () => {
+    expect(loaded(withoutTheKey.root)).toBe(loaded(ROOT))
+    expect(loaded(withAnEmptyList.root)).toBe(loaded(ROOT))
   })
 })
 
@@ -318,9 +360,11 @@ describe('a required field left empty', () => {
   it('still refuses a price that was typed wrong rather than left empty', () => {
     refused(({ read, write }) => {
       const menu = read('content/site/menu.json') as {
-        categories: { dishes: { price?: unknown }[] }[]
+        categories: { dishes?: { price?: unknown }[] }[]
       }
-      menu.categories[0]!.dishes[0]!.price = '89 kr.'
+      // The first section that holds dishes — a section may have no `dishes` key at all.
+      const priced = menu.categories.find((category) => category.dishes?.length)
+      priced!.dishes![0]!.price = '89 kr.'
       write('content/site/menu.json', menu)
     }, /Prisen skrives i kroner/)
   })

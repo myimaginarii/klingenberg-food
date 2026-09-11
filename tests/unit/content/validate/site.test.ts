@@ -166,9 +166,12 @@ describe('npm run check:content', () => {
   it('exits non-zero and names the file, the item and the field — with no stack trace', () => {
     const root = fixture(({ read, write }) => {
       const menu = read('content/site/menu.json') as {
-        categories: { name: string; dishes: { name: string; price: string }[] }[]
+        categories: { name: string; dishes?: { name: string; price: string }[] }[]
       }
-      menu.categories[0]!.dishes[0]!.price = '89 kr.'
+      // The first section that holds dishes, rather than the first section: a menu whose
+      // opening section holds none is a shape the file is allowed to have.
+      const priced = menu.categories.find((category) => category.dishes?.length)
+      priced!.dishes![0]!.price = '89 kr.'
       write('content/site/menu.json', menu)
     })
 
@@ -206,9 +209,13 @@ describe('npm run check:content', () => {
   it('accepts the menu with a featured dish deleted — nothing points at it', () => {
     const root = fixture(({ read, write }) => {
       const menu = read('content/site/menu.json') as {
-        categories: { dishes: { id: string }[] }[]
+        categories: { dishes?: { id: string }[] }[]
       }
       for (const category of menu.categories) {
+        // A section Pages CMS saved with no dishes has no `dishes` key at all. Leave it
+        // exactly as the file has it rather than writing back an empty list the CMS
+        // never writes — the edit under test is one deleted dish, nothing else.
+        if (!category.dishes) continue
         category.dishes = category.dishes.filter((dish) => dish.id !== 'odin')
       }
       write('content/site/menu.json', menu)
