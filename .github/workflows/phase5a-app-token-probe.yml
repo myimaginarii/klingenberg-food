@@ -1,0 +1,299 @@
+name: Phase 5A App token probe
+
+# TEMPORARY HARNESS — MUST NEVER BE MERGED TO `main`.
+#
+# Phase 5A is an empirical probe, not a feature. It answers one question with the real
+# repository rather than with documentation: can the `cms-publish` GitHub App push a
+# branch, open a pull request into protected `main`, have the *existing* `ci.yml` run
+# against that pull request without a human pressing "Approve and run workflows", and
+# then let GitHub's native auto-merge land it once the required checks are green?
+#
+# WHY A GITHUB APP AND NOT `GITHUB_TOKEN`. A pull request opened with the built-in
+# `GITHUB_TOKEN` does not trigger `pull_request` workflows, and a push made with it does
+# not trigger `push` workflows — GitHub suppresses them to stop a workflow recursing.
+# That suppression would leave the published commit untested and undeployed. An
+# installation token from a real GitHub App is a *different* actor, so the suppression
+# does not apply. This workflow exists to prove that, and to prove that proving it
+# needs no ruleset bypass.
+#
+# WHAT IT DELIBERATELY DOES NOT DO. It does not touch `main`, it does not edit a
+# ruleset, it does not grant itself a bypass, and it does not weaken a required check.
+# The only write it performs is to a throwaway branch and the pull request opened from
+# it. The probe's own content change is representation-only: one already-normalised
+# `content/site/announcement.json` lifted from the `content` branch, which leaves the
+# announcement inactive and the public site byte-identical.
+#
+# The App token is scoped down to the two permissions the job actually uses. The
+# installation grants no more than `contents` and `pull-requests` in the first place,
+# and in particular has no `checks`, `actions` or `administration` access — so the
+# required status checks this probe waits on cannot have been forged by it.
+#
+# Third-party actions are pinned by commit SHA, never by tag (§14). The comment records
+# which release each SHA is.
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Nothing here uses `GITHUB_TOKEN` for anything but the checkout it replaces with the
+# App token. Read-only.
+permissions:
+  contents: read
+
+env:
+  CI: true
+  NEXT_TELEMETRY_DISABLED: 1
+  # The exact `origin/content` commit the probe lifts its one file from, pinned so that
+  # a later push to `content` cannot silently change what this probe publishes.
+  CONTENT_SHA: 482241877899fdeda01089593165a43a3747dd7e
+  PROBE_BRANCH: phase5a-app-probe
+  PROBE_FILE: content/site/announcement.json
+
+jobs:
+  probe:
+    name: App token probe
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      # 1. Mint an installation token from the App's client id and private key, scoped
+      #    down to exactly the two permissions the rest of the job uses. The action
+      #    registers the token as a secret mask, so it cannot be echoed into the log.
+      - name: Mint an installation token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.CMS_PUBLISH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CMS_PUBLISH_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Report that the token was minted
+        run: |
+          set -euo pipefail
+          echo "installation-id: ${{ steps.app-token.outputs.installation-id }}"
+          echo "app-slug: ${{ steps.app-token.outputs.app-slug }}"
+
+      # 2. Check out `main` — the probe's base — using the App token, so that the push
+      #    in step 8 is authenticated as the App rather than as `GITHUB_TOKEN`.
+      - name: Checkout main with the App token
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # 3. Resolve the bot's real account identity. `main-pr-and-ci` enables
+      #    "require extra approval for unattributed changes", so the commit has to be
+      #    attributable: the author email must be the bot account's `noreply` address,
+      #    built from that account's numeric id. Guessing it would fail the rule.
+      - name: Resolve the App bot identity
+        id: bot
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          APP_SLUG: ${{ steps.app-token.outputs.app-slug }}
+        run: |
+          set -euo pipefail
+          user=$(curl -sS --fail-with-body \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/users/${APP_SLUG}%5Bbot%5D")
+          login=$(printf '%s' "$user" | jq -r '.login')
+          user_id=$(printf '%s' "$user" | jq -r '.id')
+          if [ -z "$login" ] || [ "$login" = "null" ]; then
+            echo "::error::could not resolve the bot account for ${APP_SLUG}"
+            exit 1
+          fi
+          email="${user_id}+${login}@users.noreply.github.com"
+          echo "login=${login}" >> "$GITHUB_OUTPUT"
+          echo "user_id=${user_id}" >> "$GITHUB_OUTPUT"
+          echo "email=${email}" >> "$GITHUB_OUTPUT"
+          echo "bot login: ${login}"
+          echo "bot id:    ${user_id}"
+          echo "bot email: ${email}"
+
+      # 4. Fetch both branches explicitly. `actions/checkout` configures a narrow
+      #    refspec for the single ref it fetched, so `origin/content` would not exist.
+      - name: Fetch main and content
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin \
+            "+refs/heads/main:refs/remotes/origin/main" \
+            "+refs/heads/content:refs/remotes/origin/content"
+          main_sha=$(git rev-parse refs/remotes/origin/main)
+          content_sha=$(git rev-parse refs/remotes/origin/content)
+          echo "origin/main:    ${main_sha}"
+          echo "origin/content: ${content_sha}"
+          if [ "${content_sha}" != "${CONTENT_SHA}" ]; then
+            echo "::error::origin/content moved — expected ${CONTENT_SHA}, found ${content_sha}"
+            exit 1
+          fi
+          echo "MAIN_SHA=${main_sha}" >> "$GITHUB_ENV"
+
+      # 5. Build the probe branch from current `main` and overlay exactly one file.
+      - name: Create the probe branch and overlay the one file
+        run: |
+          set -euo pipefail
+          git config user.name  "${{ steps.bot.outputs.login }}"
+          git config user.email "${{ steps.bot.outputs.email }}"
+          git checkout -B "${PROBE_BRANCH}" refs/remotes/origin/main
+          git show "${CONTENT_SHA}:${PROBE_FILE}" > "${PROBE_FILE}"
+
+      # 6. The diff must be that file and nothing else — no `.pages.yml`, no menu, no
+      #    photos, no code, and no workflow. A probe that publishes more than it says
+      #    it publishes proves nothing.
+      - name: Verify the diff is exactly one file
+        run: |
+          set -euo pipefail
+          changed=$(git diff --name-only)
+          untracked=$(git ls-files --others --exclude-standard)
+          echo "changed:   [${changed}]"
+          echo "untracked: [${untracked}]"
+          if [ "${changed}" != "${PROBE_FILE}" ]; then
+            echo "::error::expected only ${PROBE_FILE} to change, got: ${changed}"
+            exit 1
+          fi
+          if [ -n "${untracked}" ]; then
+            echo "::error::unexpected untracked files: ${untracked}"
+            exit 1
+          fi
+          echo '--- probe diff ---'
+          git --no-pager diff -- "${PROBE_FILE}"
+
+      - name: Commit the probe change
+        run: |
+          set -euo pipefail
+          git commit --quiet -am 'content: normalise announcement.json to the CMS representation'
+          git --no-pager log -1 --pretty='format:commit %H%nauthor  %an <%ae>%ncommitter %cn <%ce>%n'
+          echo
+          range=$(git diff --name-only refs/remotes/origin/main HEAD)
+          if [ "${range}" != "${PROBE_FILE}" ]; then
+            echo "::error::commit range touches more than ${PROBE_FILE}: ${range}"
+            exit 1
+          fi
+
+      # 7. The same gate a Pages CMS edit has to pass, run before anything is pushed.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Content check
+        run: npm run check:content
+
+      - name: Verify the tree is still clean after the content check
+        run: |
+          set -euo pipefail
+          dirty=$(git status --porcelain)
+          if [ -n "${dirty}" ]; then
+            echo "::error::the content check modified tracked files: ${dirty}"
+            exit 1
+          fi
+          echo 'tree clean'
+
+      # 8. Push as the App. The checkout persisted the App token in the local git
+      #    config, so this push is attributed to the App, not to `GITHUB_TOKEN`.
+      - name: Push the probe branch as the App
+        run: |
+          set -euo pipefail
+          git push --force origin "HEAD:refs/heads/${PROBE_BRANCH}"
+          echo "HEAD_SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      # 9. Open the pull request as the App.
+      - name: Open the probe pull request as the App
+        id: pr
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          set -euo pipefail
+          body=$'Phase 5A probe — representation-only content publication.\n\nOne file: `content/site/announcement.json`, lifted unchanged from the `content` branch at `'"${CONTENT_SHA}"$'`. The announcement stays inactive; the public site is unaffected.\n\nOpened by the CMS publisher GitHub App to prove that an App-authored pull request runs CI without a human approval gate and can be landed by native auto-merge under the existing rulesets. No ruleset bypass is used.'
+          payload=$(jq -n \
+            --arg title 'content: normalise announcement.json to the CMS representation' \
+            --arg head "${PROBE_BRANCH}" \
+            --arg base 'main' \
+            --arg body "${body}" \
+            '{title: $title, head: $head, base: $base, body: $body, maintainer_can_modify: true}')
+          pr=$(curl -sS --fail-with-body -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/pulls" \
+            -d "${payload}")
+          number=$(printf '%s' "$pr" | jq -r '.number')
+          node_id=$(printf '%s' "$pr" | jq -r '.node_id')
+          author=$(printf '%s' "$pr" | jq -r '.user.login')
+          author_type=$(printf '%s' "$pr" | jq -r '.user.type')
+          head_sha=$(printf '%s' "$pr" | jq -r '.head.sha')
+          url=$(printf '%s' "$pr" | jq -r '.html_url')
+          echo "number=${number}"       >> "$GITHUB_OUTPUT"
+          echo "node_id=${node_id}"     >> "$GITHUB_OUTPUT"
+          echo "author=${author}"       >> "$GITHUB_OUTPUT"
+          echo "head_sha=${head_sha}"   >> "$GITHUB_OUTPUT"
+          echo "url=${url}"             >> "$GITHUB_OUTPUT"
+          echo "PR #${number} by ${author} (${author_type}) head ${head_sha}"
+          echo "${url}"
+
+      # 10. The pull request must be authored by the App bot, not by the human whose
+      #     token started this workflow and not by `github-actions[bot]`.
+      - name: Verify the pull request author is the App bot
+        run: |
+          set -euo pipefail
+          expected="${{ steps.bot.outputs.login }}"
+          actual="${{ steps.pr.outputs.author }}"
+          if [ "${actual}" != "${expected}" ]; then
+            echo "::error::pull request author is ${actual}, expected ${expected}"
+            exit 1
+          fi
+          echo "author confirmed: ${actual}"
+
+      # 11. Native auto-merge, squash. This is a request, not a merge: GitHub holds the
+      #     pull request until every required check passes and every rule is satisfied.
+      - name: Enable native auto-merge as the App
+        id: automerge
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NODE_ID: ${{ steps.pr.outputs.node_id }}
+        run: |
+          set -euo pipefail
+          query='mutation($id: ID!) { enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: SQUASH}) { pullRequest { number autoMergeRequest { enabledAt mergeMethod enabledBy { login } } } } }'
+          payload=$(jq -n --arg q "$query" --arg id "${PR_NODE_ID}" '{query: $q, variables: {id: $id}}')
+          resp=$(curl -sS --fail-with-body -X POST \
+            -H "Authorization: Bearer ${GH_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "${GITHUB_GRAPHQL_URL}" \
+            -d "${payload}")
+          printf '%s\n' "$resp" | jq '.'
+          if printf '%s' "$resp" | jq -e '.errors' > /dev/null; then
+            echo "::error::enablePullRequestAutoMerge failed"
+            exit 1
+          fi
+          enabled_by=$(printf '%s' "$resp" | jq -r '.data.enablePullRequestAutoMerge.pullRequest.autoMergeRequest.enabledBy.login')
+          echo "enabled_by=${enabled_by}" >> "$GITHUB_OUTPUT"
+          echo "auto-merge enabled by ${enabled_by}"
+
+      # 12. A machine-readable record, so the probe's result can be read without
+      #     scraping this log.
+      - name: Summary
+        run: |
+          set -euo pipefail
+          {
+            echo '### Phase 5A App token probe'
+            echo
+            echo "| fact | value |"
+            echo "| --- | --- |"
+            echo "| installation id | \`${{ steps.app-token.outputs.installation-id }}\` |"
+            echo "| app slug | \`${{ steps.app-token.outputs.app-slug }}\` |"
+            echo "| bot login | \`${{ steps.bot.outputs.login }}\` |"
+            echo "| bot email | \`${{ steps.bot.outputs.email }}\` |"
+            echo "| base main sha | \`${MAIN_SHA}\` |"
+            echo "| probe head sha | \`${{ steps.pr.outputs.head_sha }}\` |"
+            echo "| pull request | #${{ steps.pr.outputs.number }} |"
+            echo "| pull request author | \`${{ steps.pr.outputs.author }}\` |"
+            echo "| auto-merge enabled by | \`${{ steps.automerge.outputs.enabled_by }}\` |"
+          } >> "$GITHUB_STEP_SUMMARY"
