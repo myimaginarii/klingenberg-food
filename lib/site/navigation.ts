@@ -37,6 +37,14 @@ export const MAIN_NAV: readonly NavItem[] = [
 /** The footer's "Sider" column: the same list without the page you are already on top of. */
 export const FOOTER_NAV: readonly NavItem[] = MAIN_NAV.filter((item) => item.href !== '/')
 
+/**
+ * How long the fullscreen mobile panel is off the screen before the page behind it
+ * changes, in milliseconds — the pause that makes a tap in the panel read as "the menu
+ * went, then the page came" rather than one cut (`MobileMenuDisclosure`). Not applied
+ * for a visitor who asked for less motion.
+ */
+export const MENU_CLOSE_DELAY_MS = 140
+
 /** Is `pathname` this navigation item, for `aria-current="page"`? */
 export function isCurrentRoute(pathname: string, href: SiteRoute): boolean {
   if (href === '/') return pathname === '/'

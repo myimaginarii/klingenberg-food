@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 
 import { type SiteRoute, isCurrentRoute } from '@/lib/site/navigation'
 
-import { useCloseMobileMenu } from './MobileMenuDisclosure'
+import { useMobileMenuNavigate } from './MobileMenuDisclosure'
 
 /**
  * A navigation link that knows whether it is the page you are on.
@@ -24,11 +24,12 @@ import { useCloseMobileMenu } from './MobileMenuDisclosure'
  * the state is never carried by colour alone (1aa).
  *
  * One component is three navigations: the desktop bar, the footer column and the
- * fullscreen mobile panel. Inside the panel — and only there — a link also closes the
- * panel it was tapped in, which the disclosure hands it as `useCloseMobileMenu`;
- * outside one that is `null` and nothing changes. `onNavigate` rather than `onClick`, because the framework
- * calls it only when it is really taking you somewhere within the site: a
- * modifier-click that opens a new tab leaves the panel where it was.
+ * fullscreen mobile panel. Inside the panel — and only there — a link also hands its
+ * navigation to the panel it was tapped in, which the disclosure provides as
+ * `useMobileMenuNavigate`: the panel closes, and the page follows a moment later.
+ * Outside one that is `null` and nothing changes. `onNavigate` rather than `onClick`,
+ * because the framework calls it only when it is really taking you somewhere within
+ * the site: a modifier-click that opens a new tab leaves the panel where it was.
  */
 export function NavLink({
   href,
@@ -44,14 +45,14 @@ export function NavLink({
   children: React.ReactNode
 }) {
   const current = isCurrentRoute(usePathname(), href)
-  const closeMenu = useCloseMobileMenu()
+  const menuNavigate = useMobileMenuNavigate()
 
   return (
     <Link
       href={href}
       aria-current={current ? 'page' : undefined}
       className={`${className} ${current ? activeClassName : inactiveClassName}`}
-      onNavigate={closeMenu ?? undefined}
+      onNavigate={menuNavigate ? (event) => menuNavigate(event, href) : undefined}
     >
       {children}
     </Link>

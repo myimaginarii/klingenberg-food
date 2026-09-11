@@ -2,6 +2,7 @@ import { expect, type Locator, type Page, test } from '@playwright/test'
 
 import { formatDailyHours, formatWeekdayName, formatWeeklyHoursLines } from '@/lib/hours/format'
 import { weekdayOf } from '@/lib/time/calendar'
+import { MENU_CLOSE_DELAY_MS } from '@/lib/site/navigation'
 import { copenhagenDateOf } from '@/lib/time/copenhagen'
 import { CONFIRMED_SCHEDULE } from '../unit/fixtures/hours'
 import {
@@ -167,6 +168,137 @@ test.describe('navigation', () => {
       await expect(menu(page)).not.toHaveAttribute('open', '')
 
       await expect(page).toHaveURL(/\/find-os\/$/)
+    })
+
+    /**
+     * The order of the two changes, in the browser's own clock. Two observers are put
+     * in place before the tap: one on the panel's `open` attribute, one on the document
+     * for the moment the heading of the next page arrives. What comes back is when each
+     * happened and whether the panel was still open when the page changed — the flash
+     * the pause exists to remove.
+     */
+    type Handover = { closedAt: number | null; arrivedAt: number | null; openOnArrival: boolean | null }
+
+    async function watchHandover(page: Page, nextHeading: string) {
+      await page.evaluate((heading) => {
+        const details = document.querySelector('details.site-menu') as HTMLDetailsElement
+        const record: Handover = { closedAt: null, arrivedAt: null, openOnArrival: null }
+        ;(window as unknown as { __handover: Handover }).__handover = record
+
+        new MutationObserver(() => {
+          if (!details.open && record.closedAt === null) record.closedAt = performance.now()
+        }).observe(details, { attributes: true, attributeFilter: ['open'] })
+
+        new MutationObserver(() => {
+          if (record.arrivedAt !== null) return
+          if (document.querySelector('h1')?.textContent === heading) {
+            record.arrivedAt = performance.now()
+            record.openOnArrival = details.open
+          }
+        }).observe(document.body, { childList: true, subtree: true, characterData: true })
+      }, nextHeading)
+    }
+
+    async function handover(page: Page): Promise<Handover> {
+      return page.evaluate(() => (window as unknown as { __handover: Handover }).__handover)
+    }
+
+    const OM_OS = PUBLIC_ROUTES.find((route) => route.navLabel === 'Om os')!
+
+    for (const width of [375, 390]) {
+      test.describe(`at ${width} px`, () => {
+        test.use({ viewport: { width, height: 812 } })
+
+        test('a tap clears the panel first, and the page follows a moment later', async ({
+          page,
+        }) => {
+          await page.goto('/')
+          await openMenu(page)
+          await watchHandover(page, OM_OS.heading)
+
+          await panel(page).getByRole('link', { name: 'Om os', exact: true }).click()
+
+          // The panel is gone at once — before the router has been asked for anything.
+          await expect(menu(page)).not.toHaveAttribute('open', '')
+          await expect(panel(page)).toBeHidden()
+
+          await expect(page).toHaveURL(/\/om-os\/$/)
+          await expect(page.getByRole('heading', { level: 1 })).toHaveText(OM_OS.heading)
+
+          const seen = await handover(page)
+          expect(seen.closedAt).not.toBeNull()
+          expect(seen.arrivedAt).not.toBeNull()
+          // Closed first, the page after; and never the page under an open panel.
+          expect(seen.openOnArrival).toBe(false)
+          // A timer never fires early; a few milliseconds late is the browser's business.
+          expect(seen.arrivedAt! - seen.closedAt!).toBeGreaterThanOrEqual(MENU_CLOSE_DELAY_MS - 10)
+          expect(seen.arrivedAt! - seen.closedAt!).toBeLessThan(1000)
+        })
+      })
+    }
+
+    test.describe('for a visitor who asked for less motion', () => {
+      test.use({ contextOptions: { reducedMotion: 'reduce' } })
+
+      test('the panel closes and the page comes at once, with no pause', async ({ page }) => {
+        await page.goto('/')
+        await openMenu(page)
+        await watchHandover(page, OM_OS.heading)
+
+        await panel(page).getByRole('link', { name: 'Om os', exact: true }).click()
+
+        await expect(page).toHaveURL(/\/om-os\/$/)
+        await expect(page.getByRole('heading', { level: 1 })).toHaveText(OM_OS.heading)
+        await expect(menu(page)).not.toHaveAttribute('open', '')
+
+        const seen = await handover(page)
+        expect(seen.openOnArrival).toBe(false)
+        // The route is prefetched while its link is on screen, so without the pause the
+        // page is a handful of milliseconds behind the close — never the full delay.
+        expect(seen.arrivedAt! - seen.closedAt!).toBeLessThan(MENU_CLOSE_DELAY_MS)
+      })
+    })
+
+    test('two quick taps are one navigation', async ({ page }) => {
+      await page.goto('/')
+      await openMenu(page)
+      const before = await page.evaluate(() => history.length)
+
+      // Two clicks in the same task, the way a nervous thumb lands twice: the second
+      // finds the panel already closing and must not queue a second route change.
+      await panel(page)
+        .getByRole('link', { name: 'Om os', exact: true })
+        .evaluate((link: HTMLAnchorElement) => {
+          link.click()
+          link.click()
+        })
+
+      await expect(page).toHaveURL(/\/om-os\/$/)
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText(OM_OS.heading)
+      // Give a second, queued navigation every chance to show itself before counting.
+      await page.waitForTimeout(MENU_CLOSE_DELAY_MS * 3)
+      expect(await page.evaluate(() => history.length)).toBe(before + 1)
+      await expect(page).toHaveURL(/\/om-os\/$/)
+    })
+
+    test('a modifier-click opens a new tab and leaves the panel and the page alone', async ({
+      page,
+      context,
+    }) => {
+      await page.goto('/')
+      await openMenu(page)
+
+      const opened = context.waitForEvent('page')
+      await panel(page)
+        .getByRole('link', { name: 'Om os', exact: true })
+        .click({ modifiers: ['ControlOrMeta'] })
+      const tab = await opened
+
+      await expect(tab).toHaveURL(/\/om-os\/$/)
+      await page.waitForTimeout(MENU_CLOSE_DELAY_MS * 3)
+      await expect(page).toHaveURL(/\/$/)
+      await expect(menu(page)).toHaveAttribute('open', '')
+      await tab.close()
     })
   })
 
