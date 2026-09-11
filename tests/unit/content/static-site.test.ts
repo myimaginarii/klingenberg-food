@@ -483,10 +483,13 @@ describe('the confirmed facts', () => {
       expect(number.replace(/\D/g, '').length, number).toBeGreaterThanOrEqual(8)
     }
 
+    // The host is a closed set rather than a suffix. `evilfacebook.com` ends with
+    // "facebook.com" and is somebody else's site, which is the whole reason
+    // `validateFacebook` compares against a list — this asks the same question.
     if (contact.facebookUrl !== null) {
       const url = new URL(contact.facebookUrl)
       expect(url.protocol).toBe('https:')
-      expect(url.hostname.endsWith('facebook.com'), contact.facebookUrl).toBe(true)
+      expect(['facebook.com', 'www.facebook.com']).toContain(url.hostname)
     }
   })
 
