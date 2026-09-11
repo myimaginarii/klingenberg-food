@@ -10,9 +10,14 @@ import type { PublicImage } from '@/lib/images/public'
  * The Forside hero — design 1g (text beside the photograph) and 1l (photograph first).
  *
  * One primary action. "Én primær handling (Se menuen). Vis vej og Ring er sekundære,
- * men lige så store i højden — 52 px" (1g). On a phone the two secondary actions share a
- * row; `md:contents` dissolves that row on a wider screen so all three sit on one line
- * without a second copy of the markup.
+ * men lige så store i højden — 52 px" (1g). The two secondary actions always share a
+ * row of their own: on a phone that row sits under the full-width primary, and from
+ * `md` the three are one wrapping line, where the pair wraps *together*. The row used
+ * to be dissolved from `md` (`md:contents`) so each button wrapped on its own, which at
+ * 768 and again at 1024 — the text column is 313 and 375 px wide there — left the third
+ * button orphaned on a line of its own under the other two. Keeping the pair as one
+ * flex item means the line breaks between the primary and the pair, never inside the
+ * pair; at 1200 px and above all three still fit on one line, as 1g draws them.
  *
  * The heading and the introduction come from `pages.home`, which the owner edits
  * (§5). Both are placeholder text today — 1ab lists "Forsidens overskrift og intro"
@@ -72,7 +77,7 @@ export function HomeHero({
               Se menuen
             </ActionLink>
 
-            <div className="flex gap-2.5 md:contents">
+            <div className="flex gap-2.5">
               {directionsHref ? (
                 <ActionLink href={directionsHref} variant="secondary" size="large" block className="md:w-auto">
                   Vis vej

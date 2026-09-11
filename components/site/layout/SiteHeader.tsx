@@ -42,7 +42,9 @@ export function SiteHeader({
             <SiteLogo />
           </Link>
 
-          <div className="hidden items-center gap-7 lg:flex">
+          {/* The gaps are tightened at `lg` and drawn at `xl` for the reason given in
+              `DesktopNav`; the button's number must not break onto a second line. */}
+          <div className="hidden items-center gap-5 lg:flex xl:gap-7">
             <DesktopNav items={items} />
             {contact.primaryPhone ? (
               <PhoneAction
@@ -50,6 +52,7 @@ export function SiteHeader({
                 label="Ring"
                 showNumber
                 size="compact"
+                className="whitespace-nowrap"
               />
             ) : null}
           </div>
