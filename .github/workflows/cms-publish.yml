@@ -41,10 +41,17 @@ name: Publish CMS content
 #               for older content to reach `main` behind the newer save's back. It is
 #               closed, and no commit, branch update or pull request is made.
 #
-# MANUAL ONLY, FOR NOW. The trigger is `workflow_dispatch` and nothing else: a
-# `workflow_dispatch` workflow cannot be dispatched until it is on the default branch,
-# so this has to be merged and run by hand once before it can be trusted to run itself.
-# Arming the `content` push trigger is a later, separate change.
+# DISPATCH ONLY, AND THAT IS PERMANENT. The trigger is `workflow_dispatch` and nothing
+# else — by hand, or from `cms-content-trigger.yml`, which is the copy of the doorbell
+# that lives on `content` and whose only job is to ask for this workflow on `main`.
+#
+# Do not add `push: branches: [content]` here. It would not arm anything: for a `push`,
+# GitHub reads the workflow files from the commit that was pushed, so a push to
+# `content` can only start workflows that exist on `content`, and this file is main's.
+# Copying this file to `content` is not the fix either — `content` is what Pages CMS
+# writes to, and the App private key below must never be reachable from a definition
+# living on the branch the CMS can write. Hence the doorbell: it holds nothing, and asks
+# for this.
 #
 # Third-party actions are pinned by commit SHA, never by tag (§14) — a moving tag is a
 # supply-chain hole. The comment records which release each SHA is.

@@ -90,12 +90,15 @@ function shellLines() {
 }
 
 describe('the publication workflow file', () => {
-  it('is dispatched by hand, and by nothing else', () => {
+  it('is reached by a dispatch, and by nothing else', () => {
     const on = topLevelBlock('on')
 
     expect(on).toMatch(/^\s+workflow_dispatch:/m)
-    // Phase 5D's change, and it is not here yet: a push to `content` must not be able
-    // to publish until this workflow has been dispatched by hand and proved.
+    // Not `push: branches: [content]`, now or later. For a `push`, GitHub reads the
+    // workflow files from the commit that was pushed, so a push to `content` can only
+    // start workflows that exist on `content` — and this file is main's. A CMS save
+    // reaches it through `cms-content-trigger.yml`, the doorbell that does live on
+    // `content` and holds nothing but the right to ask for this workflow on `main`.
     expect(on).not.toMatch(/push:/)
     expect(on).not.toMatch(/content/)
     expect(on).not.toMatch(/pull_request:/)
