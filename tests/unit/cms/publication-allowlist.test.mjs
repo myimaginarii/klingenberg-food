@@ -118,6 +118,10 @@ function checkoutOfMain(root) {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
   })
+  // The clone was *written* with the conversion; the setting has to be recorded in the
+  // clone as well, or a machine whose global config differs reads its own checkout as
+  // modified. Without this the fixture, not the composer, is what fails.
+  git(tree, ['config', 'core.autocrlf', 'true'])
   return tree
 }
 
