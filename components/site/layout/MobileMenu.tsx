@@ -6,6 +6,7 @@ import type { NavItem } from '@/lib/site/navigation'
 import { ActionLink } from '../ActionLink'
 import { OpenStatus } from '../OpenStatus'
 import { PhoneAction } from '../PhoneAction'
+import { MobileMenuDisclosure } from './MobileMenuDisclosure'
 import { CloseIcon, HamburgerIcon } from './NavIcons'
 import { NavLink } from './NavLink'
 import { SiteLogo } from './SiteLogo'
@@ -13,10 +14,13 @@ import { SiteLogo } from './SiteLogo'
 /**
  * The fullscreen menu on mobile — design 1n.
  *
- * A `<details>` element, not a client component. The browser gives us the open state,
- * the `aria-expanded` announcement, Escape-to-close and keyboard operation for free,
- * and the whole thing keeps working with JavaScript disabled — which matters because
- * this is the only way to reach four of the six pages from a phone (§7e, item 11).
+ * A `<details>` element. The browser gives us the open state, the `aria-expanded`
+ * announcement and keyboard operation for free, and the whole thing keeps working with
+ * JavaScript disabled — which matters because this is the only way to reach four of the
+ * six pages from a phone (§7e, item 11). This component itself stays on the server; the
+ * element is rendered by `MobileMenuDisclosure`, a wrapper of a few lines whose only job
+ * is to close the panel once it has taken you somewhere, since a client-side route
+ * change leaves the layout — and so the open panel — mounted.
  *
  * The single control is the `<summary>`: the hamburger in the header while closed, and
  * the × in the panel's corner while open. The CSS that moves it lives beside the rest
@@ -43,7 +47,7 @@ export function MobileMenu({
       : null
 
   return (
-    <details className="site-menu lg:hidden">
+    <MobileMenuDisclosure className="site-menu lg:hidden">
       <summary className="border-ink rounded-button flex cursor-pointer items-center justify-center border-[1.5px]">
         <span className="sr-only">Menu</span>
         <HamburgerIcon className="site-menu-open-icon" />
@@ -107,6 +111,6 @@ export function MobileMenu({
           ) : null}
         </nav>
       </div>
-    </details>
+    </MobileMenuDisclosure>
   )
 }

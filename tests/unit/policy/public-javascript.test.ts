@@ -31,7 +31,7 @@ const SOURCE_FILES_AT_ROOT = ['next.config.ts']
  * The client components the plan allows, with the reason each one cannot be a Server
  * Component. Adding a file here should require the same argument.
  *
- * Three of the five exist for one reason: **a static export has no useful clock.** Every
+ * Three of the six exist for one reason: **a static export has no useful clock.** Every
  * page is rendered once, when the site is built, so anything that depends on "now" has to
  * be decided in the browser or not claimed at all.
  */
@@ -50,6 +50,12 @@ const ALLOWED_CLIENT_COMPONENTS = new Map([
     'removes an announcement whose expiry passes while the page is open (§7a, §7c)',
   ],
   ['components/site/layout/NavLink.tsx', 'a layout cannot read the pathname'],
+  [
+    'components/site/layout/MobileMenuDisclosure.tsx',
+    'a client-side navigation leaves the layout mounted, so the fullscreen menu would ' +
+      'stay open over the page it just opened; the panel is still a <details> and still ' +
+      'works with scripting off (§7e, item 11)',
+  ],
   [
     'app/(site)/error.tsx',
     'an error boundary must be a Client Component (the framework’s rule); it renders only ' +

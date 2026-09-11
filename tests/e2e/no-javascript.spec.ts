@@ -63,6 +63,10 @@ test('the fullscreen menu reaches every page without scripting', async ({ page }
   await panel.getByRole('link', { name: 'Om os', exact: true }).click()
 
   await expect(page).toHaveURL(/\/om-os\/$/)
+  // Without scripting a link is a fresh document, so the panel cannot survive the
+  // navigation. Stated rather than assumed: it is the same promise the scripted site
+  // keeps by closing the panel itself.
+  await expect(page.locator('details.site-menu')).not.toHaveAttribute('open', '')
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
     PUBLIC_ROUTES.find((route) => route.navLabel === 'Om os')!.heading,
   )

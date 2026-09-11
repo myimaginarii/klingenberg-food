@@ -68,6 +68,108 @@ test.describe('navigation', () => {
     }
   })
 
+  /**
+   * The fullscreen panel covers the page it takes you to, and a client-side route
+   * change leaves the layout — and so the panel — mounted. Every way out of it is
+   * asserted here: the six links, the page you are already on, the browser's own Back,
+   * the keyboard, Escape and the ×.
+   */
+  test.describe('the fullscreen menu closes itself', () => {
+    test.skip(({ viewport }) => (viewport?.width ?? 0) >= 1024, 'the panel is the navigation below 1024 px')
+
+    const menu = (page: Page) => page.locator('details.site-menu')
+    const panel = (page: Page) => page.getByRole('navigation', { name: 'Alle sider' })
+
+    async function openMenu(page: Page) {
+      await menu(page).locator('summary').click()
+      await expect(menu(page)).toHaveAttribute('open', '')
+    }
+
+    for (const route of PUBLIC_ROUTES) {
+      test(`${route.navLabel} leaves no panel over the page it opened`, async ({ page }) => {
+        await page.goto('/')
+        await openMenu(page)
+
+        await panel(page).getByRole('link', { name: route.navLabel, exact: true }).click()
+
+        await expect(page).toHaveURL(new RegExp(`${route.path === '/' ? '/$' : route.path}`))
+        await expect(page.getByRole('heading', { level: 1 })).toHaveText(route.heading)
+        // Both halves matter: the element's own state, and that nothing of the panel is
+        // still on screen for a guest to have to tap away.
+        await expect(menu(page)).not.toHaveAttribute('open', '')
+        await expect(panel(page)).toBeHidden()
+      })
+    }
+
+    test('the page you are already on closes it too, and hands focus back to the control', async ({
+      page,
+    }) => {
+      await page.goto('/menu')
+      await openMenu(page)
+
+      await panel(page).getByRole('link', { name: 'Menu', exact: true }).click()
+
+      await expect(page).toHaveURL(/\/menu\/$/)
+      await expect(menu(page)).not.toHaveAttribute('open', '')
+      await expect(panel(page)).toBeHidden()
+      // Focus was inside the panel, and the panel is gone: it belongs on the control
+      // that opened it, never on an element that has just been hidden.
+      await expect(menu(page).locator('summary')).toBeFocused()
+    })
+
+    test('a navigation the panel did not start closes it as well', async ({ page }) => {
+      await page.goto('/')
+      await openMenu(page)
+      await panel(page).getByRole('link', { name: 'Om os', exact: true }).click()
+      await expect(page).toHaveURL(/\/om-os\/$/)
+
+      // Open it again and leave through the browser's own Back, which the panel never
+      // hears about as a click.
+      await openMenu(page)
+      await page.goBack()
+
+      await expect(page).toHaveURL(/\/$/)
+      await expect(menu(page)).not.toHaveAttribute('open', '')
+      await expect(panel(page)).toBeHidden()
+
+      await openMenu(page)
+      await page.goForward()
+
+      await expect(page).toHaveURL(/\/om-os\/$/)
+      await expect(menu(page)).not.toHaveAttribute('open', '')
+    })
+
+    test('the keyboard opens it, follows a link and closes it', async ({ page }) => {
+      await page.goto('/')
+
+      await menu(page).locator('summary').press('Enter')
+      await expect(menu(page)).toHaveAttribute('open', '')
+
+      await panel(page).getByRole('link', { name: 'Nyheder', exact: true }).press('Enter')
+
+      await expect(page).toHaveURL(/\/nyheder\/$/)
+      await expect(menu(page)).not.toHaveAttribute('open', '')
+    })
+
+    test('Escape and the × close it without going anywhere', async ({ page }) => {
+      await page.goto('/find-os')
+
+      // Escape: a panel covering the whole viewport needs a way out that is not a hunt
+      // for the ×. A plain <details> has none of its own, so this is ours.
+      await openMenu(page)
+      await page.keyboard.press('Escape')
+      await expect(menu(page)).not.toHaveAttribute('open', '')
+      await expect(menu(page).locator('summary')).toBeFocused()
+
+      // The × is the same single control as the hamburger, and still closes it.
+      await openMenu(page)
+      await menu(page).locator('summary').click()
+      await expect(menu(page)).not.toHaveAttribute('open', '')
+
+      await expect(page).toHaveURL(/\/find-os\/$/)
+    })
+  })
+
   test('the current page is marked for assistive technology, not by colour alone', async ({
     page,
     viewport,

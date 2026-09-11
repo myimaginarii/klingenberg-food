@@ -22,10 +22,16 @@ import { SiteLogo } from './SiteLogo'
  * The same rule applies to each phone number and to the address: a `null` in
  * `content/site/contact.json` removes the block rather than emptying it.
  *
- * On a phone the four groups stack, and the gap between them is one step tighter than
- * the desktop column gap: at 375 px a 32 px gap between short single-column groups
- * read as four separate blocks rather than one footer. From `md` the gaps are as
- * drawn. The second number is `white/88` where the footer's body text is `white/78`:
+ * On a phone the address block takes the full width and the two short lists beneath it
+ * — Sider and Åbningstider — share a row, with Følg os under them: the page links are
+ * five 44 px rows, and stacked above three lines of hours they made a 780 px footer a
+ * guest scrolled through to reach the bottom bar. The first column is `auto`, sized by
+ * its widest link, so the hours keep the rest of the width and their longest line
+ * ("Ons–fre 15:00–20:00", 156 px) stays on one line at 375. The gap between the groups
+ * is one step tighter than the desktop column gap: at 375 px a 32 px gap between short
+ * groups read as separate blocks rather than one footer. From `md` the grid is the drawn
+ * two-by-two, and from `lg` the four columns. The second number is `white/88` where
+ * the footer's body text is `white/78`:
  * a number a guest may need to ring has to read at a glance, and it stays secondary
  * to the primary one through weight alone.
  *
@@ -80,8 +86,8 @@ export function SiteFooter({
   return (
     <footer className="bg-brand-900 text-white/78">
       <PageContainer className="py-7 md:py-8">
-        <div className="grid items-start gap-6 md:grid-cols-2 md:gap-8 lg:grid-cols-[1.35fr_1fr_1fr_0.9fr] lg:gap-10">
-          <div>
+        <div className="grid grid-cols-[auto_1fr] items-start gap-x-5 gap-y-6 md:grid-cols-2 md:gap-8 lg:grid-cols-[1.35fr_1fr_1fr_0.9fr] lg:gap-10">
+          <div className="col-span-2 md:col-span-1">
             <SiteLogo size="compact" tone="inverse" showVenue={false} />
             <address className="text-detail mt-3 not-italic">
               {contact.venueName ? (

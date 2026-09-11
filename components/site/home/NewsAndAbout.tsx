@@ -25,6 +25,12 @@ import type { PublicImage } from '@/lib/images/public'
  * The "Om os" photograph (phase 11A) is the Forside document's own image slot — 1u's
  * picker — in the 4:3 frame 1g draws for this excerpt. It may be a team photo or (14B2)
  * a venue photograph reused from the Om os page; `null` is the reserved frame.
+ *
+ * THE TWO COLUMNS BEGIN AT `lg`, NOT `md`. The band's row is a 150 px photograph beside
+ * a paragraph; split in two at 768 px each column is 326 px, which left the paragraph
+ * 160 px wide — ten lines beside a photograph taller than it — and the news card beside
+ * it half empty. Below `lg` the two blocks stack at the container's full width, where the
+ * same photograph-beside-text row reads as one line of type each.
  */
 export function NewsAndAbout({
   latestArticle,
@@ -61,7 +67,7 @@ export function NewsAndAbout({
 
   return (
     <Section tone="beige">
-      <div className="grid gap-8 md:grid-cols-2 md:gap-10">
+      <div className="grid gap-8 lg:grid-cols-2 lg:gap-10">
         {latestArticle ? news : null}
 
         <div>

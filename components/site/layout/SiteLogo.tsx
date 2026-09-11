@@ -42,7 +42,7 @@ export function SiteLogo({
       />
       <span className="flex flex-col leading-tight">
         <span
-          className={`font-display font-bold ${inverse ? 'text-white' : 'text-brand-700'} ${
+          className={`font-display font-bold whitespace-nowrap ${inverse ? 'text-white' : 'text-brand-700'} ${
             compact ? 'text-[0.9375rem]' : 'text-[0.9375rem] md:text-[1.1875rem]'
           }`}
         >
