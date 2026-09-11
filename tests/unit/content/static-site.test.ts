@@ -14,6 +14,7 @@ import { loadMenu } from '@/lib/content/load/menu'
 import { loadNews } from '@/lib/content/load/news'
 import { loadAboutPage, loadHomePage, loadTakeawayPage } from '@/lib/content/load/pages'
 import { listContentJson, readContentJson } from '@/lib/content/load/source'
+import { keepPriceTogether } from '@/lib/content/load/text'
 import { planDerivatives } from '@/lib/images/derivatives'
 import { buildStaticPublicImage } from '@/lib/images/public'
 import { buildMenuView, selectFeaturedDishes } from '@/lib/menu/view'
@@ -37,6 +38,22 @@ import { CONFIRMED_SCHEDULE } from '../fixtures/hours'
  * *correspondence* with the tracked documents instead: shown exactly where a document
  * says so, and never otherwise. That the same rule holds once something *is* published
  * is proved on real files in `tests/unit/content/authored-content.test.ts`.
+ *
+ * **And what is deliberately not written down here is the restaurant's own prose.** The
+ * same lesson, learned a second time and the harder way. Every heading, introduction,
+ * note and button label on the site is an ordinary Pages CMS field, and this file used
+ * to quote several of them — which meant the first automatic publication, a save that
+ * added one word to the Forside's menu-price note, failed CI and blocked its own
+ * publication PR. A test that fails because the restaurant reworded its own page is not
+ * protecting anything; it is this repository refusing its own editor. Those assertions
+ * are now *correspondences* too: the page prints its document's words, never a default
+ * and never words of its own. What stays quoted is what is not the restaurant's to
+ * reword — the confirmed competition result (read-only in Pages CMS), the locked
+ * address, the prices, the ids, and the shape of the documents themselves.
+ *
+ * That the words survive the whole path — saved, checked, loaded, rendered — is proved
+ * on wording nothing in this repository has ever seen, in
+ * `tests/unit/content/editable-copy.test.tsx`.
  *
  * **Forty-five, and it used to be written as forty-six.** The board was once a
  * forty-sixth "dish" carrying the three lists as a field; phase 4D moved it into
@@ -122,15 +139,44 @@ describe('the confirmed menu', () => {
     ])
   })
 
-  it('states the burger menu price once, under Burgere, and on no card', () => {
+  /**
+   * The one piece of typography the loaders apply, on the one field that gets it.
+   *
+   * The Burgere introduction is Pages CMS's "Indledning" — ordinary editable prose, and
+   * the sentence itself is the restaurant's to reword. What is not theirs, and what this
+   * asserts, is the join: the file stores ordinary spaces so nobody has to type U+00A0
+   * into an editable document, and `keepPriceTogether` puts a non-breaking space between
+   * each number and "kr." on the way out, so a narrow column never wraps to a line that
+   * starts with "kr." (`lib/content/load/text.ts`). Stated against the stored sentence
+   * rather than against a quotation of it, so rewording the line cannot fail CI.
+   */
+  it('joins each price to “kr.” in the Burgere intro, and nowhere else on the menu', () => {
     const burgers = MENU_CATEGORIES.find((category) => category.slug === 'burgere')
-    // The editor writes ordinary spaces; for this one field the loader joins each number
-    // to "kr." with a non-breaking space so the price never wraps. This is the rendered
-    // result — and the only prose on the site that gets it.
-    expect(burgers?.intro).toBe(
-      `Alle burgere serveres i briochebolle. Som menu med pommes frites og sodavand: 124${NO_BREAK_SPACE}kr., Ragnar 132${NO_BREAK_SPACE}kr.`,
-    )
-    // The confirmed prices, and no per-card note repeating the menu price.
+    const written = readContentJson<{ categories: { id: string; intro?: string | null }[] }>(
+      'menu.json',
+    ).categories.find((category) => category.id === 'burgere')?.intro
+
+    expect(written).toBeTruthy()
+    expect(written).not.toContain(NO_BREAK_SPACE)
+    expect(burgers?.intro).toBe(keepPriceTogether(written as string))
+
+    // On that field alone. Every other piece of menu prose is the text as written, so a
+    // price stated anywhere else keeps the ordinary space it was typed with.
+    const everythingElse = MENU_CATEGORIES.flatMap((category) => [
+      ...(category.slug === 'burgere' ? [] : [category.intro]),
+      category.note,
+      ...category.dishes.flatMap((dish) => [dish.description, dish.secondaryNote]),
+    ])
+    expect(everythingElse.filter((text) => text?.includes(NO_BREAK_SPACE))).toEqual([])
+  })
+
+  /**
+   * The confirmed burger prices, and the layout rule that goes with them: the menu price
+   * is stated in the section's own introduction and no card repeats it, which is a card
+   * carrying no second line rather than a sentence not being written twice.
+   */
+  it('prices the five burgers as confirmed, and gives no card a second line', () => {
+    const burgers = MENU_CATEGORIES.find((category) => category.slug === 'burgere')
     expect(burgers?.dishes.map((dish) => [dish.name, dish.priceOre, dish.secondaryNote])).toEqual([
       ['Odin', 8900, null],
       ['Frigg', 8900, null],
@@ -138,13 +184,6 @@ describe('the confirmed menu', () => {
       ['Thor', 8900, null],
       ['Glade Gris', 8900, null],
     ])
-    // Once across the whole menu: no section text and no dish text repeats it.
-    const mentions = MENU_CATEGORIES.flatMap((category) => [
-      category.intro,
-      category.note,
-      ...category.dishes.flatMap((dish) => [dish.description, dish.secondaryNote]),
-    ]).filter((text) => text !== null && /som menu/i.test(text))
-    expect(mentions).toHaveLength(1)
   })
 
   it('gives every dish and every section a unique id', () => {
@@ -229,8 +268,15 @@ describe('the confirmed menu', () => {
     expect(MENU_CATEGORIES.find((category) => category.kind === 'weekly_special')?.slug).toBe('ugens-ret')
   })
 
-  it('prints the allergen line under the menu title', () => {
-    expect(MENU.allergenNote).toBe('Spørg os gerne om allergener.')
+  /**
+   * The allergen line is an ordinary editable note (Pages CMS: "Note om allergener"), so
+   * what is held is that the menu prints the one the document carries — the page draws
+   * the line when there is one and draws none when there is not, and never writes its
+   * own (`app/(site)/menu/page.tsx`).
+   */
+  it('prints the allergen line the menu document carries, and never one of its own', () => {
+    const written = readContentJson<{ allergenNote?: string | null }>('menu.json').allergenNote
+    expect(MENU.allergenNote).toBe(written ?? null)
   })
 
   /**
@@ -322,14 +368,48 @@ describe('the confirmed facts', () => {
     expect(loadOpeningHours().overrides).toEqual([])
   })
 
-  it('carries the launch copy headings verbatim', () => {
-    expect(HOME.hero.heading).toBe('Burgeren der vandt Fyn')
-    expect(ABOUT.heading).toBe('Mad fra Carl Nielsen Hallen')
-    expect(ABOUT.storyBlocks).toHaveLength(4)
-    expect(TAKEAWAY.heading).toBe('Mad ud af huset')
-    expect(TAKEAWAY.sections.map((section) => section.heading)).toEqual([
-      'Til selskaber og sammenkomster',
-    ])
+  /**
+   * The three pages' words, as a correspondence with their documents.
+   *
+   * These used to be quoted — "carries the launch copy headings verbatim" — and quoting
+   * them was right while the launch copy was the source of truth and nobody could change
+   * it. It is not right now: every heading, paragraph and section title below is an
+   * ordinary Pages CMS field, and a build that went red because the restaurant reworded
+   * its own page would be this repository refusing its own editor. That is not a
+   * hypothetical — it is what happened to the Forside's featured note on the first
+   * automatic publication.
+   *
+   * What CI may hold the pages to is the part that is not the restaurant's: **a page
+   * prints its document's words and never words of its own.** Om os in particular has
+   * two default headings for a document that sets none (`lib/site/defaults.ts`), so
+   * "the page shows what the file says" is a claim with a real way to be false. That the
+   * words also survive the loader and the renderer intact is proved on wording this
+   * repository has never seen, in `tests/unit/content/editable-copy.test.tsx`.
+   */
+  it('prints each page’s own heading and story, never a default of its own', () => {
+    const home = readContentJson<{ hero: { heading?: string | null } }>('pages', 'home.json')
+    const about = readContentJson<{ heading?: string | null; story?: string[] }>(
+      'pages',
+      'about.json',
+    )
+    const takeaway = readContentJson<{
+      heading?: string | null
+      sections?: { id: string; heading?: string | null }[]
+    }>('pages', 'takeaway.json')
+
+    expect(HOME.hero.heading).toBe(home.hero.heading ?? null)
+    expect(ABOUT.heading).toBe(about.heading ?? null)
+    expect(ABOUT.storyBlocks).toEqual(about.story ?? [])
+    expect(TAKEAWAY.heading).toBe(takeaway.heading ?? null)
+    expect(TAKEAWAY.sections.map((section) => [section.id, section.heading])).toEqual(
+      (takeaway.sections ?? []).map((section) => [section.id, section.heading ?? null]),
+    )
+
+    // And the scaffolding the renderers map over is there: Om os is a story in
+    // paragraphs, and every takeaway section has the id that becomes its address.
+    expect(ABOUT.storyBlocks.length).toBeGreaterThan(0)
+    for (const paragraph of ABOUT.storyBlocks) expect(paragraph.trim()).not.toBe('')
+    for (const section of TAKEAWAY.sections) expect(section.id).toMatch(/^[a-z0-9]+(-[a-z0-9]+)*$/)
   })
 
   it('states one award, in the same words on the Forside and on Om os', () => {
@@ -340,13 +420,28 @@ describe('the confirmed facts', () => {
     expect(HOME.award.text).toBe(award.text)
   })
 
-  it('carries the takeaway button label, the phone line and the featured menu-price line', () => {
-    expect(TAKEAWAY.ctaLabel).toBe('Ring og hør mere')
-    expect(TAKEAWAY.phoneNote).toBe('Bestilling og aftaler klarer vi over telefonen.')
-    // An ordinary space before "kr.": only the Burgere intro carries the non-breaking one.
-    expect(HOME.featured.note).toBe(
-      'Alle burgere kan bestilles som menu med pommes frites og sodavand fra 124 kr.',
+  /**
+   * The takeaway button's label, its telephone line and the Forside's menu-price note —
+   * three more editable fields, held to the two things about them that are not editable.
+   *
+   * The label is *required*: a button with nothing written on it is not a state the
+   * design has, and `loadTakeawayPage` refuses a document without one. The Forside's
+   * note states a price and keeps the ordinary space it was typed with — the
+   * non-breaking join is the Burgere introduction's alone (`lib/content/load/text.ts`),
+   * and this is the field that would notice if it ever stopped being.
+   */
+  it('carries its documents’ label and notes, with the button’s label never empty', () => {
+    const takeaway = readContentJson<{ phoneNote?: string | null; ctaLabel?: string | null }>(
+      'pages',
+      'takeaway.json',
     )
+    const home = readContentJson<{ featured?: { note?: string | null } }>('pages', 'home.json')
+
+    expect(TAKEAWAY.ctaLabel).toBe(takeaway.ctaLabel?.trim())
+    expect(TAKEAWAY.ctaLabel).not.toBe('')
+    expect(TAKEAWAY.phoneNote).toBe(takeaway.phoneNote ?? null)
+    expect(HOME.featured.note).toBe(home.featured?.note ?? null)
+    expect(HOME.featured.note ?? '').not.toContain(NO_BREAK_SPACE)
   })
 
   it('invents no catering term', () => {
