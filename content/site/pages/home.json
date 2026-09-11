@@ -2,17 +2,27 @@
   "hero": {
     "heading": "Burgeren der vandt Fyn",
     "intro": "Klingenberg Food ligger i Carl Nielsen Hallen i Nørre Lyndelse, hvor vi laver burgere og andre retter. Der er mad til både den hurtige sult og de dage, hvor der gerne må være lidt ekstra på tallerkenen.",
-    "photo": { "file": "/photos/home-hero.png", "alt": "Burger med bacon og spejlæg", "focus": "center" }
+    "photo": {
+      "file": "/photos/home-hero.png",
+      "alt": "Burger med bacon og spejlæg",
+      "focus": "center"
+    }
   },
   "award": {
-    "photo": null
+    "photo": {
+      "focus": "center"
+    }
   },
   "featured": {
-    "note": "Alle burgere kan bestilles som menu med pommes frites og sodavand fra 124 kr."
+    "note": "Alle burgere kan bestilles som menu med pommes frites og en sodavand fra 124 kr."
   },
   "aboutExcerpt": {
     "heading": "Mad fra Carl Nielsen Hallen",
     "text": "Klingenberg Food er et lokalt spisested i Carl Nielsen Hallen. Vi er især kendt for vores burgere, og i 2026 vandt vi Fyn & Øer i Danmarks Bedste Burger og blev nr. 4 i Danmark.",
-    "photo": { "file": "/photos/about-venue.png", "alt": "Spisesalen hos Klingenberg Food", "focus": "center" }
+    "photo": {
+      "file": "/photos/about-venue.png",
+      "alt": "Spisesalen hos Klingenberg Food",
+      "focus": "center"
+    }
   }
 }
