@@ -10,6 +10,7 @@ import {
   array,
   date,
   flag,
+  isAbsent,
   isBlank,
   object,
   oneOf,
@@ -56,7 +57,9 @@ import { add, at, readableName, type Problem } from './problems'
  *     means changing the renderer.
  *
  * A section with no dishes is deliberately fine: `ugens-ret` has none today, and an
- * editor building a new section starts from an empty one.
+ * editor building a new section starts from an empty one. "No dishes" is written two
+ * ways — `"dishes": []` by hand, and no `dishes` key at all by Pages CMS, which leaves
+ * an empty list out of the file — and both are the same section.
  */
 
 /**
@@ -126,8 +129,23 @@ export function validateMenu(file: unknown, where: string): Problem[] {
       claimed.set(kind, [...(claimed.get(kind) ?? []), label])
     }
 
-    const dishes = array(problems, at(sectionWhere, 'dishes'), category.dishes)
-    if (dishes === null) return
+    // A section with no `dishes` key at all is a section with no dishes. Pages CMS
+    // leaves an empty list out of the file it writes, so an untouched save turns
+    // `"dishes": []` into nothing — which is what Ugens ret and Tapasbordet, the two
+    // sections that never hold dishes, look like after the restaurant has saved the
+    // menu once. The two spellings are the same section, and the loader reads them the
+    // same way (`?? []`).
+    //
+    // `isAbsent` rather than the usual `isBlank`, so validator and loader cannot
+    // disagree about a third spelling: `""` is what an emptied *control* writes, and
+    // `dishes` is an object list rather than a control. Nothing writes `""` here, so it
+    // stays what it has always been — not a list.
+    let dishes: unknown[] = []
+    if (!isAbsent(category.dishes)) {
+      const written = array(problems, at(sectionWhere, 'dishes'), category.dishes)
+      if (written === null) return
+      dishes = written
+    }
 
     dishes.forEach((dishEntry, dishIndex) => {
       const dishWhere = at(sectionWhere, readableName(dishEntry, 'name', `ret ${dishIndex + 1}`))
