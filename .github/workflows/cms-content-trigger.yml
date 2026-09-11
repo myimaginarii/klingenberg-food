@@ -1,0 +1,87 @@
+name: Publish a CMS save
+
+# The doorbell (technical plan §14, Phase 5D).
+#
+# Pages CMS writes the restaurant's edits to the `content` branch. Nothing there is
+# deployed — production is built from `main` — so a save only reaches the site once
+# `.github/workflows/cms-publish.yml` has composed it onto `main` and the branch ruleset
+# has let it in. That workflow is the publication. This file is only the doorbell that
+# rings it.
+#
+# WHY A DOORBELL, AND NOT A PUSH TRIGGER ON THE PUBLISHER ITSELF. For a `push`, GitHub
+# reads the workflow files from the commit that was pushed — so a push to `content` can
+# only start workflows that exist on `content`. Adding `push: branches: [content]` to
+# `cms-publish.yml` would arm nothing at all: that file lives on `main`, and `content`
+# predates it. The publisher cannot answer a door it is not standing behind.
+#
+# WHY NOT COPY THE PUBLISHER ONTO `content` INSTEAD. `content` is the branch Pages CMS
+# writes to, which makes it the least trusted branch in the repository: whatever is
+# there is there because the CMS put it there. The publisher holds the App private key
+# that can push branches and open pull requests, and that key must never be reachable
+# from a workflow definition living on a branch the CMS can write. So the file that
+# lives on `content` is this one, and it holds nothing — no App, no secret, no checkout,
+# no content, no publication logic. It asks GitHub to run the publisher as `main`
+# defines it, and stops.
+#
+# WHAT THIS FILE MAY DO. One API call. Its `GITHUB_TOKEN` is granted `actions: write`
+# and nothing else, so it cannot read the repository, write a commit, push a branch,
+# open or merge a pull request, or reach a secret. `actions: write` buys exactly one
+# thing: the right to ask for a workflow run.
+#
+# WHAT IT DELIBERATELY DOES NOT DO. It does not read or forward a content SHA — the
+# publisher resolves the newest `content` commit itself when it starts, which is the
+# only value still capable of being correct by the time it composes. Nor does it queue,
+# debounce or de-duplicate rapid saves: `cms-publish` already cancels an older run for
+# a newer one, and already refuses to publish a snapshot a newer save has overtaken.
+# Supersession needs one authority, and this is not the one that can see the content.
+
+on:
+  push:
+    branches:
+      - content
+    # The two publication roots, and only those — the same pair
+    # `scripts/cms/compose-publication.mjs` lets across. Everything else that can change
+    # on `content` (`.pages.yml`, `content/launch/`, `public/brand/`, `.github/`) is
+    # either main's own or never published, so a change to it has nothing to publish and
+    # must not start a run. A deletion or a rename inside these roots is still a change
+    # to a path inside them, so both still ring the bell.
+    paths:
+      - 'content/site/**'
+      - 'public/photos/**'
+
+# One scope, for one call. Not `contents:` — this workflow never reads or writes the
+# repository. Not `pull-requests:` — it never opens or touches one. Naming the block at
+# all sets every scope it does not list to `none`.
+permissions:
+  actions: write
+
+defaults:
+  run:
+    # `bash` rather than the default `sh`-flavoured bash: it adds `pipefail`, so a
+    # failure on the left of a pipe fails the step instead of being swallowed.
+    shell: bash
+
+jobs:
+  dispatch:
+    name: Ring the publisher on main
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      # No checkout: there is nothing here worth reading, and a checkout would be a
+      # capability this job has no use for. `gh` is preinstalled on the runner and
+      # `workflow run` is a single REST call, which is why no third-party action is
+      # installed to make one request.
+      #
+      # `--ref main` is the point of the whole file: it names the branch the publisher's
+      # definition is read from, so the code that runs is main's reviewed copy and never
+      # anything the push carried with it.
+      #
+      # The token and the repository arrive as environment variables rather than as
+      # `${{ }}` inside the script. An expression is substituted as text before bash
+      # sees the line, and text that reaches bash is code.
+      - name: Dispatch the publication on main
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run cms-publish.yml --ref main
