@@ -23,14 +23,21 @@ import { SiteLogo } from './SiteLogo'
  * `content/site/contact.json` removes the block rather than emptying it.
  *
  * On a phone the address block takes the full width and the two short lists beneath it
- * — Sider and Åbningstider — share a row, with Følg os under them: the page links are
- * five 44 px rows, and stacked above three lines of hours they made a 780 px footer a
- * guest scrolled through to reach the bottom bar. The first column is `auto`, sized by
- * its widest link, so the hours keep the rest of the width and their longest line
- * ("Ons–fre 15:00–20:00", 156 px) stays on one line at 375. The gap between the groups
- * is one step tighter than the desktop column gap: at 375 px a 32 px gap between short
- * groups read as separate blocks rather than one footer. From `md` the grid is the drawn
- * two-by-two, and from `lg` the four columns. The second number is `white/88` where
+ * — Sider and Åbningstider — share a row: the page links are five 44 px rows, and
+ * stacked above three lines of hours they made a 780 px footer a guest scrolled through
+ * to reach the bottom bar. Følg os sits under Åbningstider in that same row rather than
+ * on a row of its own: the five links are 220 px tall and the three lines of hours 99,
+ * so the space beneath the hours was empty anyway, and a row for one button added 90 px
+ * to a footer that on a short page (Nyheder) already filled most of the screen. The
+ * `nav` spans both rows so the link list keeps its column; from `md` both placements
+ * reset and the grid is the drawn two-by-two, and from `lg` the four columns. The first
+ * column is `auto`, sized by its widest link, so the hours keep the rest of the width
+ * and their longest line ("Ons–fre 15:00–20:00", 156 px) stays on one line at 375. The
+ * gap between the groups is one step tighter than the desktop column gap: at 375 px a
+ * 32 px gap between short groups read as separate blocks rather than one footer, and
+ * the row gap, the band padding and the two margins inside the address column are each
+ * one step tighter again on a phone than from `md`, where the desktop values are
+ * unchanged. The second number is `white/88` where
  * the footer's body text is `white/78`:
  * a number a guest may need to ring has to read at a glance, and it stays secondary
  * to the primary one through weight alone.
@@ -85,11 +92,11 @@ export function SiteFooter({
 
   return (
     <footer className="bg-brand-900 text-white/78">
-      <PageContainer className="py-7 md:py-8">
-        <div className="grid grid-cols-[auto_1fr] items-start gap-x-5 gap-y-6 md:grid-cols-2 md:gap-8 lg:grid-cols-[1.35fr_1fr_1fr_0.9fr] lg:gap-10">
+      <PageContainer className="py-6 md:py-8">
+        <div className="grid grid-cols-[auto_1fr] items-start gap-x-5 gap-y-5 md:grid-cols-2 md:gap-8 lg:grid-cols-[1.35fr_1fr_1fr_0.9fr] lg:gap-10">
           <div className="col-span-2 md:col-span-1">
             <SiteLogo size="compact" tone="inverse" showVenue={false} />
-            <address className="text-detail mt-3 not-italic">
+            <address className="text-detail mt-2.5 not-italic md:mt-3">
               {contact.venueName ? (
                 <>
                   {contact.venueName}
@@ -101,7 +108,7 @@ export function SiteFooter({
                 : null}
               {hasContact ? (
                 <>
-                  <Eyebrow tone="inverse" className="mt-3.5">
+                  <Eyebrow tone="inverse" className="mt-3 md:mt-3.5">
                     Kontakt
                   </Eyebrow>
                   <span className="mt-0.5 flex flex-col">
@@ -135,7 +142,7 @@ export function SiteFooter({
             </address>
           </div>
 
-          <nav aria-label="Sider i bunden">
+          <nav aria-label="Sider i bunden" className="row-span-2 md:row-span-1">
             <Eyebrow tone="inverse">Sider</Eyebrow>
             <ul className="mt-0.5 flex flex-col">
               {items.map((item) => (
@@ -161,7 +168,7 @@ export function SiteFooter({
           </div>
 
           {contact.facebookUrl ? (
-            <div>
+            <div className="col-start-2 md:col-start-auto">
               <Eyebrow tone="inverse">Følg os</Eyebrow>
               <a
                 href={contact.facebookUrl}
