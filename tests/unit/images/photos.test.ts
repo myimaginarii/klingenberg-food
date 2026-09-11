@@ -5,7 +5,8 @@ import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { resolvePhoto } from '@/lib/content/load/photo'
-import { photoFilePath, photosDirectory } from '@/lib/images/manifest'
+import { planDerivatives } from '@/lib/images/derivatives'
+import { photoFilePath, photosDirectory, readImageManifest } from '@/lib/images/manifest'
 import { photoSlotFrom, photoSourceFrom } from '@/lib/images/photos'
 
 /**
@@ -18,6 +19,19 @@ import { photoSlotFrom, photoSourceFrom } from '@/lib/images/photos'
  */
 
 const WHERE = 'content/site/menu.json: dish "odin"'
+
+/**
+ * A photograph that is really in `public/photos/`, whichever one that is.
+ *
+ * The resolver reads the file — the manifest lookup is half of what makes a bad path
+ * loud — so the suites below need a real one. Which files are there is the restaurant's
+ * business: Pages CMS uploads into that folder, and a picture it replaces is a picture
+ * that is gone. So the fixture is taken from the manifest rather than named, and only
+ * the *grammar* cases above, which never touch the filesystem, spell a file out.
+ */
+const LIBRARY = Object.values(readImageManifest().photos)
+const A_PHOTO = `/photos/${LIBRARY[0]!.file}`
+const ANOTHER_PHOTO = `/photos/${(LIBRARY[1] ?? LIBRARY[0])!.file}`
 
 describe('a valid photograph path', () => {
   it('is one plainly-named file in /photos/, and its name is its slot', () => {
@@ -96,26 +110,24 @@ describe('resolvePhoto — the field as an editor fills it', () => {
   })
 
   it('keeps the crop a closed vocabulary — no free-form object-position', () => {
-    const centred = resolvePhoto({ file: '/photos/dish-odin.png', focus: 'center' }, WHERE)
-    const upper = resolvePhoto({ file: '/photos/dish-frigg.png', focus: 'upper' }, WHERE)
+    const centred = resolvePhoto({ file: A_PHOTO, focus: 'center' }, WHERE)
+    const upper = resolvePhoto({ file: ANOTHER_PHOTO, focus: 'upper' }, WHERE)
 
     expect(centred?.focus).toBe('center')
     expect(upper?.focus).toBe('upper')
     // Absent is the default rather than an error: a field nobody has touched is centred.
-    expect(resolvePhoto({ file: '/photos/dish-odin.png' }, WHERE)?.focus).toBe('center')
+    expect(resolvePhoto({ file: A_PHOTO }, WHERE)?.focus).toBe('center')
 
     for (const bad of ['50% 20%', 'top', 'UPPER', 'left bottom', 0]) {
-      expect(() => resolvePhoto({ file: '/photos/dish-odin.png', focus: bad }, WHERE)).toThrow(WHERE)
+      expect(() => resolvePhoto({ file: A_PHOTO, focus: bad }, WHERE)).toThrow(WHERE)
     }
   })
 
   it('renders an empty or absent description as alt="" and invents nothing', () => {
-    expect(resolvePhoto({ file: '/photos/dish-odin.png', alt: '' }, WHERE)?.alt).toBe('')
-    expect(resolvePhoto({ file: '/photos/dish-odin.png' }, WHERE)?.alt).toBe('')
-    expect(resolvePhoto({ file: '/photos/dish-odin.png', alt: '  ' }, WHERE)?.alt).toBe('')
-    expect(resolvePhoto({ file: '/photos/dish-odin.png', alt: 'En burger.' }, WHERE)?.alt).toBe(
-      'En burger.',
-    )
+    expect(resolvePhoto({ file: A_PHOTO, alt: '' }, WHERE)?.alt).toBe('')
+    expect(resolvePhoto({ file: A_PHOTO }, WHERE)?.alt).toBe('')
+    expect(resolvePhoto({ file: A_PHOTO, alt: '  ' }, WHERE)?.alt).toBe('')
+    expect(resolvePhoto({ file: A_PHOTO, alt: 'En burger.' }, WHERE)?.alt).toBe('En burger.')
   })
 
   it('refuses a photograph that is not in public/photos/, naming the field and the file', () => {
@@ -126,22 +138,49 @@ describe('resolvePhoto — the field as an editor fills it', () => {
   })
 
   it('refuses a photograph whose extension has changed under it', () => {
-    // public/photos/ holds dish-odin.png; the content still names the .jpg it replaced.
-    expect(() => resolvePhoto({ file: '/photos/dish-odin.jpg' }, WHERE)).toThrow('dish-odin.png')
+    // The library holds one extension for a name; the content still names the one it
+    // replaced, and the message says which file is actually there.
+    const held = LIBRARY[0]!.file
+    const replaced = held.endsWith('.png') ? held.replace(/\.png$/, '.jpg') : `${held.replace(/\.[^.]+$/, '')}.png`
+
+    expect(() => resolvePhoto({ file: `/photos/${replaced}` }, WHERE)).toThrow(held)
   })
 
+  /**
+   * The size comes off the file, never off the content.
+   *
+   * Which photographs sit in `public/photos/` is the restaurant's — Pages CMS uploads
+   * into that folder and the file name is the slot — so the fixture is *whatever the
+   * build measured*, read from the manifest, rather than a named picture with its
+   * dimensions typed out beside it. The claim is the one that matters: the intrinsic
+   * size a page prints is the top rung `planDerivatives` chose for the measured source,
+   * and every rung it names is one of that plan's.
+   */
   it('measures the source rather than trusting a written-down size', () => {
-    const odin = resolvePhoto({ file: '/photos/dish-odin.png' }, WHERE)
+    const measured = LIBRARY
+    expect(measured.length).toBeGreaterThan(0)
 
-    // 1448×1086 on disk: the ladder stops at 1440 and the intrinsic size is that rung's.
-    expect(odin?.width).toBe(1440)
-    expect(odin?.height).toBe(1080)
-    expect(odin?.candidates.map((candidate) => candidate.width)).toEqual([480, 960, 1440])
-    expect(odin?.avifSrcSet).toContain('/media/dish-odin/1440.avif 1440w')
+    for (const photo of measured) {
+      const resolved = resolvePhoto({ file: `/photos/${photo.file}` }, WHERE)!
+      const planned = planDerivatives(photo.width, photo.height)
+      const top = planned[planned.length - 1]!
+      const slot = photo.file.replace(/\.[^.]+$/, '')
+
+      expect(resolved.candidates.map((candidate) => candidate.width), photo.file).toEqual(
+        planned.map((size) => size.width),
+      )
+      expect(resolved.width, photo.file).toBe(top.width)
+      expect(resolved.height, photo.file).toBe(top.height)
+      expect(resolved.avifSrcSet, photo.file).toContain(
+        `/media/${slot}/${top.width}.avif ${top.width}w`,
+      )
+      // Never upscaled past the source the build measured.
+      expect(top.width, photo.file).toBeLessThanOrEqual(photo.width)
+    }
   })
 
   it('names nothing an editor has to maintain — no source path reaches the page', () => {
-    const everything = JSON.stringify(resolvePhoto({ file: '/photos/home-hero.png' }, WHERE))
+    const everything = JSON.stringify(resolvePhoto({ file: A_PHOTO }, WHERE))
 
     expect(everything).not.toContain('/photos/')
     expect(everything).not.toContain('.png')

@@ -164,6 +164,12 @@ describe('npm run check:content', () => {
   })
 
   it('exits non-zero and names the file, the item and the field — with no stack trace', () => {
+    // Which section and which dish the message names is the restaurant's business — both
+    // are ordinary Pages CMS fields — so the two names are read back off the tree that
+    // was broken rather than quoted. What is asserted is that the message points at the
+    // one dish that was broken, by its own names, and says how to write a price.
+    let broke = { section: '', dish: '' }
+
     const root = fixture(({ read, write }) => {
       const menu = read('content/site/menu.json') as {
         categories: { name: string; dishes?: { name: string; price: string }[] }[]
@@ -172,13 +178,16 @@ describe('npm run check:content', () => {
       // opening section holds none is a shape the file is allowed to have.
       const priced = menu.categories.find((category) => category.dishes?.length)
       priced!.dishes![0]!.price = '89 kr.'
+      broke = { section: priced!.name, dish: priced!.dishes![0]!.name }
       write('content/site/menu.json', menu)
     })
 
     const result = run(root)
 
     expect(result.status).toBe(1)
-    expect(result.stderr).toMatch(/content\/site\/menu\.json → Burgere → Odin → price/)
+    expect(result.stderr).toContain(
+      `content/site/menu.json → ${broke.section} → ${broke.dish} → price`,
+    )
     expect(result.stderr).toMatch(/Prisen skrives i kroner/)
     expect(result.stderr).toMatch(/f\.eks\. "89", "89,50"/)
     // A stack frame is for whoever wrote the checker; this audience wrote the menu.
@@ -207,20 +216,33 @@ describe('npm run check:content', () => {
    * the menu takes it off the Forside and leaves nothing behind to dangle.
    */
   it('accepts the menu with a featured dish deleted — nothing points at it', () => {
+    let deleted = 0
+
     const root = fixture(({ read, write }) => {
       const menu = read('content/site/menu.json') as {
-        categories: { dishes?: { id: string }[] }[]
+        categories: { dishes?: { id: string; featured?: boolean }[] }[]
       }
+      // Whichever dish carries "Vis på forsiden" today, rather than a named one: the
+      // mark is the restaurant's, and the rule is that removing a marked dish leaves
+      // nothing dangling behind it.
+      const featured = menu.categories
+        .flatMap((category) => category.dishes ?? [])
+        .find((dish) => dish.featured === true)
+      if (featured === undefined) return
+
       for (const category of menu.categories) {
         // A section Pages CMS saved with no dishes has no `dishes` key at all. Leave it
         // exactly as the file has it rather than writing back an empty list the CMS
         // never writes — the edit under test is one deleted dish, nothing else.
         if (!category.dishes) continue
-        category.dishes = category.dishes.filter((dish) => dish.id !== 'odin')
+        const before = category.dishes.length
+        category.dishes = category.dishes.filter((dish) => dish.id !== featured.id)
+        deleted += before - category.dishes.length
       }
       write('content/site/menu.json', menu)
     })
 
+    expect(deleted).toBe(1)
     expect(run(root).status).toBe(0)
   })
 

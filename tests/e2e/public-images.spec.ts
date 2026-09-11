@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-import { loadHomePage } from '@/lib/content/load/pages'
+import { loadMenu } from '@/lib/content/load/menu'
+import { loadAboutPage, loadHomePage, loadTakeawayPage } from '@/lib/content/load/pages'
 import { planDerivatives } from '@/lib/images/derivatives'
 import { readImageManifest } from '@/lib/images/manifest'
 
@@ -26,22 +27,44 @@ import { waitForPublicShell } from './support/public-shell'
 /** What the build measured, as a list. */
 const PHOTOS = Object.entries(readImageManifest().photos)
 
-/** Where each slot is drawn, so a rendered page can be checked rather than the JSON. */
-const PLACEMENTS = [
-  { slot: 'home-hero', path: '/' },
-  { slot: 'about-venue', path: '/om-os/' },
-  { slot: 'takeaway', path: '/mad-ud-af-huset/' },
-  { slot: 'dish-odin', path: '/menu/' },
-  { slot: 'dish-frigg', path: '/menu/' },
-  { slot: 'dish-ragnar', path: '/menu/' },
-  { slot: 'dish-glade-gris', path: '/menu/' },
-] as const
+/**
+ * Where each photograph is drawn, worked out from the content rather than listed.
+ *
+ * This used to be a written-down table of slots — `home-hero` on the Forside,
+ * `dish-odin` on the menu — and every one of those is a Pages CMS choice: which picture
+ * a frame draws is the "Billede" field on that frame, and a restaurant replacing a
+ * photograph would have failed a test that named the one it replaced. So the placements
+ * are derived: each surface's *selected* image names its own slot, and the page it is
+ * drawn on is the page that owns that surface.
+ */
+const PLACEMENTS = (() => {
+  const home = loadHomePage()
+  const about = loadAboutPage()
+  const takeaway = loadTakeawayPage()
+  const dishes = loadMenu().categories.flatMap((category) => category.dishes)
+
+  const slotOf = (src: string) => src.split('/')[2]!
+
+  return [
+    ...[home.hero.image, home.award.image, home.aboutExcerpt.image].map((image) => ({
+      image,
+      path: '/',
+    })),
+    ...[about.venueImage, about.team.image, about.method.image].map((image) => ({
+      image,
+      path: '/om-os/',
+    })),
+    { image: takeaway.image, path: '/mad-ud-af-huset/' },
+    ...dishes.map((dish) => ({ image: dish.image, path: '/menu/' })),
+  ]
+    .filter((placement) => placement.image !== null)
+    .map((placement) => ({ slot: slotOf(placement.image!.src), path: placement.path, image: placement.image! }))
+})()
 
 /** Every `<img>` the site serves from its own rendered derivative folder. */
 function mediaImages(page: Page): Locator {
   return page.locator('img[src^="/media/"]')
 }
-
 test.describe('the rendered derivative ladder', () => {
   for (const { slot, path } of PLACEMENTS) {
     test(`${slot} is drawn on ${path} from its own /media folder`, async ({ page }) => {
@@ -113,25 +136,21 @@ test.describe('the rendered derivative ladder', () => {
     }
   })
 
-  test('the selected description is what a screen reader hears', async ({ page }) => {
-    await page.goto('/')
-    await waitForPublicShell(page)
+  test('every photograph carries the description its own field selected', async ({ page }) => {
+    // Alternative text is Pages CMS's "Alternativ tekst" on every frame, and an empty
+    // one is a deliberate answer: a dish photograph sits beside the heading that already
+    // names the dish, so repeating it would be duplicate verbose text. Both answers are
+    // asserted the same way — the page hears the field, whatever the field says.
+    for (const path of [...new Set(PLACEMENTS.map((placement) => placement.path))]) {
+      await page.goto(path)
+      await waitForPublicShell(page)
 
-    const alt = loadHomePage().hero.image?.alt
-    expect(alt).toBeTruthy()
-    await expect(page.locator('img[src^="/media/home-hero/"]').first()).toHaveAttribute('alt', alt!)
-  })
-
-  test('a photograph with no selected description renders alt="" rather than an invented one', async ({
-    page,
-  }) => {
-    await page.goto('/menu/')
-    await waitForPublicShell(page)
-
-    // The dish photographs carry an empty description — they sit beside the dish
-    // heading that already names them, so repeating it would be duplicate verbose text.
-    for (const slot of ['dish-odin', 'dish-frigg', 'dish-ragnar', 'dish-glade-gris']) {
-      await expect(page.locator(`img[src^="/media/${slot}/"]`).first()).toHaveAttribute('alt', '')
+      for (const placement of PLACEMENTS.filter((entry) => entry.path === path)) {
+        await expect(
+          page.locator(`img[src^="/media/${placement.slot}/"]`).first(),
+          `${placement.slot} on ${path}`,
+        ).toHaveAttribute('alt', placement.image.alt)
+      }
     }
   })
 })

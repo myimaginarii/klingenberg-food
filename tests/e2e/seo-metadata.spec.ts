@@ -1,6 +1,8 @@
 import { expect, test, type Page } from '@playwright/test'
 
-import { ADDRESS_LINE, PRIMARY_PHONE, PUBLIC_ROUTES } from './support/site'
+import { weeklyOpeningHoursJsonLd } from '@/lib/seo/restaurant'
+
+import { ADDRESS_LINE, PRIMARY_TEL_HREF, PUBLIC_ROUTES, SCHEDULE } from './support/site'
 
 /**
  * The metadata the static export actually ships — technical plan §11; phase 2B.
@@ -122,14 +124,19 @@ test.describe('the Restaurant structured data', () => {
       expect(restaurant.hasMenu).toBe(absolute(baseURL!, '/menu/'))
       expect(restaurant.image).toMatch(/^https?:\/\/.*\/media\//)
 
-      // The facts, as the page beside them prints them.
-      expect(restaurant.telephone).toBe(PRIMARY_PHONE.replace(/\s/g, ''))
+      // The facts, as the page beside them prints them — read off the contact
+      // document rather than written down, because the number is editable and the
+      // address is not (`./support/site`).
+      expect(restaurant.telephone).toBe(PRIMARY_TEL_HREF.replace('tel:', ''))
       expect(restaurant.address).toMatchObject({
         '@type': 'PostalAddress',
         streetAddress: ADDRESS_LINE.split(',')[0],
         addressCountry: 'DK',
       })
-      expect(restaurant.openingHoursSpecification).toHaveLength(2)
+      // One entry per group of days that share their hours — however the week is set.
+      expect(restaurant.openingHoursSpecification).toHaveLength(
+        weeklyOpeningHoursJsonLd(SCHEDULE).length,
+      )
 
       // Nothing anybody has answered with a guess.
       for (const property of ['geo', 'priceRange', 'aggregateRating', 'review', 'alternateName']) {
@@ -166,8 +173,9 @@ test.describe('sitemap and robots', () => {
     expect(xml).not.toContain('/api')
     expect(xml).not.toContain('github.io')
     expect(xml).not.toContain('klingenberg-food/')
-    // The news *list* is one of the six; no article exists yet, so no article address
-    // may be advertised — an invented URL in a sitemap is a 404 a crawler was sent to.
+    // The news *list* is one of the six, and the sitemap advertises the list alone: the
+    // articles are paginated under it and each one is self-canonical (§7f). An address
+    // that is not one of the six is a 404 a crawler was sent to, published or not.
     expect(locations.filter((location) => /\/nyheder\/.+/.test(location))).toEqual([])
   })
 

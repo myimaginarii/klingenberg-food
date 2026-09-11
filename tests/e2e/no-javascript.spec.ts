@@ -1,8 +1,18 @@
 import { expect, test } from '@playwright/test'
 
+import { loadNews } from '@/lib/content/load/news'
+import { formatPrice } from '@/lib/format/danish'
 import { formatWeeklyHours } from '@/lib/hours/format'
-import { CONFIRMED_SCHEDULE } from '../unit/fixtures/hours'
-import { PRIMARY_TEL_HREF, PUBLIC_ROUTES } from './support/site'
+import {
+  EVERY_DISH,
+  MENU_CATEGORIES,
+  PRIMARY_TEL_HREF,
+  PUBLIC_ROUTES,
+  SCHEDULE,
+} from './support/site'
+
+/** Whatever the restaurant has published, as the list page reads it. */
+const NEWS = loadNews()
 
 /**
  * The public site with JavaScript switched off — technical plan §7e, item 11.
@@ -83,26 +93,39 @@ test('the persistent bar still calls, routes and points the way', async ({ page 
   )
 })
 
-test('the menu is one scroll of nine sections, and its chips still jump', async ({ page }) => {
+test('the menu is one scroll of every section, and its chips still jump', async ({ page }) => {
   await page.goto('/menu')
 
-  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(9)
-  await expect(page.getByText('89 kr.').first()).toBeVisible()
+  // How many sections there are and what they are called is the restaurant's; that the
+  // whole card is one scroll, with a chip per section, is the design's.
+  await expect(page.getByRole('heading', { level: 2 })).toHaveCount(MENU_CATEGORIES.length)
 
+  const priced = EVERY_DISH.find((dish) => dish.priceOre !== null)
+  if (priced !== undefined) {
+    await expect(page.getByText(formatPrice(priced.priceOre!)).first()).toBeVisible()
+  }
+
+  // The last chip, so the jump has somewhere to go from the top of the page.
+  const target = MENU_CATEGORIES[MENU_CATEGORIES.length - 1]!
   const chip = page
     .getByRole('navigation', { name: 'Menuens kategorier' })
-    .getByRole('link', { name: 'Børn', exact: true })
+    .getByRole('link', { name: target.name, exact: true })
   await chip.evaluate((element) => element.scrollIntoView({ block: 'center' }))
   await chip.click()
 
-  await expect(page).toHaveURL(/#menu-boern$/)
-  await expect(page.locator('#menu-boern h2')).toBeInViewport()
+  await expect(page).toHaveURL(new RegExp(`#${target.anchor}$`))
+  await expect(page.locator(`#${target.anchor} h2`)).toBeInViewport()
 })
 
 test('the opening hours are readable, and the seven-day view still opens', async ({ page }) => {
   await page.goto('/find-os')
 
-  await expect(page.getByRole('main').getByText('Ons–fre').first()).toBeVisible()
+  // The grouped line the document's own week produces, rather than the one today's
+  // schedule happens to make: "Ons-fre" is a value of `content/site/hours.json`.
+  const grouped = formatWeeklyHours(SCHEDULE)[0]
+  if (grouped !== undefined) {
+    await expect(page.getByRole('main').getByText(grouped.days, { exact: true }).first()).toBeVisible()
+  }
 
   // The persistent bar is fixed to the bottom of the viewport, so a control scrolled to
   // the very bottom would sit under it. Centring it is what a person scrolling does too.
@@ -159,19 +182,32 @@ test('the hours table marks no day as today, and still gives the whole week', as
 
   // The schedule itself is entirely there — the grouped lines on the phone, and the
   // seven days behind a <details> that needs no scripting to open.
-  for (const row of formatWeeklyHours(CONFIRMED_SCHEDULE)) {
+  for (const row of formatWeeklyHours(SCHEDULE)) {
     await expect(main.getByText(row.days, { exact: true }).first()).toBeVisible()
   }
   await expect(main.getByText('Vis alle syv dage')).toBeVisible()
 })
 
-test('the news page states its empty state without scripting, and invents no article', async ({
+test('the news page lists what is published without scripting, and invents no article', async ({
   page,
 }) => {
   await page.goto('/nyheder')
 
-  await expect(page.getByRole('main').getByText('Der er ingen nyheder lige nu.')).toBeVisible()
-  await expect(page.getByRole('link', { name: /Læs mere/ })).toHaveCount(0)
+  const main = page.getByRole('main')
+
+  // Publishing an article is the most ordinary thing the restaurant does, so the empty
+  // state is asserted only when the tree is empty; the other half — never an article
+  // that is not a published file — is the claim that holds either way.
+  if (NEWS.length === 0) {
+    await expect(main.getByText('Der er ingen nyheder lige nu.')).toBeVisible()
+    await expect(page.getByRole('link', { name: /Læs mere/ })).toHaveCount(0)
+    return
+  }
+
+  await expect(main.getByText('Der er ingen nyheder lige nu.')).toHaveCount(0)
+  for (const article of NEWS) {
+    await expect(main.getByRole('link', { name: article.title, exact: false }).first()).toBeVisible()
+  }
 })
 
 test('still no cookie is set with scripting disabled', async ({ page, context }) => {
