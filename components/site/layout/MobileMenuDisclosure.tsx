@@ -1,7 +1,9 @@
 'use client'
 
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useRef } from 'react'
+
+import { MENU_CLOSE_DELAY_MS, type SiteRoute } from '@/lib/site/navigation'
 
 /**
  * The fullscreen menu's open state, and the two ways it ends — design 1n.
@@ -22,6 +24,17 @@ import { createContext, useCallback, useContext, useEffect, useRef } from 'react
  *   * the pathname, for a navigation the panel did not start: Back and Forward, or the
  *     persistent bottom bar behind it.
  *
+ * The first of those is also held back a moment. Left to itself the framework swaps the
+ * page in the same frame the panel disappears, and on a phone the two changes land as
+ * one abrupt cut, with the new page visible for an instant under the panel that is
+ * still going. So a tap in the panel closes it first and asks the router for the page
+ * `MENU_CLOSE_DELAY_MS` later — long enough to read as "the menu went, then the page came",
+ * short enough never to feel like waiting. The event's own `preventDefault()` is what
+ * holds the framework's navigation back, so nothing about the link changes: the href is
+ * a real address, a modifier-click and a new tab never reach this code, and a visitor
+ * without scripting was never in it. A visitor who asked for less motion gets the page
+ * at once, because for them the pause is not a transition but a delay.
+ *
  * Escape closes it too. A plain `<details>` has no Escape behaviour of its own — the
  * browser gives that only to a dialog or a popover — so a fullscreen panel covering the
  * whole viewport had no keyboard way out but tabbing back to the ×. That is the one
@@ -34,11 +47,19 @@ import { createContext, useCallback, useContext, useEffect, useRef } from 'react
  * leaves focus where it found it, and the summary is a place to carry on from at the
  * top of the page you asked for.
  */
-const CloseMenuContext = createContext<(() => void) | null>(null)
 
-/** The enclosing panel's close handle, or `null` outside one (the desktop bar, the footer). */
-export function useCloseMobileMenu(): (() => void) | null {
-  return useContext(CloseMenuContext)
+/** What the panel hands a link inside it: the framework's navigation event, and where the link goes. */
+export type MenuNavigateHandler = (event: { preventDefault(): void }, href: SiteRoute) => void
+
+const MenuNavigateContext = createContext<MenuNavigateHandler | null>(null)
+
+/** The enclosing panel's navigation handle, or `null` outside one (the desktop bar, the footer). */
+export function useMobileMenuNavigate(): MenuNavigateHandler | null {
+  return useContext(MenuNavigateContext)
+}
+
+function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
 export function MobileMenuDisclosure({
@@ -49,11 +70,16 @@ export function MobileMenuDisclosure({
   children: React.ReactNode
 }) {
   const ref = useRef<HTMLDetailsElement>(null)
+  const router = useRouter()
   const pathname = usePathname()
   // The pathname the panel has already been told about. Set at the first render rather
   // than in the effect, so hydration cannot close a panel a visitor opened while the
   // page was still loading.
   const settled = useRef(pathname)
+  // The one navigation the panel is holding back, if any. A second tap while it is
+  // pending — the same link, or another one, before the panel has left the screen —
+  // must not queue a second route change behind the first.
+  const pending = useRef<number | null>(null)
 
   const close = useCallback(() => {
     const details = ref.current
@@ -66,6 +92,26 @@ export function MobileMenuDisclosure({
       details.querySelector('summary')?.focus({ preventScroll: true })
     }
   }, [])
+
+  const navigate = useCallback<MenuNavigateHandler>(
+    (event, href) => {
+      if (pending.current !== null) {
+        event.preventDefault()
+        return
+      }
+
+      close()
+
+      if (prefersReducedMotion()) return
+
+      event.preventDefault()
+      pending.current = window.setTimeout(() => {
+        pending.current = null
+        router.push(href)
+      }, MENU_CLOSE_DELAY_MS)
+    },
+    [close, router],
+  )
 
   useEffect(() => {
     if (settled.current === pathname) return
@@ -85,11 +131,17 @@ export function MobileMenuDisclosure({
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [close])
 
+  useEffect(() => {
+    return () => {
+      if (pending.current !== null) window.clearTimeout(pending.current)
+    }
+  }, [])
+
   return (
-    <CloseMenuContext.Provider value={close}>
+    <MenuNavigateContext.Provider value={navigate}>
       <details ref={ref} className={className}>
         {children}
       </details>
-    </CloseMenuContext.Provider>
+    </MenuNavigateContext.Provider>
   )
 }
