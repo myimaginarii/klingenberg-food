@@ -7,15 +7,22 @@ name: Publish CMS content
 # top of `main` that carries the owner's content and not one byte else, and asking the
 # same branch ruleset that guards every other change to let it in.
 #
-# WHAT THIS WORKFLOW MAY DO. It may push one branch, `cms-publish`, and open one pull
-# request from it. It may not push to `main`, and holds no permission that would let it
-# try: the `GITHUB_TOKEN` is granted nothing at all, and the App whose installation
-# token does the pushing has exactly two permissions (contents and pull requests) and is
-# not a bypass actor on any ruleset. `main` advances only when the three required checks
-# pass and GitHub's own auto-merge acts on that — never because this file said so.
+# WHAT THIS WORKFLOW MAY DO. It may push one branch, `cms-publish`, and open, update or
+# close one pull request from it. It may not push to `main`, and holds no permission
+# that would let it try: the `GITHUB_TOKEN` is granted nothing at all, and the App whose
+# installation token does the pushing has exactly two permissions (contents and pull
+# requests) and is not a bypass actor on any ruleset. `main` advances only when the
+# three required checks pass and GitHub's own auto-merge acts on that — never because
+# this file said so.
 #
 # THE SHAPE OF A RUN, and what each stage is there to stop:
 #
+#   quiesce     auto-merge off whatever publication is already open, before this run
+#               does any work at all. A publication waiting on auto-merge is armed: it
+#               lands the moment its checks go green. A newer save has to be able to
+#               replace an older one, and it cannot win a race it never entered — so
+#               the older one is disarmed first and re-armed only by a run that gets
+#               all the way to a pushed branch.
 #   resolve     two immutable SHAs, taken once. Everything after this reads the SHAs,
 #               never the branch names, so a CMS save landing mid-run cannot change
 #               what is being published underneath the run that is publishing it.
@@ -29,6 +36,10 @@ name: Publish CMS content
 #   stale       the content branch, re-read immediately before the push. A newer save
 #               means this run's snapshot is out of date and must not be published.
 #   push / PR   one stable branch, at most one open pull request, auto-merge enabled.
+#   supersede   the other ending. Nothing to publish means `main` already carries what
+#               the owner last saved, which makes any publication still open a route
+#               for older content to reach `main` behind the newer save's back. It is
+#               closed, and no commit, branch update or pull request is made.
 #
 # MANUAL ONLY, FOR NOW. The trigger is `workflow_dispatch` and nothing else: a
 # `workflow_dispatch` workflow cannot be dispatched until it is on the default branch,
@@ -98,6 +109,31 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.app.outputs.token }}
 
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # First, and gated on nothing. The publication that is already open is waiting on
+      # auto-merge, which means it lands by itself the moment its checks pass; this run
+      # exists because the owner has saved something newer, and a newer save must be
+      # able to replace an older one. Taking auto-merge off before composing anything
+      # is what removes the race: from here the old snapshot cannot land on its own,
+      # whether this run goes on to publish, to find nothing to publish, or to fail.
+      #
+      # It needs no dependencies — `node:` builtins and `fetch` — so it runs before
+      # `npm ci`, which is the slowest step in the file and would otherwise be a
+      # minute of the old publication still armed.
+      - name: Disarm the publication already in flight
+        id: quiesce
+        env:
+          GITHUB_APP_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          node scripts/cms/publication-github.mjs quiesce \
+            --head "$PUBLICATION_BRANCH" \
+            --base "$BASE_BRANCH"
+
       # The snapshot is taken here and nowhere else. Both branch names are resolved to
       # full SHAs once; every later step is given a SHA.
       - name: Resolve the publication's two immutable commits
@@ -109,12 +145,6 @@ jobs:
           echo "main=${main_sha}" >> "$GITHUB_OUTPUT"
           echo "content=${content_sha}" >> "$GITHUB_OUTPUT"
           echo "Publishing ${CONTENT_BRANCH}@${content_sha} onto ${BASE_BRANCH}@${main_sha}."
-
-      - name: Set up Node
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: npm
 
       - name: Install dependencies
         run: npm ci
@@ -158,19 +188,39 @@ jobs:
       # A CMS save that changes nothing publishable is a success with no commit: an
       # empty commit, or a reformatted file, would be noise in main's history.
       #
-      # An open publication pull request can only exist here if main already carries
-      # this content by some other route, in which case that pull request is a no-op
-      # merge and harmless. It is deliberately left alone rather than closed: guessing
-      # at somebody else's open pull request is not this workflow's business.
+      # But it is not a success with an open publication left behind. The way this
+      # state is reached is the owner saving B, then saving A again — A being what main
+      # already has. B's pull request is still open, and the stale-content guard cannot
+      # see it, because this run never reaches that guard: there is nothing to commit.
+      # Left open, B would still be a route for the older save to land after the newer
+      # one replaced it, so it is closed. Auto-merge came off it at the top of this run;
+      # this is what stops a person, or a re-run of its checks, from landing it anyway.
+      - name: Close the publication this save supersedes
+        if: steps.stage.outputs.changed != 'true'
+        id: supersede
+        env:
+          GITHUB_APP_TOKEN: ${{ steps.app.outputs.token }}
+          CONTENT_SHA: ${{ steps.refs.outputs.content }}
+        run: |
+          node scripts/cms/publication-github.mjs supersede \
+            --head "$PUBLICATION_BRANCH" \
+            --base "$BASE_BRANCH" \
+            --content-sha "$CONTENT_SHA"
+
       - name: Nothing to publish
         if: steps.stage.outputs.changed != 'true'
         env:
           CONTENT_SHA: ${{ steps.refs.outputs.content }}
+          SUPERSEDED: ${{ steps.supersede.outputs.number }}
         run: |
           {
             echo "### Nothing to publish"
             echo
             echo "\`${CONTENT_BRANCH}\` at \`${CONTENT_SHA}\` matches \`${BASE_BRANCH}\` under the publication roots. No commit, no branch update, no pull request."
+            if [ -n "$SUPERSEDED" ]; then
+              echo
+              echo "Closed #${SUPERSEDED}: it carried content this save has replaced, and an open publication is a publication that can still merge."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
 
       # `main` requires an extra approval for changes it cannot attribute to an account,
@@ -234,6 +284,14 @@ jobs:
           fi
 
       # One pull request, reused if it is already open, and auto-merge enabled on it.
+      # This is where the disarming at the top of the run is undone, and the only place
+      # it is: by now the branch carries this run's snapshot, composed, validated and
+      # pushed, so what gets re-armed is always the newer content and never the older
+      # publication that was disarmed. Every path that does not reach this step — an
+      # invalid save, a hostile path, a stale snapshot — leaves the pull request open
+      # and disarmed, which is a decision waiting for a person rather than a merge
+      # waiting for a timer.
+      #
       # Nothing here merges anything: the required checks decide, and if they fail the
       # pull request simply stays open and main is untouched.
       - name: Open or reuse the publication pull request

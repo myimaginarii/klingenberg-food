@@ -3,10 +3,28 @@
  * The GitHub side of a publication: who it is committed as, and which pull request
  * carries it.
  *
- * Two commands, because a publication needs GitHub twice and at two different moments:
+ * Four commands, because a publication needs GitHub at four different moments:
  *
- *     identity   before the commit — the publishing App's bot account, as a git identity
- *     pr         after the push    — one pull request, reused or created, set to auto-merge
+ *     quiesce    first of all       — the publication already in flight, disarmed
+ *     identity   before the commit  — the publishing App's bot account, as a git identity
+ *     pr         after the push     — one pull request, reused or created, set to auto-merge
+ *     supersede  when nothing to do — the publication already in flight, closed
+ *
+ * WHY A RUN BEGINS BY DISARMING THE PREVIOUS PUBLICATION. There is one publication
+ * branch and at most one open publication pull request, and it waits on auto-merge —
+ * which means it is armed: the moment its checks go green, GitHub lands it. A newer
+ * CMS save must win against an older one, and it cannot win a race it does not enter.
+ * So the first thing a run does, before it composes or validates anything, is take
+ * auto-merge off whatever is open. From that moment the older snapshot cannot land on
+ * its own, and every way this run can end is safe: it pushes the newer snapshot and
+ * re-arms the pull request, or it finds nothing to publish and closes it, or it fails
+ * — and a failed run leaves the older publication open but disarmed, which is a
+ * decision waiting for a person rather than a merge waiting for a timer.
+ *
+ * `supersede` is the second half of that, for the case the stale guard cannot see: the
+ * owner saved B, then saved A again, and A is what `main` already has. There is
+ * nothing to publish and nothing to push — but B's pull request is still open, and
+ * leaving it open would let the older save beat the newer one. It is closed instead.
  *
  * WHY THE IDENTITY IS LOOKED UP RATHER THAN WRITTEN DOWN. `main` is protected by a
  * ruleset that requires an extra approval for *unattributed* changes — a commit whose
@@ -31,9 +49,12 @@
  *
  * USAGE
  *
- *     node scripts/cms/publication-github.mjs identity --app-slug <slug>
+ *     node scripts/cms/publication-github.mjs quiesce   --head <branch> --base <branch>
+ *     node scripts/cms/publication-github.mjs identity  --app-slug <slug>
  *     node scripts/cms/publication-github.mjs pr --head <branch> --base <branch> \
  *                                                --content-sha <sha> --main-sha <sha>
+ *     node scripts/cms/publication-github.mjs supersede --head <branch> --base <branch> \
+ *                                                       --content-sha <sha>
  */
 
 import { appendFileSync } from 'node:fs'
@@ -62,6 +83,15 @@ const PR_TITLE = 'CMS content publication'
  * the required checks pending.
  */
 const ALREADY_MERGEABLE = /clean status/i
+
+/**
+ * GitHub's reply when auto-merge is taken off a pull request that did not have it.
+ * `quiesce` asks unconditionally rather than trusting the `auto_merge` field it read a
+ * moment earlier, so this is the ordinary answer when the previous run already ended
+ * with the pull request disarmed. Narrow on purpose: every other GraphQL error still
+ * fails the run.
+ */
+const AUTO_MERGE_NOT_ENABLED = /auto[ -]?merge is not enabled/i
 
 function required(name) {
   const value = process.env[name]
@@ -106,6 +136,15 @@ async function graphql(query, variables) {
   if (!response.ok) throw new Error(`GraphQL → ${response.status}: ${JSON.stringify(payload)}`)
   return payload
 }
+
+/**
+ * The two ways this module talks to GitHub, in one object.
+ *
+ * Every exported operation takes it as its last argument and defaults to this, so a
+ * test can hand the same code a pair of fakes and watch what it asks for, in what
+ * order. There is no other reason for the indirection: nothing swaps it at run time.
+ */
+const githubApi = { rest, graphql }
 
 /** The owner and repository this run belongs to, from the one variable the runner always sets. */
 export function repositorySlug(value = required('GITHUB_REPOSITORY')) {
@@ -167,9 +206,33 @@ export function publicationBody({ contentSha, mainSha }) {
   ].join('\n')
 }
 
-/** The one open pull request from `head` to `base`, or `null`. Refuses to guess if there is more than one. */
-async function findOpenPullRequest({ owner, repo, head, base }) {
-  const open = await rest(
+/**
+ * The body a superseded publication is closed with.
+ *
+ * The pull request it replaces states two SHAs it was composed from; this states why
+ * those SHAs stopped mattering, so the closed pull request explains itself to whoever
+ * finds it later without having to go and read a workflow run.
+ */
+export function supersededBody({ contentSha }) {
+  return [
+    'Superseded, and closed by `.github/workflows/cms-publish.yml`.',
+    '',
+    `A later CMS save left \`content\` at \`${contentSha}\`, which \`main\` already carries under the publishable paths: there is nothing left for this publication to publish.`,
+    '',
+    'Closing it is the point. Left open it would still be a route for the older content it was composed from to reach `main` after the newer save had replaced it.',
+  ].join('\n')
+}
+
+/**
+ * The one open pull request from `head` to `base`, or `null`.
+ *
+ * The single definition of "the current publication pull request" — `quiesce`, `pr` and
+ * `supersede` all ask this, so all three mean the same thing by it. Refuses to guess if
+ * there is more than one: two open publications is a state this workflow cannot create
+ * and must not act on blindly.
+ */
+export async function findOpenPullRequest({ owner, repo, head, base }, api = githubApi) {
+  const open = await api.rest(
     `/repos/${owner}/${repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${head}`)}&base=${encodeURIComponent(base)}`,
   )
 
@@ -181,9 +244,88 @@ async function findOpenPullRequest({ owner, repo, head, base }) {
   return open[0] ?? null
 }
 
+/**
+ * Take auto-merge off a pull request, so nothing lands it but a person.
+ *
+ * Asked unconditionally, whatever `auto_merge` said on the object that was read a
+ * moment ago: the field is a snapshot and the point of this call is that there is no
+ * window left in which the pull request is still armed. The only tolerated failure is
+ * GitHub saying it was not armed in the first place.
+ */
+async function disableAutoMerge(pullRequest, api = githubApi) {
+  const { errors } = await api.graphql(
+    `mutation ($pullRequestId: ID!) {
+       disablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId }) {
+         pullRequest { number }
+       }
+     }`,
+    { pullRequestId: pullRequest.node_id },
+  )
+
+  if (errors === undefined) {
+    console.log(`Auto-merge disabled on #${pullRequest.number}.`)
+    return { disabled: true }
+  }
+
+  const messages = errors.map((error) => error.message)
+  if (messages.some((message) => AUTO_MERGE_NOT_ENABLED.test(message))) {
+    console.log(`#${pullRequest.number} did not have auto-merge enabled; nothing to disable.`)
+    return { disabled: false }
+  }
+
+  throw new Error(`Could not disable auto-merge on #${pullRequest.number}: ${messages.join('; ')}`)
+}
+
+/**
+ * Disarm the publication already in flight, before this run composes anything.
+ *
+ * Called first, and gated on nothing: whether this run goes on to publish, to find
+ * nothing to publish, or to fail, the older publication must not be able to merge
+ * itself in the meantime. Re-arming is `pr`'s job and happens only once the newer
+ * snapshot is on the branch.
+ */
+export async function quiescePublication({ head, base }, api = githubApi) {
+  const { owner, repo } = repositorySlug()
+  const existing = await findOpenPullRequest({ owner, repo, head, base }, api)
+
+  if (existing === null) {
+    console.log(`No open pull request from ${head} to ${base}; there is nothing in flight.`)
+    return { found: false, number: '', disabled: false }
+  }
+
+  const { disabled } = await disableAutoMerge(existing, api)
+  return { found: true, number: existing.number, disabled }
+}
+
+/**
+ * Close the publication already in flight, because this run found nothing to publish.
+ *
+ * Auto-merge is off it already — `quiesce` ran at the top of this run — so this closes
+ * a pull request that is going nowhere on its own. It is still the step that makes the
+ * newer save win: an open publication is a publication that a person, or a re-run of
+ * its checks, could still land.
+ */
+export async function supersedePublication({ head, base, contentSha }, api = githubApi) {
+  const { owner, repo } = repositorySlug()
+  const existing = await findOpenPullRequest({ owner, repo, head, base }, api)
+
+  if (existing === null) {
+    console.log(`No open pull request from ${head} to ${base}; there is nothing to supersede.`)
+    return { found: false, number: '', closed: false }
+  }
+
+  await api.rest(`/repos/${owner}/${repo}/pulls/${existing.number}`, {
+    method: 'PATCH',
+    body: { state: 'closed', body: supersededBody({ contentSha }) },
+  })
+  console.log(`Closed #${existing.number}: it published content ${base} already carries.`)
+
+  return { found: true, number: existing.number, closed: true }
+}
+
 /** Ask GitHub to merge the pull request when — and only when — its required checks pass. */
-async function enableAutoMerge(pullRequest) {
-  const { errors } = await graphql(
+async function enableAutoMerge(pullRequest, api = githubApi) {
+  const { errors } = await api.graphql(
     `mutation ($pullRequestId: ID!, $mergeMethod: PullRequestMergeMethod!) {
        enablePullRequestAutoMerge(input: { pullRequestId: $pullRequestId, mergeMethod: $mergeMethod }) {
          pullRequest { number }
@@ -208,15 +350,23 @@ async function enableAutoMerge(pullRequest) {
   throw new Error(`Could not enable auto-merge on #${pullRequest.number}: ${messages.join('; ')}`)
 }
 
-async function openPublication({ head, base, contentSha, mainSha }) {
+/**
+ * One pull request for the snapshot now on the publication branch, and auto-merge back
+ * on it.
+ *
+ * The re-arming is the last thing that happens, and only here: the branch already
+ * carries the newer snapshot by the time this runs, so what auto-merge is enabled on is
+ * what this run composed and validated — never the older publication `quiesce` disarmed.
+ */
+export async function openPublication({ head, base, contentSha, mainSha }, api = githubApi) {
   const { owner, repo } = repositorySlug()
   const body = publicationBody({ contentSha, mainSha })
 
-  const existing = await findOpenPullRequest({ owner, repo, head, base })
+  const existing = await findOpenPullRequest({ owner, repo, head, base }, api)
   let pullRequest
 
   if (existing === null) {
-    pullRequest = await rest(`/repos/${owner}/${repo}/pulls`, {
+    pullRequest = await api.rest(`/repos/${owner}/${repo}/pulls`, {
       method: 'POST',
       body: { title: PR_TITLE, head, base, body },
     })
@@ -224,14 +374,14 @@ async function openPublication({ head, base, contentSha, mainSha }) {
   } else {
     // Reused, not replaced: the branch already carries the new snapshot, so all the
     // pull request needs is a body that names the content it now holds.
-    pullRequest = await rest(`/repos/${owner}/${repo}/pulls/${existing.number}`, {
+    pullRequest = await api.rest(`/repos/${owner}/${repo}/pulls/${existing.number}`, {
       method: 'PATCH',
       body: { body },
     })
     console.log(`Reusing #${pullRequest.number} — ${head} → ${base}.`)
   }
 
-  await enableAutoMerge(pullRequest)
+  await enableAutoMerge(pullRequest, api)
 
   return { number: pullRequest.number, url: pullRequest.html_url, created: existing === null }
 }
@@ -262,20 +412,43 @@ async function main() {
 
   const [command] = positionals
 
+  /** Exits 2 unless every named option was given: a missing one is a mistake in the workflow, not a run to attempt. */
+  function demand(...names) {
+    const missing = names.filter((option) => values[option] === undefined)
+    if (missing.length > 0) {
+      console.error(
+        `publication-github: ${command} needs ${missing.map((option) => `--${option}`).join(', ')}.`,
+      )
+      process.exit(2)
+    }
+  }
+
   if (command === 'identity') {
     const identity = await resolveIdentity(values['app-slug'])
     emit({ login: identity.login, email: identity.email })
     return
   }
 
+  if (command === 'quiesce') {
+    demand('head', 'base')
+    const result = await quiescePublication({ head: values.head, base: values.base })
+    emit({ found: result.found, number: result.number, disabled: result.disabled })
+    return
+  }
+
+  if (command === 'supersede') {
+    demand('head', 'base', 'content-sha')
+    const result = await supersedePublication({
+      head: values.head,
+      base: values.base,
+      contentSha: values['content-sha'],
+    })
+    emit({ found: result.found, number: result.number, closed: result.closed })
+    return
+  }
+
   if (command === 'pr') {
-    const missing = ['head', 'base', 'content-sha', 'main-sha'].filter(
-      (option) => values[option] === undefined,
-    )
-    if (missing.length > 0) {
-      console.error(`publication-github: pr needs ${missing.map((o) => `--${o}`).join(', ')}.`)
-      process.exit(2)
-    }
+    demand('head', 'base', 'content-sha', 'main-sha')
 
     const result = await openPublication({
       head: values.head,
@@ -287,7 +460,7 @@ async function main() {
     return
   }
 
-  console.error('publication-github: expected "identity" or "pr".')
+  console.error('publication-github: expected "quiesce", "identity", "pr" or "supersede".')
   process.exit(2)
 }
 

@@ -3,13 +3,16 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 import {
   botLoginFor,
   botNoreplyEmail,
+  openPublication,
   publicationBody,
+  quiescePublication,
   repositorySlug,
+  supersedePublication,
 } from '../../../scripts/cms/publication-github.mjs'
 import { escapedPaths, stagePublication } from '../../../scripts/cms/stage-publication.mjs'
 
@@ -50,6 +53,32 @@ function topLevelBlock(key) {
     .split('\n')
     .filter((line) => !line.trimStart().startsWith('#'))
     .join('\n')
+}
+
+/**
+ * One step of the `publish` job, as text: from its `- name:` line to the next one.
+ *
+ * Enough to ask what a step is gated on, which is the question the supersession rules
+ * turn on — a guard that runs only when the run is already succeeding guards nothing.
+ */
+function stepBlock(name) {
+  const start = workflow.indexOf(`      - name: ${name}\n`)
+  expect(start, `there is no step named "${name}"`).toBeGreaterThanOrEqual(0)
+  const rest = workflow.slice(start + 1)
+  const end = rest.indexOf('\n      - name: ')
+  // Without the comments: a block runs up to the next step's `- name:`, so it would
+  // otherwise carry that step's prose, and the prose here is about the rules.
+  return (end === -1 ? rest : rest.slice(0, end))
+    .split('\n')
+    .filter((line) => !line.trimStart().startsWith('#'))
+    .join('\n')
+}
+
+/** Where a step begins in the file, for asking which of two steps runs first. */
+function stepAt(name) {
+  const start = workflow.indexOf(`      - name: ${name}\n`)
+  expect(start, `there is no step named "${name}"`).toBeGreaterThanOrEqual(0)
+  return start
 }
 
 /** The workflow's `run:` script lines, with backslash continuations joined into one line each. */
@@ -156,6 +185,65 @@ describe('the publication workflow file', () => {
     expect(workflow).not.toMatch(/\/merge\b/)
     expect(workflow).not.toContain('gh pr merge')
   })
+
+  it('disarms the publication already in flight before it composes anything', () => {
+    // The race this closes: the open publication is waiting on auto-merge, so it lands
+    // by itself the moment its checks pass. Disarming it at the end — or only on the
+    // paths that succeed — would leave the whole composing and validating window open
+    // for an older snapshot to beat the newer one that this run exists to publish.
+    const quiesce = stepAt('Disarm the publication already in flight')
+
+    expect(quiesce).toBeLessThan(stepAt('Compose the publication'))
+    expect(quiesce).toBeLessThan(stepAt('Validate the composed content'))
+    expect(quiesce).toBeLessThan(stepAt('Install dependencies'))
+    expect(stepBlock('Disarm the publication already in flight')).toContain(
+      'publication-github.mjs quiesce',
+    )
+  })
+
+  it('disarms it whatever this run turns out to be', () => {
+    // Gated on nothing at all. A run that fails, or finds nothing to publish, must
+    // still have taken auto-merge off the publication it supersedes.
+    expect(stepBlock('Disarm the publication already in flight')).not.toMatch(/^\s+if:/m)
+  })
+
+  it('closes the publication a no-change save supersedes', () => {
+    const supersede = stepBlock('Close the publication this save supersedes')
+
+    expect(supersede).toContain('publication-github.mjs supersede')
+    expect(supersede).toMatch(/if:\s*steps\.stage\.outputs\.changed\s*!=\s*'true'/)
+    // And it is the only thing that happens on that path: no commit, no push, no PR.
+    for (const step of ['Commit the publication', 'Push the publication branch']) {
+      expect(stepBlock(step), step).toMatch(/if:\s*steps\.stage\.outputs\.changed\s*==\s*'true'/)
+    }
+  })
+
+  it('re-arms auto-merge only after the newer snapshot is pushed', () => {
+    const pr = stepBlock('Open or reuse the publication pull request')
+
+    expect(pr).toContain('publication-github.mjs pr')
+    expect(pr).toMatch(/if:\s*steps\.stage\.outputs\.changed\s*==\s*'true'/)
+    expect(stepAt('Open or reuse the publication pull request')).toBeGreaterThan(
+      stepAt('Push the publication branch'),
+    )
+    expect(stepAt('Open or reuse the publication pull request')).toBeGreaterThan(
+      stepAt('Refuse to publish a stale snapshot'),
+    )
+
+    // And `pr` is the only command that can enable auto-merge, so this is the only
+    // step that can.
+    const enabling = shellLines().filter((line) => line.includes('publication-github.mjs pr'))
+    expect(enabling).toHaveLength(1)
+  })
+
+  it('lets a failure stop the run rather than carry on to re-arm anything', () => {
+    // The steps between the disarming and the re-arming are the ones that can fail:
+    // invalid content, a path outside the roots, a stale snapshot. If any of them could
+    // be stepped over, a failed run would end by arming a publication it had just
+    // refused to replace. Nothing here is allowed to fail softly.
+    expect(workflow).not.toContain('continue-on-error')
+    expect(workflow).not.toMatch(/if:\s*(always|failure|cancelled)\(\)/)
+  })
 })
 
 describe('the publishing bot identity', () => {
@@ -205,6 +293,233 @@ describe('the pull request body', () => {
   it('is the same body for the same two commits', () => {
     // No timestamp, no run number: two publications of one snapshot read identically.
     expect(publicationBody({ contentSha: 'c'.repeat(40), mainSha: 'm'.repeat(40) })).toBe(body)
+  })
+})
+
+/**
+ * Supersession: how a newer CMS save beats an older publication.
+ *
+ * The bug these exist for. There is one publication branch and one publication pull
+ * request, and it waits on auto-merge — armed, in the sense that GitHub lands it the
+ * instant its checks go green, with nobody watching. The owner saves B; B's publication
+ * opens and starts waiting. The owner then saves A again, which is what `main` already
+ * has. The newer run finds nothing to publish and stops — and B, composed from content
+ * the owner has since replaced, merges anyway. The older save wins.
+ *
+ * So a run disarms whatever is open before it does anything, and either re-arms it on
+ * the newer snapshot or closes it. The three operations are exercised against a pair of
+ * fake GitHub callers, which is the only way to state the thing that actually matters:
+ * not what each call looks like, but which calls happen and in what order.
+ */
+describe('superseding an older publication', () => {
+  const HEAD = 'cms-publish'
+  const BASE = 'main'
+
+  let repository
+
+  beforeAll(() => {
+    repository = process.env.GITHUB_REPOSITORY
+    process.env.GITHUB_REPOSITORY = 'myimaginarii/klingenberg-food'
+  })
+
+  afterAll(() => {
+    if (repository === undefined) delete process.env.GITHUB_REPOSITORY
+    else process.env.GITHUB_REPOSITORY = repository
+  })
+
+  /** An open publication pull request as the list endpoint returns one. */
+  function openPullRequest(number, { autoMerge = true } = {}) {
+    return {
+      number,
+      node_id: `PR_kw${number}`,
+      // Whatever GitHub would return; nothing here asserts on it, and writing the real
+      // host would put an absolute URL somewhere §10d says one may not be.
+      html_url: `[the pull request URL for #${number}]`,
+      auto_merge: autoMerge ? { merge_method: 'SQUASH' } : null,
+    }
+  }
+
+  /**
+   * A stand-in for the two ways the helper talks to GitHub, recording every call.
+   *
+   * `graphqlErrors` names a mutation — `enable` or `disable` — and the messages GitHub
+   * should answer it with, which is how the two tolerated replies and the intolerable
+   * ones are told apart.
+   */
+  function fakeGitHub({ pulls = [], graphqlErrors = {} } = {}) {
+    const calls = []
+
+    const api = {
+      async rest(path, { method = 'GET', body } = {}) {
+        calls.push({ method, path, body })
+
+        if (method === 'GET' && path.includes('/pulls?')) return pulls
+        if (method === 'POST' && path.endsWith('/pulls')) {
+          return { ...openPullRequest(101), ...body }
+        }
+        if (method === 'PATCH') {
+          const number = Number(path.slice(path.lastIndexOf('/') + 1))
+          return { ...openPullRequest(number), ...body }
+        }
+        throw new Error(`the fake was asked for ${method} ${path}`)
+      },
+
+      async graphql(query, variables) {
+        const mutation = query.includes('disablePullRequestAutoMerge') ? 'disable' : 'enable'
+        calls.push({ mutation, variables })
+
+        const messages = graphqlErrors[mutation]
+        if (messages === undefined) return { data: {} }
+        return { errors: messages.map((message) => ({ message })) }
+      },
+    }
+
+    return { api, calls }
+  }
+
+  /** The calls that changed something: the lookup is a GET and says nothing about intent. */
+  const mutations = (calls) => calls.filter((call) => call.method !== 'GET')
+
+  describe('disarming what is already in flight', () => {
+    it('takes auto-merge off the one open publication', async () => {
+      const { api, calls } = fakeGitHub({ pulls: [openPullRequest(7)] })
+
+      expect(await quiescePublication({ head: HEAD, base: BASE }, api)).toEqual({
+        found: true,
+        number: 7,
+        disabled: true,
+      })
+
+      // Looked up by exactly the pair that defines a publication, then disarmed —
+      // and nothing else touched.
+      expect(calls[0].path).toContain(`head=${encodeURIComponent(`myimaginarii:${HEAD}`)}`)
+      expect(calls[0].path).toContain(`base=${BASE}`)
+      expect(calls[0].path).toContain('state=open')
+      expect(mutations(calls)).toEqual([
+        { mutation: 'disable', variables: { pullRequestId: 'PR_kw7' } },
+      ])
+    })
+
+    it('has nothing to do when no publication is open', async () => {
+      const { api, calls } = fakeGitHub({ pulls: [] })
+
+      expect(await quiescePublication({ head: HEAD, base: BASE }, api)).toEqual({
+        found: false,
+        number: '',
+        disabled: false,
+      })
+      expect(mutations(calls)).toEqual([])
+    })
+
+    it('refuses to guess when more than one publication is open', async () => {
+      const { api, calls } = fakeGitHub({ pulls: [openPullRequest(7), openPullRequest(8)] })
+
+      await expect(quiescePublication({ head: HEAD, base: BASE }, api)).rejects.toThrow(
+        /at most one/,
+      )
+      // Refusing means touching neither of them.
+      expect(mutations(calls)).toEqual([])
+    })
+
+    it('accepts a publication that was already disarmed', async () => {
+      const { api } = fakeGitHub({
+        pulls: [openPullRequest(7, { autoMerge: false })],
+        graphqlErrors: {
+          disable: ['Pull request Auto merge is not enabled for this pull request'],
+        },
+      })
+
+      expect(await quiescePublication({ head: HEAD, base: BASE }, api)).toEqual({
+        found: true,
+        number: 7,
+        disabled: false,
+      })
+    })
+
+    it('fails on any other answer from GitHub', async () => {
+      const { api } = fakeGitHub({
+        pulls: [openPullRequest(7)],
+        graphqlErrors: { disable: ['Resource not accessible by integration'] },
+      })
+
+      // Fail closed: not knowing whether the older publication is still armed is not
+      // a reason to go on composing a newer one.
+      await expect(quiescePublication({ head: HEAD, base: BASE }, api)).rejects.toThrow(
+        /Resource not accessible/,
+      )
+    })
+  })
+
+  describe('a save with nothing left to publish', () => {
+    const contentSha = 'a'.repeat(40)
+
+    it('closes the publication it supersedes', async () => {
+      const { api, calls } = fakeGitHub({ pulls: [openPullRequest(7, { autoMerge: false })] })
+
+      expect(await supersedePublication({ head: HEAD, base: BASE, contentSha }, api)).toEqual({
+        found: true,
+        number: 7,
+        closed: true,
+      })
+
+      const [close, ...rest] = mutations(calls)
+      expect(close.method).toBe('PATCH')
+      expect(close.path).toMatch(/\/pulls\/7$/)
+      expect(close.body.state).toBe('closed')
+      expect(close.body.body).toContain(contentSha)
+      // Closing it, and only closing it: nothing is merged, nothing is opened, and
+      // auto-merge is certainly not turned back on.
+      expect(rest).toEqual([])
+    })
+
+    it('touches nothing when no publication is open', async () => {
+      const { api, calls } = fakeGitHub({ pulls: [] })
+
+      expect(await supersedePublication({ head: HEAD, base: BASE, contentSha }, api)).toEqual({
+        found: false,
+        number: '',
+        closed: false,
+      })
+      expect(mutations(calls)).toEqual([])
+    })
+  })
+
+  describe('a save that does have something to publish', () => {
+    const shas = { contentSha: 'c'.repeat(40), mainSha: 'm'.repeat(40) }
+
+    it('reuses the disarmed publication and re-arms it on the new snapshot', async () => {
+      const { api, calls } = fakeGitHub({ pulls: [openPullRequest(7, { autoMerge: false })] })
+
+      const result = await openPublication({ head: HEAD, base: BASE, ...shas }, api)
+
+      expect(result).toMatchObject({ number: 7, created: false })
+
+      const [update, enable, ...rest] = mutations(calls)
+      // The body is updated to the new immutable SHAs *before* auto-merge goes back on,
+      // and auto-merge goes back on the pull request that was just updated.
+      expect(update.method).toBe('PATCH')
+      expect(update.path).toMatch(/\/pulls\/7$/)
+      expect(update.body.body).toContain(shas.contentSha)
+      expect(enable).toEqual({
+        mutation: 'enable',
+        variables: { pullRequestId: 'PR_kw7', mergeMethod: 'SQUASH' },
+      })
+      expect(rest).toEqual([])
+    })
+
+    it('opens one when the last run closed the previous publication', async () => {
+      const { api, calls } = fakeGitHub({ pulls: [] })
+
+      expect(await openPublication({ head: HEAD, base: BASE, ...shas }, api)).toMatchObject({
+        number: 101,
+        created: true,
+      })
+
+      const [open, enable] = mutations(calls)
+      expect(open.method).toBe('POST')
+      expect(open.body).toMatchObject({ head: HEAD, base: BASE })
+      expect(enable.mutation).toBe('enable')
+    })
   })
 })
 
