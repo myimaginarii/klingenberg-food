@@ -41,6 +41,12 @@ const check = (file: unknown): Problem[] => validateMenu(file, WHERE)
 const messages = (problems: readonly Problem[]) =>
   problems.map((problem) => `${problem.where}: ${problem.message}`).join('\n')
 
+/** A section as Pages CMS writes one with no dishes in it: without the key at all. */
+const withoutDishes = ({ dishes, ...section }: Record<string, unknown>) => {
+  void dishes
+  return section
+}
+
 /** The same menu with one dish replaced — the shape most cases below need. */
 const withDish = (over: Record<string, unknown>) =>
   check(menu({ categories: [category({ dishes: [dish(over)] })] }))
@@ -52,6 +58,38 @@ describe('a menu the restaurant is allowed to have', () => {
 
   it('accepts a section with no dishes, and a menu with no weekly-special section', () => {
     expect(check(menu({ categories: [category({ dishes: [] })] }))).toEqual([])
+  })
+
+  /**
+   * The two spellings of "this section has no dishes".
+   *
+   * `"dishes": []` is what somebody editing the JSON writes. **No `dishes` key at all**
+   * is what Pages CMS writes, because it leaves an empty list out of the file — so the
+   * first ordinary menu save turned Ugens ret and Tapasbordet, the two sections that
+   * are never allowed to hold dishes, into sections with no `dishes` key. The build
+   * refused the restaurant's own save; this is the case that must not come back.
+   */
+  it('accepts a section whose dishes list is left out entirely, exactly as an empty one', () => {
+    const empty = category({ dishes: [] })
+    const absent = withoutDishes(empty)
+
+    expect(check(menu({ categories: [absent] }))).toEqual([])
+    expect(check(menu({ categories: [absent] }))).toEqual(check(menu({ categories: [empty] })))
+  })
+
+  /**
+   * And the same for the two sections it actually happened to. A section whose body is
+   * another document may hold no dishes — leaving the list out is how it says so, and
+   * it must not read as "a dish nobody would ever see" either.
+   */
+  it('accepts a section that draws another document and leaves its dishes list out', () => {
+    for (const [kind, id, name] of [
+      ['weekly_special', 'ugens-ret', 'Ugens ret'],
+      ['tapas', 'tapas', 'Tapas'],
+    ]) {
+      const section = withoutDishes(category({ id, name, kind }))
+      expect(messages(check({ categories: [section] })), `${kind}`).toBe('')
+    }
   })
 
   it('accepts a section being removed, added or reordered — nothing here counts them', () => {
@@ -96,6 +134,20 @@ describe('a menu the restaurant is allowed to have', () => {
 })
 
 describe('a menu that would break a page', () => {
+  /**
+   * Leaving the list out is the one thing that means "no dishes". Everything else that
+   * is not a list is still a mistake, and has to be named as one — including `""`,
+   * which is what an emptied *text* control writes and which no list control writes.
+   * The loader reads an absent list as `[]` and would put anything else through
+   * `.map`, so validator and loader agree on exactly one extra spelling and no more.
+   */
+  it('refuses a dishes value that is written but is not a list', () => {
+    for (const dishes of ['', 'Odin', 0, 5, true, {}, { odin: dish() }]) {
+      expect(messages(check(menu({ categories: [category({ dishes })] }))), JSON.stringify(dishes))
+        .toMatch(/Burgere → dishes: Skal være en liste/)
+    }
+  })
+
   it('refuses two sections with the same id — one anchor cannot serve both', () => {
     const problems = check({
       categories: [category(), category({ name: 'Burgere igen', dishes: [dish({ id: 'thor' })] })],

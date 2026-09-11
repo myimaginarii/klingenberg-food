@@ -98,10 +98,13 @@ describe('keepPriceTogether', () => {
   })
 
   /**
-   * A dish somebody opened in Pages CMS and saved without changing anything: every
-   * optional control it did not use comes back as `""`, and the photograph comes back
-   * as an object with no file selected. It has to load as the dish it was — the same
-   * value, not a nearly-identical one (phase 4B).
+   * A dish whose optional controls are all empty, in the spelling the *content
+   * contract* allows rather than the one Pages CMS happens to write: every unused
+   * optional field as `""` or `null`, and the photograph as an object with no file
+   * selected. A measured CMS save leaves those keys out instead
+   * (`tests/unit/content/cms-empty-values.test.ts` states what it really does), so this
+   * is the tolerance half of the rule — hand-written JSON and an older save are both
+   * still read as the dish they are, the same value and not a nearly-identical one.
    */
   it('reads a dish whose optional controls are all empty as a dish with none', () => {
     const bare = { id: 'thor', name: 'Thor', price: '89' }
@@ -120,6 +123,38 @@ describe('keepPriceTogether', () => {
 
     expect(load(saved)).toEqual(load(bare))
     expect(load(saved)).toMatchObject({ priceOre: 8900, soldOutOn: null, image: null, featured: false })
+  })
+
+  /**
+   * The other thing a Pages CMS save does to a section: an empty dish list is not
+   * written at all. A section with no `dishes` key is the section that had
+   * `"dishes": []` — the same `MenuCategory`, not one the loader has to be defended
+   * from — and the dish-id uniqueness check has to survive reading it too.
+   */
+  it('reads a section with no dishes list as the section that had an empty one', () => {
+    const load = (category: unknown) =>
+      menuCategoriesFrom({ categories: [category] } as never, 'test')[0]
+
+    const empty = load({ id: 'ugens-ret', name: 'Ugens ret', kind: 'weekly_special', dishes: [] })
+    const absent = load({ id: 'ugens-ret', name: 'Ugens ret', kind: 'weekly_special' })
+
+    expect(absent).toEqual(empty)
+    expect(absent?.dishes).toEqual([])
+  })
+
+  it('still refuses a dish id used twice when one section has no dishes list', () => {
+    expect(() =>
+      menuCategoriesFrom(
+        {
+          categories: [
+            { id: 'ugens-ret', name: 'Ugens ret', kind: 'weekly_special' },
+            { id: 'burgere', name: 'Burgere', dishes: [{ id: 'odin', name: 'Odin' }] },
+            { id: 'andre', name: 'Andre', dishes: [{ id: 'odin', name: 'Odin' }] },
+          ],
+        } as never,
+        'test',
+      ),
+    ).toThrow(/the dish id "odin" is used more than once/)
   })
 
   it('reads an absent prose field as null and a present one exactly as written', () => {

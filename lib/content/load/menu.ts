@@ -90,7 +90,8 @@ type CategoryFile = {
   kind?: MenuCategoryKind
   intro?: string | null
   note?: string | null
-  dishes: DishFile[]
+  /** Absent is the same as `[]` — Pages CMS leaves an empty list out of the file. */
+  dishes?: DishFile[]
 }
 
 type MenuFile = {
@@ -196,7 +197,7 @@ export function menuCategoriesFrom(file: MenuFile, where: string): MenuCategory[
   assertUnique('section', file.categories.map((category) => category.id), where)
   assertUnique(
     'dish',
-    file.categories.flatMap((category) => category.dishes.map((dish) => dish.id)),
+    file.categories.flatMap((category) => (category.dishes ?? []).map((dish) => dish.id)),
     where,
   )
 
@@ -208,7 +209,7 @@ export function menuCategoriesFrom(file: MenuFile, where: string): MenuCategory[
       intro: sectionIntro(category.id, prose(category.intro)),
       note: prose(category.note),
       kind: category.kind ?? 'dishes',
-      dishes: category.dishes.map((dish) => dishFrom(dish, `${where}: dish "${dish.id}"`)),
+      dishes: (category.dishes ?? []).map((dish) => dishFrom(dish, `${where}: dish "${dish.id}"`)),
     }),
   )
 }
