@@ -1,0 +1,328 @@
+name: Publish CMS content
+
+# Publication: the door the restaurant's edits come through.
+#
+# Pages CMS writes to the long-lived `content` branch. Nothing there is deployed —
+# production is built from `main` — so getting an edit live means composing a commit on
+# top of `main` that carries the owner's content and not one byte else, and asking the
+# same branch ruleset that guards every other change to let it in.
+#
+# WHAT THIS WORKFLOW MAY DO. It may push one branch, `cms-publish`, and open, update or
+# close one pull request from it. It may not push to `main`, and holds no permission
+# that would let it try: the `GITHUB_TOKEN` is granted nothing at all, and the App whose
+# installation token does the pushing has exactly two permissions (contents and pull
+# requests) and is not a bypass actor on any ruleset. `main` advances only when the
+# three required checks pass and GitHub's own auto-merge acts on that — never because
+# this file said so.
+#
+# THE SHAPE OF A RUN, and what each stage is there to stop:
+#
+#   quiesce     auto-merge off whatever publication is already open, before this run
+#               does any work at all. A publication waiting on auto-merge is armed: it
+#               lands the moment its checks go green. A newer save has to be able to
+#               replace an older one, and it cannot win a race it never entered — so
+#               the older one is disarmed first and re-armed only by a run that gets
+#               all the way to a pushed branch.
+#   resolve     two immutable SHAs, taken once. Everything after this reads the SHAs,
+#               never the branch names, so a CMS save landing mid-run cannot change
+#               what is being published underneath the run that is publishing it.
+#   compose     `scripts/cms/compose-publication.mjs` — the allow-list. Only
+#               `content/site/**` and `public/photos/**` cross; every other path is
+#               main's own, whatever the content branch says about it.
+#   validate    `npm run check:content`, the same gate CI runs, against the composed
+#               tree. Invalid content fails here, before a branch or a PR exists.
+#   assert      `scripts/cms/stage-publication.mjs` — the index, checked against the
+#               base commit, independently of what the composer believed it wrote.
+#   stale       the content branch, re-read immediately before the push. A newer save
+#               means this run's snapshot is out of date and must not be published.
+#   push / PR   one stable branch, at most one open pull request, auto-merge enabled.
+#   supersede   the other ending. Nothing to publish means `main` already carries what
+#               the owner last saved, which makes any publication still open a route
+#               for older content to reach `main` behind the newer save's back. It is
+#               closed, and no commit, branch update or pull request is made.
+#
+# MANUAL ONLY, FOR NOW. The trigger is `workflow_dispatch` and nothing else: a
+# `workflow_dispatch` workflow cannot be dispatched until it is on the default branch,
+# so this has to be merged and run by hand once before it can be trusted to run itself.
+# Arming the `content` push trigger is a later, separate change.
+#
+# Third-party actions are pinned by commit SHA, never by tag (§14) — a moving tag is a
+# supply-chain hole. The comment records which release each SHA is.
+
+on:
+  workflow_dispatch:
+
+# Nothing. Every mutation here is made with the App's installation token, so the
+# workflow's own token needs no scope — not even `contents: read`, because the checkout
+# is authenticated as the App too.
+permissions: {}
+
+# One publication at a time, and a newer run supersedes an older one: if two are queued,
+# the second is composing from newer content and the first would only publish a snapshot
+# that is already out of date. The stale-content guard below holds the same line
+# independently, for the case where a save lands while a run is already working.
+concurrency:
+  group: cms-publish
+  cancel-in-progress: true
+
+env:
+  CI: true
+  NEXT_TELEMETRY_DISABLED: 1
+  # The three branches this workflow knows about, named once.
+  BASE_BRANCH: main
+  CONTENT_BRANCH: content
+  PUBLICATION_BRANCH: cms-publish
+
+defaults:
+  run:
+    # `bash` rather than the default `sh`-flavoured bash: it adds `pipefail`, so a
+    # failure on the left of a pipe fails the step instead of being swallowed.
+    shell: bash
+
+jobs:
+  publish:
+    name: Compose and open a CMS publication
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      # The App has Contents and Pull requests, both read/write, and nothing else. Asking
+      # for exactly those two narrows the token to what a publication uses and makes the
+      # request fail loudly if the installation is ever changed underneath it.
+      - name: Mint an installation token for the publishing App
+        id: app
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          client-id: ${{ vars.CMS_PUBLISH_APP_CLIENT_ID }}
+          private-key: ${{ secrets.CMS_PUBLISH_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      # `main` explicitly, not whatever ref the dispatch came from: a publication is
+      # composed onto production, and the scripts that compose it are production's.
+      # The full history, because the branch this builds is pushed, and the App token,
+      # because the push must be the App's rather than the workflow's.
+      - name: Check out main
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.BASE_BRANCH }}
+          fetch-depth: 0
+          token: ${{ steps.app.outputs.token }}
+
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # First, and gated on nothing. The publication that is already open is waiting on
+      # auto-merge, which means it lands by itself the moment its checks pass; this run
+      # exists because the owner has saved something newer, and a newer save must be
+      # able to replace an older one. Taking auto-merge off before composing anything
+      # is what removes the race: from here the old snapshot cannot land on its own,
+      # whether this run goes on to publish, to find nothing to publish, or to fail.
+      #
+      # It needs no dependencies — `node:` builtins and `fetch` — so it runs before
+      # `npm ci`, which is the slowest step in the file and would otherwise be a
+      # minute of the old publication still armed.
+      - name: Disarm the publication already in flight
+        id: quiesce
+        env:
+          GITHUB_APP_TOKEN: ${{ steps.app.outputs.token }}
+        run: |
+          node scripts/cms/publication-github.mjs quiesce \
+            --head "$PUBLICATION_BRANCH" \
+            --base "$BASE_BRANCH"
+
+      # The snapshot is taken here and nowhere else. Both branch names are resolved to
+      # full SHAs once; every later step is given a SHA.
+      - name: Resolve the publication's two immutable commits
+        id: refs
+        run: |
+          git fetch --no-tags origin "+refs/heads/${CONTENT_BRANCH}:refs/remotes/origin/${CONTENT_BRANCH}"
+          main_sha="$(git rev-parse HEAD)"
+          content_sha="$(git rev-parse "refs/remotes/origin/${CONTENT_BRANCH}")"
+          echo "main=${main_sha}" >> "$GITHUB_OUTPUT"
+          echo "content=${content_sha}" >> "$GITHUB_OUTPUT"
+          echo "Publishing ${CONTENT_BRANCH}@${content_sha} onto ${BASE_BRANCH}@${main_sha}."
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Named for the SHA, not for `main`: the branch this publication sits on is the
+      # commit resolved above, and stays that commit even if main advances mid-run.
+      - name: Start the publication branch at that main commit
+        env:
+          MAIN_SHA: ${{ steps.refs.outputs.main }}
+        run: git checkout -B "$PUBLICATION_BRANCH" "$MAIN_SHA"
+
+      # The allow-list, and the only step that copies anything. It reads git objects
+      # rather than a checkout, so a hostile path or file mode is refused before it
+      # exists on disk, and the published bytes are the stored blob exactly.
+      - name: Compose the publication
+        env:
+          MAIN_SHA: ${{ steps.refs.outputs.main }}
+          CONTENT_SHA: ${{ steps.refs.outputs.content }}
+        run: |
+          node scripts/cms/compose-publication.mjs \
+            --main "$MAIN_SHA" \
+            --content "$CONTENT_SHA" \
+            --into .
+
+      # The same check CI runs, against the composed tree, reported in Danish for the
+      # person who made the edit. The full browser and accessibility suite is not run
+      # here: the pull request's own required checks own that, and running it twice
+      # would only delay the failure it would find.
+      - name: Validate the composed content
+        run: npm run check:content
+
+      # The last door. Stages the whole tree and refuses to let the commit happen if
+      # anything outside the two publication roots differs from the base commit —
+      # asserted against the real index, not against what the composer believed.
+      - name: Stage it, and refuse anything outside the publication roots
+        id: stage
+        env:
+          MAIN_SHA: ${{ steps.refs.outputs.main }}
+        run: node scripts/cms/stage-publication.mjs --base "$MAIN_SHA"
+
+      # A CMS save that changes nothing publishable is a success with no commit: an
+      # empty commit, or a reformatted file, would be noise in main's history.
+      #
+      # But it is not a success with an open publication left behind. The way this
+      # state is reached is the owner saving B, then saving A again — A being what main
+      # already has. B's pull request is still open, and the stale-content guard cannot
+      # see it, because this run never reaches that guard: there is nothing to commit.
+      # Left open, B would still be a route for the older save to land after the newer
+      # one replaced it, so it is closed. Auto-merge came off it at the top of this run;
+      # this is what stops a person, or a re-run of its checks, from landing it anyway.
+      - name: Close the publication this save supersedes
+        if: steps.stage.outputs.changed != 'true'
+        id: supersede
+        env:
+          GITHUB_APP_TOKEN: ${{ steps.app.outputs.token }}
+          CONTENT_SHA: ${{ steps.refs.outputs.content }}
+        run: |
+          node scripts/cms/publication-github.mjs supersede \
+            --head "$PUBLICATION_BRANCH" \
+            --base "$BASE_BRANCH" \
+            --content-sha "$CONTENT_SHA"
+
+      - name: Nothing to publish
+        if: steps.stage.outputs.changed != 'true'
+        env:
+          CONTENT_SHA: ${{ steps.refs.outputs.content }}
+          SUPERSEDED: ${{ steps.supersede.outputs.number }}
+        run: |
+          {
+            echo "### Nothing to publish"
+            echo
+            echo "\`${CONTENT_BRANCH}\` at \`${CONTENT_SHA}\` matches \`${BASE_BRANCH}\` under the publication roots. No commit, no branch update, no pull request."
+            if [ -n "$SUPERSEDED" ]; then
+              echo
+              echo "Closed #${SUPERSEDED}: it carried content this save has replaced, and an open publication is a publication that can still merge."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      # `main` requires an extra approval for changes it cannot attribute to an account,
+      # and a publication has no approver to give one. The bot's noreply address is
+      # what makes the commit attributable, and it is asked of GitHub at run time rather
+      # than written down, so it cannot go stale.
+      - name: Resolve the publishing bot's git identity
+        id: identity
+        if: steps.stage.outputs.changed == 'true'
+        env:
+          GITHUB_APP_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        run: node scripts/cms/publication-github.mjs identity --app-slug "$APP_SLUG"
+
+      - name: Commit the publication
+        if: steps.stage.outputs.changed == 'true'
+        env:
+          BOT_NAME: ${{ steps.identity.outputs.login }}
+          BOT_EMAIL: ${{ steps.identity.outputs.email }}
+          CONTENT_SHA: ${{ steps.refs.outputs.content }}
+        run: |
+          short="$(git rev-parse --short "$CONTENT_SHA")"
+          git -c "user.name=${BOT_NAME}" -c "user.email=${BOT_EMAIL}" commit --quiet \
+            --message "cms: publish content" \
+            --message "Source content: ${short}"
+          git --no-pager log -1 --format='%H%n%an <%ae>%n%s'
+
+      # The guard that matters. A save that landed while this run was composing means
+      # the snapshot in hand is already old, and publishing it would undo the newer one.
+      # Read immediately before the push, so the window it leaves open is the push itself.
+      - name: Refuse to publish a stale snapshot
+        if: steps.stage.outputs.changed == 'true'
+        env:
+          CONTENT_SHA: ${{ steps.refs.outputs.content }}
+        run: |
+          git fetch --no-tags origin "+refs/heads/${CONTENT_BRANCH}:refs/remotes/origin/${CONTENT_BRANCH}"
+          now="$(git rev-parse "refs/remotes/origin/${CONTENT_BRANCH}")"
+          if [ "$now" != "$CONTENT_SHA" ]; then
+            echo "::error::A newer CMS save exists. This run composed ${CONTENT_BRANCH}@${CONTENT_SHA}, which is now at ${now}. Nothing was published; run this workflow again to publish the newer save."
+            exit 1
+          fi
+          echo "${CONTENT_BRANCH} is still at ${CONTENT_SHA}."
+
+      # The publication branch is rebuilt on the current main every time, so the push is
+      # never a fast-forward. `--force-with-lease` against the SHA just read is what
+      # makes that safe: if the remote branch moved between the read and the push, the
+      # push is refused rather than silently discarding whatever moved it. When the
+      # branch does not exist yet, an ordinary push creates it — and fails, rather than
+      # forcing, if something created it in the meantime.
+      - name: Push the publication branch
+        if: steps.stage.outputs.changed == 'true'
+        run: |
+          remote="$(git ls-remote origin "refs/heads/${PUBLICATION_BRANCH}" | cut -f1)"
+          if [ -n "$remote" ]; then
+            echo "${PUBLICATION_BRANCH} is at ${remote}; replacing it only if it is still there."
+            git push --force-with-lease="refs/heads/${PUBLICATION_BRANCH}:${remote}" \
+              origin "HEAD:refs/heads/${PUBLICATION_BRANCH}"
+          else
+            echo "${PUBLICATION_BRANCH} does not exist yet; creating it."
+            git push origin "HEAD:refs/heads/${PUBLICATION_BRANCH}"
+          fi
+
+      # One pull request, reused if it is already open, and auto-merge enabled on it.
+      # This is where the disarming at the top of the run is undone, and the only place
+      # it is: by now the branch carries this run's snapshot, composed, validated and
+      # pushed, so what gets re-armed is always the newer content and never the older
+      # publication that was disarmed. Every path that does not reach this step — an
+      # invalid save, a hostile path, a stale snapshot — leaves the pull request open
+      # and disarmed, which is a decision waiting for a person rather than a merge
+      # waiting for a timer.
+      #
+      # Nothing here merges anything: the required checks decide, and if they fail the
+      # pull request simply stays open and main is untouched.
+      - name: Open or reuse the publication pull request
+        id: pr
+        if: steps.stage.outputs.changed == 'true'
+        env:
+          GITHUB_APP_TOKEN: ${{ steps.app.outputs.token }}
+          CONTENT_SHA: ${{ steps.refs.outputs.content }}
+          MAIN_SHA: ${{ steps.refs.outputs.main }}
+        run: |
+          node scripts/cms/publication-github.mjs pr \
+            --head "$PUBLICATION_BRANCH" \
+            --base "$BASE_BRANCH" \
+            --content-sha "$CONTENT_SHA" \
+            --main-sha "$MAIN_SHA"
+
+      - name: Record what was published
+        if: steps.stage.outputs.changed == 'true'
+        env:
+          PR_URL: ${{ steps.pr.outputs.url }}
+          CONTENT_SHA: ${{ steps.refs.outputs.content }}
+          MAIN_SHA: ${{ steps.refs.outputs.main }}
+          CHANGED_PATHS: ${{ steps.stage.outputs.count }}
+        run: |
+          {
+            echo "### Publication opened"
+            echo
+            echo "- Pull request: ${PR_URL}"
+            echo "- Source content: \`${CONTENT_SHA}\`"
+            echo "- Composed on: \`${MAIN_SHA}\`"
+            echo "- Paths changed: ${CHANGED_PATHS}"
+            echo
+            echo "It merges when the required checks pass, and not before."
+          } >> "$GITHUB_STEP_SUMMARY"
