@@ -3,21 +3,23 @@
  * Compose the tree a publication PR should contain: the owner's content, over the
  * repository's code, for two directories and nothing else.
  *
- * WHAT THIS IS FOR. Pages CMS writes the restaurant's edits to the long-lived
- * `content` branch. Nothing there is ever deployed: production is built from `main`.
+ * WHAT THIS IS FOR. Pages CMS writes the restaurant's edits to `main` of
+ * `myimaginarii/klingenberg-content`. Nothing there is ever deployed: production is
+ * built from this repository's `main`.
  * Getting an edit from one to the other is a *publication* — a commit on top of `main`
  * that carries the owner's content and not one byte else. This script composes that
  * commit's tree and refuses to compose anything wider.
  *
  * THE TRUST BOUNDARY, stated once:
  *
- *     main     trusted   code, configuration, workflows, CI, the CMS's own .pages.yml
+ *     main     trusted   code, configuration, workflows, CI
  *     content  untrusted owner-authored data, written by a browser, reviewed by nobody
+ *                        (the content repository, fetched as objects, never checked out)
  *
  * Exactly two directories cross it, and they are named in {@link PUBLICATION_ROOTS}:
  * `content/site/` (the JSON the loaders read) and `public/photos/` (the photograph
  * sources the image build measures). Everything else in the publication tree comes
- * from `main`, whatever the `content` branch happens to say about it — so an edit that
+ * from `main`, whatever the content commit happens to say about it — so an edit that
  * changed a workflow, `.pages.yml`, `package.json`, `app/`, `tests/` or
  * `content/launch/` cannot reach production through this door, because this door only
  * ever *selects* those two prefixes. The allow-list is what decides; the long list of
@@ -31,7 +33,7 @@
  *
  * IT READS GIT OBJECTS, NOT THE FILESYSTEM. Both trees are read with `git ls-tree`, so
  * every path and every file mode is checked *before* anything is written anywhere. A
- * symbolic link in the content branch is refused as a mode in a tree listing rather
+ * symbolic link in the content commit is refused as a mode in a tree listing rather
  * than discovered as a link on disk after a checkout has already materialised it. It
  * is also why the bytes are exact: `git cat-file blob` is the stored blob, byte for
  * byte, with no end-of-line conversion, no re-serialised JSON and no added trailing
