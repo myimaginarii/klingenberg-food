@@ -14,11 +14,14 @@ name: CMS publication status
 # whether what just failed was a CMS publication, and keeps a single Danish issue open
 # for as long as the restaurant's edit cannot reach the website.
 #
-# WHAT IT MAY DO. It opens, comments on and closes issues, and that is the whole of it:
-# `issues: write` and nothing else, so it cannot read or write the repository, touch a
-# branch, touch a pull request, or ask for a workflow run. It holds no App credentials,
-# no PAT and no host credentials — only the run's own `GITHUB_TOKEN`, scoped to that one
-# permission.
+# WHAT IT MAY DO. Writing issues is the only thing it may change: it opens, comments on
+# and closes them, and there is no second mutation anywhere in the file. Alongside that
+# it holds `contents: read`, which is read-only and exists for exactly one call — asking
+# the REST API for the full commit that just landed on `main`, because the push payload
+# Actions delivers does not say which files a commit touched (see the recovery job). It
+# cannot write a file, push a branch, touch a pull request, or ask for a workflow run. It
+# holds no App credentials, no PAT and no host credentials — only the run's own
+# `GITHUB_TOKEN`, scoped to those two.
 #
 # WHY IT IS A SEPARATE FILE. `cms-publish.yml` is the publication and holds the App
 # private key that can push branches and open pull requests. Giving it issue-writing
@@ -35,6 +38,11 @@ name: CMS publication status
 # Downloading the failed run's artifacts would do the same. So there is no checkout, no
 # artifact download, no `npm ci`, and no `uses:` of any kind. Everything below is `gh`
 # and `jq`, both preinstalled on the runner, reading the event payload from disk.
+#
+# `contents: read` does not weaken that. Reading one commit's metadata over the REST API
+# is not a checkout: nothing from any run is written to the runner's disk as code, and
+# nothing is executed. The commit arrives as JSON and is treated as data, exactly as the
+# event payload is.
 #
 # WHY NO EXPRESSION REACHES A `run:` BODY. A `${{ }}` is substituted as text before bash
 # sees the line, so a value GitHub hands back would be parsed as code. Every value this
@@ -64,11 +72,18 @@ on:
     branches:
       - main
 
-# One permission, and it is the narrowest one that can write an issue. Naming the block
-# at all sets every scope it does not list to `none` — no `contents`, so this job cannot
-# read or write a single file; no `pull-requests`, so it cannot touch the publication;
-# no `actions`, so it cannot start, cancel or re-run anything.
+# Two scopes, and only one of them can change anything. Naming the block at all sets
+# every scope it does not list to `none` — no `pull-requests`, so it cannot touch the
+# publication; no `actions`, so it cannot start, cancel or re-run anything; no
+# `workflows`, `deployments` or `id-token`.
+#
+# `contents: read` is what GitHub documents the "Get a commit" endpoint as requiring, and
+# that one call is the whole reason it is here: the recovery job has to know which files
+# the commit on `main` touched, and the Actions push payload does not carry that. Reading
+# is all it permits — `contents: write` would be the scope that could push, and it is not
+# granted.
 permissions:
+  contents: read
   issues: write
 
 # Serialised, never cancelled. Two failures arriving together must not both decide that
@@ -92,6 +107,13 @@ env:
   # The branch the publisher pushes. A CI failure counts as a publication failure only
   # when it belongs to this branch.
   PUBLICATION_BRANCH: cms-publish
+  # The GitHub account the publishing App commits as, exactly as the API reports it in a
+  # commit's top-level `author.login`. This is an identity, not a description: the weaker
+  # test "the author's name ends in [bot]" is satisfied by dependabot, by any other App
+  # installed here, and by a human whose display name ends in those five characters, none
+  # of which prove that the commit came from this publisher. Renaming the App deliberately
+  # is a one-line change here; nothing else in the repository has to move.
+  PUBLISHER_BOT: 'klingenberg-food-publisher[bot]'
   # One open issue, found by its marker rather than by its title, so rewording the title
   # for a human reader cannot split it into two.
   ISSUE_TITLE: 'CMS: Udgivelse kræver hjælp'
@@ -247,42 +269,88 @@ jobs:
     steps:
       - name: Close the failure issue when a CMS publication lands
         run: |
-          # What a landed publication looks like, measured rather than remembered. The
-          # publication pull request is squash-merged, so it arrives on `main` as one
-          # single-parent commit:
+          quiet() {
+            echo "$1"
+            exit 0
+          }
+
+          # WHY THE PUSH PAYLOAD IS NOT THE EVIDENCE. A `push` webhook carries `added`,
+          # `modified` and `removed` on each commit — but GitHub documents that the push
+          # payload *delivered to Actions* leaves those three out, and says the full
+          # commit has to be fetched from the REST API instead. Read them here and every
+          # one of them is an empty list on every run, on a real publication as much as
+          # on anything else. A classifier built on them cannot ever see a changed file,
+          # so it can never recognise a recovery: the issue opened by a failed
+          # publication would stay open through the publication that fixed it, and
+          # through every publication after that, with nothing to say why. CI cannot
+          # catch this — the workflow is valid, the jq is valid, and the wrong answer is
+          # the same silence as the right one.
           #
-          #   author   klingenberg-food-publisher[bot]
-          #   subject  cms: publish content (#23)
-          #   body     Source content: bf52c7b
-          #   paths    content/site/** and public/photos/**, and nothing else
+          # So the event is asked for one thing only: which commit is now the tip.
+          after="$(jq -r '.after // ""' "$GITHUB_EVENT_PATH")"
+
+          case "$after" in
+            '' | *[!0-9a-f]*) quiet "No commit SHA on this push: nothing to resolve." ;;
+            0000000000000000000000000000000000000000)
+              quiet "A branch deletion, not a publication." ;;
+          esac
+          if [ "${#after}" -ne 40 ]; then
+            quiet "Not a full commit SHA: nothing to resolve."
+          fi
+
+          # The one call `contents: read` exists for. This reads history that is already
+          # public on `main`; it is not a checkout, nothing is written to disk as code,
+          # and nothing from any run is executed. The response is JSON, and it is treated
+          # as data from here on.
+          commit="${RUNNER_TEMP}/cms-publication-commit.json"
+          if ! gh api "repos/${GITHUB_REPOSITORY}/commits/${after}" > "$commit"; then
+            quiet "Could not read ${after}: leaving any open issue alone."
+          fi
+
+          # What a landed publication looks like, measured rather than remembered — the
+          # shape of a794743, the first publication to reach `main`. The publication pull
+          # request is squash-merged, so it arrives as one commit:
           #
-          # All four are required here, and the paths are the one that cannot be
-          # imitated by accident: `scripts/cms/compose-publication.mjs` and
-          # `scripts/cms/stage-publication.mjs` are what make it true, and no ordinary
-          # feature merge is confined to those two roots. The App's login is not written
-          # down — only that the author is a bot — so renaming or rotating the App does
-          # not silently stop recovery from working.
+          #   author.login     klingenberg-food-publisher[bot]
+          #   commit.message   cms: publish content (#23)
+          #                    Source content: bf52c7b
+          #   files            content/site/** and public/photos/**, and nothing else
           #
-          # This fails closed. A publication shaped differently leaves the issue open
-          # for a person to close, which is the right way round: an issue closed by
-          # mistake says the restaurant's edit is live when it is not.
-          landed="$(jq -r '
-            ((.commits // [])
-              + (if .head_commit == null then [] else [.head_commit] end))
-            | map(select((.author.name // "") | endswith("[bot]")))
-            | map(select((.message // "") | startswith("cms: publish content")))
-            | map(select((.message // "") | contains("Source content: ")))
-            | map(select(
-                (((.added // []) + (.modified // []) + (.removed // [])) | length) > 0
-                and (((.added // []) + (.modified // []) + (.removed // []))
-                     | all(startswith("content/site/") or startswith("public/photos/")))
-              ))
-            | last
-            | if . == null then empty else .id end
-          ' "$GITHUB_EVENT_PATH")"
+          # All four are required. `author.login` is the App's GitHub account as the API
+          # reports it, not the display name in the commit object: a display name is
+          # written by whoever makes the commit and can say anything, including something
+          # ending in "[bot]". The paths are the condition no ordinary feature merge can
+          # satisfy by accident — `scripts/cms/compose-publication.mjs` and
+          # `scripts/cms/stage-publication.mjs` are what confine a publication to those
+          # two roots, and nothing else in this repository is confined to them.
+          #
+          # A rename is counted at both ends. The publisher never produces one, but a
+          # commit that moved a file *into* an allowed root would otherwise look
+          # publication-only while having taken something from outside it.
+          #
+          # This fails closed throughout. A commit shaped differently leaves the issue
+          # open for a person to close, which is the right way round: an issue closed by
+          # mistake says the restaurant's edit is live when it is not. The file list is
+          # capped at 300 by the API, so a commit at that cap is treated as unreadable
+          # rather than assumed to be confined.
+          landed="$(jq -r --arg bot "$PUBLISHER_BOT" '
+            def allowed: startswith("content/site/") or startswith("public/photos/");
+            def confined:
+              ((.filename // "") | allowed)
+              and ((.previous_filename // "") | . == "" or allowed);
+            if ((.author.login // "") == $bot)
+              and ((.commit.message // "") | startswith("cms: publish content"))
+              and ((.commit.message // "") | contains("Source content: "))
+              and (((.files // []) | length) > 0)
+              and (((.files // []) | length) < 300)
+              and ((.files // []) | all(confined))
+            then (.sha // empty)
+            else empty
+            end
+          ' "$commit")"
 
           if [ -z "$landed" ]; then
-            echo "No CMS publication in this push: nothing to resolve."
+            echo "Not a CMS publication (${after}): nothing to resolve."
             exit 0
           fi
 

@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -28,8 +29,14 @@ import { PUBLICATION_ROOTS } from '../../../scripts/cms/compose-publication.mjs'
  * restated by a test. What is asserted is every property whose loss would be silent —
  * the two workflows it watches (by the name those files actually declare), the narrow
  * set of conclusions that mean a person is needed, the fact that an ordinary branch's
- * red CI cannot reach it, the single permission, the absence of every credential and of
- * any code from the run that failed, and the shape of the commit that closes the issue.
+ * red CI cannot reach it, the two permissions and which of them can change anything, the
+ * absence of every credential and of any code from the run that failed, and the shape of
+ * the commit that closes the issue.
+ *
+ * AND WHERE SHAPE IS NOT ENOUGH. The recovery classifier shipped wrong once, in a way no
+ * assertion about shape could have found: it read the changed-file arrays of a `push`
+ * payload, which GitHub Actions does not deliver, so it was always looking at three empty
+ * lists. The last block runs the real jq against real payload fixtures for that reason.
  */
 
 const WORKFLOWS = join(process.cwd(), '.github', 'workflows')
@@ -117,8 +124,12 @@ describe('what the observer watches', () => {
 })
 
 describe('what the observer may do', () => {
-  it('is granted issue-writing, and nothing else at all', () => {
-    expect(observer.doc.permissions).toEqual({ issues: 'write' })
+  it('is granted issue-writing and a read of the repository, and nothing else at all', () => {
+    // `contents: read` is what GitHub documents "Get a commit" as needing, and that one
+    // call is the whole reason for it: the Actions push payload does not say which files
+    // a commit touched, so recovery has to ask for the commit itself. Read-only, and
+    // issue-writing stays the only thing this workflow can change.
+    expect(observer.doc.permissions).toEqual({ contents: 'read', issues: 'write' })
 
     // One `permissions:` block in the file, at the top. A job that re-declared its own
     // would be granted whatever it asked for, silently widening this.
@@ -128,9 +139,16 @@ describe('what the observer may do', () => {
     }
   })
 
-  it('is granted none of the scopes that could touch the repository or the publication', () => {
+  it('may read the repository but never write to it', () => {
+    // The distinction the whole design rests on. `contents: write` is the scope that
+    // could push to `main` — that is the publisher's job, under an App key, behind the
+    // required checks, and it must never be something the alarm can do.
+    expect(observer.doc.permissions.contents).toBe('read')
+    expect(observer.doc.permissions.contents).not.toBe('write')
+  })
+
+  it('is granted none of the scopes that could touch the publication or the runs', () => {
     for (const scope of [
-      'contents',
       'pull-requests',
       'actions',
       'workflows',
@@ -363,13 +381,49 @@ describe('resolving the issue', () => {
     expect(failureScript).not.toContain("$conclusion\" = \"success")
   })
 
-  it('requires the four things a landed publication has, and an ordinary merge has not', () => {
-    // Measured from the two publications that have landed: a squash commit authored by
-    // the publishing App, subject `cms: publish content (#N)`, a `Source content:`
-    // trailer, and changed paths confined to the publication roots.
-    expect(recoveryScript).toContain('endswith("[bot]")')
+  it('takes only the tip SHA from the push event, and the commit from the API', () => {
+    // THE BUG THIS REPLACES, and why nothing caught it. A `push` webhook carries
+    // `added`, `modified` and `removed` on every commit — but GitHub documents that the
+    // push payload *delivered to Actions* omits all three, and says the full commit must
+    // be fetched from the REST API. The first version of this job read those arrays,
+    // required at least one changed path, and therefore could never recognise a
+    // recovery: the issue a failed publication opened would have stayed open through the
+    // publication that fixed it, with the workflow green and silent throughout.
+    expect(recoveryScript).toContain('jq -r \'.after // ""\' "$GITHUB_EVENT_PATH"')
+    expect(recoveryScript).toContain('gh api "repos/${GITHUB_REPOSITORY}/commits/${after}"')
+  })
+
+  it('reads no changed-file list out of the push event, because there is not one', () => {
+    for (const absent of [
+      '.added',
+      '.modified',
+      '.removed',
+      '.commits',
+      '.head_commit',
+      'endswith("[bot]")',
+    ]) {
+      expect(recoveryScript, absent).not.toContain(absent)
+    }
+  })
+
+  it('requires the exact account the publishing App commits as', () => {
+    // `author.name` is a display name written by whoever makes the commit, so "ends in
+    // [bot]" proves nothing: dependabot satisfies it, any other App installed here
+    // satisfies it, and so does a person who types those five characters. `author.login`
+    // is the GitHub account, and the account is the identity.
+    expect(observer.doc.env.PUBLISHER_BOT).toBe('klingenberg-food-publisher[bot]')
+    expect(recoveryScript).toContain('--arg bot "$PUBLISHER_BOT"')
+    expect(recoveryScript).toContain('((.author.login // "") == $bot)')
+    expect(recoveryScript).not.toContain('.commit.author.name')
+  })
+
+  it('requires the publication subject, the source trailer and a changed file', () => {
+    // Measured from a794743, the first publication to reach `main`: subject
+    // `cms: publish content (#23)`, a `Source content:` trailer, one file under
+    // `content/site/`.
     expect(recoveryScript).toContain('startswith("cms: publish content")')
     expect(recoveryScript).toContain('contains("Source content: ")')
+    expect(recoveryScript).toContain('(((.files // []) | length) > 0)')
   })
 
   it('confines a landed publication to the roots the composer allows across', () => {
@@ -380,11 +434,11 @@ describe('resolving the issue', () => {
     expect(paths.sort()).toEqual(PUBLICATION_ROOTS.map((root) => `${root}/`).sort())
   })
 
-  it('does not identify the publisher by a name that can be changed', () => {
-    // The App's login is not written down — only that the author is a bot — so renaming
-    // or rotating the App cannot silently stop recovery from working.
-    expect(recoveryScript).not.toContain('klingenberg-food-publisher[bot]"')
-    expect(recoveryScript).not.toContain('users.noreply.github.com')
+  it('counts a rename at both ends, so nothing can be moved in from outside', () => {
+    // The publisher never renames across a root boundary. But a commit that moved a file
+    // *into* `content/site/` would list only the new path as its filename, and would
+    // otherwise look publication-only while having taken something from outside.
+    expect(recoveryScript).toContain('.previous_filename')
   })
 
   it('fails closed: an unrecognised commit leaves the issue open', () => {
@@ -406,5 +460,263 @@ describe('resolving the issue', () => {
 
   it('does nothing when a publication lands and nothing was open', () => {
     expect(recoveryScript).toContain('Nothing to do.')
+  })
+})
+
+/**
+ * The classifier, run rather than read.
+ *
+ * Everything above asserts the *shape* of the recovery job, and shape is what let the
+ * first version of it ship broken: the jq was valid, the YAML was valid, the workflow ran
+ * green, and the answer was always "no publication here". The only thing that would have
+ * caught it is running the decision against a payload the way GitHub actually delivers
+ * one — an Actions push event with no `added`, `modified` or `removed` anywhere in it.
+ *
+ * So the two jq programs are lifted out of the workflow as the workflow defines them and
+ * executed against fixtures. Nothing is restated in JavaScript: a rewritten copy of the
+ * classifier would agree with itself while the workflow stayed wrong.
+ *
+ * `jq` is preinstalled on GitHub's runners, which is why the workflow may rely on it and
+ * why CI is where this block is binding. A developer's machine may not have it; there,
+ * these tests skip, and the assertions above still hold.
+ */
+
+const jq = (() => {
+  const probe = spawnSync('jq', ['--version'], { encoding: 'utf8' })
+  return probe.status === 0 ? probe.stdout.trim() : null
+})()
+
+/** Every `jq -r` program in a script, in the order the script runs them. */
+function jqPrograms(script) {
+  return [...script.matchAll(/\bjq -r\b[^'\n]*'([^']*)'/g)].map((match) => match[1])
+}
+
+/** One of those programs, against one payload, with the arguments the workflow passes. */
+function runJq(program, payload, args = []) {
+  const result = spawnSync('jq', ['-r', ...args, program], {
+    input: JSON.stringify(payload),
+    encoding: 'utf8',
+  })
+
+  expect(result.stderr ?? '', 'jq should not error').toBe('')
+  expect(result.status, 'jq should exit cleanly').toBe(0)
+  return result.stdout.trim()
+}
+
+/**
+ * A push to `main`, reduced to the fields this job could reach for — and shaped the way
+ * GitHub Actions delivers one. The commits carry `id`, `message` and `author`, and they
+ * do not carry `added`, `modified` or `removed`: that omission is the whole point of the
+ * fixture, and it is the documented behaviour of the Actions push payload.
+ */
+const ACTIONS_PUSH_EVENT = Object.freeze({
+  ref: 'refs/heads/main',
+  before: '1111111111111111111111111111111111111111',
+  after: '2222222222222222222222222222222222222222',
+  created: false,
+  deleted: false,
+  forced: false,
+  repository: { full_name: 'owner/repo', default_branch: 'main' },
+  head_commit: {
+    id: '2222222222222222222222222222222222222222',
+    message: 'cms: publish content (#31)\n\nSource content: abc1234',
+    author: { name: 'klingenberg-food-publisher[bot]', email: 'publisher@example.test' },
+  },
+  commits: [
+    {
+      id: '2222222222222222222222222222222222222222',
+      message: 'cms: publish content (#31)\n\nSource content: abc1234',
+      author: { name: 'klingenberg-food-publisher[bot]', email: 'publisher@example.test' },
+    },
+  ],
+})
+
+/** "Get a commit" for that SHA — a real publication, as the REST API returns it. */
+function publicationCommit(overrides = {}) {
+  return {
+    sha: '2222222222222222222222222222222222222222',
+    author: { login: 'klingenberg-food-publisher[bot]', type: 'Bot' },
+    committer: { login: 'web-flow', type: 'User' },
+    commit: {
+      author: { name: 'klingenberg-food-publisher[bot]' },
+      message: 'cms: publish content (#31)\n\nSource content: abc1234',
+    },
+    parents: [{ sha: '1111111111111111111111111111111111111111' }],
+    files: [{ filename: 'content/site/pages/home.json', status: 'modified' }],
+    ...overrides,
+  }
+}
+
+/** The same endpoint for an ordinary feature merge. */
+function featureMerge() {
+  return {
+    sha: '4444444444444444444444444444444444444444',
+    author: { login: 'a-developer', type: 'User' },
+    committer: { login: 'web-flow', type: 'User' },
+    commit: {
+      author: { name: 'A Developer' },
+      message: 'Merge pull request #44 from owner/some-branch\n\nmenu: tidy a selector',
+    },
+    parents: [{ sha: '1111111111111111111111111111111111111111' }, { sha: '5555555' }],
+    files: [
+      { filename: 'lib/content/load/menu.ts', status: 'modified' },
+      { filename: 'content/site/menu.json', status: 'modified' },
+    ],
+  }
+}
+
+describe.skipIf(!jq)('the classifier, run against fixtures', () => {
+  const [readTip, classify] = jqPrograms(recoveryScript)
+  const bot = ['--arg', 'bot', observer.doc.env.PUBLISHER_BOT]
+  const LANDED = '2222222222222222222222222222222222222222'
+
+  it('lifts exactly the two programs the recovery job runs', () => {
+    expect(jqPrograms(recoveryScript)).toHaveLength(2)
+  })
+
+  it('recovers the tip SHA from an Actions push event that has no changed-file arrays', () => {
+    // The regression, stated as plainly as it can be. This fixture is what the workflow
+    // is handed on a real publication; the old classifier read three empty lists out of
+    // it and concluded nothing had landed.
+    const payload = JSON.stringify(ACTIONS_PUSH_EVENT)
+
+    for (const field of ['"added"', '"modified"', '"removed"']) {
+      expect(payload, field).not.toContain(field)
+    }
+    expect(runJq(readTip, ACTIONS_PUSH_EVENT)).toBe(ACTIONS_PUSH_EVENT.after)
+  })
+
+  it('would have found nothing had it kept reading the push event', () => {
+    // The defect itself, executed: the expression this replaces, on the payload above.
+    const broken = [
+      '((.commits // []) + (if .head_commit == null then [] else [.head_commit] end))',
+      '| map(select((((.added // []) + (.modified // []) + (.removed // [])) | length) > 0))',
+      '| length',
+    ].join('\n')
+
+    expect(runJq(broken, ACTIONS_PUSH_EVENT)).toBe('0')
+  })
+
+  it('recognises the commit that SHA resolves to', () => {
+    expect(runJq(classify, publicationCommit(), bot)).toBe(LANDED)
+  })
+
+  it('rejects an ordinary feature merge, even one that touched a publication root', () => {
+    // The feature merge in the fixture edits `content/site/menu.json` alongside its own
+    // code — allowed for a developer, and still not a publication.
+    expect(runJq(classify, featureMerge(), bot)).toBe('')
+  })
+
+  it('rejects a commit from any account but the publisher', () => {
+    for (const login of ['dependabot[bot]', 'github-actions[bot]', 'a-developer']) {
+      const commit = publicationCommit({ author: { login, type: 'Bot' } })
+
+      expect(runJq(classify, commit, bot), login).toBe('')
+    }
+  })
+
+  it('rejects a display name ending in [bot] on somebody else’s commit', () => {
+    // What the weaker test would have accepted: `commit.author.name` is typed by whoever
+    // makes the commit, and the account behind it is somebody else entirely.
+    const commit = publicationCommit({
+      author: { login: 'a-developer', type: 'User' },
+      commit: {
+        author: { name: 'klingenberg-food-publisher[bot]' },
+        message: 'cms: publish content (#31)\n\nSource content: abc1234',
+      },
+    })
+
+    expect(runJq(classify, commit, bot)).toBe('')
+  })
+
+  it('rejects a commit with no author the API can name', () => {
+    expect(runJq(classify, publicationCommit({ author: null }), bot)).toBe('')
+  })
+
+  it('rejects the publication subject without the trailer, and the trailer without it', () => {
+    const noTrailer = publicationCommit({
+      commit: { author: { name: 'x' }, message: 'cms: publish content (#31)' },
+    })
+    const noSubject = publicationCommit({
+      commit: { author: { name: 'x' }, message: 'chore: tidy up\n\nSource content: abc1234' },
+    })
+
+    expect(runJq(classify, noTrailer, bot)).toBe('')
+    expect(runJq(classify, noSubject, bot)).toBe('')
+  })
+
+  it('rejects a commit that changed nothing', () => {
+    expect(runJq(classify, publicationCommit({ files: [] }), bot)).toBe('')
+    expect(runJq(classify, publicationCommit({ files: undefined }), bot)).toBe('')
+  })
+
+  it('rejects a single path outside the publication roots', () => {
+    for (const filename of ['package.json', 'lib/config/site.ts', '.github/workflows/ci.yml']) {
+      const commit = publicationCommit({
+        files: [{ filename: 'content/site/pages/home.json' }, { filename }],
+      })
+
+      expect(runJq(classify, commit, bot), filename).toBe('')
+    }
+  })
+
+  it('accepts every root the composer allows across', () => {
+    const commit = publicationCommit({
+      files: PUBLICATION_ROOTS.map((root) => ({ filename: `${root}/whatever.txt` })),
+    })
+
+    expect(runJq(classify, commit, bot)).toBe(LANDED)
+  })
+
+  it('rejects a rename that brought a file in from outside a root', () => {
+    // Fails closed. The publisher cannot produce this — it only ever copies inside the
+    // two roots — but the new path alone would say "publication" about a commit that
+    // took something from somewhere else.
+    const commit = publicationCommit({
+      files: [
+        {
+          filename: 'content/site/pages/home.json',
+          status: 'renamed',
+          previous_filename: 'lib/config/site.ts',
+        },
+      ],
+    })
+
+    expect(runJq(classify, commit, bot)).toBe('')
+  })
+
+  it('accepts a rename that stayed inside the roots', () => {
+    const commit = publicationCommit({
+      files: [
+        {
+          filename: 'public/photos/hero.jpg',
+          status: 'renamed',
+          previous_filename: 'public/photos/forside.jpg',
+        },
+      ],
+    })
+
+    expect(runJq(classify, commit, bot)).toBe(LANDED)
+  })
+
+  it('rejects a file list long enough that the API may have truncated it', () => {
+    // "Get a commit" returns at most 300 files. At the cap the list cannot be trusted to
+    // be the whole commit, and a path outside the roots could be one of the ones left
+    // out — so the commit is treated as unreadable rather than assumed to be confined.
+    const files = (count) =>
+      Array.from({ length: count }, (_, index) => ({ filename: `public/photos/p${index}.jpg` }))
+
+    expect(runJq(classify, publicationCommit({ files: files(299) }), bot)).toBe(LANDED)
+    expect(runJq(classify, publicationCommit({ files: files(300) }), bot)).toBe('')
+  })
+})
+
+describe('jq itself', () => {
+  it('is present wherever this suite is the gate', () => {
+    // The block above skips without it, and a silently skipped regression test is the
+    // same failure mode as the bug it guards. In CI — which is what `main` is protected
+    // by — its absence is a failure.
+    if (!process.env.CI) return
+    expect(jq, 'jq must be on PATH in CI').toBeTruthy()
   })
 })
