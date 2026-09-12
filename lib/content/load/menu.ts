@@ -1,14 +1,14 @@
-import type {
-  Dish,
-  MenuCategory,
-  MenuCategoryKind,
-  MenuContent,
-  MonthlyBurger,
-  TapasBoard,
-  TapasGroup,
-  WeeklySpecial,
+import {
+  BURGER_MENU_SECTION_ID,
+  type Dish,
+  type MenuCategory,
+  type MenuCategoryKind,
+  type MenuContent,
+  type MonthlyBurger,
+  type TapasBoard,
+  type TapasGroup,
+  type WeeklySpecial,
 } from '@/lib/content/types'
-import { MONTHLY_BURGER_MENU_SECTION_SLUG } from '@/lib/menu/monthly'
 import type { IsoDate } from '@/lib/time/calendar'
 
 import {
@@ -187,9 +187,12 @@ function assertUnique(kind: string, ids: readonly string[], where: string): void
  * each number and "kr." — approved typography from before the content lived in JSON
  * (`./text.ts` states the rule and its limits). Every other section's intro is the text
  * as written.
+ *
+ * The section is found by the reserved id rather than by its heading, which is the
+ * restaurant's to reword; `lib/content/validate/menu.ts` keeps that id in the document.
  */
 function sectionIntro(sectionId: string, intro: string | null): string | null {
-  if (intro === null || sectionId !== MONTHLY_BURGER_MENU_SECTION_SLUG) return intro
+  if (intro === null || sectionId !== BURGER_MENU_SECTION_ID) return intro
   return keepPriceTogether(intro)
 }
 

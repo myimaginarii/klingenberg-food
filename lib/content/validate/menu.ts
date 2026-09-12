@@ -1,4 +1,5 @@
 import {
+  BURGER_MENU_SECTION_ID,
   MENU_CATEGORY_KINDS,
   TAPAS_GROUP_IDS,
   TAPAS_GROUP_MODES,
@@ -55,6 +56,12 @@ import { add, at, readableName, type Problem } from './problems'
  *     removing the section removes that body from the menu, which the renderer
  *     handles by drawing nothing. Neither restriction is fixed here: lifting one
  *     means changing the renderer.
+ *   * **One section id is reserved.** `BURGER_MENU_SECTION_ID` is the section Månedens
+ *     burger is drawn at the end of, and the one section whose intro has its prices
+ *     joined to "kr." Both address it by id, so a menu without that id is a menu that
+ *     silently lost Månedens burger. This is the only id written down anywhere: it is
+ *     a requirement the application really has, not today's menu being frozen, and no
+ *     other section's id is checked against anything but the slug grammar.
  *
  * A section with no dishes is deliberately fine: `ugens-ret` has none today, and an
  * editor building a new section starts from an empty one. "No dishes" is written two
@@ -100,6 +107,8 @@ export function validateMenu(file: unknown, where: string): Problem[] {
   const dishIds: { value: string; where: string }[] = []
   /** The sections claiming each single-document body, so a second one can be named. */
   const claimed = new Map<SingleDocumentKind, string[]>()
+  /** The sections carrying the reserved id, with the body each of them asked for. */
+  const reserved: ReservedSection[] = []
 
   categories.forEach((entry, index) => {
     const label = readableName(entry, 'name', `sektion ${index + 1}`)
@@ -128,6 +137,8 @@ export function validateMenu(file: unknown, where: string): Problem[] {
     if (kind !== null && kind !== 'dishes') {
       claimed.set(kind, [...(claimed.get(kind) ?? []), label])
     }
+
+    if (id === BURGER_MENU_SECTION_ID) reserved.push({ where: sectionWhere, kind })
 
     // A section with no `dishes` key at all is a section with no dishes. Pages CMS
     // leaves an empty list out of the file it writes, so an untouched save turns
@@ -213,7 +224,62 @@ export function validateMenu(file: unknown, where: string): Problem[] {
     )
   }
 
+  checkReservedSection(problems, where, reserved)
+
   return problems
+}
+
+/** A section carrying the reserved id, and the body its `kind` asked the renderer for. */
+type ReservedSection = { where: string; kind: MenuCategoryKind | null }
+
+/**
+ * The reserved section — the one technical id the menu may not rename away.
+ *
+ * Two parts of the site look this section up by id rather than by heading: Månedens
+ * burger is drawn at the end of it (`MenuCategorySection`), and its introduction is the
+ * one piece of menu prose whose prices are joined to "kr."
+ * (`lib/content/load/menu.ts`). Renaming the id or deleting the section leaves a menu
+ * that is still perfectly well-formed and quietly no longer shows Månedens burger,
+ * which is exactly the kind of silence this file exists to end.
+ *
+ * Only two things are held: that the id is somewhere in the document, and that the
+ * section carrying it draws ordinary dishes — the only body `MonthlyBurgerCard` is
+ * drawn inside. The heading, the introduction, the note, the dishes and the section's
+ * position are untouched, and every other section's id stays the restaurant's own. A
+ * second section with the id needs nothing here: the id is a section's address, and
+ * `unique` above already refuses two sections sharing one.
+ */
+function checkReservedSection(
+  problems: Problem[],
+  where: string,
+  reserved: readonly ReservedSection[],
+): void {
+  if (reserved.length === 0) {
+    add(
+      problems,
+      at(where, 'categories'),
+      `Menuen skal have et afsnit, hvis korte navn til systemet er "${BURGER_MENU_SECTION_ID}". ` +
+        'Det er dér, Månedens burger bliver vist, og det er det eneste afsnit, hvor priserne i ' +
+        'indledningen holdes sammen med "kr.". Afsnittet må gerne hedde noget andet på siden og ' +
+        'må gerne flyttes op eller ned på menuen, og retterne i det kan ændres frit — men det ' +
+        `tekniske id "${BURGER_MENU_SECTION_ID}" må ikke laves om, og afsnittet må ikke slettes.`,
+    )
+    return
+  }
+
+  for (const section of reserved) {
+    if (section.kind === null || section.kind === 'dishes') continue
+
+    const body = SINGLE_DOCUMENT_BODIES[section.kind]
+    add(
+      problems,
+      at(section.where, 'kind'),
+      `Afsnittet med det korte navn "${BURGER_MENU_SECTION_ID}" skal være et afsnit med ` +
+        'almindelige retter ("kind": "dishes"), for det er dér, Månedens burger bliver vist. ' +
+        `Som "${section.kind}" viser afsnittet ${body.what} (${body.file}) i stedet, og ` +
+        'Månedens burger ville forsvinde fra menuen. Læg det andet dokument i sit eget afsnit.',
+    )
+  }
 }
 
 /**

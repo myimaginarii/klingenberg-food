@@ -1,5 +1,4 @@
-import type { TapasBoard } from '@/lib/content/types'
-import { MONTHLY_BURGER_MENU_SECTION_SLUG } from '@/lib/menu/monthly'
+import { BURGER_MENU_SECTION_ID, type TapasBoard } from '@/lib/content/types'
 import type { MenuCategoryView, MonthlyBurgerView, WeeklySpecialView } from '@/lib/menu/view'
 
 import { DishCard } from './DishCard'
@@ -26,9 +25,10 @@ import { WeeklySpecial } from './WeeklySpecial'
  * removing or moving the section.
  *
  * The one placement that is genuinely fixed by the design rather than by data is
- * Månedens burger, which sits at the end of Burgere (1h).
+ * Månedens burger, which sits at the end of Burgere (1h). That section is found by the
+ * reserved `BURGER_MENU_SECTION_ID` and not by its heading, which the restaurant may
+ * reword; `lib/content/validate/menu.ts` keeps the id itself in the document.
  */
-const MONTHLY_BURGER_CATEGORY_SLUG = MONTHLY_BURGER_MENU_SECTION_SLUG
 
 export function MenuCategorySection({
   category,
@@ -81,7 +81,7 @@ function CategoryBody({
 
   if (category.kind === 'tapas') return <TapasTable board={tapas} />
 
-  const showsMonthlyBurger = category.slug === MONTHLY_BURGER_CATEGORY_SLUG
+  const showsMonthlyBurger = category.slug === BURGER_MENU_SECTION_ID
   const asCards = category.dishes.some((dish) => dish.description !== null)
 
   if (asCards) {
