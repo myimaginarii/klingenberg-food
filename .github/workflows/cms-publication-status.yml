@@ -1,0 +1,313 @@
+name: CMS publication status
+
+# The alarm (technical plan §14, Phase 5E).
+#
+# The restaurant presses Gem in Pages CMS and nothing else. A save lands on the `content`
+# branch, `cms-content-trigger.yml` rings `cms-publish.yml`, the publisher composes the
+# save onto `main` and opens the `cms-publish` pull request, and GitHub's auto-merge
+# lands it once the required checks pass. Every step of that is silent by design, which
+# is right while it works and wrong the moment it does not: a publication that fails
+# stops, `main` keeps serving the last good version, and nobody is told. The owner sees
+# a saved edit that never appears on the site.
+#
+# This file is the one thing that speaks. It watches two workflows finish, decides
+# whether what just failed was a CMS publication, and keeps a single Danish issue open
+# for as long as the restaurant's edit cannot reach the website.
+#
+# WHAT IT MAY DO. It opens, comments on and closes issues, and that is the whole of it:
+# `issues: write` and nothing else, so it cannot read or write the repository, touch a
+# branch, touch a pull request, or ask for a workflow run. It holds no App credentials,
+# no PAT and no host credentials — only the run's own `GITHUB_TOKEN`, scoped to that one
+# permission.
+#
+# WHY IT IS A SEPARATE FILE. `cms-publish.yml` is the publication and holds the App
+# private key that can push branches and open pull requests. Giving it issue-writing
+# permission as well would widen the blast radius of the one workflow in this repository
+# that already holds the most, in order to add a capability it needs only when it has
+# already failed. The observer is the opposite: it is reached only by completed runs, it
+# has no credentials worth reaching, and it can do nothing but write prose.
+#
+# WHY IT CHECKS NOTHING OUT, AND MUST NOT. `workflow_run` runs in a privileged context:
+# it is triggered *by* the failed run but executes with this repository's own token,
+# from this file as `main` defines it. Checking out the failed run's head would pull
+# `cms-publish` — a branch a workflow composes — into a job holding a write permission,
+# and running anything from it would hand that permission to whatever was composed.
+# Downloading the failed run's artifacts would do the same. So there is no checkout, no
+# artifact download, no `npm ci`, and no `uses:` of any kind. Everything below is `gh`
+# and `jq`, both preinstalled on the runner, reading the event payload from disk.
+#
+# WHY NO EXPRESSION REACHES A `run:` BODY. A `${{ }}` is substituted as text before bash
+# sees the line, so a value GitHub hands back would be parsed as code. Every value this
+# file needs arrives as an environment variable, and every value that comes from the
+# event itself is read out of `$GITHUB_EVENT_PATH` with `jq` and used only as data.
+
+on:
+  # The two workflows a CMS publication passes through. `workflow_run` reads its
+  # definition from the default branch, so this is main's copy whatever failed.
+  workflow_run:
+    workflows:
+      # Stage A: the publisher could not prepare the publication at all — invalid
+      # content, a path outside the publication roots, a stale snapshot, a GitHub or
+      # App failure.
+      - Publish CMS content
+      # Stage B: the publisher did its work and the publication pull request exists,
+      # but a required check on it failed. This is the Phase 5D failure — the edit was
+      # valid and an application test rejected it — and it is invisible without this.
+      - CI
+    types:
+      - completed
+
+  # The recovery signal, and the only one that means the edit actually reached the
+  # public site. `Publish CMS content` succeeding proves only that a pull request is
+  # open; the required checks still decide. A commit on `main` is the merge itself.
+  push:
+    branches:
+      - main
+
+# One permission, and it is the narrowest one that can write an issue. Naming the block
+# at all sets every scope it does not list to `none` — no `contents`, so this job cannot
+# read or write a single file; no `pull-requests`, so it cannot touch the publication;
+# no `actions`, so it cannot start, cancel or re-run anything.
+permissions:
+  issues: write
+
+# Serialised, never cancelled. Two failures arriving together must not both decide that
+# no issue exists and both create one, and a recovery must not be dropped because a
+# failure queued behind it.
+concurrency:
+  group: cms-publication-status
+  cancel-in-progress: false
+
+defaults:
+  run:
+    # `bash` rather than the default `sh`-flavoured bash: it adds `pipefail`, so a
+    # failure on the left of a pipe fails the step instead of being swallowed.
+    shell: bash
+
+env:
+  GH_REPO: ${{ github.repository }}
+  # The two watched workflows, by the exact `name:` each one declares.
+  PUBLISHER_WORKFLOW: Publish CMS content
+  CI_WORKFLOW: CI
+  # The branch the publisher pushes. A CI failure counts as a publication failure only
+  # when it belongs to this branch.
+  PUBLICATION_BRANCH: cms-publish
+  # One open issue, found by its marker rather than by its title, so rewording the title
+  # for a human reader cannot split it into two.
+  ISSUE_TITLE: 'CMS: Udgivelse kræver hjælp'
+  ISSUE_MARKER: '<!-- cms-publication-failure -->'
+
+jobs:
+  # ---------------------------------------------------------------------------------
+  # A completed run of one of the two watched workflows.
+  # ---------------------------------------------------------------------------------
+  failure:
+    name: Report a CMS publication that needs help
+    if: github.event_name == 'workflow_run'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # One step, deliberately. Passing a decision between steps would mean writing event
+    # values into `$GITHUB_OUTPUT`, and an output is parsed, not merely carried.
+    steps:
+      - name: Decide, and keep one issue open while the publication is blocked
+        run: |
+          quiet() {
+            echo "$1"
+            exit 0
+          }
+
+          name="$(jq -r '.workflow_run.name // ""' "$GITHUB_EVENT_PATH")"
+          conclusion="$(jq -r '.workflow_run.conclusion // ""' "$GITHUB_EVENT_PATH")"
+          head_branch="$(jq -r '.workflow_run.head_branch // ""' "$GITHUB_EVENT_PATH")"
+          head_repo="$(jq -r '.workflow_run.head_repository.full_name // ""' "$GITHUB_EVENT_PATH")"
+          run_url="$(jq -r '.workflow_run.html_url // ""' "$GITHUB_EVENT_PATH")"
+
+          # The narrow set. GitHub concludes a run as one of: success, failure,
+          # cancelled, neutral, skipped, stale, timed_out, action_required or
+          # startup_failure. Only four of those mean a person is needed.
+          #
+          # `cancelled` is the one that matters most by its absence: `cms-publish` runs
+          # under `concurrency: cancel-in-progress: true`, so a rapid second save
+          # cancels the first run on purpose. That is the system working, and alerting
+          # on it would teach the developer to ignore the alarm. `skipped`, `neutral`
+          # and `stale` are likewise not failures of the publication.
+          case "$conclusion" in
+            failure | timed_out | action_required | startup_failure) ;;
+            *) quiet "Concluded ${conclusion}: not a publication that needs a person." ;;
+          esac
+
+          if [ "$name" = "$PUBLISHER_WORKFLOW" ]; then
+            # Stage A. Every run of this workflow is a publication attempt: it is
+            # dispatch-only, and the doorbell on `content` is what dispatches it.
+            stage=publisher
+          elif [ "$name" = "$CI_WORKFLOW" ]; then
+            # Stage B, and this is where the observer has to be careful. `CI` runs on
+            # every pull request and on every push to `main`. A developer's branch going
+            # red is ordinary work and must never open a CMS issue — the restaurant's
+            # edit is not blocked by it, and the developer is already looking at their
+            # own pull request.
+            #
+            # So: the head branch must be the publication branch, and it must be this
+            # repository's, not a fork's. A fork can name a branch anything it likes,
+            # including `cms-publish`, and its pull request would run `CI` here.
+            if [ "$head_repo" != "$GITHUB_REPOSITORY" ]; then
+              quiet "CI for ${head_repo}: not this repository."
+            fi
+            if [ "$head_branch" != "$PUBLICATION_BRANCH" ]; then
+              quiet "CI for ${head_branch}: an ordinary branch, not the publication."
+            fi
+            stage=ci
+          else
+            quiet "${name} is not a workflow this observer watches."
+          fi
+
+          # What to say about where it broke. The run link carries the technical detail;
+          # nothing is copied out of the log, because a log excerpt in an issue is a
+          # snapshot that goes stale while the run itself does not.
+          if [ "$stage" = publisher ]; then
+            stage_line='CMS-indholdet kunne ikke klargøres til udgivelse.'
+          else
+            stage_line='Udgivelsen nåede kontrolfasen, men en CI-kontrol fejlede.'
+          fi
+
+          # The open issue, if there is one. `gh issue list` reads the repository's own
+          # issue list rather than the search index, which lags by minutes — a lag that
+          # would let two failures a few minutes apart each decide nothing was open.
+          # It lists issues only: no pull request is read, opened or touched here.
+          existing="$(gh issue list --state open --limit 200 --json number,body \
+            --jq 'map(select((.body // "") | contains($ENV.ISSUE_MARKER))) | first | .number // empty')"
+
+          body="${RUNNER_TEMP}/cms-publication-status.md"
+
+          if [ -n "$existing" ]; then
+            # Already open, so this is the same problem happening again — a re-run, a
+            # second save that hits the same bad field, a test that is still red. One
+            # issue, one comment, no issue spam.
+            {
+              echo 'Udgivelsen fejlede igen.'
+              echo
+              echo "**Hvad fejlede:** ${stage_line}"
+              echo
+              echo "**Åbn den fejlede kørsel:** ${run_url}"
+            } > "$body"
+
+            gh issue comment "$existing" --body-file "$body"
+            echo "Commented on issue ${existing}."
+            exit 0
+          fi
+
+          {
+            echo "$ISSUE_MARKER"
+            echo
+            echo '## En ændring fra Pages CMS kunne ikke udgives'
+            echo
+            echo 'Den offentlige hjemmeside er **ikke** blevet ændret af denne fejl. Den viser'
+            echo 'stadig den seneste version, der blev udgivet uden problemer, og den bliver'
+            echo 'stående dér, indtil udgivelsen virker igen.'
+            echo
+            echo "**Hvad fejlede:** ${stage_line}"
+            echo
+            echo "**Åbn den fejlede kørsel:** ${run_url}"
+            echo
+            echo '### Hvad gør du nu'
+            echo
+            echo '1. Åbn kørslen ovenfor, og se hvilket trin der fejlede.'
+            echo '2. Flet **aldrig** et rødt **cms-publish** pull request manuelt.'
+            echo '3. Blev restaurantens indhold afvist af **check:content**? Så er det en'
+            echo '   værdi i Pages CMS, der skal rettes: ret feltet, og tryk **Gem** igen.'
+            echo '4. Var indholdet i orden, og var det hjemmesidens egen kode eller en test,'
+            echo '   der fejlede? Så rettes den i et almindeligt pull request til **main**.'
+            echo '5. Når rettelsen er på **main**, kan **Publish CMS content** køres manuelt'
+            echo '   én gang, så det nuværende indhold bliver udgivet igen.'
+            echo
+            echo 'Denne sag lukker sig selv, når en udgivelse fra Pages CMS igen når frem'
+            echo 'til **main**.'
+            echo
+            echo 'Fremgangsmåden står også i README.md, under "When a CMS publication fails".'
+          } > "$body"
+
+          gh issue create --title "$ISSUE_TITLE" --body-file "$body"
+
+  # ---------------------------------------------------------------------------------
+  # A push to main. The only place a publication can be observed to have landed.
+  # ---------------------------------------------------------------------------------
+  recovery:
+    name: Resolve the issue once a publication reaches main
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      - name: Close the failure issue when a CMS publication lands
+        run: |
+          # What a landed publication looks like, measured rather than remembered. The
+          # publication pull request is squash-merged, so it arrives on `main` as one
+          # single-parent commit:
+          #
+          #   author   klingenberg-food-publisher[bot]
+          #   subject  cms: publish content (#23)
+          #   body     Source content: bf52c7b
+          #   paths    content/site/** and public/photos/**, and nothing else
+          #
+          # All four are required here, and the paths are the one that cannot be
+          # imitated by accident: `scripts/cms/compose-publication.mjs` and
+          # `scripts/cms/stage-publication.mjs` are what make it true, and no ordinary
+          # feature merge is confined to those two roots. The App's login is not written
+          # down — only that the author is a bot — so renaming or rotating the App does
+          # not silently stop recovery from working.
+          #
+          # This fails closed. A publication shaped differently leaves the issue open
+          # for a person to close, which is the right way round: an issue closed by
+          # mistake says the restaurant's edit is live when it is not.
+          landed="$(jq -r '
+            ((.commits // [])
+              + (if .head_commit == null then [] else [.head_commit] end))
+            | map(select((.author.name // "") | endswith("[bot]")))
+            | map(select((.message // "") | startswith("cms: publish content")))
+            | map(select((.message // "") | contains("Source content: ")))
+            | map(select(
+                (((.added // []) + (.modified // []) + (.removed // [])) | length) > 0
+                and (((.added // []) + (.modified // []) + (.removed // []))
+                     | all(startswith("content/site/") or startswith("public/photos/")))
+              ))
+            | last
+            | if . == null then empty else .id end
+          ' "$GITHUB_EVENT_PATH")"
+
+          if [ -z "$landed" ]; then
+            echo "No CMS publication in this push: nothing to resolve."
+            exit 0
+          fi
+
+          existing="$(gh issue list --state open --limit 200 --json number,body \
+            --jq 'map(select((.body // "") | contains($ENV.ISSUE_MARKER))) | first | .number // empty')"
+
+          if [ -z "$existing" ]; then
+            echo "A publication landed (${landed}) and nothing was open. Nothing to do."
+            exit 0
+          fi
+
+          body="${RUNNER_TEMP}/cms-publication-recovered.md"
+
+          {
+            echo '## Løst'
+            echo
+            echo 'En ændring fra Pages CMS er nået hele vejen frem igen: den har bestået'
+            echo 'kontrollerne og ligger nu på **main**, og den offentlige hjemmeside bliver'
+            echo 'bygget og lagt online som normalt.'
+            echo
+            echo "Udgivelsen ligger på main som commit ${landed}."
+            echo
+            echo 'Sagen lukkes automatisk. Sker det igen, bliver der åbnet en ny.'
+          } > "$body"
+
+          gh issue comment "$existing" --body-file "$body"
+          gh issue close "$existing" --reason completed
+          echo "Closed issue ${existing}."
