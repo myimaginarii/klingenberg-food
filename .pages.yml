@@ -241,7 +241,9 @@ content:
                   Brug små bogstaver og bindestreger, fx "vegetar" eller
                   "pommes-snacks". Æ, ø og å skrives som ae, oe og aa. Lav det ikke om
                   på et afsnit, der allerede findes — så virker gamle links til det
-                  ikke længere.
+                  ikke længere. Afsnittet "burgere" er en undtagelse: det korte navn
+                  på dét afsnit skal blive stående, for det er dér, Månedens burger
+                  bliver vist. Overskriften må du gerne ændre.
 
               - name: kind
                 label: Type afsnit
