@@ -28,6 +28,15 @@ import { WeeklySpecial } from './WeeklySpecial'
  * Månedens burger, which sits at the end of Burgere (1h). That section is found by the
  * reserved `BURGER_MENU_SECTION_ID` and not by its heading, which the restaurant may
  * reword; `lib/content/validate/menu.ts` keeps the id itself in the document.
+ *
+ * Those two readings of the content are **independent**, and the body below is written
+ * so that they stay that way. Which body the ordinary dishes get is the restaurant's
+ * content; whether Månedens burger is drawn is the reserved id and nothing else. They
+ * used to be tangled: the burger card was a child of the photo-card list, so clearing
+ * the last description in the section — an ordinary, valid edit, and descriptions are
+ * optional everywhere else on the menu — turned the section into a price list and took
+ * Månedens burger off the menu with it. That is the same silent loss the reserved id
+ * exists to prevent, so the presentation of the dishes must not decide it.
  */
 
 export function MenuCategorySection({
@@ -95,11 +104,24 @@ function CategoryBody({
     )
   }
 
-  return (
+  const priceList = (
     <div className="grid md:grid-cols-2 md:gap-x-11">
       {category.dishes.map((dish) => (
         <DishPriceRow key={dish.id} dish={dish} />
       ))}
+    </div>
+  )
+
+  if (!showsMonthlyBurger) return priceList
+
+  // A price list in the reserved section: the grid above is the one every other price
+  // list draws, and the burger card follows it in the same vertical rhythm the photo
+  // cards are stacked with. The card is never a cell of that two-column grid — it is a
+  // full-width card, like the dish cards it is drawn beside in the other body.
+  return (
+    <div className="flex flex-col gap-3.5">
+      {priceList}
+      <MonthlyBurgerCard burger={monthlyBurger} />
     </div>
   )
 }

@@ -5,7 +5,7 @@ import { MenuCategorySection } from '@/components/site/menu/MenuCategorySection'
 import { menuCategoriesFrom } from '@/lib/content/load/menu'
 import { keepPriceTogether } from '@/lib/content/load/text'
 import { BURGER_MENU_SECTION_ID } from '@/lib/content/types'
-import type { MenuCategoryView } from '@/lib/menu/view'
+import type { DishView, MenuCategoryView, MonthlyBurgerView } from '@/lib/menu/view'
 
 /**
  * What the reserved section id is actually *for* — the two places that address a menu
@@ -26,6 +26,22 @@ import type { MenuCategoryView } from '@/lib/menu/view'
 
 const NO_BREAK_SPACE = String.fromCharCode(0xa0)
 
+function dish(overrides: Partial<DishView> = {}): DishView {
+  return {
+    id: 'en-ret',
+    name: 'En ret',
+    description: 'En beskrivelse, så afsnittet tegnes som kort.',
+    secondaryNote: null,
+    priceOre: 8900,
+    labels: [],
+    soldOutOn: null,
+    featured: false,
+    image: null,
+    soldOut: false,
+    ...overrides,
+  }
+}
+
 function view(overrides: Partial<MenuCategoryView> = {}): MenuCategoryView {
   return {
     id: BURGER_MENU_SECTION_ID,
@@ -35,34 +51,30 @@ function view(overrides: Partial<MenuCategoryView> = {}): MenuCategoryView {
     intro: null,
     note: null,
     kind: 'dishes',
-    dishes: [
-      {
-        id: 'en-ret',
-        name: 'En ret',
-        description: 'En beskrivelse, så afsnittet tegnes som kort.',
-        secondaryNote: null,
-        priceOre: 8900,
-        labels: [],
-        soldOutOn: null,
-        featured: false,
-        image: null,
-        soldOut: false,
-      },
-    ],
+    dishes: [dish()],
     ...overrides,
   }
 }
 
-/** The section as a page draws it, with no burger published — the card still says so. */
-const drawn = (category: MenuCategoryView) =>
+/** The same section after the restaurant has cleared every description — a price list. */
+const asPriceList = (category: MenuCategoryView): MenuCategoryView => ({
+  ...category,
+  dishes: category.dishes.map((entry) => ({ ...entry, description: null })),
+})
+
+/** The section as a page draws it, with no burger published unless one is handed in. */
+const drawn = (category: MenuCategoryView, burger: MonthlyBurgerView | null = null) =>
   renderToStaticMarkup(
     <MenuCategorySection
       category={category}
       weeklySpecial={null}
-      monthlyBurger={null}
+      monthlyBurger={burger}
       tapas={{ priceOre: null, secondaryNote: null, groups: [] }}
     />,
   )
+
+/** How many cards the section drew: a dish card, or the burger card, is one `article`. */
+const cards = (html: string) => html.split('<article').length - 1
 
 describe('Månedens burger is placed by the reserved section id', () => {
   it('draws the card in the section carrying that id, whatever the heading says', () => {
@@ -75,6 +87,78 @@ describe('Månedens burger is placed by the reserved section id', () => {
     expect(drawn(view({ id: 'burger', slug: 'burger', name: 'Burgere' }))).not.toContain(
       'Månedens burger',
     )
+  })
+})
+
+/**
+ * The id, and *only* the id.
+ *
+ * Whether the dishes in a section are described is the restaurant's content: a
+ * description is optional on every dish on the menu, and clearing the last one in the
+ * reserved section is an ordinary save the CMS allows and the validator accepts. It
+ * changes how those dishes are drawn — photo cards become a two-column price list — and
+ * it used to also take Månedens burger off the menu, because the burger card was a child
+ * of the photo-card list. That made the reserved id a half-guard: the section was still
+ * there, still carried the id, and the burger was gone anyway.
+ */
+describe('the dishes decide their own presentation, never whether the burger is drawn', () => {
+  const twoDishes = [dish({ id: 'frigg', name: 'Frigg' }), dish({ id: 'thor', name: 'Thor' })]
+  const last = (html: string, needle: string) => html.lastIndexOf(needle)
+
+  it('draws the card after described dishes, which the section draws as photo cards', () => {
+    const html = drawn(view({ dishes: twoDishes }))
+
+    expect(cards(html)).toBe(3)
+    expect(html).toContain('Månedens burger')
+    expect(last(html, 'Thor')).toBeLessThan(html.indexOf('Månedens burger'))
+  })
+
+  it('draws the card after the dishes when every description has been cleared', () => {
+    const html = drawn(asPriceList(view({ dishes: twoDishes })))
+
+    expect(html).not.toContain('En beskrivelse')
+    // One card only: the burger's. The dishes became price rows, which are not cards.
+    expect(cards(html)).toBe(1)
+    expect(html).toContain('Frigg')
+    expect(last(html, 'Thor')).toBeLessThan(html.indexOf('Månedens burger'))
+  })
+
+  it('draws the published burger beside a price list, not only the empty card', () => {
+    const burger: MonthlyBurgerView = {
+      name: 'Septemberburgeren',
+      description: null,
+      priceOre: 13900,
+      startsOn: null,
+      endsOn: null,
+      soldOutOn: null,
+      showOnHomepage: false,
+      image: null,
+      soldOut: false,
+    }
+    const html = drawn(asPriceList(view({ dishes: twoDishes })), burger)
+
+    expect(html).toContain('Septemberburgeren')
+    expect(last(html, 'Thor')).toBeLessThan(html.indexOf('Septemberburgeren'))
+  })
+
+  /**
+   * The reserved section exists to host Månedens burger, so an empty one is a section
+   * waiting for dishes — not a reason to take the burger off the menu. "No dishes" is a
+   * state the validator allows on purpose (a section an editor has just created), and
+   * the burger is published in its own document either way.
+   */
+  it('draws the card in the reserved section even when it holds no dishes at all', () => {
+    const html = drawn(view({ dishes: [] }))
+
+    expect(cards(html)).toBe(1)
+    expect(html).toContain('Månedens burger')
+  })
+
+  it('draws it in no price list outside the reserved section', () => {
+    const html = drawn(asPriceList(view({ id: 'drikkevarer', slug: 'drikkevarer' })))
+
+    expect(cards(html)).toBe(0)
+    expect(html).not.toContain('Månedens burger')
   })
 })
 
