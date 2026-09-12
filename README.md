@@ -133,7 +133,17 @@ Two things that look like failures and are not:
 ### Changing the content as a developer
 
 Editing a file by hand still works, and is the right thing for a change Pages CMS cannot
-express:
+express — with one rule about **where** the edit has to exist.
+
+**Under `content/site/**` and `public/photos/**`, the `content` branch is the source of
+truth, not `main`.** The restaurant edits in Pages CMS, Pages CMS writes the `content`
+branch, and every publication replaces those two directories on `main` with the `content`
+branch's copy, whole (see [Changing the content](#changing-the-content)). A hand-edit
+made only on `main` merges, and then disappears at the next **Gem**, when the publisher
+writes the restaurant's snapshot over it. So a change under either root must also be
+reflected on `content` — the same edit there, or made through Pages CMS. Application and
+source-code changes are unaffected: they follow the normal route of feature branch →
+pull request → `main`.
 
 1. Edit the file and open a pull request to `main`.
 2. `npm run check` — typecheck, lint, source policy, content validation, unit tests.
