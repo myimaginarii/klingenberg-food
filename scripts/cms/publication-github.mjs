@@ -52,9 +52,16 @@
  *     node scripts/cms/publication-github.mjs quiesce   --head <branch> --base <branch>
  *     node scripts/cms/publication-github.mjs identity  --app-slug <slug>
  *     node scripts/cms/publication-github.mjs pr --head <branch> --base <branch> \
- *                                                --content-sha <sha> --main-sha <sha>
+ *                                                --content-sha <sha> --main-sha <sha> \
+ *                                                --source <owner/repo:branch>
  *     node scripts/cms/publication-github.mjs supersede --head <branch> --base <branch> \
- *                                                       --content-sha <sha>
+ *                                                       --content-sha <sha> \
+ *                                                       --source <owner/repo:branch>
+ *
+ * `--source` is the source the snapshot was read from, as `publication-source.mjs`
+ * spells it. It is required, not defaulted: while Pages CMS is being migrated into a
+ * repository of its own there are two places a publication can come from, and a body
+ * that stated a SHA without saying whose would be a body nobody could check.
  */
 
 import { appendFileSync } from 'node:fs'
@@ -63,6 +70,7 @@ import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
 import { PUBLICATION_ROOTS } from './compose-publication.mjs'
+import { describeSource } from './publication-source.mjs'
 
 /**
  * How a publication lands once its checks pass.
@@ -192,12 +200,17 @@ export async function resolveIdentity(appSlug) {
  * Both SHAs in full, because they are the only two facts that make a publication
  * reproducible. Nothing else — no timestamp, no run number, nothing that would differ
  * between two publications of the same content.
+ *
+ * `source` is the third fact, and it is required rather than defaulted: while the CMS
+ * is being migrated out of this repository there are two places a publication can have
+ * been read from, and a body that named neither would leave a reader guessing which
+ * repository and which branch the SHA above belongs to.
  */
-export function publicationBody({ contentSha, mainSha }) {
+export function publicationBody({ contentSha, mainSha, source }) {
   return [
     'Generated from Pages CMS content by `.github/workflows/cms-publish.yml`. Nothing here was written by hand.',
     '',
-    `- Source content: \`${contentSha}\` (the \`content\` branch)`,
+    `- Source content: \`${describeSource({ label: source, sha: contentSha })}\``,
     `- Composed on: \`${mainSha}\` (\`main\` when this publication was built)`,
     `- Publishable paths: ${PUBLICATION_ROOTS.map((root) => `\`${root}/**\``).join(' and ')}, and nothing else — every other path in this branch is \`main\`'s own.`,
     '- `npm run check:content` passed against this tree, and no path outside those roots differs from `main`, before this pull request was opened.',
@@ -213,11 +226,11 @@ export function publicationBody({ contentSha, mainSha }) {
  * those SHAs stopped mattering, so the closed pull request explains itself to whoever
  * finds it later without having to go and read a workflow run.
  */
-export function supersededBody({ contentSha }) {
+export function supersededBody({ contentSha, source }) {
   return [
     'Superseded, and closed by `.github/workflows/cms-publish.yml`.',
     '',
-    `A later CMS save left \`content\` at \`${contentSha}\`, which \`main\` already carries under the publishable paths: there is nothing left for this publication to publish.`,
+    `A later CMS save left \`${describeSource({ label: source, sha: contentSha })}\`, which \`main\` already carries under the publishable paths: there is nothing left for this publication to publish.`,
     '',
     'Closing it is the point. Left open it would still be a route for the older content it was composed from to reach `main` after the newer save had replaced it.',
   ].join('\n')
@@ -305,7 +318,7 @@ export async function quiescePublication({ head, base }, api = githubApi) {
  * newer save win: an open publication is a publication that a person, or a re-run of
  * its checks, could still land.
  */
-export async function supersedePublication({ head, base, contentSha }, api = githubApi) {
+export async function supersedePublication({ head, base, contentSha, source }, api = githubApi) {
   const { owner, repo } = repositorySlug()
   const existing = await findOpenPullRequest({ owner, repo, head, base }, api)
 
@@ -316,7 +329,7 @@ export async function supersedePublication({ head, base, contentSha }, api = git
 
   await api.rest(`/repos/${owner}/${repo}/pulls/${existing.number}`, {
     method: 'PATCH',
-    body: { state: 'closed', body: supersededBody({ contentSha }) },
+    body: { state: 'closed', body: supersededBody({ contentSha, source }) },
   })
   console.log(`Closed #${existing.number}: it published content ${base} already carries.`)
 
@@ -358,9 +371,9 @@ async function enableAutoMerge(pullRequest, api = githubApi) {
  * carries the newer snapshot by the time this runs, so what auto-merge is enabled on is
  * what this run composed and validated — never the older publication `quiesce` disarmed.
  */
-export async function openPublication({ head, base, contentSha, mainSha }, api = githubApi) {
+export async function openPublication({ head, base, contentSha, mainSha, source }, api = githubApi) {
   const { owner, repo } = repositorySlug()
-  const body = publicationBody({ contentSha, mainSha })
+  const body = publicationBody({ contentSha, mainSha, source })
 
   const existing = await findOpenPullRequest({ owner, repo, head, base }, api)
   let pullRequest
@@ -407,6 +420,9 @@ async function main() {
       base: { type: 'string' },
       'content-sha': { type: 'string' },
       'main-sha': { type: 'string' },
+      // `<owner>/<repo>:<branch>`, from `publication-source.mjs`. Every body this
+      // writes names it, so neither command may be run without one.
+      source: { type: 'string' },
     },
   })
 
@@ -437,24 +453,26 @@ async function main() {
   }
 
   if (command === 'supersede') {
-    demand('head', 'base', 'content-sha')
+    demand('head', 'base', 'content-sha', 'source')
     const result = await supersedePublication({
       head: values.head,
       base: values.base,
       contentSha: values['content-sha'],
+      source: values.source,
     })
     emit({ found: result.found, number: result.number, closed: result.closed })
     return
   }
 
   if (command === 'pr') {
-    demand('head', 'base', 'content-sha', 'main-sha')
+    demand('head', 'base', 'content-sha', 'main-sha', 'source')
 
     const result = await openPublication({
       head: values.head,
       base: values.base,
       contentSha: values['content-sha'],
       mainSha: values['main-sha'],
+      source: values.source,
     })
     emit({ number: result.number, url: result.url, created: result.created })
     return
