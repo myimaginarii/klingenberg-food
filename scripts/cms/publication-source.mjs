@@ -1,34 +1,34 @@
 #!/usr/bin/env node
 /**
- * Which repository a publication reads the restaurant's edits from — and the fact that
- * there are exactly two answers, both written down here.
+ * Where a publication reads the restaurant's edits from — and the fact that there is
+ * exactly one answer, written down here.
  *
- * WHY THIS EXISTS. Pages CMS used to write into this repository, on the long-lived
- * `content` branch. The security migration moves it into a repository of its own, so
- * that the account which can write the restaurant's edits has no reach at all over the
- * code, the workflows or the App key that publishes them. During the migration the
- * publisher has to be able to read from either place: the internal branch is still the
- * live source and still what the doorbell rings for, while the external repository is
- * selected by hand, by a person, to prove the new path before anything is cut over.
+ * WHY THIS EXISTS. Pages CMS writes into `myimaginarii/klingenberg-content`, a
+ * repository that holds the restaurant's edits and nothing else, so the account which
+ * can write them has no reach at all over the code, the workflows or the App key that
+ * publishes them. Pages CMS used to write into this repository's own `content` branch;
+ * the security migration (Phase S4A) retired that as a source, and nothing here can read
+ * it any more.
  *
- * THE SOURCE IS A CHOICE BETWEEN TWO NAMES, NEVER A REPOSITORY NAME. The workflow input
- * is `internal` or `external` and nothing else; the owner, the repository and the branch
- * are constants in this file. A dispatch cannot ask for `some/other-repo`, cannot ask
- * for a fork, cannot ask for a tag, a pull request ref or an arbitrary SHA — there is no
- * input that would carry one. That is the whole reason the selector is a word rather
- * than a ref: a ref is a value an attacker could supply, and a word is not.
+ * THE SOURCE IS FIXED, NOT CHOSEN. The owner, the repository and the branch are
+ * constants in this file. A dispatch cannot ask for `some/other-repo`, cannot ask for a
+ * fork, a tag, a pull request ref or an arbitrary SHA — there is no input that would
+ * carry one. The workflow still accepts a `source` input, for one reason: the trigger in
+ * the content repository dispatches with `source=external`, and GitHub refuses a
+ * dispatch that names an input the workflow does not declare. So `external` is accepted,
+ * an absent value means the same thing, and every other value is refused.
  *
- * THE EXTERNAL REPOSITORY IS DATA, NOT CODE. Nothing here checks it out, runs it, or
+ * THE CONTENT REPOSITORY IS DATA, NOT CODE. Nothing here checks it out, runs it, or
  * reads anything from it but git objects. `remote` is a URL the publisher *fetches
  * objects from*; `ref` is where those objects are parked — deliberately outside
  * `refs/heads/`, so no push can ever carry it and no checkout can land on it. What may
  * then cross into a publication is decided where it has always been decided, by the
  * positive allow-list in `compose-publication.mjs`: `content/site/**` and
  * `public/photos/**`, and not one byte else. A `.pages.yml`, a `README.md`, a
- * `package.json`, a workflow or a hook in the external repository is not excluded by a
+ * `package.json`, a workflow or a hook in the content repository is not excluded by a
  * rule naming it — it is simply never selected.
  *
- * THE FETCH IS UNAUTHENTICATED, ON PURPOSE. The external repository is public, so read
+ * THE FETCH IS UNAUTHENTICATED, ON PURPOSE. The content repository is public, so read
  * access needs no credential; and the publisher holds one — the App installation token
  * `actions/checkout` leaves in this repository's git config as an `Authorization` header
  * for every URL on the GitHub host. {@link unauthenticatedHeaderOption} is the `git -c`
@@ -41,10 +41,10 @@
  *
  * USAGE
  *
- *     node scripts/cms/publication-source.mjs --source internal|external
+ *     node scripts/cms/publication-source.mjs [--source external]
  *
  * Prints the resolved source and, under GitHub Actions, writes it to `$GITHUB_OUTPUT`
- * as `kind`, `repository`, `branch`, `remote`, `ref`, `header_reset` and `label`.
+ * as `repository`, `branch`, `remote`, `ref`, `header_reset` and `label`.
  */
 
 import { appendFileSync } from 'node:fs'
@@ -52,20 +52,17 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 
-/** The two answers. Not a list a caller may extend: a list a caller must choose from. */
-export const PUBLICATION_SOURCES = Object.freeze(['internal', 'external'])
+/** The one value the workflow's `source` input may carry. */
+export const PUBLICATION_SOURCE = 'external'
 
-/** The branch Pages CMS writes to inside this repository — the source being migrated away from. */
-export const INTERNAL_CONTENT_BRANCH = 'content'
-
-/** The repository Pages CMS is being moved to. Fixed here; no input can name another. */
+/** The repository Pages CMS writes to. Fixed here; no input can name another. */
 export const EXTERNAL_CONTENT_REPOSITORY = 'myimaginarii/klingenberg-content'
 
 /** The one branch of it that is ever read. Fixed here; no input can name another. */
 export const EXTERNAL_CONTENT_BRANCH = 'main'
 
 /**
- * Where the external repository's objects are parked once fetched.
+ * Where the content repository's objects are parked once fetched.
  *
  * Outside `refs/heads/` deliberately. A `git push origin HEAD:refs/heads/…` pushes what
  * is reachable from `HEAD`, and a branch checkout can only name a head — so untrusted
@@ -73,9 +70,6 @@ export const EXTERNAL_CONTENT_BRANCH = 'main'
  * publication needs of it) and can be neither pushed nor checked out by accident.
  */
 export const EXTERNAL_CONTENT_REF = 'refs/cms/external-content'
-
-/** `<owner>/<repo>`, as a label. Not an authorisation check — the shape of a name in a body line. */
-const SLUG = /^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/
 
 function required(name, value = process.env[name]) {
   if (value === undefined || value === '') {
@@ -93,7 +87,7 @@ function serverOrigin(serverUrl) {
   return trimmed
 }
 
-/** The read-only clone URL of the external content repository, on the server the runner names. */
+/** The read-only clone URL of the content repository, on the server the runner names. */
 export function externalContentUrl(serverUrl = required('GITHUB_SERVER_URL')) {
   return `${serverOrigin(serverUrl)}/${EXTERNAL_CONTENT_REPOSITORY}.git`
 }
@@ -103,7 +97,7 @@ export function externalContentUrl(serverUrl = required('GITHUB_SERVER_URL')) {
  *
  * `actions/checkout` writes the installation token into this repository's local git
  * config as `http.<server>/.extraheader`, which git then sends to every URL on that
- * server — including the external repository's. Git documents an empty value as
+ * server — including the content repository's. Git documents an empty value as
  * resetting the header list, so this makes the fetch genuinely anonymous rather than
  * merely unnecessary to authenticate.
  */
@@ -112,41 +106,22 @@ export function unauthenticatedHeaderOption(serverUrl = required('GITHUB_SERVER_
 }
 
 /**
- * The source a dispatch selected, as the facts the workflow needs to read it.
+ * The source a publication reads, as the facts the workflow needs to read it.
  *
- * An unrecognised name is refused rather than guessed at. An absent one is `internal`:
- * the doorbell dispatches with no inputs at all, and the source that must survive an
- * omission is the live one.
+ * `name` is the dispatch's `source` input. Absent, or `external`, it is the content
+ * repository; anything else is refused rather than guessed at — including `internal`,
+ * the retired name for this repository's `content` branch.
  */
-export function publicationSource(
-  name,
-  { repository = required('GITHUB_REPOSITORY'), serverUrl = required('GITHUB_SERVER_URL') } = {},
-) {
-  const selected = name === undefined || name === null || name === '' ? 'internal' : name
+export function publicationSource(name, { serverUrl = required('GITHUB_SERVER_URL') } = {}) {
+  const absent = name === undefined || name === null || name === ''
 
-  if (!PUBLICATION_SOURCES.includes(selected)) {
+  if (!absent && name !== PUBLICATION_SOURCE) {
     throw new Error(
-      `"${selected}" is not a publication source; it is one of ${PUBLICATION_SOURCES.join(', ')}.`,
+      `"${name}" is not a publication source; the only source is ${PUBLICATION_SOURCE}.`,
     )
   }
 
-  if (selected === 'internal') {
-    if (!SLUG.test(repository)) {
-      throw new Error(`GITHUB_REPOSITORY is "${repository}", not "<owner>/<repo>".`)
-    }
-    return Object.freeze({
-      kind: 'internal',
-      repository,
-      branch: INTERNAL_CONTENT_BRANCH,
-      remote: 'origin',
-      ref: `refs/remotes/origin/${INTERNAL_CONTENT_BRANCH}`,
-      headerReset: '',
-      label: `${repository}:${INTERNAL_CONTENT_BRANCH}`,
-    })
-  }
-
   return Object.freeze({
-    kind: 'external',
     repository: EXTERNAL_CONTENT_REPOSITORY,
     branch: EXTERNAL_CONTENT_BRANCH,
     remote: externalContentUrl(serverUrl),
@@ -191,7 +166,6 @@ function main() {
   }
 
   emit({
-    kind: source.kind,
     repository: source.repository,
     branch: source.branch,
     remote: source.remote,

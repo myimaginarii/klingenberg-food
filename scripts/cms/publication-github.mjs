@@ -59,9 +59,8 @@
  *                                                       --source <owner/repo:branch>
  *
  * `--source` is the source the snapshot was read from, as `publication-source.mjs`
- * spells it. It is required, not defaulted: while Pages CMS is being migrated into a
- * repository of its own there are two places a publication can come from, and a body
- * that stated a SHA without saying whose would be a body nobody could check.
+ * spells it. It is required, not defaulted: the SHA belongs to another repository, and
+ * a body that stated a SHA without saying whose would be a body nobody could check.
  */
 
 import { appendFileSync } from 'node:fs'
@@ -201,10 +200,10 @@ export async function resolveIdentity(appSlug) {
  * reproducible. Nothing else — no timestamp, no run number, nothing that would differ
  * between two publications of the same content.
  *
- * `source` is the third fact, and it is required rather than defaulted: while the CMS
- * is being migrated out of this repository there are two places a publication can have
- * been read from, and a body that named neither would leave a reader guessing which
- * repository and which branch the SHA above belongs to.
+ * `source` is the third fact, and it is required rather than defaulted: the content SHA
+ * belongs to another repository, and older publications on `main` were read from this
+ * one's retired `content` branch, so a body that named no source would leave a reader
+ * guessing which repository and which branch the SHA above belongs to.
  */
 export function publicationBody({ contentSha, mainSha, source }) {
   return [

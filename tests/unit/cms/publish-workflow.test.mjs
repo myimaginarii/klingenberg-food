@@ -98,11 +98,11 @@ describe('the publication workflow file', () => {
     const on = topLevelBlock('on')
 
     expect(on).toMatch(/^\s+workflow_dispatch:/m)
-    // Not `push: branches: [content]`, now or later. For a `push`, GitHub reads the
-    // workflow files from the commit that was pushed, so a push to `content` can only
-    // start workflows that exist on `content` — and this file is main's. A CMS save
-    // reaches it through `cms-content-trigger.yml`, the doorbell that does live on
-    // `content` and holds nothing but the right to ask for this workflow on `main`.
+    // Not a `push` trigger, now or later. For a `push`, GitHub reads the workflow files
+    // from the commit that was pushed, and a CMS save is pushed to the content
+    // repository, not to this one. It reaches this file through that repository's
+    // `cms-content-trigger.yml`, which holds nothing but the right to ask for this
+    // workflow on `main`.
     expect(on).not.toMatch(/push:/)
     expect(on).not.toMatch(/content/)
     expect(on).not.toMatch(/pull_request:/)
@@ -153,9 +153,9 @@ describe('the publication workflow file', () => {
     expect(workflow).toContain('scripts/cms/compose-publication.mjs')
     expect(workflow).toContain('npm run check:content')
     expect(workflow).toContain('scripts/cms/stage-publication.mjs')
-    // The stale-content guard: the content branch is read a second time, after the
+    // The stale-content guard: the content repository is read a second time, after the
     // first resolution, and compared with the SHA this run composed.
-    expect(workflow.match(/git fetch --no-tags origin/g)).toHaveLength(2)
+    expect(workflow.match(/ls-remote "\$SOURCE_REMOTE"/g)).toHaveLength(1)
   })
 
   it('publishes through one stable branch and never pushes to main', () => {
@@ -254,27 +254,30 @@ describe('the publication workflow file', () => {
 })
 
 /**
- * The source a publication is read from — the security migration's Phase S2.
+ * The source a publication is read from — the security migration's Phases S2 and S4A.
  *
- * Pages CMS is moving out of this repository into `myimaginarii/klingenberg-content`,
- * and during the move the publisher can read from either place. Everything asserted
- * here is a property that would be silently gone after a plausible edit: that the
- * selector is a word and not a repository name, that the external repository's objects
- * are fetched and never executed, that the SHA everything downstream uses is the one
- * resolved once, that the stale guard covers both sources, and — the one that matters
- * most while the migration is in flight — that the live automatic path is still the
- * internal branch, byte for byte.
+ * Pages CMS writes to `myimaginarii/klingenberg-content`, and since S4A that repository
+ * is the only place the publisher can read from. Everything asserted here is a property
+ * that would be silently gone after a plausible edit: that there is no input a
+ * repository name could arrive in, that the content repository's objects are fetched
+ * and never executed, that the SHA everything downstream uses is the one resolved once,
+ * that the stale guard re-reads it, and that the retired `content` branch of this
+ * repository has no route back in.
  */
 describe('the source a publication reads', () => {
   const RESOLVE = "Resolve the publication's two immutable commits"
 
-  it('offers two fixed words, and defaults to the internal branch', () => {
+  it('offers one fixed word, which is also the default', () => {
     const on = topLevelBlock('on')
 
+    // Kept so the content repository's `--raw-field source=external` is a declared
+    // input — GitHub refuses a dispatch naming one that is not.
     expect(on).toMatch(/^\s+source:/m)
     expect(on).toMatch(/^\s+type:\s*choice\s*$/m)
-    expect(on).toMatch(/^\s+default:\s*internal\s*$/m)
-    expect(on.match(/^\s+- (internal|external)\s*$/gm)).toHaveLength(2)
+    expect(on).toMatch(/^\s+default:\s*external\s*$/m)
+    const options = [...on.matchAll(/^\s+- (\S+) *$/gm)].map((match) => match[1])
+    expect(options).toEqual(['external'])
+    expect(on).not.toMatch(/internal/)
 
     // No input carries a repository, an owner, a ref or a SHA. That is the whole
     // safety property of a word-shaped selector: there is nothing here for an
@@ -349,15 +352,15 @@ describe('the source a publication reads', () => {
     expect(compose).not.toContain('SOURCE_BRANCH')
   })
 
-  it('re-reads whichever source it composed from, before it pushes anything', () => {
+  it('re-reads the content repository before it pushes anything', () => {
     const stale = stepBlock('Refuse to publish a stale snapshot')
 
-    // The external tip over the wire, the internal branch by fetch — and either way
-    // compared against the SHA this run composed.
-    expect(stale).toContain('ls-remote "$SOURCE_REMOTE" "refs/heads/${SOURCE_BRANCH}"')
+    // The tip over the wire, without the checkout's credential, compared against the
+    // SHA this run composed.
     expect(stale).toContain(
-      'git fetch --no-tags origin "+refs/heads/${CONTENT_BRANCH}:refs/remotes/origin/${CONTENT_BRANCH}"',
+      'git -c "$SOURCE_HEADER_RESET" ls-remote "$SOURCE_REMOTE" "refs/heads/${SOURCE_BRANCH}"',
     )
+    expect(stale).not.toMatch(/git fetch/)
     expect(stale).toContain('[ "$now" != "$CONTENT_SHA" ]')
     expect(stale.match(/exit 1/g)).toHaveLength(2)
     // An unreadable remote is not a pass: an empty answer stops the run.
@@ -383,41 +386,37 @@ describe('the source a publication reads', () => {
     expect(stepBlock('Commit the publication')).toContain('"cms: publish content"')
   })
 
-  it('leaves the internal path exactly as it was', () => {
-    // The live source during S2. Both places the internal branch is read are the
-    // lines they have always been, so nothing about the migration can change what a
-    // save on `content` publishes.
-    const internal = shellLines().filter((line) =>
-      line.includes('git fetch --no-tags origin "+refs/heads/${CONTENT_BRANCH}'),
+  it("cannot read this repository's retired content branch", () => {
+    // Phase S4A. Before it, a second branch of the resolve and stale steps fetched
+    // `content` from `origin`. Nothing in the file may reach that branch now: one fetch,
+    // and it is the content repository's; no fetch from `origin` at all; no variable
+    // naming the old branch; no step that branches on which source it is.
+    const fetches = shellLines().filter(
+      (line) => !line.startsWith('#') && /\bgit\b.*\bfetch\b/.test(line),
     )
-    expect(internal).toHaveLength(2)
-    for (const line of internal) {
-      expect(line).toBe(
-        'git fetch --no-tags origin "+refs/heads/${CONTENT_BRANCH}:refs/remotes/origin/${CONTENT_BRANCH}"',
-      )
-    }
-    expect(workflow).toMatch(/^\s*CONTENT_BRANCH:\s*content\s*$/m)
+    expect(fetches.map((line) => line.replace(/\s+/g, ' '))).toEqual([
+      'git -c "$SOURCE_HEADER_RESET" fetch --no-tags --no-recurse-submodules "$SOURCE_REMOTE" "+refs/heads/${SOURCE_BRANCH}:${SOURCE_REF}"',
+    ])
+
+    const code = workflow
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('#'))
+      .join('\n')
+    expect(code).not.toMatch(/CONTENT_BRANCH/)
+    expect(code).not.toMatch(/SOURCE_KIND|outputs\.kind/)
+    expect(code).not.toMatch(/refs\/remotes\/origin/)
+    expect(code).not.toMatch(/\binternal\b/)
+    expect(code).not.toMatch(/ls-remote origin "refs\/heads\/(?!\$\{PUBLICATION_BRANCH\})/)
   })
 
-  it('is rung by a doorbell that asks for no source at all', () => {
-    // The automatic path: `cms-content-trigger.yml` dispatches with no inputs, so the
-    // publisher's declared default decides — and that default is `internal`. Cutting
-    // over is therefore a deliberate change to one of these two files, never a
-    // side effect of a save.
-    const trigger = readFileSync(
-      join(process.cwd(), '.github', 'workflows', 'cms-content-trigger.yml'),
-      'utf8',
-    ).replace(/\r\n/g, '\n')
-
-    const dispatch = trigger
-      .split('\n')
-      .filter((line) => line.includes('gh workflow run'))
-      .map((line) => line.trim())
-
-    expect(dispatch).toHaveLength(1)
-    expect(dispatch[0]).toBe('run: gh workflow run cms-publish.yml --ref main')
-    expect(dispatch[0]).not.toMatch(/(^| )-(f|F|-field|-raw-field)\b/)
-    expect(trigger).not.toMatch(/external/)
+  it('hands the dispatched word to the script that refuses every other one', () => {
+    // The workflow does not interpret `source` itself: the input goes to
+    // `publication-source.mjs`, which accepts `external` or nothing, and fails the run
+    // on anything else before a single object is fetched.
+    const step = stepBlock('Name the source this publication reads')
+    expect(step).toContain('PUBLICATION_SOURCE: ${{ inputs.source }}')
+    expect(step).toContain('node scripts/cms/publication-source.mjs --source "$PUBLICATION_SOURCE"')
+    expect(workflow.match(/inputs\.source/g)).toHaveLength(1)
   })
 })
 
@@ -454,12 +453,11 @@ describe('the publishing bot identity', () => {
 })
 
 describe('the pull request body', () => {
-  const INTERNAL = 'myimaginarii/klingenberg-food:content'
-  const EXTERNAL = 'myimaginarii/klingenberg-content:main'
+  const SOURCE = 'myimaginarii/klingenberg-content:main'
   const body = publicationBody({
     contentSha: 'c'.repeat(40),
     mainSha: 'm'.repeat(40),
-    source: INTERNAL,
+    source: SOURCE,
   })
 
   it('states where the publication came from and what it may contain', () => {
@@ -472,23 +470,15 @@ describe('the pull request body', () => {
   })
 
   it('names the repository and branch the SHA belongs to, not just the SHA', () => {
-    // The migration's one ambiguity, closed. Two repositories can now supply a
-    // publication, so a body stating `c…c` alone would leave a reader unable to check
-    // it against anything.
-    expect(body).toContain(`${INTERNAL}@${'c'.repeat(40)}`)
-
-    const external = publicationBody({
-      contentSha: 'e'.repeat(40),
-      mainSha: 'm'.repeat(40),
-      source: EXTERNAL,
-    })
-    expect(external).toContain(`${EXTERNAL}@${'e'.repeat(40)}`)
-    expect(external).not.toContain(INTERNAL)
+    // The content SHA belongs to another repository, and older publications on `main`
+    // were read from this one's retired `content` branch; a body stating `c…c` alone
+    // would leave a reader unable to check it against anything.
+    expect(body).toContain(`${SOURCE}@${'c'.repeat(40)}`)
   })
 
   it('refuses to state a snapshot it cannot attribute', () => {
-    // Not defaulted to the internal branch: a caller that forgot the source would then
-    // publish external content under a body claiming it came from `content`.
+    // Not defaulted: a caller that forgot the source would publish a body that names no
+    // repository for its SHA.
     for (const source of [undefined, '', null]) {
       expect(
         () => publicationBody({ contentSha: 'c'.repeat(40), mainSha: 'm'.repeat(40), source }),
@@ -500,13 +490,13 @@ describe('the pull request body', () => {
   it('is the same body for the same two commits', () => {
     // No timestamp, no run number: two publications of one snapshot read identically.
     expect(
-      publicationBody({ contentSha: 'c'.repeat(40), mainSha: 'm'.repeat(40), source: INTERNAL }),
+      publicationBody({ contentSha: 'c'.repeat(40), mainSha: 'm'.repeat(40), source: SOURCE }),
     ).toBe(body)
   })
 
   it('says which source a superseded publication was replaced from', () => {
-    const closed = supersededBody({ contentSha: 'e'.repeat(40), source: EXTERNAL })
-    expect(closed).toContain(`${EXTERNAL}@${'e'.repeat(40)}`)
+    const closed = supersededBody({ contentSha: 'e'.repeat(40), source: SOURCE })
+    expect(closed).toContain(`${SOURCE}@${'e'.repeat(40)}`)
     expect(() => supersededBody({ contentSha: 'e'.repeat(40) })).toThrow()
   })
 })
@@ -667,7 +657,7 @@ describe('superseding an older publication', () => {
 
   describe('a save with nothing left to publish', () => {
     const contentSha = 'a'.repeat(40)
-    const source = 'myimaginarii/klingenberg-food:content'
+    const source = 'myimaginarii/klingenberg-content:main'
 
     it('closes the publication it supersedes', async () => {
       const { api, calls } = fakeGitHub({ pulls: [openPullRequest(7, { autoMerge: false })] })
@@ -704,7 +694,7 @@ describe('superseding an older publication', () => {
     const shas = {
       contentSha: 'c'.repeat(40),
       mainSha: 'm'.repeat(40),
-      source: 'myimaginarii/klingenberg-food:content',
+      source: 'myimaginarii/klingenberg-content:main',
     }
 
     it('reuses the disarmed publication and re-arms it on the new snapshot', async () => {

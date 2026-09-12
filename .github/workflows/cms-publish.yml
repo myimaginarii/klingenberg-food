@@ -2,7 +2,7 @@ name: Publish CMS content
 
 # Publication: the door the restaurant's edits come through.
 #
-# Pages CMS writes to the long-lived `content` branch. Nothing there is deployed —
+# Pages CMS writes to `myimaginarii/klingenberg-content`. Nothing there is deployed —
 # production is built from `main` — so getting an edit live means composing a commit on
 # top of `main` that carries the owner's content and not one byte else, and asking the
 # same branch ruleset that guards every other change to let it in.
@@ -23,20 +23,19 @@ name: Publish CMS content
 #               replace an older one, and it cannot win a race it never entered — so
 #               the older one is disarmed first and re-armed only by a run that gets
 #               all the way to a pushed branch.
-#   source      which of the two repositories the edits are read from, resolved from a
-#               word — `internal` or `external` — into a fixed owner, repository and
-#               branch. See THE TWO SOURCES below.
+#   source      the one repository the edits are read from, as a fixed owner,
+#               repository and branch. See THE SOURCE below.
 #   resolve     two immutable SHAs, taken once. Everything after this reads the SHAs,
 #               never the branch names, so a CMS save landing mid-run cannot change
 #               what is being published underneath the run that is publishing it.
 #   compose     `scripts/cms/compose-publication.mjs` — the allow-list. Only
 #               `content/site/**` and `public/photos/**` cross; every other path is
-#               main's own, whatever the content branch says about it.
+#               main's own, whatever the content repository says about it.
 #   validate    `npm run check:content`, the same gate CI runs, against the composed
 #               tree. Invalid content fails here, before a branch or a PR exists.
 #   assert      `scripts/cms/stage-publication.mjs` — the index, checked against the
 #               base commit, independently of what the composer believed it wrote.
-#   stale       the content branch, re-read immediately before the push. A newer save
+#   stale       the content repository, re-read just before the push. A newer save
 #               means this run's snapshot is out of date and must not be published.
 #   push / PR   one stable branch, at most one open pull request, auto-merge enabled.
 #   supersede   the other ending. Nothing to publish means `main` already carries what
@@ -44,26 +43,21 @@ name: Publish CMS content
 #               for older content to reach `main` behind the newer save's back. It is
 #               closed, and no commit, branch update or pull request is made.
 #
-# THE TWO SOURCES, and why there are temporarily two (security migration, Phase S2).
-# Pages CMS has written the restaurant's edits into this repository, on the `content`
-# branch. That is being moved to `myimaginarii/klingenberg-content`, a repository that
-# holds nothing but the edits — so the credential that can write them has no reach over
-# the code, the workflows, or the App key that publishes them. Until the move is cut
-# over the publisher can read from either:
+# THE SOURCE, and why there is only one (security migration, Phase S4A). Pages CMS
+# writes the restaurant's edits to `myimaginarii/klingenberg-content@main`, a repository
+# that holds nothing but the edits — so the credential that can write them has no reach
+# over the code, the workflows, or the App key that publishes them. It once wrote to
+# this repository's `content` branch; that source is retired, and nothing in this file
+# can read it.
 #
-#   internal    `content` in this repository. The live source, and the default. A
-#               dispatch with no inputs — which is every dispatch the doorbell makes —
-#               gets this, so automatic publishing is exactly what it was.
-#   external    `myimaginarii/klingenberg-content@main`, selected by hand by a person,
-#               to prove the new path before anything depends on it.
+# THE SOURCE IS FIXED, NOT CHOSEN. The owner, the repository and the branch are
+# constants in `scripts/cms/publication-source.mjs`. The `source` input survives only
+# because the content repository's trigger dispatches with `source=external`, and GitHub
+# refuses a dispatch naming an input the workflow does not declare. It has one option;
+# the script accepts that word or nothing and refuses anything else. There is no input
+# that could carry a repository, a fork, a tag, a pull request ref or a SHA.
 #
-# THE SELECTOR IS A WORD, NOT A REPOSITORY NAME. The input is one of two fixed strings;
-# the owner, the repository and the branch are constants in
-# `scripts/cms/publication-source.mjs`. There is no input that could carry a fork, a
-# tag, a pull request ref or a SHA, which is the point: a ref is a value an attacker
-# could supply and a word is not.
-#
-# THE EXTERNAL REPOSITORY IS DATA, NEVER CODE. It is never checked out and never a
+# THE CONTENT REPOSITORY IS DATA, NEVER CODE. It is never checked out and never a
 # working directory. One `git fetch` of one branch brings its objects into this trusted
 # checkout, parked under `refs/cms/`, and the composer reads them with `git ls-tree` and
 # `git cat-file`. Its `package.json`, its `.pages.yml`, its `README.md`, any workflow or
@@ -73,21 +67,15 @@ name: Publish CMS content
 #
 # AND THE FETCH IS ANONYMOUS. `actions/checkout` leaves the App's installation token in
 # git's config as an `Authorization` header for every URL on the GitHub host. The
-# external repository is public and needs no credential, so the two commands that touch
+# content repository is public and needs no credential, so the two commands that touch
 # it empty that header first: the token this workflow pushes with is never presented to
 # the repository this workflow does not trust.
 #
 # DISPATCH ONLY, AND THAT IS PERMANENT. The trigger is `workflow_dispatch` and nothing
-# else — by hand, or from `cms-content-trigger.yml`, which is the copy of the doorbell
-# that lives on `content` and whose only job is to ask for this workflow on `main`.
-#
-# Do not add `push: branches: [content]` here. It would not arm anything: for a `push`,
-# GitHub reads the workflow files from the commit that was pushed, so a push to
-# `content` can only start workflows that exist on `content`, and this file is main's.
-# Copying this file to `content` is not the fix either — `content` is what Pages CMS
-# writes to, and the App private key below must never be reachable from a definition
-# living on the branch the CMS can write. Hence the doorbell: it holds nothing, and asks
-# for this.
+# else — by hand, or from `cms-content-trigger.yml` in the content repository, whose
+# only job is to ask for this workflow on `main`. A push there cannot start a workflow
+# here, and the App private key below must never be reachable from a definition living
+# anywhere the CMS can write. Hence the doorbell: it holds nothing, and asks for this.
 #
 # Third-party actions are pinned by commit SHA, never by tag (§14) — a moving tag is a
 # supply-chain hole. The comment records which release each SHA is.
@@ -95,13 +83,14 @@ name: Publish CMS content
 on:
   workflow_dispatch:
     inputs:
+      # One option. Kept only so the trigger's `source=external` is a declared input;
+      # the repository it stands for is fixed in `scripts/cms/publication-source.mjs`.
       source:
-        description: Which repository the restaurant's edits are read from.
+        description: Where the restaurant's edits are read from. There is one answer.
         required: false
-        default: internal
+        default: external
         type: choice
         options:
-          - internal
           - external
 
 # Nothing. Every mutation here is made with the App's installation token, so the
@@ -120,9 +109,8 @@ concurrency:
 env:
   CI: true
   NEXT_TELEMETRY_DISABLED: 1
-  # The three branches this workflow knows about, named once.
+  # The two branches of this repository this workflow knows about, named once.
   BASE_BRANCH: main
-  CONTENT_BRANCH: content
   PUBLICATION_BRANCH: cms-publish
 
 defaults:
@@ -186,12 +174,10 @@ jobs:
             --head "$PUBLICATION_BRANCH" \
             --base "$BASE_BRANCH"
 
-      # The word the dispatch chose, turned into the repository, branch and remote it
-      # stands for. The constants are in the script, not here and not in the input:
-      # every value below comes from `internal` or `external` and from nothing else a
-      # caller can write. An unrecognised word fails the run rather than being guessed
-      # at, and an absent one is `internal` — the doorbell sends no inputs, and the
-      # source that has to survive an omission is the live one.
+      # The content repository, as the branch, remote and parking ref it stands for.
+      # The constants are in the script, not here and not in the input: nothing a
+      # caller can write reaches any value below. `external` or an absent input is
+      # accepted; any other word — `internal` included — fails the run.
       - name: Name the source this publication reads
         id: source
         env:
@@ -201,28 +187,21 @@ jobs:
       # The snapshot is taken here and nowhere else. Both refs are resolved to full SHAs
       # once; every later step is given a SHA.
       #
-      # Two branches, spelled out rather than folded into one parameterised fetch, so
-      # that the internal path is visibly the line it has always been and the external
-      # one is visibly a fetch of objects — one branch, no tags, no submodule recursion,
-      # into a ref outside `refs/heads/` that no push can carry and no checkout can land
-      # on. Nothing from the external repository is executed, read from disk, or made
-      # the working directory; `git fetch` moves objects and does nothing else.
+      # The content repository is a fetch of objects — one branch, no tags, no submodule
+      # recursion, into a ref outside `refs/heads/` that no push can carry and no
+      # checkout can land on. Nothing from it is executed, read from disk, or made the
+      # working directory; `git fetch` moves objects and does nothing else.
       - name: Resolve the publication's two immutable commits
         id: refs
         env:
-          SOURCE_KIND: ${{ steps.source.outputs.kind }}
           SOURCE_REMOTE: ${{ steps.source.outputs.remote }}
           SOURCE_BRANCH: ${{ steps.source.outputs.branch }}
           SOURCE_REF: ${{ steps.source.outputs.ref }}
           SOURCE_LABEL: ${{ steps.source.outputs.label }}
           SOURCE_HEADER_RESET: ${{ steps.source.outputs.header_reset }}
         run: |
-          if [ "$SOURCE_KIND" = 'external' ]; then
-            git -c "$SOURCE_HEADER_RESET" fetch --no-tags --no-recurse-submodules \
-              "$SOURCE_REMOTE" "+refs/heads/${SOURCE_BRANCH}:${SOURCE_REF}"
-          else
-            git fetch --no-tags origin "+refs/heads/${CONTENT_BRANCH}:refs/remotes/origin/${CONTENT_BRANCH}"
-          fi
+          git -c "$SOURCE_HEADER_RESET" fetch --no-tags --no-recurse-submodules \
+            "$SOURCE_REMOTE" "+refs/heads/${SOURCE_BRANCH}:${SOURCE_REF}"
           main_sha="$(git rev-parse HEAD)"
           content_sha="$(git rev-parse "${SOURCE_REF}")"
           echo "main=${main_sha}" >> "$GITHUB_OUTPUT"
@@ -325,7 +304,8 @@ jobs:
       # `cms-publication-status.yml` looks for when it proves a commit on `main` came
       # through this door. `Source repository:` is the second half of that fact — which
       # repository and which branch the SHA belongs to — so that no commit in main's
-      # history is ambiguous about where its content was read from.
+      # history is ambiguous about where its content was read from, including the older
+      # publications read from this repository's retired `content` branch.
       - name: Commit the publication
         if: steps.stage.outputs.changed == 'true'
         env:
@@ -345,9 +325,7 @@ jobs:
       # the snapshot in hand is already old, and publishing it would undo the newer one.
       # Read immediately before the push, so the window it leaves open is the push itself.
       #
-      # Whichever source this run composed from is the one re-read, by the same two
-      # branches as the resolution above: the internal branch is fetched again, and the
-      # external repository is asked for its branch tip over the wire — `ls-remote`
+      # The content repository is asked for its branch tip over the wire — `ls-remote`
       # rather than `fetch`, because the only question here is what the SHA is now, and
       # answering it should not pull one further object of untrusted history into this
       # checkout. An unreadable remote or a missing branch is an empty answer, and an
@@ -356,18 +334,12 @@ jobs:
         if: steps.stage.outputs.changed == 'true'
         env:
           CONTENT_SHA: ${{ steps.refs.outputs.content }}
-          SOURCE_KIND: ${{ steps.source.outputs.kind }}
           SOURCE_REMOTE: ${{ steps.source.outputs.remote }}
           SOURCE_BRANCH: ${{ steps.source.outputs.branch }}
           SOURCE_LABEL: ${{ steps.source.outputs.label }}
           SOURCE_HEADER_RESET: ${{ steps.source.outputs.header_reset }}
         run: |
-          if [ "$SOURCE_KIND" = 'external' ]; then
-            now="$(git -c "$SOURCE_HEADER_RESET" ls-remote "$SOURCE_REMOTE" "refs/heads/${SOURCE_BRANCH}" | cut -f1)"
-          else
-            git fetch --no-tags origin "+refs/heads/${CONTENT_BRANCH}:refs/remotes/origin/${CONTENT_BRANCH}"
-            now="$(git rev-parse "refs/remotes/origin/${CONTENT_BRANCH}")"
-          fi
+          now="$(git -c "$SOURCE_HEADER_RESET" ls-remote "$SOURCE_REMOTE" "refs/heads/${SOURCE_BRANCH}" | cut -f1)"
           if [ -z "$now" ]; then
             echo "::error::${SOURCE_LABEL} could not be read, so this run cannot prove its snapshot is still current. Nothing was published."
             exit 1
