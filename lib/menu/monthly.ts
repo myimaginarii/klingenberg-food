@@ -10,7 +10,10 @@ import { copenhagenDateOf } from '@/lib/time/copenhagen'
  * knows that React exists.
  *
  * What remains after the static rebuild is exactly the classification
- * `lib/menu/view.ts` calls, plus the slug of the menu section the card is drawn in.
+ * `lib/menu/view.ts` calls. *Which* menu section the card is drawn in is a fact about
+ * the menu model rather than about the window, and is stated once as
+ * `BURGER_MENU_SECTION_ID` in `lib/content/types.ts` — where the validator that keeps
+ * that section in the document can read the same string.
  */
 
 /**
@@ -48,9 +51,3 @@ export function monthlyWindowPhase(
 export function isMonthlyWindowOpen(phase: MonthlyWindowPhase): boolean {
   return phase === 'unset' || phase === 'active'
 }
-
-/**
- * Which menu section the Månedens burger card is drawn in — 1h and 1m both place it at
- * the head of "Burgere", where a guest looking for a burger is already looking.
- */
-export const MONTHLY_BURGER_MENU_SECTION_SLUG = 'burgere'

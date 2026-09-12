@@ -16,9 +16,9 @@ import { loadAboutPage, loadHomePage, loadTakeawayPage } from '@/lib/content/loa
 import { oreFromKroner } from '@/lib/content/load/price'
 import { listContentJson, readContentJson } from '@/lib/content/load/source'
 import { keepPriceTogether } from '@/lib/content/load/text'
+import { BURGER_MENU_SECTION_ID } from '@/lib/content/types'
 import { planDerivatives } from '@/lib/images/derivatives'
 import { buildStaticPublicImage, IMAGE_FOCUSES } from '@/lib/images/public'
-import { MONTHLY_BURGER_MENU_SECTION_SLUG } from '@/lib/menu/monthly'
 import { buildMenuView, selectFeaturedDishes } from '@/lib/menu/view'
 import { WEEKDAY_KEYS } from '@/lib/time/calendar'
 
@@ -238,16 +238,16 @@ describe('the menu the pages read', () => {
    * between each number and "kr." on the way out, so a narrow column never wraps to a
    * line that starts with "kr." (`lib/content/load/text.ts`).
    *
-   * Which section gets it is the loader's own answer — `MONTHLY_BURGER_MENU_SECTION_SLUG`
+   * Which section gets it is the loader's own answer — `BURGER_MENU_SECTION_ID`
    * — asked rather than restated, so this cannot silently pass by naming a section the
    * loader no longer treats specially.
    */
   it('joins each price to “kr.” in one section’s intro, and nowhere else on the menu', () => {
     const joined = MENU_CATEGORIES.find(
-      (category) => category.slug === MONTHLY_BURGER_MENU_SECTION_SLUG,
+      (category) => category.slug === BURGER_MENU_SECTION_ID,
     )
     const written = STORED_MENU.categories.find(
-      (category) => category.id === MONTHLY_BURGER_MENU_SECTION_SLUG,
+      (category) => category.id === BURGER_MENU_SECTION_ID,
     )?.intro
 
     if (joined !== undefined && written != null) {
@@ -258,7 +258,7 @@ describe('the menu the pages read', () => {
     // On that field alone. Every other piece of menu prose is the text as written, so a
     // price stated anywhere else keeps the ordinary space it was typed with.
     const everythingElse = MENU_CATEGORIES.flatMap((category) => [
-      ...(category.slug === MONTHLY_BURGER_MENU_SECTION_SLUG ? [] : [category.intro]),
+      ...(category.slug === BURGER_MENU_SECTION_ID ? [] : [category.intro]),
       category.note,
       ...category.dishes.flatMap((dish) => [dish.description, dish.secondaryNote]),
     ])
@@ -351,7 +351,7 @@ describe('the menu the pages read', () => {
 
     for (const category of MENU_CATEGORIES) {
       const document = written.get(category.id)!
-      if (category.slug !== MONTHLY_BURGER_MENU_SECTION_SLUG) {
+      if (category.slug !== BURGER_MENU_SECTION_ID) {
         expect(category.intro, category.id).toBe(document.intro ?? null)
       }
       expect(category.note, category.id).toBe(document.note ?? null)

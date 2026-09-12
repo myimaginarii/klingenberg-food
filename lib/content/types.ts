@@ -106,6 +106,31 @@ export const MENU_CATEGORY_KINDS = ['dishes', 'weekly_special', 'tapas'] as cons
 export type MenuCategoryKind = (typeof MENU_CATEGORY_KINDS)[number]
 
 /**
+ * The one menu section id the application requires — `burgere`.
+ *
+ * Almost nothing about the menu is fixed: how many sections there are, what they are
+ * called, what order they stand in and what an ordinary section's id is are all the
+ * restaurant's. This single id is not, because two parts of the site address that
+ * section by its id rather than by its heading:
+ *
+ *  * **Månedens burger is drawn at the end of it** (design 1h). `MenuCategorySection`
+ *    puts the card there and nowhere else, so a section renamed out from under it takes
+ *    Månedens burger off the menu without saying so.
+ *  * **Its introduction is the one piece of menu prose whose prices are joined to
+ *    "kr."** (`lib/content/load/menu.ts`). Every other intro is the text as written.
+ *
+ * What stays editable is everything a person reads: the heading, the introduction, the
+ * note, the dishes with their prices and photographs, and where on the card the section
+ * sits. What may not happen is the technical id being renamed or the section being
+ * deleted, and `lib/content/validate/menu.ts` refuses both in Danish rather than leaving
+ * them to be discovered later as a card that quietly stopped appearing.
+ *
+ * It is stated here, beside the other closed vocabularies of the menu model, because the
+ * loader, the renderer and the validator all have to mean the same string by it.
+ */
+export const BURGER_MENU_SECTION_ID = 'burgere'
+
+/**
  * Everything the menu page and the Forside read about the menu, as one value: the
  * sections with their dishes attached, the week's special (its empty state included),
  * Månedens burger or `null`, the tapas board, and the allergen line the menu page

@@ -5,7 +5,7 @@ import { afterAll, describe, expect, it } from 'vitest'
 import { DishCard } from '@/components/site/menu/DishCard'
 import { PhoneNumbers } from '@/components/site/contact/PhoneNumbers'
 import { TapasTable } from '@/components/site/menu/TapasTable'
-import type { TapasBoard } from '@/lib/content/types'
+import { BURGER_MENU_SECTION_ID, type TapasBoard } from '@/lib/content/types'
 import { formatPrice } from '@/lib/format/danish'
 import { formatDailyHours } from '@/lib/hours/format'
 import type { WeeklySchedule } from '@/lib/hours/types'
@@ -528,6 +528,45 @@ describe('an edit that is not valid is still refused', () => {
       const board = menu.categories.find((category) => category.kind === 'tapas')
       if (board === undefined) throw new Error('the tracked menu draws no tapas board')
       menu.categories.push({ id: 'tapas-igen', name: 'Tapas igen', kind: 'tapas' })
+    }),
+  )
+
+  /**
+   * The reserved section, over the real tracked menu and through the real gate.
+   *
+   * `tests/unit/content/validate/menu.test.ts` states the rule on made-up menus; this
+   * asks the question the restaurant's own save asks — does `check:content` stop this,
+   * in the directory the site is actually built from. The heading, the order and the
+   * dishes of that same section are edited freely at the top of this file.
+   */
+  const reservedSection = (menu: { categories: StoredCategory[] }) => {
+    const section = menu.categories.find((category) => category.id === BURGER_MENU_SECTION_ID)
+    if (section === undefined) throw new Error('the tracked menu has no reserved burger section')
+    return section
+  }
+
+  refused(
+    'the reserved burger section’s technical id renamed',
+    withMenu((menu) => {
+      reservedSection(menu).id = 'burgers'
+    }),
+  )
+
+  refused(
+    'the reserved burger section deleted',
+    withMenu((menu) => {
+      menu.categories = menu.categories.filter(
+        (category) => category.id !== BURGER_MENU_SECTION_ID,
+      )
+    }),
+  )
+
+  refused(
+    'the reserved burger section turned into one that draws another document',
+    withMenu((menu) => {
+      const section = reservedSection(menu)
+      section.kind = 'weekly_special'
+      section.dishes = []
     }),
   )
 

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
+import { BURGER_MENU_SECTION_ID } from '@/lib/content/types'
 import {
   validateMenu,
   validateMonthlyBurger,
@@ -36,6 +37,16 @@ const category = (over: Record<string, unknown> = {}) => ({
   ...over,
 })
 const menu = (over: Record<string, unknown> = {}) => ({ categories: [category()], ...over })
+
+/**
+ * The reserved section, as a menu that is about *other* sections still has to carry one.
+ *
+ * `category()` above already has the reserved id, because the section this suite reaches
+ * for first happens to be Burgere. This is the same section with nothing in it, for the
+ * cases that are building a menu out of other sections and only need the requirement
+ * satisfied — it carries no dishes, so it never collides with theirs.
+ */
+const RESERVED = category({ id: BURGER_MENU_SECTION_ID, dishes: [] })
 
 const check = (file: unknown): Problem[] => validateMenu(file, WHERE)
 const messages = (problems: readonly Problem[]) =>
@@ -88,13 +99,14 @@ describe('a menu the restaurant is allowed to have', () => {
       ['tapas', 'tapas', 'Tapas'],
     ]) {
       const section = withoutDishes(category({ id, name, kind }))
-      expect(messages(check({ categories: [section] })), `${kind}`).toBe('')
+      expect(messages(check({ categories: [RESERVED, section] })), `${kind}`).toBe('')
     }
   })
 
   it('accepts a section being removed, added or reordered — nothing here counts them', () => {
     const four = [
-      category({ id: 'a', name: 'A' }),
+      RESERVED,
+      category({ id: 'a', name: 'A', dishes: [dish({ id: 'a1' })] }),
       category({ id: 'b', name: 'B', dishes: [dish({ id: 'b1' })] }),
       category({ id: 'c', name: 'C', dishes: [] }),
       category({ id: 'd', name: 'D', kind: 'weekly_special', dishes: [] }),
@@ -293,6 +305,125 @@ describe('a menu that would break a page', () => {
     expect(problems[0]?.where).toBe('content/site/menu.json → Burgere → Odin → tapas')
     expect(problems[0]?.message).toMatch(
       /ikke længere et felt på en ret.*content\/site\/tapas\.json.*"kind": "tapas"/s,
+    )
+  })
+})
+
+/**
+ * The one section id the application really requires — `BURGER_MENU_SECTION_ID`.
+ *
+ * Månedens burger is drawn at the end of that section (`MenuCategorySection`) and its
+ * introduction is the one piece of menu prose whose prices are joined to "kr."
+ * (`lib/content/load/menu.ts`). Both find the section by its id, and Pages CMS hands the
+ * restaurant that id field — it has to, or no new section could ever be made. So a save
+ * that renamed `burgere` would stay structurally valid and quietly take Månedens burger
+ * off the menu. This is where that stops, rather than in a CMS `readonly` flag: the
+ * validator is the boundary every write path goes through, a hand-edited file included.
+ *
+ * Both directions are proved. What is held is the id and the body it draws; what is
+ * emphatically not held is the section's heading, its place on the card, anything inside
+ * it, or any other section's id.
+ */
+describe('the reserved burger section', () => {
+  /** The reserved section with something about it changed, as the only section. */
+  const reserved = (over: Record<string, unknown> = {}) => check(menu({ categories: [category(over)] }))
+
+  /** Two ordinary sections the reserved one can be moved around. */
+  const others = () => [
+    category({ id: 'drikkevarer', name: 'Drikkevarer', dishes: [dish({ id: 'cola', name: 'Cola' })] }),
+    category({ id: 'dessert', name: 'Dessert', dishes: [] }),
+  ]
+
+  it('lets the restaurant reword the heading a guest reads, keeping the id', () => {
+    expect(reserved({ name: 'Vores burgere' })).toEqual([])
+    expect(reserved({ name: 'Burgere & sandwich' })).toEqual([])
+  })
+
+  it('lets the section stand anywhere on the card', () => {
+    const [drinks, dessert] = others()
+
+    expect(check({ categories: [category(), drinks!, dessert!] })).toEqual([])
+    expect(check({ categories: [drinks!, category(), dessert!] })).toEqual([])
+    expect(check({ categories: [drinks!, dessert!, category()] })).toEqual([])
+  })
+
+  it('lets its prose, its dishes, their prices and their Forside marks be edited freely', () => {
+    expect(
+      reserved({
+        intro: 'En helt anden indledning, til 95 kr.',
+        note: 'Glutenfri bolle kan vælges til.',
+        dishes: [
+          dish({
+            id: 'ny-burger',
+            name: 'Ny burger',
+            price: '129,50',
+            description: 'Noget der aldrig har stået her.',
+            labels: ['Ny'],
+            featured: true,
+          }),
+        ],
+      }),
+    ).toEqual([])
+
+    expect(reserved({ dishes: [] })).toEqual([])
+    expect(reserved({ kind: 'dishes' })).toEqual([])
+  })
+
+  it('leaves every other section’s id the restaurant’s own', () => {
+    const renamed = [
+      category({ id: 'desserter', name: 'Dessert', dishes: [] }),
+      category({ id: 'noget-nyt', name: 'Noget nyt', dishes: [dish({ id: 'nyt', name: 'Nyt' })] }),
+    ]
+
+    expect(check({ categories: [category(), ...renamed] })).toEqual([])
+  })
+
+  it('refuses the technical id being renamed, and says it is the id that may not change', () => {
+    const problems = check(menu({ categories: [category({ id: 'burgers' })] }))
+
+    expect(problems[0]?.where).toBe('content/site/menu.json → categories')
+    expect(problems[0]?.message).toMatch(
+      /Menuen skal have et afsnit, hvis korte navn til systemet er "burgere"/,
+    )
+    expect(problems[0]?.message).toMatch(/må ikke laves om, og afsnittet må ikke slettes/)
+  })
+
+  it('refuses the section being deleted, with the same sentence', () => {
+    const problems = check({ categories: others() })
+
+    expect(problems[0]?.where).toBe('content/site/menu.json → categories')
+    expect(problems[0]?.message).toMatch(
+      /Menuen skal have et afsnit, hvis korte navn til systemet er "burgere"/,
+    )
+  })
+
+  /**
+   * `MonthlyBurgerCard` is drawn inside the ordinary dish list and nowhere else, so a
+   * reserved section that draws Ugens ret or the tapas board instead is a section the
+   * burger has no place in — the same loss as deleting it, spelled differently.
+   */
+  it('refuses the reserved section drawing another document instead of ordinary dishes', () => {
+    for (const kind of ['weekly_special', 'tapas']) {
+      const problems = check({ categories: [withoutDishes(category({ kind }))] })
+
+      expect(messages(problems), kind).toMatch(
+        /Afsnittet med det korte navn "burgere" skal være et afsnit med almindelige retter/,
+      )
+      expect(messages(problems), kind).toMatch(/Månedens burger ville forsvinde fra menuen/)
+    }
+  })
+
+  /**
+   * Two of them needs nothing of its own: the id is a section's address, and the rule
+   * that says an address cannot be shared already names the second section.
+   */
+  it('refuses a second section carrying the id, through the rule that ids are addresses', () => {
+    const problems = check({
+      categories: [category(), category({ name: 'Burgere igen', dishes: [dish({ id: 'thor' })] })],
+    })
+
+    expect(messages(problems)).toMatch(
+      /Burgere igen → id: "burgere" står mere end ét sted\. Id’et er sektionens adresse/,
     )
   })
 })
