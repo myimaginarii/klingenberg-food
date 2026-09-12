@@ -6,42 +6,62 @@ import {
   EXTERNAL_CONTENT_REF,
   EXTERNAL_CONTENT_REPOSITORY,
   externalContentUrl,
-  INTERNAL_CONTENT_BRANCH,
-  PUBLICATION_SOURCES,
+  PUBLICATION_SOURCE,
   publicationSource,
   unauthenticatedHeaderOption,
 } from '../../../scripts/cms/publication-source.mjs'
 
 /**
- * Which repository a publication reads from — `scripts/cms/publication-source.mjs`.
+ * Where a publication reads from — `scripts/cms/publication-source.mjs`.
  *
- * The whole point of this module is that a dispatch chooses between two names and
- * cannot supply a third thing. So what is asserted here is mostly what the function
- * *refuses*: a repository name, a fork, a ref, a SHA, a word it does not know. The one
- * positive assertion that matters as much is the default — the doorbell dispatches
- * with no inputs, and an omitted source must be the internal branch and never the
- * external repository, or the migration would cut itself over.
+ * There is one source, `myimaginarii/klingenberg-content@main`, and the whole point of
+ * this module is that a dispatch cannot supply a second. So what is asserted here is
+ * mostly what the function *refuses*: a repository name, a fork, a ref, a SHA, a word
+ * it does not know — and `internal`, the retired name for this repository's `content`
+ * branch, which must never quietly start meaning something again. The positive
+ * assertion that matters as much is compatibility: the content repository's trigger
+ * dispatches with `source=external`, and an absent input has to land on the same place.
  */
 
-const REPOSITORY = 'myimaginarii/klingenberg-food'
 // A reserved-TLD host (RFC 2606): a fixture server, and never a real address in source.
 const SERVER = 'https://github.test'
-const OPTIONS = { repository: REPOSITORY, serverUrl: SERVER }
+const OPTIONS = { serverUrl: SERVER }
 
-describe('the two sources, and only two', () => {
-  it('is a closed list of words', () => {
-    expect([...PUBLICATION_SOURCES]).toEqual(['internal', 'external'])
-    expect(Object.isFrozen(PUBLICATION_SOURCES)).toBe(true)
+describe('the one source', () => {
+  it('is named by one word', () => {
+    expect(PUBLICATION_SOURCE).toBe('external')
   })
 
-  it('refuses any word it does not know', () => {
+  it('accepts the word the content repository dispatches with', () => {
+    expect(publicationSource('external', OPTIONS).repository).toBe(EXTERNAL_CONTENT_REPOSITORY)
+  })
+
+  it('is the same source when a dispatch names nothing', () => {
+    // A dispatch by hand, or any caller that sends no inputs, gets the content
+    // repository — never an error that would stop publishing, and never another source.
+    const named = publicationSource('external', OPTIONS)
+    for (const absent of [undefined, null, '']) {
+      expect(publicationSource(absent, OPTIONS), String(absent)).toEqual(named)
+    }
+  })
+
+  it('refuses the retired internal source', () => {
+    expect(() => publicationSource('internal', OPTIONS)).toThrow(/not a publication source/)
+  })
+
+  it('refuses any other word, and anything shaped like a repository or a ref', () => {
     for (const name of [
       'Internal',
       'EXTERNAL',
+      'External',
+      ' external',
+      'external ',
       'content',
       'main',
       'myimaginarii/klingenberg-content',
       'myimaginarii/klingenberg-content@main',
+      'myimaginarii/klingenberg-food',
+      'attacker/klingenberg-content',
       'refs/heads/main',
       'a'.repeat(40),
       '../..',
@@ -54,71 +74,30 @@ describe('the two sources, and only two', () => {
       )
     }
   })
-
-  it('is the internal branch when a dispatch names nothing', () => {
-    // The doorbell sends no inputs at all. An omitted source therefore decides what
-    // every automatic publication reads, and it has to be the live one.
-    for (const absent of [undefined, null, '']) {
-      expect(publicationSource(absent, OPTIONS).kind, String(absent)).toBe('internal')
-    }
-  })
 })
 
-describe('the internal source', () => {
-  const source = publicationSource('internal', OPTIONS)
-
-  it('is this repository, on the branch Pages CMS writes to', () => {
-    expect(source).toMatchObject({
-      kind: 'internal',
-      repository: REPOSITORY,
-      branch: INTERNAL_CONTENT_BRANCH,
-      remote: 'origin',
-      ref: `refs/remotes/origin/${INTERNAL_CONTENT_BRANCH}`,
-      label: `${REPOSITORY}:${INTERNAL_CONTENT_BRANCH}`,
-    })
-    expect(INTERNAL_CONTENT_BRANCH).toBe('content')
-  })
-
-  it('presents no credential decision, because it fetches from origin', () => {
-    // `origin` is already the authenticated remote the checkout set up; there is no
-    // header to reset and nothing anonymous to arrange.
-    expect(source.headerReset).toBe('')
-  })
-
-  it('refuses a repository name that is not one', () => {
-    for (const repository of ['klingenberg-food', 'a/b/c', '', 'a/b c']) {
-      expect(
-        () => publicationSource('internal', { ...OPTIONS, repository }),
-        repository,
-      ).toThrow(/GITHUB_REPOSITORY/)
-    }
-  })
-})
-
-describe('the external source', () => {
+describe('the content repository', () => {
   const source = publicationSource('external', OPTIONS)
 
   it('is one repository and one branch, fixed in the module', () => {
     expect(EXTERNAL_CONTENT_REPOSITORY).toBe('myimaginarii/klingenberg-content')
     expect(EXTERNAL_CONTENT_BRANCH).toBe('main')
-    expect(source).toMatchObject({
-      kind: 'external',
+    expect(source).toEqual({
       repository: 'myimaginarii/klingenberg-content',
       branch: 'main',
+      remote: `${SERVER}/myimaginarii/klingenberg-content.git`,
+      ref: EXTERNAL_CONTENT_REF,
+      headerReset: `http.${SERVER}/.extraheader=`,
       label: 'myimaginarii/klingenberg-content:main',
     })
+    expect(Object.isFrozen(source)).toBe(true)
   })
 
-  it('cannot be pointed at another repository by anything a caller passes', () => {
-    // `repository` is the *trusted* repository's own name, used for the internal
-    // label. It has no reach over the external identity at all.
-    const spoofed = publicationSource('external', {
-      ...OPTIONS,
-      repository: 'attacker/klingenberg-content',
-    })
-    expect(spoofed.repository).toBe(EXTERNAL_CONTENT_REPOSITORY)
-    expect(spoofed.label).toBe(`${EXTERNAL_CONTENT_REPOSITORY}:${EXTERNAL_CONTENT_BRANCH}`)
-    expect(Object.isFrozen(source)).toBe(true)
+  it('never names this repository or its retired content branch', () => {
+    for (const value of Object.values(source)) {
+      expect(String(value)).not.toMatch(/klingenberg-food/)
+      expect(String(value)).not.toMatch(/refs\/remotes\/origin|^origin$|:content$/)
+    }
   })
 
   it('parks the fetched objects outside refs/heads', () => {
@@ -131,7 +110,7 @@ describe('the external source', () => {
   })
 })
 
-describe('reading the external repository without a credential', () => {
+describe('reading the content repository without a credential', () => {
   it('builds the clone URL from the server the runner names', () => {
     // No host is written down, for the same reason `publication-github.mjs` takes its
     // API addresses from the environment.
@@ -165,18 +144,10 @@ describe('reading the external repository without a credential', () => {
 
 describe('naming a published snapshot', () => {
   it('is the repository, the branch and the commit, in one spelling', () => {
-    expect(describeSource({ label: 'myimaginarii/klingenberg-content:main', sha: 'a'.repeat(40) }))
-      .toBe(`myimaginarii/klingenberg-content:main@${'a'.repeat(40)}`)
-  })
-
-  it('tells the two sources apart', () => {
     const sha = 'a'.repeat(40)
-    const internal = describeSource({ label: publicationSource('internal', OPTIONS).label, sha })
-    const external = describeSource({ label: publicationSource('external', OPTIONS).label, sha })
-
-    expect(internal).toBe(`${REPOSITORY}:content@${sha}`)
-    expect(external).toBe(`${EXTERNAL_CONTENT_REPOSITORY}:main@${sha}`)
-    expect(internal).not.toBe(external)
+    expect(describeSource({ label: publicationSource('external', OPTIONS).label, sha })).toBe(
+      `myimaginarii/klingenberg-content:main@${sha}`,
+    )
   })
 
   it('refuses a snapshot it cannot name', () => {
@@ -206,12 +177,17 @@ describe('the environment it reads when nothing is passed', () => {
   })
 
   it('says which variable is missing rather than inventing one', () => {
-    delete process.env.GITHUB_REPOSITORY
-    process.env.GITHUB_SERVER_URL = SERVER
-    expect(() => publicationSource('internal')).toThrow(/GITHUB_REPOSITORY/)
-
-    process.env.GITHUB_REPOSITORY = REPOSITORY
     delete process.env.GITHUB_SERVER_URL
     expect(() => publicationSource('external')).toThrow(/GITHUB_SERVER_URL/)
+    expect(() => publicationSource(undefined)).toThrow(/GITHUB_SERVER_URL/)
+  })
+
+  it('does not need to know which repository it runs in', () => {
+    // The retired internal source was the only thing that read GITHUB_REPOSITORY.
+    delete process.env.GITHUB_REPOSITORY
+    process.env.GITHUB_SERVER_URL = SERVER
+    expect(publicationSource('external').remote).toBe(
+      `${SERVER}/${EXTERNAL_CONTENT_REPOSITORY}.git`,
+    )
   })
 })

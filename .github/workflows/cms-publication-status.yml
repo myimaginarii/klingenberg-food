@@ -2,13 +2,14 @@ name: CMS publication status
 
 # The alarm (technical plan §14, Phase 5E).
 #
-# The restaurant presses Gem in Pages CMS and nothing else. A save lands on the `content`
-# branch, `cms-content-trigger.yml` rings `cms-publish.yml`, the publisher composes the
-# save onto `main` and opens the `cms-publish` pull request, and GitHub's auto-merge
-# lands it once the required checks pass. Every step of that is silent by design, which
-# is right while it works and wrong the moment it does not: a publication that fails
-# stops, `main` keeps serving the last good version, and nobody is told. The owner sees
-# a saved edit that never appears on the site.
+# The restaurant presses Gem in Pages CMS and nothing else. A save lands on `main` of
+# `myimaginarii/klingenberg-content`, that repository's `cms-content-trigger.yml` rings
+# `cms-publish.yml` here, the publisher composes the save onto `main` and opens the
+# `cms-publish` pull request, and GitHub's auto-merge lands it once the required checks
+# pass. Every step of that is silent by design, which is right while it works and wrong
+# the moment it does not: a publication that fails stops, `main` keeps serving the last
+# good version, and nobody is told. The owner sees a saved edit that never appears on
+# the site.
 #
 # This file is the one thing that speaks. It watches two workflows finish, decides
 # whether what just failed was a CMS publication, and keeps a single Danish issue open
@@ -164,7 +165,7 @@ jobs:
 
           if [ "$name" = "$PUBLISHER_WORKFLOW" ]; then
             # Stage A. Every run of this workflow is a publication attempt: it is
-            # dispatch-only, and the doorbell on `content` is what dispatches it.
+            # dispatch-only, and the content repository's trigger is what dispatches it.
             stage=publisher
           elif [ "$name" = "$CI_WORKFLOW" ]; then
             # Stage B, and this is where the observer has to be careful. `CI` runs on
@@ -318,10 +319,11 @@ jobs:
           #   files            content/site/** and public/photos/**, and nothing else
           #
           # The `Source repository:` trailer arrived with Phase S2, which taught the
-          # publisher to read from the separate CMS repository as well as the internal
-          # `content` branch. It is not part of the test below — a commit that predates
-          # it is still a publication — but it is what makes a commit here say which
-          # repository its content came from.
+          # publisher to read from the separate CMS repository; since Phase S4A that is
+          # the only source, and the internal `content` branch shown above is retired. It
+          # is not part of the test below — a commit that predates it is still a
+          # publication — but it is what makes a commit here say which repository its
+          # content came from.
           #
           # All four are required. `author.login` is the App's GitHub account as the API
           # reports it, not the display name in the commit object: a display name is

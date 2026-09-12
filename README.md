@@ -56,13 +56,13 @@ Each save sets off this chain, and every step of it is automatic:
 Pages CMS                        the restaurant presses Gem
     │
     ▼
-content branch                   the save lands as a commit here
+klingenberg-content, main        the save lands as a commit in the content repository
     │
     ▼
-Publish a CMS save               the doorbell (cms-content-trigger.yml, on content)
+cms-content-trigger.yml          the doorbell, in the content repository
     │
     ▼
-Publish CMS content              composes the save onto main (cms-publish.yml)
+Publish CMS content              composes the save onto main (cms-publish.yml, source=external)
     │
     ▼
 cms-publish pull request         one branch, one pull request, auto-merge armed
@@ -77,7 +77,13 @@ main                             GitHub's auto-merge lands it
 Netlify                          builds and publishes the site
 ```
 
-**Only two directories cross from `content` into production:**
+The content lives in its own repository, `myimaginarii/klingenberg-content`, so the
+account Pages CMS writes with has no reach over this repository's code, workflows or
+publishing key. The publisher reads that repository's `main` as data — it is never
+checked out or run — and it is the only source a publication can come from. This
+repository's old `content` branch is no longer read by the publisher.
+
+**Only two directories cross from the content repository into production:**
 
 ```
 content/site/**      the JSON the pages are rendered from
@@ -86,9 +92,9 @@ public/photos/**     the photographs themselves
 
 [`scripts/cms/compose-publication.mjs`](scripts/cms/compose-publication.mjs) is that
 allow-list, and it is the only thing that copies anything: every other path in a
-publication is `main`'s own, whatever the `content` branch says about it.
+publication is `main`'s own, whatever the content repository says about it.
 
-`.pages.yml` is Pages CMS's own configuration — it lives on the `content` branch, it
+`.pages.yml` is Pages CMS's own configuration — it lives in the content repository, it
 describes the editing forms and their Danish labels, and it is **never published**.
 Neither Next.js, the build nor the tests read it.
 
@@ -135,13 +141,14 @@ Two things that look like failures and are not:
 Editing a file by hand still works, and is the right thing for a change Pages CMS cannot
 express — with one rule about **where** the edit has to exist.
 
-**Under `content/site/**` and `public/photos/**`, the `content` branch is the source of
-truth, not `main`.** The restaurant edits in Pages CMS, Pages CMS writes the `content`
-branch, and every publication replaces those two directories on `main` with the `content`
-branch's copy, whole (see [Changing the content](#changing-the-content)). A hand-edit
-made only on `main` merges, and then disappears at the next **Gem**, when the publisher
-writes the restaurant's snapshot over it. So a change under either root must also be
-reflected on `content` — the same edit there, or made through Pages CMS. Application and
+**Under `content/site/**` and `public/photos/**`, `main` of the content repository is
+the source of truth, not this repository's `main`.** The restaurant edits in Pages CMS,
+Pages CMS writes the content repository, and every publication replaces those two
+directories on `main` with the content repository's copy, whole (see
+[Changing the content](#changing-the-content)). A hand-edit made only on `main` merges,
+and then disappears at the next **Gem**, when the publisher writes the restaurant's
+snapshot over it. So a change under either root must also be reflected in the content
+repository — the same edit there, or made through Pages CMS. Application and
 source-code changes are unaffected: they follow the normal route of feature branch →
 pull request → `main`.
 
@@ -157,7 +164,7 @@ own publication. That has happened. What the suites hold is the *shape* of the c
 and the rules the pages depend on: that a section's id is a usable anchor, that no two
 sections share one, that a price can be read as a price.
 [`tests/unit/content/static-site.test.ts`](tests/unit/content/static-site.test.ts) states
-the rule at the top of the file, and `.pages.yml` — on the `content` branch — is the
+the rule at the top of the file, and `.pages.yml` — in the content repository — is the
 authority on which fields are the restaurant's.
 
 ### Adding a photograph

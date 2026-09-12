@@ -714,13 +714,14 @@ describe('composePublication as a module', () => {
 })
 
 /**
- * Composing from the separate CMS repository — the security migration's Phase S2.
+ * Composing from the separate CMS repository — the security migration's Phase S2, and
+ * since Phase S4A the only source a publication has.
  *
- * Pages CMS is moving out of this repository and into `myimaginarii/klingenberg-content`,
- * which holds the restaurant's edits and nothing that could publish them. The publisher
- * reads it the only way it reads anything untrusted: one `git fetch` of one branch
- * brings its objects into the trusted checkout, parked at the ref
- * `publication-source.mjs` names, and the composer is handed the commit.
+ * Pages CMS writes to `myimaginarii/klingenberg-content`, which holds the restaurant's
+ * edits and nothing that could publish them. The publisher reads it the only way it
+ * reads anything untrusted: one `git fetch` of one branch brings its objects into the
+ * trusted checkout, parked at the ref `publication-source.mjs` names, and the composer
+ * is handed the commit.
  *
  * These are the same boundary tests as above, asked of a genuinely separate repository
  * rather than of a branch — because that is what changes about the threat. A branch in
