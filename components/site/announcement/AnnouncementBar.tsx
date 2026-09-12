@@ -1,6 +1,15 @@
+import Link from 'next/link'
+
 import type { AnnouncementLink } from '@/lib/announcements/link'
 
 import { PageContainer } from '../PageContainer'
+
+/**
+ * The link's one treatment, whichever element carries it: the 44 px target, and on a
+ * phone the pseudo-element that stretches the hit area across the whole row.
+ */
+const LINK_CLASSES =
+  "text-brand-700 hover:text-brand-500 min-h-tap inline-flex w-fit items-center font-semibold underline underline-offset-[3px] after:absolute after:inset-0 after:content-[''] md:after:content-none"
 
 /**
  * The bar itself — design 1ac, and the "SÅDAN SER DEN UD" panel of 1ad.
@@ -74,22 +83,29 @@ export function AnnouncementBar({
             <p className="text-brand-700 text-nav font-medium text-pretty">{message}</p>
 
             {/*
-              `rel="noopener noreferrer"` on an external address is §8's own half of the
-              open-redirect rule, and it is added here rather than by the caller so it
-              cannot be forgotten. There is deliberately **no** `target="_blank"`: the
-              design does not ask for one, a new tab needs an "åbner i nyt vindue"
-              announcement to be accessible, and `noreferrer` keeps the visitor's page
-              out of the Referer header either way — which is the half that matters on a
-              site that sends a guest nothing else (§12).
+              An internal destination is one of our own routes and goes through
+              `next/link`, as every other in-site link does (`ActionLink`, `InlineLink`):
+              that is what gives it the deployment's `basePath` — `/find-os` becomes
+              `/klingenberg-food/find-os` on the GitHub Pages project site — and the
+              router's prefetch. A raw anchor gets neither, and once sent a guest to the
+              host's root; `tests/unit/announcements/bar-base-path.test.tsx` guards it.
+
+              An external address stays a plain `<a>`. `rel="noopener noreferrer"` on it
+              is §8's own half of the open-redirect rule, and it is added here rather than
+              by the caller so it cannot be forgotten. There is deliberately **no**
+              `target="_blank"`: the design does not ask for one, a new tab needs an
+              "åbner i nyt vindue" announcement to be accessible, and `noreferrer` keeps
+              the visitor's page out of the Referer header either way — which is the half
+              that matters on a site that sends a guest nothing else (§12).
             */}
-            {link === null ? null : (
-              <a
-                className="text-brand-700 hover:text-brand-500 min-h-tap inline-flex w-fit items-center font-semibold underline underline-offset-[3px] after:absolute after:inset-0 after:content-[''] md:after:content-none"
-                href={link.href}
-                {...(link.external ? { rel: 'noopener noreferrer' } : {})}
-              >
+            {link === null ? null : link.external ? (
+              <a className={LINK_CLASSES} href={link.href} rel="noopener noreferrer">
                 {link.label}
               </a>
+            ) : (
+              <Link className={LINK_CLASSES} href={link.href}>
+                {link.label}
+              </Link>
             )}
           </div>
 
