@@ -314,7 +314,14 @@ jobs:
           #   author.login     klingenberg-food-publisher[bot]
           #   commit.message   cms: publish content (#23)
           #                    Source content: bf52c7b
+          #                    Source repository: myimaginarii/klingenberg-food:content
           #   files            content/site/** and public/photos/**, and nothing else
+          #
+          # The `Source repository:` trailer arrived with Phase S2, which taught the
+          # publisher to read from the separate CMS repository as well as the internal
+          # `content` branch. It is not part of the test below — a commit that predates
+          # it is still a publication — but it is what makes a commit here say which
+          # repository its content came from.
           #
           # All four are required. `author.login` is the App's GitHub account as the API
           # reports it, not the display name in the commit object: a display name is

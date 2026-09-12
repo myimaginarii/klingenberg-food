@@ -10,6 +10,10 @@ import {
   publicationPathProblem,
   PUBLICATION_ROOTS,
 } from '../../../scripts/cms/compose-publication.mjs'
+import {
+  EXTERNAL_CONTENT_BRANCH,
+  EXTERNAL_CONTENT_REF,
+} from '../../../scripts/cms/publication-source.mjs'
 
 /**
  * `scripts/cms/compose-publication.mjs` — the boundary between trusted code and
@@ -164,9 +168,9 @@ function addTreeEntry(root, mode, path, contents) {
  * `--into` is always given: a test that proves nothing was written needs the write to
  * have been attempted.
  */
-function publish(root) {
+function publish(root, contentRef = 'content') {
   const tree = checkoutOfMain(root)
-  const args = [SCRIPT, '--repo', root, '--main', 'main', '--content', 'content', '--into', tree]
+  const args = [SCRIPT, '--repo', root, '--main', 'main', '--content', contentRef, '--into', tree]
 
   try {
     return { code: 0, output: execFileSync(process.execPath, args, { encoding: 'utf8' }), tree }
@@ -706,5 +710,198 @@ describe('composePublication as a module', () => {
     expect(() =>
       composePublication({ repo: root, mainRef: 'main', contentRef: 'no-such-branch' }),
     ).toThrow(/no-such-branch/)
+  })
+})
+
+/**
+ * Composing from the separate CMS repository — the security migration's Phase S2.
+ *
+ * Pages CMS is moving out of this repository and into `myimaginarii/klingenberg-content`,
+ * which holds the restaurant's edits and nothing that could publish them. The publisher
+ * reads it the only way it reads anything untrusted: one `git fetch` of one branch
+ * brings its objects into the trusted checkout, parked at the ref
+ * `publication-source.mjs` names, and the composer is handed the commit.
+ *
+ * These are the same boundary tests as above, asked of a genuinely separate repository
+ * rather than of a branch — because that is what changes about the threat. A branch in
+ * this repository shares main's history; an external repository shares nothing, has its
+ * own root commit, its own `.pages.yml`, its own `README.md`, and could carry its own
+ * `package.json`, workflows or hooks. None of that has any route across, and the reason
+ * is not a rule naming any of them: the allow-list selects two prefixes, and everything
+ * else in the publication tree is main's own entry.
+ */
+describe('composing from the separate content repository', () => {
+  /**
+   * The external repository, as it really is: the two publication roots, its own CMS
+   * configuration and README — plus, for the sake of the test, the things a compromised
+   * one would add. It has no commit in common with the production fixture.
+   */
+  const EXTERNAL = {
+    'content/site/hours.json': '{ "weekly": ["external"] }\n',
+    'content/site/menu.json': '{ "sections": [] }\n',
+    'content/site/news/.gitkeep': '',
+    'content/site/news/nyt-fra-klingenberg.json': '{ "title": "Nyt fra Klingenberg" }\n',
+    'public/photos/home-hero.png': 'png-bytes-home-hero',
+    'public/photos/dish-odin.png': 'png-bytes-dish-odin',
+    'public/photos/dish-frigg.png': 'png-bytes-dish-frigg',
+    '.pages.yml': 'media:\n  - name: photos\n    input: public/photos\nsettings:\n  hostile: true\n',
+    'README.md': '# Klingenberg content\n\nThe restaurant edits here.\n',
+    'package.json': '{ "name": "content", "scripts": { "prepare": "echo owned" } }\n',
+    '.github/workflows/evil.yml': 'name: Evil\non: push\n',
+    'scripts/evil.mjs': 'process.exit(1)\n',
+    'content/launch/copy.md': '# not published\n',
+  }
+
+  /** A standalone repository with its own root commit — `main`, holding {@link EXTERNAL}. */
+  function externalRepository(edits = {}) {
+    const root = scratch('external-content-')
+
+    git(root, ['init', '-q', '-b', 'main'])
+    git(root, ['config', 'user.email', 'cms@example.test'])
+    git(root, ['config', 'user.name', 'Pages CMS'])
+    git(root, ['config', 'commit.gpgsign', 'false'])
+
+    for (const [path, contents] of Object.entries({ ...EXTERNAL, ...edits })) {
+      if (contents === null) continue
+      write(root, path, contents)
+    }
+    git(root, ['add', '-A'])
+    git(root, ['commit', '-qm', 'cms save'])
+    return root
+  }
+
+  /**
+   * What the workflow does: fetch one branch of the external repository into the
+   * trusted checkout, at the ref outside `refs/heads/` that nothing can push or check
+   * out, and return the immutable SHA it resolved to.
+   */
+  function fetchExternal(production, external) {
+    git(production, [
+      'fetch',
+      '--no-tags',
+      '--no-recurse-submodules',
+      external,
+      `+refs/heads/${EXTERNAL_CONTENT_BRANCH}:${EXTERNAL_CONTENT_REF}`,
+    ])
+    return git(production, ['rev-parse', EXTERNAL_CONTENT_REF]).trim()
+  }
+
+  it('publishes the external repository content, and only that', () => {
+    const production = fixture()
+    const external = externalRepository()
+    const sha = fetchExternal(production, external)
+
+    const { code, output, tree } = publish(production, sha)
+
+    expect(code, output).toBe(0)
+    expect(changedPaths(output).sort()).toEqual([
+      'content/site/hours.json',
+      'content/site/news/aabent-i-paasken.json',
+      'content/site/news/nyt-fra-klingenberg.json',
+      'public/photos/dish-frigg.png',
+    ])
+
+    // The snapshot replaces: the external article arrives, main's own goes, and the
+    // photograph the external repository adds is published byte for byte.
+    expect(text(tree, 'content/site/hours.json')).toBe('{ "weekly": ["external"] }\n')
+    expect(exists(tree, 'content/site/news/nyt-fra-klingenberg.json')).toBe(true)
+    expect(exists(tree, 'content/site/news/aabent-i-paasken.json')).toBe(false)
+    expect(bytes(tree, 'public/photos/dish-frigg.png').toString()).toBe('png-bytes-dish-frigg')
+  })
+
+  it('never lets the external .pages.yml or README reach production', () => {
+    const production = fixture()
+    const external = externalRepository()
+    const sha = fetchExternal(production, external)
+
+    const { code, tree } = publish(production, sha)
+
+    expect(code).toBe(0)
+    // `.pages.yml` exists on both sides and differs; main's is what survives.
+    expect(text(tree, '.pages.yml')).toBe(MAIN['.pages.yml'])
+    expect(text(tree, '.pages.yml')).not.toContain('hostile')
+    // The README exists only on the external side, and does not arrive.
+    expect(exists(tree, 'README.md')).toBe(false)
+  })
+
+  it('never lets the external repository supply code, a workflow or a hook', () => {
+    const production = fixture()
+    const external = externalRepository()
+    const sha = fetchExternal(production, external)
+
+    const { code, output, tree } = publish(production, sha)
+
+    expect(code).toBe(0)
+    expect(text(tree, '.github/workflows/ci.yml')).toBe(MAIN['.github/workflows/ci.yml'])
+    expect(exists(tree, '.github/workflows/evil.yml')).toBe(false)
+    expect(text(tree, 'package.json')).toBe(MAIN['package.json'])
+    expect(text(tree, 'package.json')).not.toContain('prepare')
+    expect(exists(tree, 'scripts/evil.mjs')).toBe(false)
+    expect(text(tree, 'scripts/build.mjs')).toBe(MAIN['scripts/build.mjs'])
+    expect(text(tree, 'content/launch/copy.md')).toBe(MAIN['content/launch/copy.md'])
+
+    // And none of it is even reported as a change: a path outside the roots is not a
+    // publication input the composer had to reject, it is one it never selected.
+    for (const path of changedPaths(output)) {
+      expect(path, path).toMatch(/^(content\/site|public\/photos)\//)
+    }
+  })
+
+  it('refuses the whole publication when the external repository offers a symbolic link', () => {
+    const production = fixture()
+    const external = externalRepository()
+    // Written through the external repository's own index, which is exactly how a
+    // compromised CMS account would offer one.
+    const blob = execFileSync('git', ['-C', external, 'hash-object', '-w', '--stdin'], {
+      input: '../../../etc/passwd',
+      encoding: 'utf8',
+    }).trim()
+    const env = { ...process.env, GIT_INDEX_FILE: join(scratch('external-index-'), 'index') }
+    // Off the branch first: git will not move a branch a worktree is sitting on.
+    git(external, ['checkout', '-q', '--detach'])
+    git(external, ['read-tree', 'main'], env)
+    git(external, ['update-index', '--add', '--cacheinfo', `120000,${blob},content/site/link.json`], env)
+    const tree = git(external, ['write-tree'], env).trim()
+    const commit = git(external, ['commit-tree', tree, '-p', 'main', '-m', 'hostile'], env).trim()
+    git(external, ['branch', '-f', 'main', commit])
+
+    const sha = fetchExternal(production, external)
+    const result = publish(production, sha)
+
+    expect(result.code).toBe(1)
+    expect(result.output).toContain('symbolic link')
+    // Nothing at all was written: the refusal is before the first byte.
+    expect(text(result.tree, 'content/site/hours.json')).toBe(MAIN['content/site/hours.json'])
+    expect(exists(result.tree, 'content/site/link.json')).toBe(false)
+  })
+
+  it('composes from the immutable commit, not from whatever the branch became', () => {
+    const production = fixture()
+    const external = externalRepository()
+    const sha = fetchExternal(production, external)
+
+    // A newer save lands on the external repository after the SHA was taken. The
+    // fetched objects are the ones composed from; the new save is not among them.
+    write(external, 'content/site/hours.json', '{ "weekly": ["newer"] }\n')
+    git(external, ['add', '-A'])
+    git(external, ['commit', '-qm', 'newer save'])
+    expect(git(external, ['rev-parse', 'main']).trim()).not.toBe(sha)
+
+    const { code, tree } = publish(production, sha)
+
+    expect(code).toBe(0)
+    expect(text(tree, 'content/site/hours.json')).toBe('{ "weekly": ["external"] }\n')
+  })
+
+  it('parks the fetched objects where nothing can push or check them out', () => {
+    const production = fixture()
+    const external = externalRepository()
+    fetchExternal(production, external)
+
+    expect(EXTERNAL_CONTENT_REF.startsWith('refs/heads/')).toBe(false)
+    // Not a branch, and not reachable from one: `git push origin HEAD:refs/heads/…`
+    // pushes what is reachable from HEAD, and the external history is not.
+    expect(git(production, ['branch', '--list', '--all']).trim()).not.toContain('external-content')
+    expect(git(production, ['branch', '--contains', EXTERNAL_CONTENT_REF]).trim()).toBe('')
   })
 })
