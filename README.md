@@ -81,7 +81,8 @@ The content lives in its own repository, `myimaginarii/klingenberg-content`, so 
 account Pages CMS writes with has no reach over this repository's code, workflows or
 publishing key. The publisher reads that repository's `main` as data — it is never
 checked out or run — and it is the only source a publication can come from. This
-repository's old `content` branch is no longer read by the publisher.
+repository no longer has a `content` branch or a trigger of its own; the only doorbell
+is the one in the content repository.
 
 **Only two directories cross from the content repository into production:**
 
