@@ -26,13 +26,14 @@ public/media/<slot>/     AVIF + WebP derivatives, rendered by sharp at build tim
 out/                     the finished site: one index.html per page, plus the assets
 ```
 
-**GitHub is the source of truth.** A price change, a new opening time, a news article or
-a photograph is a commit — reviewed, dated and revertible like any other change. There is
-nothing to log into and nothing to keep running.
+**GitHub is still the record.** A price change, a new opening time, a news article or a
+photograph is a commit — dated, revertible and diffable like any other change. There is
+no database and nothing to keep running. What has changed is who writes the commit: the
+restaurant does, from **Pages CMS**, without opening GitHub at all.
 
 | What | Where |
 |---|---|
-| Menu: nine sections, forty-six dishes, the tapas board | [`content/site/menu.json`](content/site/menu.json), [`weekly-special.json`](content/site/weekly-special.json), [`monthly-burger.json`](content/site/monthly-burger.json) |
+| The menu, section by section, and the tapas board | [`content/site/menu.json`](content/site/menu.json), [`weekly-special.json`](content/site/weekly-special.json), [`monthly-burger.json`](content/site/monthly-burger.json) |
 | Opening hours and one-off changes | [`content/site/hours.json`](content/site/hours.json) |
 | Address, telephone numbers, e-mail, Facebook | [`content/site/contact.json`](content/site/contact.json) |
 | Forside, Om os and Mad ud af huset wording | [`content/site/pages/`](content/site/pages/), the award in [`award.json`](content/site/award.json) |
@@ -46,15 +47,113 @@ rather than a placeholder.
 
 ### Changing the content
 
-1. Edit the file above and commit.
-2. `npm run check` — typecheck, lint, source policy, unit tests.
+The restaurant edits in **Pages CMS** and presses **Gem**. That is the whole of the
+normal workflow: no GitHub, no Netlify, no command to run, and nothing to approve.
+
+Each save sets off this chain, and every step of it is automatic:
+
+```
+Pages CMS                        the restaurant presses Gem
+    │
+    ▼
+content branch                   the save lands as a commit here
+    │
+    ▼
+Publish a CMS save               the doorbell (cms-content-trigger.yml, on content)
+    │
+    ▼
+Publish CMS content              composes the save onto main (cms-publish.yml)
+    │
+    ▼
+cms-publish pull request         one branch, one pull request, auto-merge armed
+    │
+    ▼
+CI                               the same required checks as every other change
+    │
+    ▼
+main                             GitHub's auto-merge lands it
+    │
+    ▼
+Netlify                          builds and publishes the site
+```
+
+**Only two directories cross from `content` into production:**
+
+```
+content/site/**      the JSON the pages are rendered from
+public/photos/**     the photographs themselves
+```
+
+[`scripts/cms/compose-publication.mjs`](scripts/cms/compose-publication.mjs) is that
+allow-list, and it is the only thing that copies anything: every other path in a
+publication is `main`'s own, whatever the `content` branch says about it.
+
+`.pages.yml` is Pages CMS's own configuration — it lives on the `content` branch, it
+describes the editing forms and their Danish labels, and it is **never published**.
+Neither Next.js, the build nor the tests read it.
+
+`main` is protected, and nothing in this chain can push to it. A publication reaches
+production by passing the same required checks as any other pull request, or it does
+not reach production at all.
+
+### When a CMS publication fails
+
+If a publication fails in a way that needs a developer,
+[`.github/workflows/cms-publication-status.yml`](.github/workflows/cms-publication-status.yml)
+opens a single Danish issue titled **"CMS: Udgivelse kræver hjælp"**, with a link to the
+run that failed. It comments on that same issue rather than opening a second one, and it
+closes the issue by itself once a CMS publication reaches `main` again.
+
+When that issue appears:
+
+1. **Open the linked Actions run** and find the step that failed.
+2. **Never merge a red `cms-publish` pull request by hand.** It is red because something
+   would have reached the public site that should not.
+3. **If `check:content` rejected the restaurant's content** — a price that is not a
+   number, a date that is not a date, a required field left blank — the fix is in Pages
+   CMS. Correct the field and press **Gem** again. No code change is needed.
+4. **If the content was fine and the application rejected it** — a test that quotes copy
+   the restaurant is allowed to rewrite, a loader that cannot read a shape the CMS can
+   now produce — the fix belongs in the application, through an ordinary feature pull
+   request to `main`.
+5. **After that fix is on `main`**, run **Publish CMS content** once by hand (Actions →
+   Publish CMS content → Run workflow) to republish the current content snapshot. The
+   restaurant does not need to save again.
+6. **A successful publication closes the issue automatically.** If it stays open, no
+   publication has landed yet.
+
+Two things that look like failures and are not:
+
+- **A cancelled publication is normal.** Two saves a minute apart cancel the first run on
+  purpose, so that the newer content is what gets published. No issue is opened for it.
+- **Production is never left half-changed.** While publication is broken, `main` — and
+  therefore the live site — stays on the last version that passed every check. A failed
+  publication makes the site stale, never wrong.
+
+### Changing the content as a developer
+
+Editing a file by hand still works, and is the right thing for a change Pages CMS cannot
+express:
+
+1. Edit the file and open a pull request to `main`.
+2. `npm run check` — typecheck, lint, source policy, content validation, unit tests.
 3. `npm run build` — the site is rebuilt in `out/`.
 
-The unit suite holds the content to the confirmed facts (`tests/unit/content/static-site.test.ts`):
-the nine sections, the forty-six dishes, the absence of anything nobody confirmed. A
-change that breaks one of those is a failing test, not a surprise on the live site.
+Be careful what a test asserts about content. **The unit suites do not freeze the
+restaurant's own values** — not the number of sections, not a dish's price, not a
+sentence of the Forside's prose — because each of those is an ordinary Pages CMS field,
+and a test that quotes one turns the next ordinary save into a red build that blocks its
+own publication. That has happened. What the suites hold is the *shape* of the content
+and the rules the pages depend on: that a section's id is a usable anchor, that no two
+sections share one, that a price can be read as a price.
+[`tests/unit/content/static-site.test.ts`](tests/unit/content/static-site.test.ts) states
+the rule at the top of the file, and `.pages.yml` — on the `content` branch — is the
+authority on which fields are the restaurant's.
 
 ### Adding a photograph
+
+The restaurant adds photographs in Pages CMS, which uploads them into `public/photos/`
+and writes the reference into the content for you. By hand, the same two steps are:
 
 1. Put the file in `public/photos/`, named in lower-case letters, digits and single
    hyphens: `dish-odin.png`, `home-hero.jpg`. `jpg`, `jpeg`, `png` and `webp` are
