@@ -5,6 +5,7 @@ import { loadOpeningHours } from '@/lib/content/load/hours'
 import type { SiteContact } from '@/lib/content/types'
 import { buildStaticPublicImage, seoImageOf } from '@/lib/images/public'
 import { serializeJsonLd } from '@/lib/seo/json-ld'
+import { telHref } from '@/lib/site/links'
 import { restaurantJsonLd, weeklyOpeningHoursJsonLd, specialOpeningHoursJsonLd } from '@/lib/seo/restaurant'
 
 import {
@@ -45,12 +46,24 @@ describe('restaurantJsonLd — the confirmed facts', () => {
     expect(block().url).toBe('http://localhost:3000/')
   })
 
+  /**
+   * The block is a machine's copy of the contact document, so it is asserted against
+   * that document rather than against a second copy of it.
+   *
+   * The address is the part that may be quoted — `venueName`, `addressLine1`,
+   * `postalCode` and `city` are `readonly: true` in `.pages.yml`, because the
+   * restaurant does not move. The telephone number, the e-mail address and the Facebook
+   * page are ordinary editable fields, and a search engine that was told a number the
+   * page no longer prints is worse than one told nothing; what matters is that the two
+   * agree, not which number it is today.
+   */
   it('restates the tracked contact document and nothing beside it', () => {
     const jsonLd = block()
+    const contact = loadContact()
 
     expect(jsonLd.name).toBe('Klingenberg Food')
-    expect(jsonLd.telephone).toBe('+4563908300')
-    expect(jsonLd.email).toBe('soebylarsen@gmail.com')
+    expect(jsonLd.telephone).toBe(telHref(contact.primaryPhone!).replace('tel:', ''))
+    expect(jsonLd.email).toBe(contact.email)
     expect(jsonLd.address).toEqual({
       '@type': 'PostalAddress',
       streetAddress: 'Lumbyvej 62',
@@ -59,7 +72,7 @@ describe('restaurantJsonLd — the confirmed facts', () => {
       addressCountry: 'DK',
     })
     expect(jsonLd.containedInPlace).toEqual({ '@type': 'Place', name: 'Carl Nielsen Hallen' })
-    expect(jsonLd.sameAs).toEqual(['https://www.facebook.com/carlnielsencafeen'])
+    expect(jsonLd.sameAs).toEqual(contact.facebookUrl === null ? undefined : [contact.facebookUrl])
     expect(jsonLd.hasMenu).toBe('http://localhost:3000/menu/')
   })
 
@@ -196,9 +209,22 @@ describe('specialOpeningHoursJsonLd', () => {
     expect('specialOpeningHoursSpecification' in block({ overrides: [draft] })).toBe(false)
   })
 
-  it('is absent from the block while the tracked content lists no override', () => {
-    expect(loadOpeningHours().overrides).toEqual([])
-    expect('specialOpeningHoursSpecification' in block()).toBe(false)
+  /**
+   * Special days are Pages CMS's "Særlige dage": a restaurant publishing a Christmas
+   * closure must not turn CI red for it, so what is asserted is the correspondence —
+   * the block carries a `specialOpeningHoursSpecification` exactly when the document
+   * lists a *published* override, and never otherwise.
+   */
+  it('carries the special days the tracked content publishes, and no others', () => {
+    const published = loadOpeningHours().overrides.filter(
+      (override) => override.status === 'published',
+    )
+    const carried = 'specialOpeningHoursSpecification' in block()
+
+    expect(carried).toBe(published.length > 0)
+    if (carried) {
+      expect(block().specialOpeningHoursSpecification).toHaveLength(published.length)
+    }
   })
 })
 
