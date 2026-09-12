@@ -37,7 +37,10 @@ import { escapedPaths, stagePublication } from '../../../scripts/cms/stage-publi
  */
 
 const WORKFLOW_PATH = join(process.cwd(), '.github', 'workflows', 'cms-publish.yml')
-const workflow = readFileSync(WORKFLOW_PATH, 'utf8')
+// Line endings normalised first, as the sibling workflow suites do: this project is
+// developed with `core.autocrlf=true`, so the working-tree copy is CRLF on Windows and
+// LF in CI, and the step-name searches below are anchored on `\n`.
+const workflow = readFileSync(WORKFLOW_PATH, 'utf8').replace(/\r\n/g, '\n')
 
 /**
  * A top-level block of the workflow: from `key:` at column 0 to the next key at column
