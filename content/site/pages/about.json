@@ -8,12 +8,12 @@
   ],
   "venuePhoto": { "file": "/photos/about-venue.png", "alt": "Spisesalen hos Klingenberg Food", "focus": "center" },
   "team": {
-    "text": "Bag Klingenberg Food står et lille hold, som tager sig af køkkenet og den daglige drift. Vi holder tingene nede på jorden og prøver at give gæsterne et godt måltid, om de så kommer efter en burger, ugens ret eller noget helt andet fra menuen.",
+    "text": "Vi er et lille hold, der tager os af køkkenet og caféen til daglig. Vi vil gerne servere et godt måltid, hvad enten du kommer efter en burger eller ugens ret.",
     "photo": null
   },
   "method": {
     "heading": "Fra køkkenet",
-    "text": "I køkkenet laver vi burgere, varme retter og det andet, der står på menuen. Vi har flere forskellige burgere og tilbehør, og menuen skifter løbende med blandt andet Ugens ret og Månedens burger. Vi vil gerne servere mad, der er enkel og mættende, og som man kan nyde uden det store besvær.",
+    "text": "Ugens ret skifter hver uge, og indimellem har vi også månedens burger. Resten finder du på menuen.",
     "photo": null
   }
 }
