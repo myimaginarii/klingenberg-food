@@ -7,9 +7,9 @@
 # nothing for any of them to do — and **no secret of any kind**, because building this
 # site needs nothing but the repository (`npm run check:policy` keeps that true).
 #
-# GITHUB PAGES IS UNTOUCHED. `.github/workflows/pages.yml` still builds and publishes the
-# same `out/` to the same address; this file adds a second host, it does not replace the
-# first. The two agree because they build the same artefact from the same command.
+# NETLIFY IS THE ACTIVE DEPLOYMENT HOST. The GitHub Pages deployment has been retired and
+# unpublished. The application's generic sub-path support (`basePath` from `SITE_URL`)
+# remains, for compatibility and for testing a sub-path build locally.
 #
 # WHERE THE SITE THINKS IT LIVES. Nothing here states an address. Netlify already
 # publishes one for every deploy in its read-only variables, and `lib/config/site.ts`
@@ -17,8 +17,7 @@
 # restaurant's own domain the moment one is attached, with no edit here — and
 # `DEPLOY_PRIME_URL` on a Deploy Preview or branch deploy, so a preview's absolute URLs
 # name the preview. Neither carries a sub-path, so `basePath` is empty and every link,
-# asset and router prefetch is written from the root of the host. That is the one
-# difference from the GitHub Pages *project* site, which is served under `/<repository>/`.
+# asset and router prefetch is written from the root of the host.
 
 [build]
   # No install step here. Netlify runs its own dependency installation before this
@@ -98,10 +97,16 @@
 # `upgrade-insecure-requests` is absent on purpose: the export references nothing over
 # plain HTTP, and locally the site runs over plain HTTP where the directive would break it.
 #
-# HSTS carries neither `includeSubDomains` nor `preload`. Two years is the max-age a
-# preload list would want, but preloading is a one-way decision for the owner and the
-# subdomains of a domain nobody has bought yet cannot be spoken for. Netlify serves HTTPS
-# on both the `*.netlify.app` address and any custom domain, so the header is honest today.
+# HSTS IS TEMPORARILY SHORT. `max-age=300` holds only for the custom-domain cutover, so
+# a mistake in HTTPS or a redirect found while the domain is being connected holds a
+# visitor's browser to HTTPS for five minutes, not two years. Once HTTPS, redirects and
+# headers are verified on the real domain, the long value, `max-age=63072000` (two years),
+# is restored.
+#
+# HSTS carries neither `includeSubDomains` nor `preload`, and that stays true after the
+# restore. Preloading is a one-way decision for the owner, and the domain's subdomains
+# cannot be spoken for here. Netlify serves HTTPS on both the `*.netlify.app` address and
+# any custom domain, so the header is honest.
 [[headers]]
   for = "/*"
   [headers.values]
@@ -112,4 +117,4 @@
     # Duplicates `frame-ancestors 'none'` for browsers that predate it. The two agree and
     # can only be changed together.
     X-Frame-Options = "DENY"
-    Strict-Transport-Security = "max-age=63072000"
+    Strict-Transport-Security = "max-age=300"
