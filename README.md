@@ -200,15 +200,13 @@ photographs and the content that names them are the record.
 
 ## Deployment
 
-`out/` is the whole deployable artefact, so any static host serves it. Two are configured,
-and both run the same `npm run build` and publish the same directory. Neither **needs a
-secret of any kind** — building and serving this site requires nothing but the repository,
-and `npm run check:policy` fails if a backend name reappears anywhere.
+`out/` is the whole deployable artefact, so any static host serves it. One is configured,
+and it **needs no secret of any kind** — building and serving this site requires nothing
+but the repository, and `npm run check:policy` fails if a backend name reappears anywhere.
 
-**GitHub Pages**, through [`.github/workflows/pages.yml`](.github/workflows/pages.yml):
-the workflow builds the export, uploads `out/` and publishes it, on a push to `main` and on
-`workflow_dispatch`. `out/.nojekyll` (tracked as `public/.nojekyll`) keeps GitHub from
-running the export through Jekyll, which would drop `_next/`.
+**GitHub Pages is retired.** Its deployment workflow was removed so that a second copy of
+the site is never published once `noindex` is lifted. The sub-path support below stays, so
+a project-site build can still be reproduced locally.
 
 **Netlify**, through [`netlify.toml`](netlify.toml): `npm ci && npm run build`, publish
 `out/`, and nothing else — no function, no edge function, no database, no blob store.
@@ -229,8 +227,7 @@ Canonical URLs, the sitemap, the Open Graph URLs and `basePath` in
    ```
 
    A GitHub Pages *project* site is the second form —
-   `https://<owner>.github.io/<repository>/` — and the workflow takes the value from
-   `actions/configure-pages`, which reports the address GitHub actually assigned.
+   `https://<owner>.github.io/<repository>/`.
 
 2. **Netlify's own read-only variables**, on a Netlify builder and nowhere else: `URL` on a
    production deploy, `DEPLOY_PRIME_URL` on a Deploy Preview or branch deploy, so a preview
