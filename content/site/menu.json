@@ -50,6 +50,7 @@
           "description": "200 g dry aged bøf, beer-battered onion rings, syltede rødløg, gedeost, chilimayo, BBQ-sauce, iceberg og briochebolle.",
           "featured": false,
           "photo": {
+            "file": "/photos/dish-thor.png",
             "focus": "center"
           }
         },
