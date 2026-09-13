@@ -11,12 +11,11 @@
  * it any more.
  *
  * THE SOURCE IS FIXED, NOT CHOSEN. The owner, the repository and the branch are
- * constants in this file. A dispatch cannot ask for `some/other-repo`, cannot ask for a
- * fork, a tag, a pull request ref or an arbitrary SHA — there is no input that would
- * carry one. The workflow still accepts a `source` input, for one reason: the trigger in
- * the content repository dispatches with `source=external`, and GitHub refuses a
- * dispatch that names an input the workflow does not declare. So `external` is accepted,
- * an absent value means the same thing, and every other value is refused.
+ * constants in this file, and nothing a caller passes can change them: the function
+ * takes no source name, the command takes no arguments, and the workflow declares no
+ * inputs (Phase S4B-2B removed the last one, a one-word `source` selector). A dispatch
+ * cannot ask for `some/other-repo`, a fork, a tag, a pull request ref or an arbitrary
+ * SHA — there is nowhere for one to arrive.
  *
  * THE CONTENT REPOSITORY IS DATA, NOT CODE. Nothing here checks it out, runs it, or
  * reads anything from it but git objects. `remote` is a URL the publisher *fetches
@@ -41,19 +40,17 @@
  *
  * USAGE
  *
- *     node scripts/cms/publication-source.mjs [--source external]
+ *     node scripts/cms/publication-source.mjs
  *
- * Prints the resolved source and, under GitHub Actions, writes it to `$GITHUB_OUTPUT`
- * as `repository`, `branch`, `remote`, `ref`, `header_reset` and `label`.
+ * Prints the source and, under GitHub Actions, writes it to `$GITHUB_OUTPUT` as
+ * `repository`, `branch`, `remote`, `ref`, `header_reset` and `label`. Any argument is
+ * refused: the command has nothing to be told.
  */
 
 import { appendFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-
-/** The one value the workflow's `source` input may carry. */
-export const PUBLICATION_SOURCE = 'external'
 
 /** The repository Pages CMS writes to. Fixed here; no input can name another. */
 export const EXTERNAL_CONTENT_REPOSITORY = 'myimaginarii/klingenberg-content'
@@ -108,19 +105,11 @@ export function unauthenticatedHeaderOption(serverUrl = required('GITHUB_SERVER_
 /**
  * The source a publication reads, as the facts the workflow needs to read it.
  *
- * `name` is the dispatch's `source` input. Absent, or `external`, it is the content
- * repository; anything else is refused rather than guessed at — including `internal`,
- * the retired name for this repository's `content` branch.
+ * Always the content repository's `main`. The only thing a caller supplies is the
+ * server the runner is on, which decides the host of the URL and never the repository,
+ * the branch or the ref.
  */
-export function publicationSource(name, { serverUrl = required('GITHUB_SERVER_URL') } = {}) {
-  const absent = name === undefined || name === null || name === ''
-
-  if (!absent && name !== PUBLICATION_SOURCE) {
-    throw new Error(
-      `"${name}" is not a publication source; the only source is ${PUBLICATION_SOURCE}.`,
-    )
-  }
-
+export function publicationSource({ serverUrl = required('GITHUB_SERVER_URL') } = {}) {
   return Object.freeze({
     repository: EXTERNAL_CONTENT_REPOSITORY,
     branch: EXTERNAL_CONTENT_BRANCH,
@@ -155,11 +144,11 @@ function emit(entries) {
 }
 
 function main() {
-  const { values } = parseArgs({ options: { source: { type: 'string' } } })
-
   let source
   try {
-    source = publicationSource(values.source)
+    // Strict and empty: `--source external`, or anything else, is an error, not ignored.
+    parseArgs({ options: {}, strict: true, allowPositionals: false })
+    source = publicationSource()
   } catch (error) {
     console.error(`publication-source: ${error instanceof Error ? error.message : error}`)
     process.exit(2)

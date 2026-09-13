@@ -267,27 +267,31 @@ describe('the publication workflow file', () => {
 describe('the source a publication reads', () => {
   const RESOLVE = "Resolve the publication's two immutable commits"
 
-  it('offers one fixed word, which is also the default', () => {
+  it('declares no inputs, so a dispatch selects nothing', () => {
     const on = topLevelBlock('on')
 
-    // Kept so the content repository's `--raw-field source=external` is a declared
-    // input — GitHub refuses a dispatch naming one that is not.
-    expect(on).toMatch(/^\s+source:/m)
-    expect(on).toMatch(/^\s+type:\s*choice\s*$/m)
-    expect(on).toMatch(/^\s+default:\s*external\s*$/m)
-    const options = [...on.matchAll(/^\s+- (\S+) *$/gm)].map((match) => match[1])
-    expect(options).toEqual(['external'])
-    expect(on).not.toMatch(/internal/)
-
-    // No input carries a repository, an owner, a ref or a SHA. That is the whole
-    // safety property of a word-shaped selector: there is nothing here for an
-    // arbitrary name to arrive in.
-    for (const forbidden of [/repository:/, /owner:/, /\bref:/, /\bsha:/i, /branch:/]) {
+    // Phase S4B-2B. The one-word `source` selector is gone, and with it every place a
+    // repository, an owner, a ref, a SHA or a source name could arrive in. The trigger
+    // `on:` holds is the bare `workflow_dispatch:` and nothing under it — which is
+    // also exactly what accepts the content repository's dispatch, sent with no inputs.
+    expect(on.trim()).toBe('workflow_dispatch:')
+    for (const forbidden of [/inputs:/, /source:/, /repository:/, /owner:/, /\bref:/, /\bsha:/i, /branch:/]) {
       expect(on, String(forbidden)).not.toMatch(forbidden)
     }
   })
 
-  it('turns the word into a source before it resolves anything', () => {
+  it('reads no dispatch input anywhere', () => {
+    // Nothing in any step reaches for an input either, under any of its spellings.
+    const code = workflow
+      .split('\n')
+      .filter((line) => !line.trimStart().startsWith('#'))
+      .join('\n')
+    expect(code).not.toMatch(/\binputs\b/)
+    expect(code).not.toMatch(/github\.event\.inputs/)
+    expect(code).not.toMatch(/PUBLICATION_SOURCE/)
+  })
+
+  it('names the source before it resolves anything', () => {
     expect(stepBlock('Name the source this publication reads')).toContain(
       'scripts/cms/publication-source.mjs',
     )
@@ -409,14 +413,18 @@ describe('the source a publication reads', () => {
     expect(code).not.toMatch(/ls-remote origin "refs\/heads\/(?!\$\{PUBLICATION_BRANCH\})/)
   })
 
-  it('hands the dispatched word to the script that refuses every other one', () => {
-    // The workflow does not interpret `source` itself: the input goes to
-    // `publication-source.mjs`, which accepts `external` or nothing, and fails the run
-    // on anything else before a single object is fetched.
+  it('asks the source script for the one source, and tells it nothing', () => {
+    // No argument, no `env:`: the script's output is its constants and the runner's
+    // server, and nothing a caller wrote.
     const step = stepBlock('Name the source this publication reads')
-    expect(step).toContain('PUBLICATION_SOURCE: ${{ inputs.source }}')
-    expect(step).toContain('node scripts/cms/publication-source.mjs --source "$PUBLICATION_SOURCE"')
-    expect(workflow.match(/inputs\.source/g)).toHaveLength(1)
+    expect(step).toMatch(/^\s+run: node scripts\/cms\/publication-source\.mjs$/m)
+    expect(step).not.toMatch(/^\s+env:/m)
+    const invocations = shellLines().filter(
+      (line) => !line.startsWith('#') && line.includes('publication-source.mjs'),
+    )
+    expect(invocations).toEqual([
+      'run: node scripts/cms/publication-source.mjs',
+    ])
   })
 })
 
