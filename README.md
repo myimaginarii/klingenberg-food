@@ -62,7 +62,7 @@ klingenberg-content, main        the save lands as a commit in the content repos
 cms-content-trigger.yml          the doorbell, in the content repository
     │
     ▼
-Publish CMS content              composes the save onto main (cms-publish.yml, source=external)
+Publish CMS content              composes the save onto main (cms-publish.yml)
     │
     ▼
 cms-publish pull request         one branch, one pull request, auto-merge armed

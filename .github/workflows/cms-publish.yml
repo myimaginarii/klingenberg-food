@@ -51,11 +51,10 @@ name: Publish CMS content
 # can read it.
 #
 # THE SOURCE IS FIXED, NOT CHOSEN. The owner, the repository and the branch are
-# constants in `scripts/cms/publication-source.mjs`. The `source` input survives only
-# because the content repository's trigger dispatches with `source=external`, and GitHub
-# refuses a dispatch naming an input the workflow does not declare. It has one option;
-# the script accepts that word or nothing and refuses anything else. There is no input
-# that could carry a repository, a fork, a tag, a pull request ref or a SHA.
+# constants in `scripts/cms/publication-source.mjs`, which takes no arguments. This
+# workflow declares no inputs at all (Phase S4B-2B removed the last, a one-word `source`
+# selector, once the content repository's trigger stopped sending it), so a dispatch
+# has nowhere to carry a repository, a fork, a tag, a pull request ref or a SHA.
 #
 # THE CONTENT REPOSITORY IS DATA, NEVER CODE. It is never checked out and never a
 # working directory. One `git fetch` of one branch brings its objects into this trusted
@@ -81,17 +80,8 @@ name: Publish CMS content
 # supply-chain hole. The comment records which release each SHA is.
 
 on:
+  # No inputs. A dispatch asks for a run and chooses nothing about it.
   workflow_dispatch:
-    inputs:
-      # One option. Kept only so the trigger's `source=external` is a declared input;
-      # the repository it stands for is fixed in `scripts/cms/publication-source.mjs`.
-      source:
-        description: Where the restaurant's edits are read from. There is one answer.
-        required: false
-        default: external
-        type: choice
-        options:
-          - external
 
 # Nothing. Every mutation here is made with the App's installation token, so the
 # workflow's own token needs no scope — not even `contents: read`, because the checkout
@@ -175,14 +165,11 @@ jobs:
             --base "$BASE_BRANCH"
 
       # The content repository, as the branch, remote and parking ref it stands for.
-      # The constants are in the script, not here and not in the input: nothing a
-      # caller can write reaches any value below. `external` or an absent input is
-      # accepted; any other word — `internal` included — fails the run.
+      # The constants are in the script, not here, and the script is given nothing:
+      # no value a caller can write reaches any output below.
       - name: Name the source this publication reads
         id: source
-        env:
-          PUBLICATION_SOURCE: ${{ inputs.source }}
-        run: node scripts/cms/publication-source.mjs --source "$PUBLICATION_SOURCE"
+        run: node scripts/cms/publication-source.mjs
 
       # The snapshot is taken here and nowhere else. Both refs are resolved to full SHAs
       # once; every later step is given a SHA.
