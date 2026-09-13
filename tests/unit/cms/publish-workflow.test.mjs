@@ -138,6 +138,15 @@ describe('the publication workflow file', () => {
     expect(workflow).not.toMatch(/\bIv1|\bIv23/)
   })
 
+  it('reads the App key through the cms-publish environment', () => {
+    // Exactly one `environment:` key, a plain name on the `publish` job. The long form
+    // (`environment: { name, url }`) or a second job would each let the key be
+    // resolved somewhere this assertion does not look.
+    expect(workflow.match(/^\s*environment:/gm)).toHaveLength(1)
+    const job = workflow.slice(workflow.indexOf('\n  publish:\n'), workflow.indexOf('\n    steps:\n'))
+    expect(job).toMatch(/^ {4}environment: cms-publish$/m)
+  })
+
   it('pins every action it uses by commit SHA', () => {
     // The SHA is followed by a `# vX.Y.Z` comment recording which release it is.
     const uses = [...workflow.matchAll(/^\s*uses:\s*(\S+)/gm)].map((match) => match[1])

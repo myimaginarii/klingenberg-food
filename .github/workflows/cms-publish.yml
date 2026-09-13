@@ -114,6 +114,11 @@ jobs:
     name: Compose and open a CMS publication
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # The App private key is kept in the `cms-publish` Actions Environment. An environment
+    # secret is visible only to a job that names its environment, and for that job it
+    # takes precedence over a repository secret of the same name, so this binding, on the
+    # one job that mints the token, is what sources the credential through `cms-publish`.
+    environment: cms-publish
 
     steps:
       # The App has Contents and Pull requests, both read/write, and nothing else. Asking
