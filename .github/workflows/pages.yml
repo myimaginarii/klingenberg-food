@@ -23,8 +23,8 @@ name: Deploy to GitHub Pages
 # supply-chain hole. The comment records which release each SHA is.
 
 on:
-  # Deploys land from `main` only. This file is on a branch that is not `main`, so
-  # committing it publishes nothing.
+  # Deploys land from `main` only: every push to `main` (a merged PR included) builds
+  # and publishes the site. Pushes to any other branch deploy nothing.
   push:
     branches: [main]
   # And by hand, from the Actions tab, for a deliberate re-deploy.

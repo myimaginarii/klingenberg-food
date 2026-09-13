@@ -21,8 +21,6 @@ updates:
       timezone: Europe/Copenhagen
     open-pull-requests-limit: 5
     versioning-strategy: increase
-    labels:
-      - dependencies
     groups:
       # One PR for the routine patch/minor churn, so review effort goes to the
       # updates that actually change something.
@@ -45,9 +43,6 @@ updates:
       time: '06:00'
       timezone: Europe/Copenhagen
     open-pull-requests-limit: 5
-    labels:
-      - dependencies
-      - github-actions
     groups:
       actions:
         applies-to: version-updates
