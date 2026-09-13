@@ -41,7 +41,7 @@ import { DishPrice } from './DishPrice'
  * "Burgere" `<h2>` and on the Forside it is the section's own heading.
  */
 const EMPTY_STATE_TEXT =
-  'Der er ingen månedens burger lige nu. Når der er en, står den her med navn, beskrivelse og pris.'
+  'Der er ingen månedens burger lige nu. Når der kommer en ny, står den her.'
 
 export function MonthlyBurgerEmptyCard({
   heading: Heading = 'h3',
