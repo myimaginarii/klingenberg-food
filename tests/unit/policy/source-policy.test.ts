@@ -69,6 +69,27 @@ describe('the domain rule and editable content', () => {
     expect(result.output).not.toContain('content/site/contact.json')
   })
 
+  it('lets the root netlify.toml name the hosts of its redirect, and no other .toml', () => {
+    const redirect =
+      '[[redirects]]\n  from = "https://example.netlify.app/*"\n  to = "https://example.dk/:splat"\n'
+
+    const root = runPolicy({ 'netlify.toml': redirect, 'lib/harmless.ts': HARMLESS_CODE })
+    expect(root.output).toContain('source-policy: OK')
+    expect(root.code).toBe(0)
+
+    const elsewhere = runPolicy({ 'config/netlify.toml': redirect, 'other.toml': redirect })
+    expect(elsewhere.code).toBe(1)
+    expect(elsewhere.output).toContain('[no-hard-coded-domain] config/netlify.toml:2')
+    expect(elsewhere.output).toContain('[no-hard-coded-domain] other.toml:3')
+  })
+
+  it('keeps the no-backend rule over netlify.toml', () => {
+    const result = runPolicy({ 'netlify.toml': '[build.environment]\n  SENTRY_DSN = "x"\n' })
+
+    expect(result.code).toBe(1)
+    expect(result.output).toContain('[no-backend] netlify.toml:2')
+  })
+
   it('keeps the no-backend rule over content: a backend name is wrong wherever it appears', () => {
     const result = runPolicy({
       'content/site/contact.json': '{ "note": "set SENTRY_DSN before the build" }\n',

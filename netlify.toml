@@ -11,7 +11,8 @@
 # unpublished. The application's generic sub-path support (`basePath` from `SITE_URL`)
 # remains, for compatibility and for testing a sub-path build locally.
 #
-# WHERE THE SITE THINKS IT LIVES. Nothing here states an address. Netlify already
+# WHERE THE SITE THINKS IT LIVES. Nothing here tells the build an address (the one host
+# redirect below is routing, and the application never reads it). Netlify already
 # publishes one for every deploy in its read-only variables, and `lib/config/site.ts`
 # reads them (§10d): `URL` on a production deploy — the `*.netlify.app` subdomain now, the
 # restaurant's own domain the moment one is attached, with no edit here — and
@@ -64,6 +65,26 @@
   # stating it here means a change in the UI cannot quietly disagree with the export.
   pretty_urls = true
 
+# The `*.netlify.app` address forwards to the restaurant's own domain.
+#
+# Netlify keeps serving every site on its generated subdomain after a custom domain is
+# attached, which would leave a second, complete copy of the site at another address. This
+# is Netlify's documented domain-level redirect: a full URL in `from` matches that host
+# and no other, so a request that arrives on the custom domain never meets this rule and
+# there is no loop. `:splat` carries the path across, Netlify passes the query string
+# through on a 301 by itself, and `force` is what makes the rule win over the file that
+# exists at the same path. Deploy Previews and branch deploys answer on their own
+# `deploy-preview-N--…` hosts, which this host does not match, so they stay reachable.
+#
+# This is the one place outside `lib/config/site.ts` that states the site's address —
+# a host rule cannot read a variable — and `scripts/check-source-policy.mjs` exempts this
+# file, and only this file, for it. The application still takes its origin from `URL`.
+[[redirects]]
+  from = "https://guileless-praline-16a4d6.netlify.app/*"
+  to = "https://klingenbergfood.dk/:splat"
+  status = 301
+  force = true
+
 # The security-header policy — technical plan §8.
 #
 # This is the policy the application used to attach in `next.config.ts`, minus everything
@@ -97,16 +118,13 @@
 # `upgrade-insecure-requests` is absent on purpose: the export references nothing over
 # plain HTTP, and locally the site runs over plain HTTP where the directive would break it.
 #
-# HSTS IS TEMPORARILY SHORT. `max-age=300` holds only for the custom-domain cutover, so
-# a mistake in HTTPS or a redirect found while the domain is being connected holds a
-# visitor's browser to HTTPS for five minutes, not two years. Once HTTPS, redirects and
-# headers are verified on the real domain, the long value, `max-age=63072000` (two years),
-# is restored.
+# HSTS is two years (`max-age=63072000`). It was held at five minutes for the
+# custom-domain cutover and restored once HTTPS and the `www` → apex redirect were
+# verified on the real domain.
 #
-# HSTS carries neither `includeSubDomains` nor `preload`, and that stays true after the
-# restore. Preloading is a one-way decision for the owner, and the domain's subdomains
-# cannot be spoken for here. Netlify serves HTTPS on both the `*.netlify.app` address and
-# any custom domain, so the header is honest.
+# HSTS carries neither `includeSubDomains` nor `preload`. Preloading is a one-way decision
+# for the owner, and the domain's subdomains cannot be spoken for here. Netlify serves
+# HTTPS on both the `*.netlify.app` address and the custom domain, so the header is honest.
 [[headers]]
   for = "/*"
   [headers.values]
@@ -117,4 +135,4 @@
     # Duplicates `frame-ancestors 'none'` for browsers that predate it. The two agree and
     # can only be changed together.
     X-Frame-Options = "DENY"
-    Strict-Transport-Security = "max-age=300"
+    Strict-Transport-Security = "max-age=63072000"
