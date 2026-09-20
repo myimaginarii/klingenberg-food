@@ -45,6 +45,10 @@ const DOMAIN_ALLOWED_FILES = new Set(
     'lib/config/site.ts',
     'scripts/check-source-policy.mjs',
     'scripts/serve-static.mjs',
+    // The host redirect from the `*.netlify.app` address to the restaurant's own domain.
+    // A Netlify host rule is matched on a literal URL and cannot read a variable, so the
+    // two addresses have to be written there. The root file only — not every `.toml`.
+    'netlify.toml',
     // The suite that runs this script over fixture trees has to name an outside address.
     'tests/unit/policy/source-policy.test.ts',
     'README.md',
