@@ -61,12 +61,26 @@ const PLACEMENTS = (() => {
     .map((placement) => ({ slot: slotOf(placement.image!.src), path: placement.path, image: placement.image! }))
 })()
 
+/**
+ * Each photograph once per page it is drawn on.
+ *
+ * One photograph may be selected by more than one frame on the same page — the Forside
+ * hero and its "Om os" excerpt can both draw `about-venue` — and that is a valid Pages
+ * CMS choice. The ladder check below asks a question about the slot on the page, not
+ * about the frame, so it runs once per (slot, path) and two frames sharing a photograph
+ * never become two tests with one title. `PLACEMENTS` itself stays whole: the
+ * description check reads every frame's own field.
+ */
+const DRAWN_SLOTS = [
+  ...new Map(PLACEMENTS.map(({ slot, path }) => [`${slot} ${path}`, { slot, path }])).values(),
+]
+
 /** Every `<img>` the site serves from its own rendered derivative folder. */
 function mediaImages(page: Page): Locator {
   return page.locator('img[src^="/media/"]')
 }
 test.describe('the rendered derivative ladder', () => {
-  for (const { slot, path } of PLACEMENTS) {
+  for (const { slot, path } of DRAWN_SLOTS) {
     test(`${slot} is drawn on ${path} from its own /media folder`, async ({ page }) => {
       await page.goto(path)
       await waitForPublicShell(page)
