@@ -11,8 +11,8 @@
 # unpublished. The application's generic sub-path support (`basePath` from `SITE_URL`)
 # remains, for compatibility and for testing a sub-path build locally.
 #
-# WHERE THE SITE THINKS IT LIVES. Nothing here tells the build an address (the one host
-# redirect below is routing, and the application never reads it). Netlify already
+# WHERE THE SITE THINKS IT LIVES. Nothing here tells the build an address (the host
+# redirects below are routing, and the application never reads them). Netlify already
 # publishes one for every deploy in its read-only variables, and `lib/config/site.ts`
 # reads them (§10d): `URL` on a production deploy — the `*.netlify.app` subdomain now, the
 # restaurant's own domain the moment one is attached, with no edit here — and
@@ -73,14 +73,25 @@
 # and no other, so a request that arrives on the custom domain never meets this rule and
 # there is no loop. `:splat` carries the path across, Netlify passes the query string
 # through on a 301 by itself, and `force` is what makes the rule win over the file that
-# exists at the same path. Deploy Previews and branch deploys answer on their own
-# `deploy-preview-N--…` hosts, which this host does not match, so they stay reachable.
+# exists at the same path.
+#
+# There are two such hosts and so two rules. Netlify also serves the production branch on
+# a permanent `main--…` branch subdomain, which is the same complete copy under one more
+# name. Each rule names its host in full, never by wildcard: Deploy Previews answer on
+# their own `deploy-preview-N--…` hosts, which neither rule matches, so they stay
+# reachable.
 #
 # This is the one place outside `lib/config/site.ts` that states the site's address —
 # a host rule cannot read a variable — and `scripts/check-source-policy.mjs` exempts this
 # file, and only this file, for it. The application still takes its origin from `URL`.
 [[redirects]]
   from = "https://guileless-praline-16a4d6.netlify.app/*"
+  to = "https://klingenbergfood.dk/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://main--guileless-praline-16a4d6.netlify.app/*"
   to = "https://klingenbergfood.dk/:splat"
   status = 301
   force = true

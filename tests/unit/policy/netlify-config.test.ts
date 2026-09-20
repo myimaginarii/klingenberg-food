@@ -6,13 +6,15 @@ import { describe, expect, it } from 'vitest'
 /**
  * `netlify.toml` — the two host-level facts a build cannot prove for itself.
  *
- * The host redirect must send the generated `*.netlify.app` address to the restaurant's
- * own domain and must not be able to match that domain, or every request would loop.
+ * The host redirects must send the two production `*.netlify.app` addresses — the generated
+ * subdomain and the production branch's `main--` subdomain — to the restaurant's own
+ * domain. They must not be able to match that domain, or every request would loop, and
+ * they must leave Deploy Preview hosts alone.
  * HSTS is the long value, and carries neither `includeSubDomains` nor `preload`.
  *
  * The repository has no TOML parser and this is not worth one: comments are dropped and
  * the few keys read here are matched line by line. No address is written in this file —
- * the rule is checked by shape, so the source policy has nothing to exempt here.
+ * the rules are checked by shape, so the source policy has nothing to exempt here.
  */
 
 const CONFIG = readFileSync(join(process.cwd(), 'netlify.toml'), 'utf8')
@@ -30,26 +32,65 @@ function redirects(): Record<string, string>[] {
     })
 }
 
+/** Netlify's host-level match: a full-URL `from` ending in `/*` is a prefix on that host. */
+function matches(rule: Record<string, string>, url: string): boolean {
+  return url.startsWith(rule.from!.replace(/\*$/, ''))
+}
+
 describe('netlify.toml', () => {
-  it('forwards the netlify.app host to the custom domain, path kept, without a loop', () => {
+  it('forwards both production netlify.app hosts to the custom domain, path kept, without a loop', () => {
     const rules = redirects()
-    expect(rules).toHaveLength(1)
+    expect(rules).toHaveLength(2)
 
-    const rule = rules[0]!
-    const from = new URL(rule.from!.replace(/\*$/, ''))
-    const to = new URL(rule.to!.replace(/:splat$/, ''))
+    for (const rule of rules) {
+      // One whole host per rule — no wildcard in the host, `*` only as the path.
+      expect(rule.from).toMatch(/^https:\/\/[a-z0-9.-]+\/\*$/)
+      expect(rule.to).toMatch(/^https:\/\/[a-z0-9.-]+\/:splat$/)
+      expect(new URL(rule.from!.replace(/\*$/, '')).hostname.endsWith('.netlify.app')).toBe(true)
 
-    expect(rule.from).toMatch(/^https:\/\/[^/]+\/\*$/)
-    expect(rule.to).toMatch(/^https:\/\/[^/]+\/:splat$/)
-    expect(from.hostname.endsWith('.netlify.app')).toBe(true)
+      expect(rule.status).toBe('301')
+      expect(rule.force).toBe('true')
+    }
 
-    // The loop guard: the rule matches one host, and the destination is not that host
-    // nor anything under `netlify.app`.
-    expect(to.hostname).not.toBe(from.hostname)
+    // The two hosts are the generated site subdomain and the production branch's
+    // permanent `main--` subdomain of the same site — and nothing else.
+    const hosts = rules.map((rule) => new URL(rule.from!.replace(/\*$/, '')).hostname)
+    const site = hosts.find((host) => !host.includes('--'))!
+    expect(site).toBeDefined()
+    expect([...hosts].sort()).toEqual([`main--${site}`, site].sort())
+
+    // One destination, and it is the custom domain: not a source host, not under
+    // `netlify.app`.
+    const destinations = new Set(rules.map((rule) => rule.to))
+    expect(destinations.size).toBe(1)
+    const to = new URL(rules[0]!.to!.replace(/:splat$/, ''))
+    expect(hosts).not.toContain(to.hostname)
     expect(to.hostname.endsWith('netlify.app')).toBe(false)
 
-    expect(rule.status).toBe('301')
-    expect(rule.force).toBe('true')
+    // The loop guard: neither rule can match a request on the destination host.
+    // And Deploy Previews and other branch deploys stay reachable on their own hosts.
+    // (Hosts are composed from the parsed rules; no address is written here.)
+    const untouchedHosts = [
+      to.hostname,
+      ['www', to.hostname].join('.'),
+      ['deploy-preview-1', site].join('--'),
+      ['deploy-preview-48', site].join('--'),
+      ['some-branch', site].join('--'),
+    ]
+    const untouched = untouchedHosts.flatMap((host) => {
+      const origin = new URL(to.origin)
+      origin.hostname = host
+      return [new URL('/', origin).href, new URL('/menu/?a=1', origin).href]
+    })
+    for (const rule of rules) {
+      expect(rule.from).not.toContain('deploy-preview')
+      for (const url of untouched) expect(matches(rule, url), `${rule.from} vs ${url}`).toBe(false)
+    }
+
+    // And each source host is matched by exactly one rule.
+    for (const host of hosts) {
+      expect(rules.filter((rule) => matches(rule, `https://${host}/menu/`))).toHaveLength(1)
+    }
   })
 
   it('sends two-year HSTS with neither includeSubDomains nor preload', () => {
