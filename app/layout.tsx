@@ -50,18 +50,15 @@ export const metadata: Metadata = {
   title: 'Klingenberg Food, Carl Nielsen Hallen',
   description: 'Klingenberg Food, Carl Nielsen Hallen.',
   /**
-   * THE SITE IS NOT LAUNCHED, and this is the single line that keeps it out of search
-   * results. It is inherited by every page, including the 404, and `app/robots.ts`
-   * deliberately allows the crawl so that a crawler can reach this tag and obey it.
-   * Removing it is the launch switch, and nothing else in the SEO work is waiting on it:
-   * §11's titles, canonical URLs, Open Graph and structured data are all in place and
-   * are set per route through `lib/seo/metadata.ts`.
+   * No `robots` here: the site is launched, and a page with no robots directive is
+   * indexable by default. The 404 keeps the `noindex` the framework writes into it.
+   * §11's titles, canonical URLs, Open Graph and structured data are set per route
+   * through `lib/seo/metadata.ts`.
    *
-   * No `alternates` here. Metadata is inherited, so a canonical URL stated in the root
-   * layout would be claimed by every page that did not override it — each page states
-   * its own.
+   * No `alternates` here either. Metadata is inherited, so a canonical URL stated in the
+   * root layout would be claimed by every page that did not override it — each page
+   * states its own.
    */
-  robots: { index: false, follow: false },
 }
 
 export const viewport: Viewport = {

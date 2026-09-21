@@ -257,7 +257,8 @@ the host's to send. [`netlify.toml`](netlify.toml) states them — CSP, `nosniff
 what each directive was measured against in the built output. GitHub Pages sends its own
 defaults and cannot be given a policy.
 
-The site is `noindex` until launch (`app/layout.tsx`).
+The site is launched: the six public pages are indexable, and the 404 keeps the
+`noindex` the framework writes into it (`tests/e2e/seo-metadata.spec.ts` asserts both).
 
 ## Running it
 
