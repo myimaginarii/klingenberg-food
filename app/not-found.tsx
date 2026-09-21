@@ -6,8 +6,9 @@ import { SiteShell } from '@/components/site/layout/SiteShell'
 /**
  * A title of its own, so a lost guest's browser tab does not read like the Forside.
  * No canonical URL and no Open Graph block: this address names no page, and it must not
- * claim to be one or hand a messaging app a card for it. The root layout's
- * `noindex, nofollow` still applies, and the framework adds its own `noindex` here too.
+ * claim to be one or hand a messaging app a card for it. The framework writes
+ * `noindex` into a not-found page by itself, and `tests/e2e/seo-metadata.spec.ts` holds
+ * it to that now that the root layout no longer states a robots rule.
  */
 export const metadata = unindexedMetadata(
   'Siden findes ikke',

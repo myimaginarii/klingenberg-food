@@ -13,9 +13,9 @@ import { ADDRESS_LINE, PRIMARY_TEL_HREF, PUBLIC_ROUTES, SCHEDULE } from './suppo
  * absolute only because Next resolves it against `metadataBase`, and the canonical URL
  * carries the deployment's own origin rather than a literal.
  *
- * THE SITE IS PRE-LAUNCH. `noindex, nofollow` on every page is asserted as a
- * requirement, not tolerated as a leftover: removing it is a deliberate launch step, and
- * this suite fails if it goes early.
+ * THE SITE IS LAUNCHED. The six public pages must carry no `noindex` and no `nofollow`,
+ * and the 404 must still carry `noindex`: both are asserted, so a robots rule that
+ * returns to the root layout, or a 404 that loses its own, fails here.
  */
 
 /** The absolute address of a site path, as the running deployment serves it. */
@@ -70,9 +70,19 @@ test.describe('the six public pages', () => {
       expect((await page.request.get(ogImage!)).status()).toBe(200)
     })
 
-    test(`${route.path} is still noindex before launch`, async ({ page }) => {
+    test(`${route.path} is indexable`, async ({ page }) => {
       await page.goto(route.path)
-      expect(await headContent(page, 'meta[name="robots"]')).toEqual(['noindex, nofollow'])
+
+      // No robots tag at all is the expected state; any tag that does appear (a
+      // crawler-specific `googlebot` one included) must not refuse the index or the links.
+      const directives = await headContent(page, 'meta[name="robots"], meta[name="googlebot"]')
+      const tokens = directives.flatMap((directive) =>
+        directive.split(',').map((token) => token.trim().toLowerCase()),
+      )
+      // `none` is the one-word spelling of `noindex, nofollow`.
+      for (const refusal of ['noindex', 'nofollow', 'none']) {
+        expect(tokens, route.path).not.toContain(refusal)
+      }
     })
   }
 
@@ -179,13 +189,13 @@ test.describe('sitemap and robots', () => {
     expect(locations.filter((location) => /\/nyheder\/.+/.test(location))).toEqual([])
   })
 
-  test('robots.txt allows the crawl the noindex tag depends on', async ({ request, baseURL }) => {
+  test('robots.txt allows the crawl', async ({ request, baseURL }) => {
     const response = await request.get('/robots.txt')
     expect(response.status()).toBe(200)
 
     const text = await response.text()
     expect(text).toContain('Allow: /')
-    // A Disallow would stop a crawler before it could read the page's own noindex.
+    // A Disallow would keep a search engine out of pages that are meant to be indexed.
     expect(text).not.toContain('Disallow')
     expect(text).toContain(`Sitemap: ${absolute(baseURL!, '/sitemap.xml')}`)
   })
@@ -197,9 +207,12 @@ test.describe('the 404', () => {
 
     expect(response?.status()).toBe(404)
     await expect(page).toHaveTitle('Siden findes ikke | Klingenberg Food')
-    expect((await headContent(page, 'meta[name="robots"]')).every((value) =>
-      value.includes('noindex'),
-    )).toBe(true)
+    // At least one robots tag, and every one of them refusing the index. The root layout
+    // no longer states a rule, so this is the framework's own tag — an empty list would
+    // pass `every` on its own, which is why the length is asserted first.
+    const robots = await headContent(page, 'meta[name="robots"]')
+    expect(robots.length).toBeGreaterThan(0)
+    expect(robots.every((value) => value.includes('noindex'))).toBe(true)
 
     // No canonical URL, no share card and no structured data for a page that is not one.
     await expect(page.locator('link[rel="canonical"]')).toHaveCount(0)

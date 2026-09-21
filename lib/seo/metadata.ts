@@ -24,10 +24,10 @@ import { canonicalUrl } from '@/lib/seo/sitemap'
  * `lib/config/site.ts` and nowhere else (§10d), so the Netlify address today and the
  * restaurant's own domain later are the same code.
  *
- * The site is `noindex, nofollow` until launch (`app/layout.tsx`), so none of this is
- * published to a search engine yet. Canonical URLs and Open Graph are correct
- * regardless: a crawler that is allowed in must read one address per page, and a link
- * pasted into a message renders its card whether or not the page is indexable.
+ * The site is launched and the six public pages are indexable: no page states a robots
+ * rule, and the 404 carries the framework's own `noindex`. A crawler reads one address
+ * per page from the canonical URL, and a link pasted into a message renders its card
+ * from the Open Graph block.
  */
 
 /** The business, as every title, `og:site_name` and the structured data name it. */

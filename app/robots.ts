@@ -5,16 +5,13 @@ import { absoluteUrl } from '@/lib/config/site'
 /**
  * `/robots.txt` — technical plan §11.
  *
- * **It allows everything, on purpose, and that is what keeps the pre-launch `noindex`
- * working.** A crawler obeys `<meta name="robots" content="noindex">` only if it is
- * allowed to fetch the page and read the tag; a `Disallow: /` would stop it at the door,
- * and an address a crawler is forbidden to read can still be listed from links pointing
- * at it — the one outcome the pre-launch state is trying to avoid. So the file permits
- * the crawl and the page's own tag refuses the index, which is the combination that
- * actually keeps the site out of results.
- *
- * The same file is correct at launch. Removing `noindex` from `app/layout.tsx` is the
- * whole of the switch; nothing here changes.
+ * **It allows everything, on purpose.** The site is launched, and a search engine has to
+ * be able to fetch the six public pages to index them. The same permission is what makes
+ * a page-level `noindex` work where one is wanted (the 404): a crawler obeys
+ * `<meta name="robots" content="noindex">` only if it is allowed to fetch the page and
+ * read the tag. A `Disallow` would stop it at the door, and an address a crawler is
+ * forbidden to read can still be listed from links pointing at it. So indexing is
+ * decided by each page's own tag, never here.
  *
  * NOTHING IS DISALLOWED, because there is nothing to disallow. §11 names `/admin` and
  * `/api`; both belonged to the retired administration, neither exists in the static
