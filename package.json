@@ -13,6 +13,7 @@
     "build": "next build",
     "postbuild": "node scripts/flatten-segment-cache.mjs",
     "images:static": "node scripts/images/build-static-derivatives.mjs",
+    "images:favicons": "node scripts/images/build-favicons.mjs",
     "start": "node scripts/serve-static.mjs",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",

@@ -201,6 +201,56 @@ test.describe('sitemap and robots', () => {
   })
 })
 
+test.describe('the favicon', () => {
+  /**
+   * Google Search shows a generic globe when it finds no raster icon it accepts: it
+   * wants a square of at least 48 px in a format it supports, and it falls back to
+   * `/favicon.ico`. The K logo ships as an ICO, a 192 px PNG and the original SVG, all
+   * declared by the framework from `app/` (scripts/images/build-favicons.mjs).
+   */
+  test('the Forside declares the ICO, the PNG and the SVG, and each one is served', async ({
+    page,
+  }) => {
+    await page.goto('/')
+    const icons = await page
+      .locator('link[rel="icon"]')
+      .evaluateAll((links) =>
+        links.map((link) => ({
+          href: link.getAttribute('href') ?? '',
+          type: link.getAttribute('type'),
+          sizes: link.getAttribute('sizes'),
+        })),
+      )
+
+    // Only the three file-convention icons: a hand-written `icons` entry or a second
+    // favicon would be a competing declaration.
+    expect(icons.map(({ type, sizes }) => ({ type, sizes }))).toEqual([
+      { type: 'image/x-icon', sizes: '48x48' },
+      { type: 'image/png', sizes: '192x192' },
+      { type: 'image/svg+xml', sizes: 'any' },
+    ])
+
+    for (const { href, type } of icons) {
+      const response = await page.request.get(new URL(href, page.url()).toString())
+      expect(response.status(), href).toBe(200)
+      expect(response.headers()['content-type'], href).toContain(type!)
+    }
+  })
+
+  test('/favicon.ico answers at the root of the site', async ({ request }) => {
+    const response = await request.get('/favicon.ico')
+    expect(response.status()).toBe(200)
+    expect(response.headers()['content-type']).toContain('image/x-icon')
+
+    // An ICO directory: reserved 0, type 1, then the 16, 32 and 48 px entries.
+    const body = await response.body()
+    expect(body.readUInt16LE(0)).toBe(0)
+    expect(body.readUInt16LE(2)).toBe(1)
+    const count = body.readUInt16LE(4)
+    expect([...Array(count).keys()].map((i) => body[6 + 16 * i])).toEqual([16, 32, 48])
+  })
+})
+
 test.describe('the 404', () => {
   test('answers 404, refuses indexing and claims no address', async ({ page, baseURL }) => {
     const response = await page.goto('/en-adresse-der-ikke-findes/')
